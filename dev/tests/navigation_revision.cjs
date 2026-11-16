@@ -17,6 +17,7 @@ async function run() {
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+    await page.emulateMedia({ reducedMotion: 'reduce' });
     const errors = [];
     page.on('pageerror', error => errors.push(error.message));
     await page.goto(`${baseURL}/#today`, { waitUntil: 'networkidle' });
@@ -39,12 +40,28 @@ async function run() {
     await capture(page, 'reader-390-dark.png');
     await page.emulateMedia({ colorScheme: 'light' });
 
+    await page.locator('.edition-finish a[href="#weekly"]').click();
+    await page.waitForFunction(() => location.hash === '#weekly' && document.querySelector('.reader-back')?.textContent.includes('Briefing'));
+    assert.match(await page.locator('.reader-back').textContent(), /Briefing/, 'Weekly Back names its immediate reader parent');
+    await page.locator('.reader-back').click();
+    await page.waitForFunction(() => location.hash.startsWith('#edition/daily/'));
+    assert.equal(await page.locator('.edition-finish a[href="#today"]').count(), 1, 'Daily reader has a clear return to Today');
+
     await page.locator('.reader-contents-open').click();
     assert.equal(await page.locator('.reader-contents-dialog').isVisible(), true);
     await page.locator('.reader-contents-dialog li button').nth(2).click();
     assert.equal(await page.evaluate(() => document.activeElement?.tagName), 'H2', 'Contents returns to the chosen story heading');
     const sectionId = await page.locator('.edition-section').nth(2).getAttribute('id');
     assert.equal(await page.evaluate(() => document.activeElement?.id), `heading-${sectionId}`, 'Contents focuses the chosen story heading');
+    await page.waitForFunction(id => {
+      const top = document.getElementById(id).getBoundingClientRect().top;
+      return top >= 54 && top < 120;
+    }, sectionId);
+    assert.equal(await page.evaluate(id => {
+      const section = document.getElementById(id);
+      const header = document.querySelector('.reader-sticky');
+      return section.getBoundingClientRect().top >= header.getBoundingClientRect().bottom - 2;
+    }, sectionId), true, 'Contents keeps the full section below the sticky header');
 
     const sourceLink = page.locator('.edition-section [data-source]').first();
     await page.locator('.section-sources summary').first().click();
@@ -86,6 +103,13 @@ async function run() {
     await page.waitForFunction(expected => Math.abs(scrollY - expected) < 5, storyScroll);
     await page.goBack();
     await page.locator('.today-page').waitFor();
+    await page.evaluate(() => window.scrollTo(0, 600));
+    const todayScroll = await page.evaluate(() => scrollY);
+    await page.locator('[data-nav="topics"]').click();
+    await page.locator('.topics-heading').waitFor();
+    await page.locator('[data-nav="today"]').click();
+    await page.locator('.today-page').waitFor();
+    await page.waitForFunction(expected => Math.abs(scrollY - expected) < 5, todayScroll);
 
     await page.locator('[data-nav="topics"]').click();
     await page.locator('.topics-heading').waitFor();
@@ -135,6 +159,8 @@ async function run() {
     await page.locator('.library-filters').waitFor();
     await page.locator('.library-filters button[aria-pressed="false"]').filter({ hasText: 'Saved' }).click();
     assert.ok(await page.locator('.library-list li').count() >= 2, 'Saved filter lists the saved edition and explanation');
+    await page.reload({ waitUntil: 'networkidle' });
+    assert.equal(await page.locator('.library-filters button[aria-pressed="true"]').textContent(), 'Saved', 'Library filter survives a refresh');
     assert.deepEqual(errors, []);
 
     const direct = await browser.newPage({ viewport: { width: 390, height: 844 } });

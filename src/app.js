@@ -18,7 +18,8 @@ let pendingPlayerReturnFocus = false;
 let pendingReturnHeadingFocus = false;
 let readingObserver = null;
 let pendingRouteContext = null;
-let libraryFilter = 'editions';
+const rootScroll = new Map();
+let libraryFilter = sessionStorage.getItem('briefing:library-filter') === 'saved' ? 'saved' : 'editions';
 
 const player = createPlayer(document.querySelector('#player-root'), (id, seconds, revisionId) => {
   state.progress[id] = { seconds, revisionId };
@@ -139,6 +140,8 @@ function rootForHash(hash = location.hash || '#today', context = history.state?.
 }
 function navigate(hash, context = null) {
   const currentHash = location.hash || '#today';
+  if (['#today', '#topics', '#library'].includes(currentHash)) rootScroll.set(currentHash, window.scrollY);
+  if (currentHash !== hash && ['#today', '#topics', '#library'].includes(hash)) pendingScrollRestore = rootScroll.get(hash) ?? 0;
   const currentState = history.state || {};
   history.replaceState({ ...currentState, viewState: { scrollY: window.scrollY, focus: focusToken() || context?.parentFocus || null } }, '', location.href);
   pendingRouteContext = context || { root: rootForHash(currentHash), parentHash: currentHash, parentScroll: window.scrollY, parentFocus: focusToken() };
@@ -264,7 +267,7 @@ function readerAlreadyShows(item) {
     return hash === `#explanation/${encodeURIComponent(item.id)}` || hash === `#topic/${encodeURIComponent(item.topic_id)}`;
   }
   if (hash === `#edition/${encodeURIComponent(item.kind)}/${encodeURIComponent(item.id)}`) return true;
-  return (item.kind === 'daily' && hash === '#today') || (item.kind === 'weekly' && hash === '#weekly');
+  return item.kind === 'weekly' && hash === '#weekly';
 }
 
 function trackReadingPlace(id, revisionId, selector) {
@@ -329,15 +332,17 @@ function renderEditionPage(kind, exactEdition = null) {
     return;
   }
   const routeContext = history.state?.routeContext || {};
-  const returnHash = routeContext.parentHash === '#library' ? '#library' : '#today';
+  const parentHash = routeContext.parentHash;
+  const returnHash = parentHash?.startsWith('#edition/') || parentHash === '#weekly' ? parentHash : parentHash === '#library' ? '#library' : '#today';
+  const returnLabel = returnHash === '#library' ? 'Library' : returnHash === '#today' ? 'Today' : 'Briefing';
   const readerHeader = node('div', null, 'reader-sticky');
-  const backButton = node('button', `‹ ${returnHash === '#library' ? 'Library' : 'Today'}`, 'reader-back');
+  const backButton = node('button', `‹ ${returnLabel}`, 'reader-back');
   if (transcriptDestination(edition.id, edition.kind)) backButton.classList.add('transcript-return');
   backButton.type = 'button';
   backButton.addEventListener('click', () => {
     if (transcriptDestination(edition.id, edition.kind)) { returnFromTranscript(); return; }
     if (routeContext.parentHash && history.length > 1) history.back();
-    else navigate(returnHash, { root: returnHash.slice(1), parentHash: null });
+    else navigate(returnHash, { root: rootForHash(returnHash), parentHash: null });
   });
   const contentsButton = node('button', 'Contents', 'reader-contents-open'); contentsButton.type = 'button';
   readerHeader.append(backButton, contentsButton);
@@ -599,8 +604,8 @@ function renderLibrary() {
     section.append(node('p', 'Saved on this device', 'library-device-note'));
   };
   const readingMinutesFor = item => Math.max(1, Math.ceil(visibleSections(item).reduce((count, part) => count + part.body.split(/\s+/).length, 0) / 225));
-  editionsTab.addEventListener('click', () => { libraryFilter = 'editions'; editionsTab.setAttribute('aria-pressed', 'true'); savedTab.setAttribute('aria-pressed', 'false'); renderRows(); });
-  savedTab.addEventListener('click', () => { libraryFilter = 'saved'; editionsTab.setAttribute('aria-pressed', 'false'); savedTab.setAttribute('aria-pressed', 'true'); renderRows(); });
+  editionsTab.addEventListener('click', () => { libraryFilter = 'editions'; sessionStorage.setItem('briefing:library-filter', libraryFilter); editionsTab.setAttribute('aria-pressed', 'true'); savedTab.setAttribute('aria-pressed', 'false'); renderRows(); });
+  savedTab.addEventListener('click', () => { libraryFilter = 'saved'; sessionStorage.setItem('briefing:library-filter', libraryFilter); editionsTab.setAttribute('aria-pressed', 'false'); savedTab.setAttribute('aria-pressed', 'true'); renderRows(); });
   renderRows();
 }
 

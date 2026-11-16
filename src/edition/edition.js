@@ -84,7 +84,7 @@ export function renderEdition(container, edition, topics, actions = {}) {
         ${(section.source_ids || []).length ? `<details class="section-sources"><summary>Sources (${section.source_ids.length})</summary><ul>${section.source_ids.map(id => `<li><button type="button" data-source="${esc(id)}"><strong>${esc(sourceById.get(id)?.publisher || 'Source')}</strong><span>${esc(sourceById.get(id)?.title || id)}</span></button></li>`).join('')}</ul></details>` : ''}
       </section>`;
     }).join('')}</div>
-    <footer class="edition-finish"><h2>End of ${weekly ? 'this week’s recap' : 'today’s briefing'}</h2><div class="button-row"><button type="button" data-save-edition>${actions.isSaved?.(edition.id) ? 'Saved edition' : 'Save edition'}</button><a class="button-link" href="${weekly ? '#today' : '#weekly'}">${weekly ? 'Back to Today' : 'Read the weekly recap'}</a></div><p class="edition-end-note">This sample is fictional and does not report current events.</p></footer>
+    <footer class="edition-finish"><h2>End of ${weekly ? 'this week’s recap' : 'today’s briefing'}</h2><div class="button-row"><a class="button-link" href="#today">Back to Today</a><button type="button" data-save-edition>${actions.isSaved?.(edition.id) ? 'Saved edition' : 'Save edition'}</button>${weekly ? '' : '<a class="button-link" href="#weekly">Read the weekly recap</a>'}</div><p class="edition-end-note">This sample is fictional and does not report current events.</p></footer>
   </article>`;
 
   if (audioReady) container.querySelector('.edition-play')?.addEventListener('click', () => actions.play?.({
