@@ -375,97 +375,30 @@ private struct FocusedStoryReader: View {
         guard let section else { return nil }
         return edition.materialCorrection.flatMap { $0.sectionIDs.contains(section.id) ? $0 : nil }
     }
+    private var topicLabel: String {
+        guard let topicID = section?.topicIDs?.first,
+              let topic = content.topics.first(where: { $0.id == topicID }) else { return "Briefing" }
+        return topic.label
+    }
+    private var sourceReferences: [Source] {
+        guard let section else { return [] }
+        return (section.sourceIDs ?? []).compactMap { sourceID in
+            content.sources.first(where: { $0.id == sourceID })
+        }
+    }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
-                HStack(spacing: 8) {
-                    Text(progressTitle)
-                        .font(.subheadline.weight(.semibold)).foregroundStyle(ReaderColor.secondary)
-                    if dynamicTypeSize < .xxxLarge {
-                        HStack(spacing: 5) {
-                            ForEach(sections.indices, id: \.self) { dot in
-                                Circle().fill(dot <= index ? ReaderColor.action : ReaderColor.secondary.opacity(0.3))
-                                    .frame(width: 6, height: 6).accessibilityHidden(true)
-                            }
-                        }.accessibilityHidden(true)
-                    }
-                }
-                .accessibilityElement(children: .ignore)
-                .accessibilityLabel("Story \(index + 1) of \(sections.count)")
-                Text(section?.topicIDs?.compactMap { id in content.topics.first(where: { $0.id == id })?.label }.joined(separator: " · ") ?? "Briefing")
-                    .font(.caption.weight(.semibold)).tracking(0.8).foregroundStyle(ReaderColor.secondary)
-                Text(section?.heading ?? edition.title)
-                    .font(.system(size: headlineSize, weight: .semibold, design: .serif))
-                    .fixedSize(horizontal: false, vertical: true).accessibilityHeading(.h1)
-                if let correction {
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text(correctionLabel(correction)).font(.caption.weight(.bold)).tracking(0.7).foregroundStyle(ReaderColor.correction)
-                        Text(correction.whatChanged).font(.subheadline).fixedSize(horizontal: false, vertical: true)
-                        Text(correction.whyItMatters).font(.subheadline).foregroundStyle(ReaderColor.secondary)
-                        Text("Audio paused: the corrected edition recording is unavailable until it is re-recorded.")
-                            .font(.footnote).foregroundStyle(ReaderColor.secondary)
-                    }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
-                        .background(ReaderColor.correction.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
-                }
-                if let track {
-                    Button("Listen from here") { onPlay(track) }
-                        .font(.headline).frame(maxWidth: .infinity, minHeight: 48)
-                        .buttonStyle(.borderedProminent).tint(ReaderColor.primaryAction)
-                        .disabled(audioState.status == .superseded || (audioState.track?.contentIdentity == track.contentIdentity && audioState.status == .loading))
-                }
-                Text("What happened").font(.headline).accessibilityHeading(.h2)
-                Text(storyText.whatHappened)
-                    .font(.system(.body, design: .serif)).lineSpacing(7).fixedSize(horizontal: false, vertical: true)
-                if let whyItMatters = storyText.whyItMatters {
-                    Text("Why it matters").font(.headline).accessibilityHeading(.h2)
-                    Text(whyItMatters)
-                        .font(.system(.body, design: .serif)).lineSpacing(7).fixedSize(horizontal: false, vertical: true)
-                }
-                Text("Things to consider").font(.headline).accessibilityHeading(.h2)
-                Text("This report is for general information and does not offer personal financial or health advice.")
-                    .font(.footnote).foregroundStyle(ReaderColor.secondary)
-                if let section {
-                    let refs = (section.sourceIDs ?? []).compactMap { id in content.sources.first(where: { $0.id == id }) }
-                    if !refs.isEmpty {
-                        Text("Sources").font(.headline).accessibilityHeading(.h2)
-                        ForEach(Array(refs.enumerated()), id: \.element.id) { i, source in
-                            Button { onOpenSource?(source) } label: {
-                                HStack(alignment: .firstTextBaseline, spacing: 10) {
-                                    Text("\(i + 1)").font(.caption.monospacedDigit()).foregroundStyle(ReaderColor.secondary)
-                                    VStack(alignment: .leading, spacing: 3) {
-                                        Text(source.publisher ?? "Source").font(.caption).foregroundStyle(ReaderColor.secondary)
-                                        Text(source.title).font(.subheadline.weight(.medium)).foregroundStyle(ReaderColor.action)
-                                    }
-                                    Spacer()
-                                }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
-                            }.buttonStyle(.plain)
-                        }
-                    }
-                    if let topicID = section.topicIDs?.first,
-                       let topic = content.topics.first(where: { $0.id == topicID }),
-                       content.currentDeepDive(forTopic: topic.id) != nil {
-                        Button { onExploreTopic?(topic) } label: {
-                            VStack(alignment: .leading, spacing: 5) {
-                                Text("UNDERSTAND THIS BETTER").font(.caption.weight(.semibold)).tracking(0.7).foregroundStyle(ReaderColor.secondary)
-                                Text(content.currentDeepDive(forTopic: topic.id)?.title ?? topic.label).font(.subheadline.weight(.semibold))
-                            }.frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
-                        }.buttonStyle(.plain)
-                    }
-                }
-                if index + 1 < sections.count, let next = sections[safe: index + 1] {
-                    Button { onOpenNext?(next.id) } label: {
-                        VStack(alignment: .leading, spacing: 5) {
-                            Text("Next story").font(.caption.weight(.semibold)).foregroundStyle(ReaderColor.secondary)
-                            Text(next.heading).font(.system(size: nextTitleSize, weight: .semibold, design: .serif))
-                        }.frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-                    }.buttonStyle(.plain)
-                } else {
-                    Text("You're up to date").font(.headline)
-                    Button("Mark finished") {
-                        UserDefaults.standard.set(true, forKey: ReaderProgressKey.finished(itemID: edition.id, revisionID: edition.revisionID ?? "unversioned"))
-                    }.frame(minHeight: 44, alignment: .leading)
-                }
+                progressHeader
+                Text(topicLabel).font(.caption.weight(.semibold)).tracking(0.8).foregroundStyle(ReaderColor.secondary)
+                storyHeadline
+                correctionNotice
+                listenButton
+                storyTextView
+                sourceList
+                explanationLink
+                nextStoryControl
             }
             .padding(.horizontal, 20).padding(.vertical, 24)
             .frame(maxWidth: 720, alignment: .leading).frame(maxWidth: .infinity)
@@ -475,6 +408,146 @@ private struct FocusedStoryReader: View {
         .toolbar { ToolbarItem(placement: .topBarTrailing) {
             LocalSaveButton(itemID: edition.id + "." + (section?.id ?? "story"), revision: edition.revisionID ?? edition.id, accessibilityTitle: "Save story")
         }}
+    }
+
+    private var progressHeader: some View {
+        HStack(spacing: 8) {
+            Text(progressTitle).font(.subheadline.weight(.semibold)).foregroundStyle(ReaderColor.secondary)
+            if dynamicTypeSize < .xxxLarge {
+                HStack(spacing: 5) {
+                    ForEach(sections.indices, id: \.self) { dot in
+                        Circle()
+                            .fill(dot <= index ? ReaderColor.action : ReaderColor.secondary.opacity(0.3))
+                            .frame(width: 6, height: 6)
+                            .accessibilityHidden(true)
+                    }
+                }
+                .accessibilityHidden(true)
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Story \(index + 1) of \(sections.count)")
+    }
+
+    private var storyHeadline: some View {
+        Text(section?.heading ?? edition.title)
+            .font(.system(size: headlineSize, weight: .semibold, design: .serif))
+            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityHeading(.h1)
+    }
+
+    @ViewBuilder
+    private var correctionNotice: some View {
+        if let correction {
+            VStack(alignment: .leading, spacing: 8) {
+                Text(correctionLabel(correction))
+                    .font(.caption.weight(.bold)).tracking(0.7).foregroundStyle(ReaderColor.correction)
+                Text(correction.whatChanged).font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                Text(correction.whyItMatters).font(.subheadline).foregroundStyle(ReaderColor.secondary)
+                Text("Audio paused: the corrected edition recording is unavailable until it is re-recorded.")
+                    .font(.footnote).foregroundStyle(ReaderColor.secondary)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(ReaderColor.correction.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
+        }
+    }
+
+    @ViewBuilder
+    private var listenButton: some View {
+        if let track {
+            Button("Listen from here") { onPlay(track) }
+                .font(.headline).frame(maxWidth: .infinity, minHeight: 48)
+                .buttonStyle(.borderedProminent).tint(ReaderColor.primaryAction)
+                .disabled(audioState.status == .superseded || isLoadingCurrentTrack(track))
+        }
+    }
+
+    private var storyTextView: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text("What happened").font(.headline).accessibilityHeading(.h2)
+            Text(storyText.whatHappened)
+                .font(.system(.body, design: .serif)).lineSpacing(7).fixedSize(horizontal: false, vertical: true)
+            if let whyItMatters = storyText.whyItMatters {
+                Text("Why it matters").font(.headline).accessibilityHeading(.h2)
+                Text(whyItMatters)
+                    .font(.system(.body, design: .serif)).lineSpacing(7).fixedSize(horizontal: false, vertical: true)
+            }
+            Text("Things to consider").font(.headline).accessibilityHeading(.h2)
+            Text("This report is for general information and does not offer personal financial or health advice.")
+                .font(.footnote).foregroundStyle(ReaderColor.secondary)
+        }
+    }
+
+    @ViewBuilder
+    private var sourceList: some View {
+        if !sourceReferences.isEmpty {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Sources").font(.headline).accessibilityHeading(.h2)
+                ForEach(sourceReferences.indices, id: \.self) { index in
+                    sourceButton(sourceReferences[index], number: index + 1)
+                }
+            }
+        }
+    }
+
+    private func sourceButton(_ source: Source, number: Int) -> some View {
+        Button { onOpenSource?(source) } label: {
+            HStack(alignment: .firstTextBaseline, spacing: 10) {
+                Text("\(number)").font(.caption.monospacedDigit()).foregroundStyle(ReaderColor.secondary)
+                VStack(alignment: .leading, spacing: 3) {
+                    Text(source.publisher ?? "Source").font(.caption).foregroundStyle(ReaderColor.secondary)
+                    Text(source.title).font(.subheadline.weight(.medium)).foregroundStyle(ReaderColor.action)
+                }
+                Spacer()
+            }
+            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+        }
+        .buttonStyle(.plain)
+    }
+
+    @ViewBuilder
+    private var explanationLink: some View {
+        if let topicID = section?.topicIDs?.first,
+           let topic = content.topics.first(where: { $0.id == topicID }),
+           let deepDive = content.currentDeepDive(forTopic: topic.id) {
+            Button { onExploreTopic?(topic) } label: {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("UNDERSTAND THIS BETTER")
+                        .font(.caption.weight(.semibold)).tracking(0.7).foregroundStyle(ReaderColor.secondary)
+                    Text(deepDive.title).font(.subheadline.weight(.semibold))
+                }
+                .frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    @ViewBuilder
+    private var nextStoryControl: some View {
+        if index + 1 < sections.count, let next = sections[safe: index + 1] {
+            Button { onOpenNext?(next.id) } label: {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text("Next story").font(.caption.weight(.semibold)).foregroundStyle(ReaderColor.secondary)
+                    Text(next.heading).font(.system(size: nextTitleSize, weight: .semibold, design: .serif))
+                }
+                .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+            }
+            .buttonStyle(.plain)
+        } else {
+            VStack(alignment: .leading, spacing: 8) {
+                Text("You're up to date").font(.headline)
+                Button("Mark finished") {
+                    UserDefaults.standard.set(true, forKey: ReaderProgressKey.finished(
+                        itemID: edition.id, revisionID: edition.revisionID ?? "unversioned"))
+                }
+                .frame(minHeight: 44, alignment: .leading)
+            }
+        }
+    }
+
+    private func isLoadingCurrentTrack(_ track: AudioTrack) -> Bool {
+        audioState.track?.contentIdentity == track.contentIdentity && audioState.status == .loading
     }
 
     private func correctionLabel(_ correction: EditionCorrection) -> String {
