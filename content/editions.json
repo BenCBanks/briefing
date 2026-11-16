@@ -1,0 +1,203 @@
+{
+  "editions": [
+    {
+      "id": "daily-sample-001",
+      "kind": "daily",
+      "local_date": "2026-11-15",
+      "revision_id": "sample-r4",
+      "title": "The choices behind the tap",
+      "as_of": "Illustrative scenario, 15 November 2026",
+      "duration_minutes": 11,
+      "summary": "Five illustrative systems raise one question: can people understand and correct the choices made for them?",
+      "sections": [
+        {
+          "id": "daily-payments-001",
+          "heading": "A faster checkout still needs a way back",
+          "body": "In a fictional pilot, a neighborhood market offers customers a one-tap checkout that remembers their preferred payment method. The store’s product team celebrates shorter queues, while a few shoppers ask a less visible question: what happens when the remembered choice is wrong? One customer wants to use a different card for a shared household purchase. Another sees two pending authorizations after a brief connection failure. The scenario is invented, but the design tension is familiar: convenience can remove steps that people used to rely on for checking themselves.\n\nA safer design would make the active payment method visible before confirmation, show an unmistakable final amount, and give a clear receipt afterward. It would explain whether a pending line is a hold or a completed charge, then provide a route to dispute duplication without forcing a customer to guess which company owns the problem. These details matter because a payment travels through several parties: a retailer, a payment processor, a card network and a bank may each hold part of the record.\n\nThe useful test is not simply whether a transaction finishes quickly. It is whether someone can understand and reverse a mistake without losing hours to a chain of referrals. In this fictional example the market adds a short confirmation screen and a single help page listing the merchant and payment provider contacts. The extra moment does not eliminate errors, but it gives the customer a checkpoint and a map. That is a modest trade: a little friction at the point of commitment for less confusion afterward.\n\nA useful review asks whether the customer can explain the total commitment before confirming and recognize it later on a statement. Teams can test that by interrupting the connection at different moments and checking whether the status is clear. They can also track duplicate attempts and avoidable support requests, alongside completed checkouts. The goal is not friction for its own sake; it is to place clear information where it helps someone decide or recover. A useful operational check is to compare what the customer sees with the transaction record and the support team's guidance. If those disagree, the service should resolve the discrepancy and explain the result in plain language. That helps a customer act without having to diagnose which payment partner owns each step.",
+          "topic_ids": [
+            "payments"
+          ],
+          "source_ids": [
+            "fed-payments"
+          ]
+        },
+        {
+          "id": "daily-banking-001",
+          "heading": "Resilience is practiced before the outage",
+          "body": "Imagine a fictional regional bank running a rehearsal for a day when its main customer app cannot connect. Staff discover that the backup service works, but the instructions for branch teams are out of date. Some routine transfers can be handled by another channel; a small number of unusual requests need a specialist who is not on the rehearsal roster. No actual bank or outage is being described. The exercise illustrates that a backup system is only one piece of continuity. People need to know when to switch to it and what customers can still expect.\n\nA useful resilience plan names essential services, sets priorities for restoring them, and gives staff a shared view of what is known. It also explains limits honestly. If payments are delayed, a clear status message and a realistic next update are more helpful than a confident estimate with no basis. A bank can practice these decisions with tabletop exercises, technical failover tests and plain-language scripts for customer support. Each test should record what failed, who owns the fix and when the next rehearsal will happen.\n\nThe interesting change in this hypothetical story is not a new server. It is the team deciding that branch and contact-center workers must be included in technical drills. That closes a gap between system recovery and service recovery. A customer experiences the whole institution, not only its infrastructure. The practical implication is straightforward: resilience should be measured by whether essential tasks remain understandable and reachable during disruption, as well as by how quickly the software comes back.\n\nA manager can turn this into a practical rehearsal: choose an essential task, make one normal channel unavailable, and ask staff and customers what happens next. Record who owns each decision, which instructions conflict and when the next update is due. For a customer, it is useful to know official contact routes in advance and to be cautious of unexpected messages during disruption. A fallback should be reachable without depending on the channel that has failed. A rehearsal can also test whether customers can reach a person when the digital route is unavailable. Teams should identify which tasks need an alternate path, how staff verify a request safely, and where unresolved cases go. Reviewing these steps after each exercise makes the plan more than a technical recovery checklist.",
+          "topic_ids": [
+            "banking"
+          ],
+          "source_ids": []
+        },
+        {
+          "id": "daily-digital-001",
+          "heading": "Proof of identity should reveal only what is needed",
+          "body": "In another invented scenario, a library introduces an online age check for borrowing a restricted item. The first design asks a reader to upload a full identity document and stores a copy. A second design lets a trusted verifier confirm only that the person meets the age threshold, returning a yes-or-no result and retaining little else. The library, verifier and reader in this example are fictional. The comparison shows a general privacy principle: a service should request the smallest useful piece of information and explain what happens to it.\n\nMinimizing data can reduce the consequences of a breach and make the process easier to understand. It does not solve every problem. A person whose document is missing, whose name has changed or whose camera cannot capture a clear image still needs another route. A service must also protect against someone using another person’s credentials. That means combining proportionate checks with accessible recovery, careful staff training and a way to challenge a mistaken rejection.\n\nThe fictional library therefore tests the process with readers who use assistive technology and with people who cannot complete the digital check. It keeps a staffed option and tells people why that option exists. This is a more meaningful measure than counting how many identity checks are automated. Good digital identity is not a single universal credential that unlocks every service; it is a controlled exchange where the person can see what is being proven, to whom, for how long and how to correct a record. The design question to carry forward is simple: could the service complete its task without collecting this extra detail?\n\nA team can document the purpose of a check, the minimum evidence it needs, who receives the result and how long it is kept. It should test alternate routes with people who cannot use the standard camera or document flow, and provide a way to correct a mistaken rejection. For the person using the service, the practical question is whether the requested detail is needed for this decision or is being collected simply because it is available. Accessibility should be tested as part of the verification flow, not added after launch. A service can check whether instructions work with assistive technology, whether an alternative route is discoverable, and whether the person can understand why a check failed. Those are practical measures of whether the process works for more than its easiest case.",
+          "topic_ids": [
+            "digital"
+          ],
+          "source_ids": [
+            "nist-digital-identity"
+          ]
+        },
+        {
+          "id": "daily-insurance-001",
+          "heading": "A renewal is a chance to check the assumptions",
+          "body": "Consider a made-up household receiving an annual insurance renewal. The premium has changed, and the online form offers a prominent button to accept. A quieter link lets the household review the details used to calculate the cover: who lives there, how the property is used and which belongings are included. The company and customer are fictional. The example points to a common feature of insurance: a policy is shaped by information supplied at one moment, while life continues to change.\n\nA useful renewal should make material changes visible, explain what is covered and excluded in language people can compare, and state any deadlines for changes. It should not imply that a familiar policy automatically fits a different situation. Customers also need a practical way to ask questions before agreeing, especially where a short answer on a web form could change a future claim. For the provider, clear prompts can reduce avoidable misunderstandings; for the customer, keeping a copy of the declarations and the policy wording makes later conversations easier.\n\nIn the fictional case, the household notices that a recent home-office change was not reflected in its details. The point is not that every small change requires a new policy. The point is to ask the insurer which changes matter and get the answer in writing. Insurance works best when both sides understand the assumptions behind it. A lower price is not a useful comparison if the cover or excess has changed in a way the buyer did not notice. Reviewing the assumptions is a small task that can prevent a much harder conversation later.\n\nA renewal review can be a short checklist: compare the current declarations with the situation today, locate exclusions and limits, note the response deadline, and ask about any unclear change. Save the answer with the policy so both sides have a shared reference later. For service teams, making those changes easy to find is part of a reliable renewal, not just a presentation choice. A customer should have time to clarify before accepting. A useful comparison also records the effective dates and any response deadline, so the customer knows when a change would apply. If a representative answers a question, keeping the date and the exact question alongside the response can make follow-up easier. The point is a shared record, not a guess about the policy's interpretation.",
+          "topic_ids": [
+            "insurance"
+          ],
+          "source_ids": [
+            "naic-insurance-basics"
+          ]
+        },
+        {
+          "id": "daily-sports-001",
+          "heading": "Sports is quiet today: what makes a plan adaptable?",
+          "body": "Sports is quiet in this illustrative edition: no meaningful development was selected for coverage, so no match or result has been added. This disclosure keeps the topic visible without implying a current update. Its deeper explanation remains available separately; today's quiet note does not replace it.",
+          "topic_ids": [
+            "sports"
+          ],
+          "source_ids": []
+        }
+      ],
+      "coverage": [
+        {
+          "topic_id": "payments",
+          "state": "context",
+          "reason": "One hypothetical checkout design"
+        },
+        {
+          "topic_id": "banking",
+          "state": "context",
+          "reason": "A fictional continuity exercise"
+        },
+        {
+          "topic_id": "digital",
+          "state": "context",
+          "reason": "An evergreen privacy question"
+        },
+        {
+          "topic_id": "insurance",
+          "state": "context",
+          "reason": "An evergreen renewal check"
+        },
+        {
+          "topic_id": "sports",
+          "state": "quiet",
+          "reason": "No sports item selected; evergreen question available"
+        }
+      ],
+      "script_hash": "b30843c970c77d59a7acf0327449cfa4fc1a3cd8167eafb105a79e5c4ce1cae8",
+      "audio": {
+        "state": "pending",
+        "revision_id": "sample-r4",
+        "script_hash": "b30843c970c77d59a7acf0327449cfa4fc1a3cd8167eafb105a79e5c4ce1cae8"
+      }
+    },
+    {
+      "id": "weekly-sample-001",
+      "kind": "weekly",
+      "week_start": "2026-11-09",
+      "revision_id": "sample-week-r4",
+      "title": "Five systems, one useful question",
+      "as_of": "Illustrative weekly synthesis",
+      "duration_minutes": 10,
+      "summary": "A fictional weekly synthesis connecting clarity, recovery, privacy and human judgment across five systems.",
+      "sections": [
+        {
+          "id": "weekly-payments-001",
+          "heading": "Make the commitment visible",
+          "body": "The made-up checkout scenario showed that speed alone is an incomplete measure. A clear confirmation tells the customer which payment method will be used and what amount is being committed. A useful receipt then gives them a way to recognize the transaction later. If a connection fails and the screen leaves the result uncertain, the service should distinguish a pending authorization from a completed charge and explain who can investigate it.\n\nThe broader lesson is that a correction path belongs to the original design, not as an afterthought hidden behind several support pages. A customer may not know which intermediary handled a particular step. The provider can reduce that uncertainty by naming the merchant contact and payment provider clearly, and by giving a concise route for a duplicate or mistaken transaction. In the invented case, a small confirmation pause buys a checkpoint before the commitment and a clearer map afterward.\n\nThis tradeoff is not simply convenience versus safety. It asks where a moment of attention will prevent more work later. A fast flow that makes mistakes difficult to identify transfers effort to the person least able to see the system’s internal records. A slightly slower confirmation may make the whole service feel more reliable because it tells the customer what is happening and how to respond when the result differs from what they intended.\n\nFor teams, the follow-up is to test interrupted payments, review support routes and compare completion with duplicate attempts and complaints. These measures show whether the process remains understandable after the ideal path ends. A service team can test whether a receipt and help route still make sense when the transaction is delayed or disputed. The repair should be visible to the customer, not only to staff looking at internal records.",
+          "topic_ids": [
+            "payments"
+          ],
+          "source_ids": [
+            "fed-payments"
+          ]
+        },
+        {
+          "id": "weekly-banking-001",
+          "heading": "Practice the fallback",
+          "body": "The fictional bank rehearsal connected technical recovery with the work of branch and contact-center staff. A backup service matters when people know when to switch to it, what it supports and what remains unavailable. The rehearsal revealed that functioning infrastructure does not automatically produce a functioning customer experience: instructions can be old, responsibilities unclear, and unusual requests left without an owner.\n\nContinuity practice should therefore include the people who explain delays and help customers complete essential tasks. A useful plan distinguishes what the institution knows from what it is still investigating. If an update time is uncertain, saying when the next update will arrive is more credible than making an unsupported promise about full recovery. Exercises can record the service priority, the decision owner and the gap that needs fixing, then revisit those findings in a later rehearsal.\n\nThe connection to payments is direct: both examples depend on making status legible. A transaction question needs a receipt and an accountable contact; a disruption needs an honest status and a reachable fallback. The details differ, but recovery depends on reducing guesswork. A bank should ask not only whether the app can fail over, but whether a customer can still find the next safe step when it does.\n\nA rehearsal is complete only when gaps have owners and are checked again. That makes continuity a repeatable service practice rather than a document that is opened only after a problem. It is useful to test the human handoff as well as the technical switch: who answers, what they can resolve and where a difficult case goes.",
+          "topic_ids": [
+            "banking"
+          ],
+          "source_ids": []
+        },
+        {
+          "id": "weekly-digital-001",
+          "heading": "Ask for less, explain more",
+          "body": "The invented identity check showed how a service can try to prove a narrow fact without keeping an entire identity document by default. Limiting collection can reduce unnecessary exposure and make the exchange easier to explain. It also changes what a customer can inspect: the person should know what fact was verified, which service received the result and what record is retained.\n\nData minimization is not a shortcut around good recovery design. A person may have a name change, an inaccessible camera, a missing document or a record that does not match. They need an alternative route and a way to challenge a wrong result. The service must still guard against impersonation, so the useful question is proportionality: what evidence is sufficient for this task, and what extra information would add little protection?\n\nThat question connects digital identity with insurance and payments. Each asks what information is needed to make a decision and how the person can correct it. More data can seem like more certainty, but it also raises the cost of keeping it safe and the difficulty of correcting stale records. A well-designed exchange makes both its purpose and its limits visible, so the person can make an informed choice rather than handing over details without knowing what they will be used for.\n\nA concise review can ask what is collected, why it is needed, where it goes, when it is deleted and how a person can appeal. If those answers cannot be stated plainly, the process is not yet easy to trust. Testing should include the failure path, so a person can learn what happened and reach a correction route without submitting the same sensitive material repeatedly.",
+          "topic_ids": [
+            "digital"
+          ],
+          "source_ids": [
+            "nist-digital-identity"
+          ]
+        },
+        {
+          "id": "weekly-insurance-001",
+          "heading": "Review the assumptions",
+          "body": "The fictional renewal was a reminder that an agreement depends on details supplied at a particular time. A household’s circumstances may change, and policy language can include exclusions or limits that are easy to overlook when a renewal button is prominent. A fair comparison requires seeing what changed in the price, cover, excess and assumptions—not just the headline premium.\n\nThe practical response in the sample was modest: review the declarations, ask which changes matter and keep the answer. That does not mean every household change automatically alters a policy. It means the customer should be able to find out before relying on an assumption that may no longer apply. For a provider, clear prompts can prevent avoidable misunderstandings; for a customer, a saved copy gives both sides a shared reference if a later question arises.\n\nThis is another version of the same recovery principle. A person cannot correct an assumption they cannot see. The policy is not a simple yes-or-no result, just as a payment receipt is not a full explanation of every intermediary. But plain statements about what is covered, what is not, and where to ask for clarification give people a better starting point. The important comparison is between the protection actually offered and the protection the customer thinks they are buying.\n\nThe review should leave enough time for questions and a durable record of the response. That small step can help prevent later disagreement about what the customer disclosed or what the provider explained. A dated written response gives the customer and provider a useful point of reference if the same assumption comes up later.",
+          "topic_ids": [
+            "insurance"
+          ],
+          "source_ids": [
+            "naic-insurance-basics"
+          ]
+        },
+        {
+          "id": "weekly-sports-001",
+          "heading": "Keep judgment with the person",
+          "body": "Sports remained quiet in the daily sample, with no match or result invented to fill the space. The weekly recap carries that coverage state forward: no fresh sports development was selected. A topic can be accounted for without claiming there was news, and its separate deep dive remains available.",
+          "topic_ids": [
+            "sports"
+          ],
+          "source_ids": []
+        },
+        {
+          "id": "weekly-close-001",
+          "heading": "The practical test",
+          "body": "The examples suggest a practical three-part review. Can a person see the decision, status or assumption that matters? Can they challenge a mistaken charge, identity result, policy detail or recommendation? If the usual process fails, can they find a real next step and know when they will hear more?\n\nThese questions are not a universal scorecard. They do not erase the differences between a transaction, bank service, privacy choice, contract and physical activity. They make those differences easier to examine. Some problems need a technical fix; others need clearer language, staff training or a professional conversation. Identify which responsibility belongs to the service and which decision should remain with the person.\n\nThis fictional week offers no breaking news or design that fits every situation. Its synthesis is smaller: convenience and automation help when they leave people informed and able to change course. When evaluating a product or policy, ask what happens when the expected path breaks. That answer can reveal more than the smoothest demonstration.\n\nA simple exercise is to walk through one ordinary decision and one failure case for each service. Write down what the person sees, who can help, and what evidence would show that the repair worked. Across the examples, the person needs a clear view of what is happening and a workable way to respond. The payment flow should identify a commitment and correction route. Continuity planning should leave customers and staff with a safe next step. Identity checks should use evidence proportionate to the decision, with an accessible appeal. Renewals should make assumptions and deadlines visible. Each case needs different safeguards, but the shared test is whether someone can understand the process before a problem and get meaningful help after one. For a team, that means testing both the expected path and a plausible failure, assigning an owner to each gap, and returning to see whether the repair worked.",
+          "topic_ids": [],
+          "source_ids": []
+        }
+      ],
+      "coverage": [
+        {
+          "topic_id": "payments",
+          "state": "context",
+          "reason": "Included in the weekly synthesis"
+        },
+        {
+          "topic_id": "banking",
+          "state": "context",
+          "reason": "Included in the weekly synthesis"
+        },
+        {
+          "topic_id": "digital",
+          "state": "context",
+          "reason": "Included in the weekly synthesis"
+        },
+        {
+          "topic_id": "insurance",
+          "state": "context",
+          "reason": "Included in the weekly synthesis"
+        },
+        {
+          "topic_id": "sports",
+          "state": "context",
+          "reason": "Included in the weekly synthesis"
+        }
+      ],
+      "script_hash": "29020c795e517fdb0c39f5336cfb89b2e58efb1a1a4b6330f5fbfd5ee24cf8c2",
+      "audio": {
+        "state": "pending",
+        "revision_id": "sample-week-r4",
+        "script_hash": "29020c795e517fdb0c39f5336cfb89b2e58efb1a1a4b6330f5fbfd5ee24cf8c2"
+      }
+    }
+  ]
+}

@@ -1,0 +1,57 @@
+{
+  "sources": [
+    {
+      "id": "fed-payments",
+      "title": "The FedNow Service: Frequently Asked Questions",
+      "url": "https://www.federalreserve.gov/paymentsystems/fednow_faq.htm",
+      "kind": "Federal Reserve reference",
+      "note": "Explains the Federal Reserve's instant payment service and general features of instant payments. Used for background on payment timing and settlement; it does not describe a fictional transaction."
+    },
+    {
+      "id": "fdic-deposit-insurance",
+      "title": "Your Insured Deposits",
+      "url": "https://www.fdic.gov/resources/deposit-insurance/",
+      "kind": "FDIC consumer guide",
+      "note": "Describes deposit insurance coverage and account ownership categories in the United States. Coverage depends on the depositor, bank and account category."
+    },
+    {
+      "id": "cfpb-credit-reports",
+      "title": "Credit reports and scores",
+      "url": "https://www.consumerfinance.gov/consumer-tools/credit-reports-and-scores/",
+      "kind": "CFPB consumer guide",
+      "note": "Introduces U.S. credit reports, scores and consumer rights. Details and available remedies depend on a person's circumstances."
+    },
+    {
+      "id": "nist-digital-identity",
+      "title": "NIST SP 800-63B: Authentication and Authenticator Management",
+      "url": "https://pages.nist.gov/800-63-4/sp800-63b.html",
+      "kind": "NIST technical guidance",
+      "note": "Provides technical guidance for digital authentication and authenticators. It is a standards reference, not a claim about any particular service's security."
+    },
+    {
+      "id": "naic-insurance-basics",
+      "title": "A Consumer's Guide to Insurance",
+      "url": "https://content.naic.org/consumer_insurance.htm",
+      "kind": "NAIC consumer resource",
+      "note": "Offers general consumer information about insurance. Policy wording and state rules determine actual coverage and claims outcomes."
+    },
+    {
+      "id": "fifa-football-rules",
+      "title": "Laws of the Game",
+      "url": "https://www.theifab.com/laws-of-the-game-documents/",
+      "kind": "IFAB rules reference",
+      "note": "The International Football Association Board publishes the Laws of Association Football, including match duration and allowance for time lost. Rules can differ across sports and competitions."
+    },
+    {
+      "id": "fictional-pilot-record",
+      "title": "Fictional pilot record \u2014 demonstration source",
+      "publisher": "Prototype fixture",
+      "date": "2026-11-16",
+      "kind": "Internal fictional evidence",
+      "supported_section": "correction-checkout-pilot",
+      "scope": "Invented record created solely to demonstrate a material correction from 120 to 12 participants.",
+      "availability": "Bundled with this test fixture; not externally available.",
+      "note": "This source and its count are invented for this preview. No real publisher or study supports the number."
+    }
+  ]
+}
