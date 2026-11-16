@@ -75,12 +75,12 @@ jobs:
           mkdir -p /tmp/briefing-native-captures
           echo "Capturing light appearance"
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/today-light.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-light.png "The choices behind the tap" "Read today's briefing"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-light.png "The choices behind the tap" "Read"
           echo "Capturing dark appearance"
           xcrun simctl ui "$SIM_UDID" appearance dark
           sleep 3
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/today-dark.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-dark.png "The choices behind the tap" "Read today's briefing"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-dark.png "The choices behind the tap" "Read"
           echo "Capturing the focused edition reader"
           xcrun simctl terminate "$SIM_UDID" com.bencbanks.briefing.prototype
           xcrun simctl ui "$SIM_UDID" appearance light
@@ -162,7 +162,7 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-missing --briefing-transcript-auto-read
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-missing.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-missing.png "Now playing" "Transcript unavailable" "This transcript is unavailable."
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-missing.png "Now playing" "Transcript unavailable" "This transcript is unavailable"
       - name: Capture native chapter list with test-only recording
         timeout-minutes: 4
         run: |

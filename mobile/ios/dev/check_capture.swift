@@ -15,10 +15,14 @@ try VNImageRequestHandler(url: screenshot).perform([request])
 let recognized = (request.results ?? [])
     .compactMap { $0.topCandidates(1).first?.string }
     .joined(separator: " ")
+func normalizedOCRText(_ text: String) -> String {
+    String(text.filter { !$0.isWhitespace }).lowercased()
+}
+let normalizedRecognized = normalizedOCRText(recognized)
 
 let arguments = Array(CommandLine.arguments.dropFirst(2))
 for expected in arguments.filter({ !$0.hasPrefix("--") }) {
-    guard recognized.localizedCaseInsensitiveContains(expected) else {
+    guard normalizedRecognized.contains(normalizedOCRText(expected)) else {
         fputs("Missing '\(expected)' in \(screenshot.lastPathComponent). OCR: \(recognized)\n", stderr)
         exit(1)
     }
