@@ -107,7 +107,8 @@ struct RootView: View {
                         LibraryView(content: content, audioState: audioController.state, onPlay: play,
                                     onReaderVisible: updateVisibleReader,
                                     onOpenEdition: { libraryPath.append(.edition($0.id, nil)) },
-                                    onOpenTopic: { libraryPath.append(.explanation($0.id)) })
+                                    onOpenTopic: { libraryPath.append(.explanation($0.id)) },
+                                    onSettings: { isSettingsPresented = true })
                             .safeAreaInset(edge: .bottom, spacing: 0) {
                                 AudioMiniPlayer(controller: audioController, isExpanded: tabPlayerBinding, focusRestoreToken: tabAudioFocusToken, shouldRestoreFocus: selectedTab == 2)
                             }
@@ -202,7 +203,8 @@ struct RootView: View {
                                 audioState: audioController.state,
                                 onReaderVisible: updateVisibleReader,
                                 usesNavigationBackButton: true,
-                                onOpenSource: { push(.source($0.id), in: root) })
+                                onOpenSource: { push(.source($0.id), in: root) },
+                                returnTitle: root == 0 ? "Briefing" : (root == 2 ? "Library" : "Topics"))
                     .toolbar(.hidden, for: .tabBar)
             } else {
                 ContentUnavailableView("Explanation unavailable", systemImage: "text.page",
@@ -252,13 +254,23 @@ struct RootView: View {
             }
             if CommandLine.arguments.contains("--briefing-correction-library") { selectedTab = 2 }
             if loadPlaybackFixtureIfRequested(loaded) { return }
-            if CommandLine.arguments.contains("--briefing-deeper-preview"),
-               let edition = loaded.editions.first(where: { $0.kind == "daily" }),
-               let topicID = edition.sections.first?.topicIDs?.first,
-               let topic = loaded.topics.first(where: { $0.id == topicID }) {
-                selectedTopicFromToday = true
-                selectedTopic = topic
-                return
+            if let edition = loaded.currentEdition(kind: "daily"),
+               !CommandLine.arguments.contains("--briefing-correction-library") {
+                if CommandLine.arguments.contains("--briefing-correction-source"),
+                   let sourceID = edition.materialCorrection?.sourceIDs.first ?? edition.sections.first?.sourceIDs?.first {
+                    todayPath = [.edition(edition.id, nil), .source(sourceID)]
+                } else if CommandLine.arguments.contains("--briefing-deeper-preview") ||
+                          CommandLine.arguments.contains("--briefing-source-preview"),
+                          let topicID = edition.sections.first?.topicIDs?.first {
+                    todayPath = [.edition(edition.id, nil), .explanation(topicID)]
+                    if CommandLine.arguments.contains("--briefing-source-preview"),
+                       let dive = loaded.currentDeepDive(forTopic: topicID),
+                       let sourceID = dive.sections.first?.sourceIDs?.first {
+                        todayPath.append(.source(sourceID))
+                    }
+                } else if CommandLine.arguments.contains("--briefing-reader-preview") || previewRevision != nil {
+                    todayPath = [.edition(edition.id, nil)]
+                }
             }
             #endif
             let editionTracks = loaded.currentEditions.compactMap {
@@ -336,6 +348,9 @@ struct RootView: View {
                                       resourceFilename: "playback-fixture.wav")
             audioController.restore(oldTrack, from: url)
             audioController.invalidateCurrentTrack()
+            if let edition = loaded.currentEdition(kind: "daily") {
+                todayPath = [.edition(edition.id, nil)]
+            }
             return true
         }
         let middleTitle = CommandLine.arguments.contains("--briefing-long-chapter-fixture")

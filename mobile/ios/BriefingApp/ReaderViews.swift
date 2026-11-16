@@ -699,6 +699,7 @@ struct TopicDetailView: View {
     var onReaderVisible: ((AudioContentIdentity?) -> Void)? = nil
     var usesNavigationBackButton = false
     var onOpenSource: ((Source) -> Void)? = nil
+    var returnTitle = "Topics"
     @Environment(\.dismiss) private var dismiss
     @State private var selectedSource: Source?
     @AccessibilityFocusState private var topicHeadingFocused: Bool
@@ -753,6 +754,10 @@ struct TopicDetailView: View {
                     if let reviewedAt = dive.reviewedAt {
                         Text("Reviewed \(reviewedAt)")
                             .font(.footnote).foregroundStyle(ReaderColor.secondary)
+                    }
+                    if usesNavigationBackButton {
+                        Button("Return to \(returnTitle)") { dismiss() }
+                            .frame(minHeight: 44, alignment: .leading)
                     }
                     }.padding(20)
                 } else {
@@ -875,6 +880,7 @@ struct LibraryView: View {
     var onReaderVisible: ((AudioContentIdentity?) -> Void)? = nil
     var onOpenEdition: ((Edition) -> Void)? = nil
     var onOpenTopic: ((Topic) -> Void)? = nil
+    var onSettings: (() -> Void)? = nil
     @State private var showingSaved = false
     @State private var savedItems: [SavedReaderItem] = []
     private var editions: [Edition] { content.currentEditions }
@@ -930,6 +936,11 @@ struct LibraryView: View {
                                     Text(edition.title)
                                         .font(.system(size: 21, weight: .semibold, design: .serif))
                                         .foregroundStyle(.primary)
+                                    if edition.materialCorrection != nil {
+                                        Text("Corrected")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(ReaderColor.action)
+                                    }
                                     Text("\(readingMinutes(edition)) min read")
                                         .font(.footnote).foregroundStyle(ReaderColor.secondary)
                                 }
@@ -952,6 +963,13 @@ struct LibraryView: View {
         }
         .navigationTitle("Library")
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if let onSettings {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Settings", action: onSettings).frame(minHeight: 44)
+                }
+            }
+        }
         .onAppear { onReaderVisible?(nil); loadSavedItems() }
         .onChange(of: content.currentEdition(kind: "daily")?.revisionID) { _, _ in loadSavedItems() }
         .onReceive(NotificationCenter.default.publisher(for: .briefingSavedItemsChanged)) { _ in loadSavedItems() }
