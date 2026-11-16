@@ -266,7 +266,7 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-superseded-fixture
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-stopped-audio-light.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-stopped-audio-light.png "Correction" "Playback stopped" "Updated edition available"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-stopped-audio-light.png "Correction" "Playback stopped" "Updated audio is unavailable"
       - name: Upload native screenshots
         if: always()
         uses: actions/upload-artifact@v4

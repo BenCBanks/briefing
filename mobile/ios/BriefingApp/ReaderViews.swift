@@ -109,7 +109,9 @@ struct EditionReaderView: View {
                             Text(correction.whatChanged).font(.subheadline)
                             Text(correction.whyItMatters).font(.subheadline).foregroundStyle(ReaderColor.secondary)
                             if track == nil {
-                                Text("Updated audio is unavailable for this corrected edition.")
+                                Text(audioState.status == .superseded && audioState.track?.id == edition.id
+                                     ? "Playback stopped. Updated audio is unavailable for this corrected edition."
+                                     : "Updated audio is unavailable for this corrected edition.")
                                     .font(.footnote).foregroundStyle(ReaderColor.secondary)
                             }
                             Button("Read the corrected section") {
@@ -123,8 +125,12 @@ struct EditionReaderView: View {
                             .font(.subheadline.weight(.medium)).frame(minHeight: 44, alignment: .leading)
                             ForEach(correction.sourceIDs, id: \.self) { sourceID in
                                 if let source = content.sources.first(where: { $0.id == sourceID }) {
-                                    Button("Evidence: \(source.title)") { selectedSource = source }
-                                        .font(.footnote.weight(.medium)).frame(minHeight: 44, alignment: .leading)
+                                    Button { selectedSource = source } label: {
+                                        Text("Evidence: \(source.title)")
+                                            .font(.footnote.weight(.medium))
+                                            .multilineTextAlignment(.leading)
+                                            .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                                    }
                                 }
                             }
                         }
@@ -138,7 +144,7 @@ struct EditionReaderView: View {
                         Button(actionTitle, action: { onPlay(track) })
                             .font(.headline)
                             .frame(maxWidth: .infinity, minHeight: 48)
-                            .buttonStyle(.borderedProminent).tint(ReaderColor.action)
+                            .buttonStyle(.borderedProminent).tint(ReaderColor.primaryAction)
                             .disabled(audioState.track?.contentIdentity == track.contentIdentity && audioState.status == .loading)
                             .accessibilityHint("Plays the recorded \(edition.kind == "weekly" ? "weekly recap" : "daily briefing")")
                     }
@@ -470,7 +476,7 @@ struct SourceDetailView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
-                Text(source.publisher ?? "Source")
+                Text(source.publisher ?? source.kind ?? source.url?.host ?? "Fictional demonstration source")
                     .font(.caption.weight(.semibold)).tracking(1)
                     .foregroundStyle(ReaderColor.secondary)
                 Text(source.title)
@@ -746,7 +752,7 @@ struct TopicDetailView: View {
                             Label(topicActionTitle(for: dive), systemImage: topicActionSymbol(for: dive))
                                 .frame(minHeight: 48).frame(maxWidth: .infinity)
                         }
-                        .buttonStyle(.borderedProminent).tint(ReaderColor.action)
+                        .buttonStyle(.borderedProminent).tint(ReaderColor.primaryAction)
                         .disabled(audioState.track?.contentIdentity == track.contentIdentity && audioState.status == .loading)
                     }
                     if let summary = dive.summary {
@@ -875,7 +881,10 @@ struct ContextReturnButton: View {
                     Image(systemName: "chevron.left")
                         .frame(minWidth: 44, minHeight: 44)
                 } else {
-                    Text(title).lineLimit(1).frame(minHeight: 44)
+                    Label(title, systemImage: "chevron.left")
+                        .labelStyle(.titleAndIcon)
+                        .lineLimit(1)
+                        .frame(minHeight: 44)
                 }
             }
             .contentShape(Rectangle())

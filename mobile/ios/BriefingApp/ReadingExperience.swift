@@ -71,7 +71,7 @@ struct TodayFrontPage: View {
                         .padding(.horizontal, 18)
                         .frame(minHeight: 52)
                         .foregroundStyle(.white)
-                        .background(ReaderColor.action, in: RoundedRectangle(cornerRadius: 10))
+                        .background(ReaderColor.primaryAction, in: RoundedRectangle(cornerRadius: 10))
                     }
                     .buttonStyle(.plain)
                     if let readingSectionID,

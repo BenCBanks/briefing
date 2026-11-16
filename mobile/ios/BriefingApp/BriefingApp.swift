@@ -902,6 +902,7 @@ private indirect enum AudioModalRoute: Identifiable {
 
 enum ReaderColor {
     static let action = Color(light: 0x215DB0, dark: 0x9BC2FF)
+    static let primaryAction = Color(light: 0x215DB0, dark: 0x215DB0)
     static let secondary = Color(light: 0x62676F, dark: 0xAEB4BF)
     static let separator = Color(light: 0xE5E5EA, dark: 0x303036)
     static let correction = Color(light: 0x9A3412, dark: 0xFDBA74)

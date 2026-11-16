@@ -273,24 +273,21 @@ private struct AudioChaptersListView: View {
                                 if succeeded { dismiss() }
                             }
                         } label: {
-                            HStack(alignment: .center, spacing: 16) {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(chapter.title)
-                                        .font(.body.weight(isCurrent(chapter) ? .semibold : .regular))
-                                        .multilineTextAlignment(.leading)
-                                        .fixedSize(horizontal: false, vertical: true)
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text(chapter.title)
+                                    .font(.body.weight(isCurrent(chapter) ? .semibold : .regular))
+                                    .multilineTextAlignment(.leading)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                HStack(spacing: 8) {
+                                    if isCurrent(chapter) {
+                                        Label("Current", systemImage: "checkmark")
+                                            .font(.caption.weight(.semibold))
+                                            .foregroundStyle(Color.accentColor)
+                                            .accessibilityHidden(true)
+                                    }
                                     Text(chapterTime(chapter.startSeconds))
                                         .font(.caption.monospacedDigit())
                                         .foregroundStyle(ReaderColor.secondary)
-                                }
-                                Spacer(minLength: 8)
-                                if isCurrent(chapter) {
-                                    HStack(spacing: 4) {
-                                        Image(systemName: "checkmark")
-                                        Text("Current").font(.caption.weight(.semibold))
-                                    }
-                                    .foregroundStyle(Color.accentColor)
-                                    .accessibilityHidden(true)
                                 }
                             }
                             .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
