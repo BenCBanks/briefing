@@ -223,12 +223,14 @@ jobs:
           xcrun simctl terminate "$SIM_UDID" "$APP_ID" || true
           xcrun simctl ui "$SIM_UDID" appearance light
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r1 --briefing-correction-seed-save
-          sleep 5
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-r1-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-r1-light.png "Story 1 of 1" "A checkout pilot counted 120 participants"
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-today-light.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-today-light.png "Story 1 of 4" "CORRECTED" "120 to 12" "Audio paused"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-today-light.png "Story 1 of 1" "CORRECTED" "120 to 12" "Audio paused"
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-correction-library
           sleep 8
@@ -245,7 +247,7 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-today-large-text-dark.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-today-large-text-dark.png "1 of 4" "CORRECTED" "120 to 12" "Audio paused" --dark-sheet
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-today-large-text-dark.png "1 of 1" "CORRECTED" "120 to 12" "Audio paused" --dark-sheet
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-correction-library
           sleep 8
@@ -266,7 +268,7 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-superseded-fixture
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-stopped-audio-light.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-stopped-audio-light.png "CORRECTED" "Audio paused" "unavailable until it is re-recorded"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-stopped-audio-light.png "Story 1 of 1" "CORRECTED" "Audio paused" "unavailable until it is re-recorded"
       - name: Upload native screenshots
         if: always()
         uses: actions/upload-artifact@v4
