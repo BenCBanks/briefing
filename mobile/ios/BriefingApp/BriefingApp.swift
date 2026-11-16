@@ -59,7 +59,7 @@ struct RootView: View {
                                        },
                                        onOpenWeekly: { edition in
                                            todayPath.append(.edition(edition.id, nil))
-                                       })
+                                       }, audioState: audioController.state, onPlay: play)
                             .safeAreaInset(edge: .bottom, spacing: 0) {
                                 AudioMiniPlayer(controller: audioController, isExpanded: tabPlayerBinding, focusRestoreToken: tabAudioFocusToken, shouldRestoreFocus: selectedTab == 0)
                             }
@@ -192,7 +192,8 @@ struct RootView: View {
                                   onExploreTopic: { push(.explanation($0.id), in: root) },
                                   onOpenSource: { push(.source($0.id), in: root) },
                                   onOpenWeekly: { push(.edition($0.id, nil), in: root) },
-                                  initialSectionID: sectionID)
+                                  initialSectionID: sectionID,
+                                  onOpenNextStory: { nextID in push(.edition(id, nextID), in: root) })
                     .toolbar(.hidden, for: .tabBar)
             } else {
                 ContentUnavailableView("Edition unavailable", systemImage: "text.page",
@@ -224,6 +225,12 @@ struct RootView: View {
 
     private func editionReturnTitle(in root: Int) -> String {
         let path = root == 0 ? todayPath : (root == 2 ? libraryPath : topicsPath)
+        if let parent = path.dropLast().last, case .edition(let parentID, let sectionID) = parent,
+           let edition = content?.currentEditions.first(where: { $0.id == parentID }),
+           let sectionID,
+           let index = edition.readingSections.firstIndex(where: { $0.id == sectionID }) {
+            return "Story \(index + 1) of \(edition.readingSections.count)"
+        }
         if let parent = path.dropLast().last, case .edition(_, _) = parent { return "Briefing" }
         return root == 2 ? "Library" : "Today"
     }

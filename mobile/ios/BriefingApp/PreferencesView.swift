@@ -13,6 +13,12 @@ struct PreferencesView: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("Narration") {
+                    LabeledContent("Voice", value: "Not yet chosen")
+                    Text("Playback appears only after a recording is approved.")
+                        .font(.footnote).foregroundStyle(.secondary)
+                }
+
                 Section {
                     Text("Choose one to five subjects for future editions. This fictional sample is fixed so its text and eventual recording stay in sync.")
                         .font(.footnote)

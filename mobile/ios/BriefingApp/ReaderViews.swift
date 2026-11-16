@@ -45,6 +45,7 @@ struct EditionReaderView: View {
     var onOpenWeekly: ((Edition) -> Void)? = nil
     var initialSectionID: String? = nil
     var debugSourceID: String? = nil
+    var onOpenNextStory: ((String) -> Void)? = nil
     @State private var isFinished: Bool
     @State private var readingSectionID: String?
     @State private var selectedSource: Source?
@@ -68,7 +69,8 @@ struct EditionReaderView: View {
          onOpenSource: ((Source) -> Void)? = nil,
          onOpenWeekly: ((Edition) -> Void)? = nil,
          initialSectionID: String? = nil,
-         debugSourceID: String? = nil) {
+         debugSourceID: String? = nil,
+         onOpenNextStory: ((String) -> Void)? = nil) {
         self.edition = edition
         self.content = content
         self.navigationTitle = navigationTitle
@@ -82,12 +84,26 @@ struct EditionReaderView: View {
         self.onOpenWeekly = onOpenWeekly
         self.initialSectionID = initialSectionID
         self.debugSourceID = debugSourceID
+        self.onOpenNextStory = onOpenNextStory
         let key = Self.finishedKey(edition)
         _isFinished = State(initialValue: UserDefaults.standard.bool(forKey: key))
         _readingSectionID = State(initialValue: initialSectionID ?? UserDefaults.standard.string(forKey: Self.readingKey(edition)))
     }
 
     var body: some View {
+        Group {
+            if edition.kind == "daily" {
+                FocusedStoryReader(edition: edition, content: content, sectionID: initialSectionID ?? edition.readingSections.first?.id,
+                                   audioState: audioState, onPlay: onPlay, onExploreTopic: onExploreTopic,
+                                   onOpenSource: onOpenSource, onOpenNext: { nextSection in onOpenNextStory?(nextSection) },
+                                   returnTitle: returnTitle)
+            } else {
+                legacyBody
+            }
+        }
+    }
+
+    private var legacyBody: some View {
         ScrollViewReader { scrollProxy in
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
@@ -329,6 +345,154 @@ struct EditionReaderView: View {
     }
 }
 
+private struct FocusedStoryReader: View {
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    let edition: Edition
+    let content: BriefingContent
+    let sectionID: String?
+    let audioState: AudioPlaybackState
+    let onPlay: (AudioTrack) -> Void
+    let onExploreTopic: ((Topic) -> Void)?
+    let onOpenSource: ((Source) -> Void)?
+    let onOpenNext: ((String) -> Void)?
+    let returnTitle: String
+    @Environment(\.dismiss) private var dismiss
+    @ScaledMetric(relativeTo: .largeTitle) private var headlineSize: CGFloat = 30
+
+    private var sections: [ArticleSection] { edition.readingSections }
+    private var index: Int { max(0, sections.firstIndex(where: { $0.id == sectionID }) ?? 0) }
+    private var section: ArticleSection? { sections.indices.contains(index) ? sections[index] : nil }
+    private var storyText: (whatHappened: String, whyItMatters: String?) {
+        let paragraphs = (section?.body ?? "This story is unavailable.")
+            .components(separatedBy: "\n\n")
+            .filter { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
+        guard let first = paragraphs.first else { return ("This story is unavailable.", nil) }
+        let context = paragraphs.dropFirst().joined(separator: "\n\n")
+        return (first, context.isEmpty ? nil : context)
+    }
+    private var track: AudioTrack? {
+        // A material correction invalidates the edition recording as one unit.
+        guard edition.materialCorrection == nil else { return nil }
+        return edition.audio?.track(id: edition.id, title: edition.title, kind: .dailyEdition,
+                                    revisionID: edition.revisionID, scriptHash: edition.scriptHash)
+    }
+    private var correction: EditionCorrection? {
+        guard let section else { return nil }
+        return edition.materialCorrection.flatMap { $0.sectionIDs.contains(section.id) ? $0 : nil }
+    }
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 22) {
+                HStack(spacing: 8) {
+                    Text("Story \(index + 1) of \(sections.count)")
+                        .font(.subheadline.weight(.semibold)).foregroundStyle(ReaderColor.secondary)
+                    if !dynamicTypeSize.isAccessibilitySize {
+                        HStack(spacing: 5) {
+                            ForEach(sections.indices, id: \.self) { dot in
+                                Circle().fill(dot <= index ? ReaderColor.action : ReaderColor.secondary.opacity(0.3))
+                                    .frame(width: 6, height: 6).accessibilityHidden(true)
+                            }
+                        }.accessibilityHidden(true)
+                    }
+                }
+                .accessibilityElement(children: .ignore)
+                .accessibilityLabel("Story \(index + 1) of \(sections.count)")
+                Text(section?.topicIDs?.compactMap { id in content.topics.first(where: { $0.id == id })?.label }.joined(separator: " · ") ?? "Briefing")
+                    .font(.caption.weight(.semibold)).tracking(0.8).foregroundStyle(ReaderColor.secondary)
+                Text(section?.heading ?? edition.title)
+                    .font(.system(size: headlineSize, weight: .semibold, design: .serif))
+                    .fixedSize(horizontal: false, vertical: true).accessibilityAddTraits(.isHeader)
+                if let correction {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(correctionLabel(correction)).font(.caption.weight(.bold)).tracking(0.7).foregroundStyle(ReaderColor.correction)
+                        Text(correction.whatChanged).font(.subheadline).fixedSize(horizontal: false, vertical: true)
+                        Text(correction.whyItMatters).font(.subheadline).foregroundStyle(ReaderColor.secondary)
+                        Text("Audio paused: the corrected edition recording is unavailable until it is re-recorded.")
+                            .font(.footnote).foregroundStyle(ReaderColor.secondary)
+                    }.padding(14).frame(maxWidth: .infinity, alignment: .leading)
+                        .background(ReaderColor.correction.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
+                }
+                if let track {
+                    Button("Listen from here") { onPlay(track) }
+                        .font(.headline).frame(maxWidth: .infinity, minHeight: 48)
+                        .buttonStyle(.borderedProminent).tint(ReaderColor.primaryAction)
+                        .disabled(audioState.status == .superseded || (audioState.track?.contentIdentity == track.contentIdentity && audioState.status == .loading))
+                }
+                Text("What happened").font(.headline).accessibilityAddTraits(.isHeader)
+                Text(storyText.whatHappened)
+                    .font(.system(.body, design: .serif)).lineSpacing(7).fixedSize(horizontal: false, vertical: true)
+                if let whyItMatters = storyText.whyItMatters {
+                    Text("Why it matters").font(.headline).accessibilityAddTraits(.isHeader)
+                    Text(whyItMatters)
+                        .font(.system(.body, design: .serif)).lineSpacing(7).fixedSize(horizontal: false, vertical: true)
+                }
+                Text("Things to consider").font(.headline).accessibilityAddTraits(.isHeader)
+                Text("This report is for general information and does not offer personal financial or health advice.")
+                    .font(.footnote).foregroundStyle(ReaderColor.secondary)
+                if let section {
+                    let refs = (section.sourceIDs ?? []).compactMap { id in content.sources.first(where: { $0.id == id }) }
+                    if !refs.isEmpty {
+                        Text("Sources").font(.headline).accessibilityAddTraits(.isHeader)
+                        ForEach(Array(refs.enumerated()), id: \.element.id) { i, source in
+                            Button { onOpenSource?(source) } label: {
+                                HStack(alignment: .firstTextBaseline, spacing: 10) {
+                                    Text("\(i + 1)").font(.caption.monospacedDigit()).foregroundStyle(ReaderColor.secondary)
+                                    VStack(alignment: .leading, spacing: 3) {
+                                        Text(source.publisher ?? "Source").font(.caption).foregroundStyle(ReaderColor.secondary)
+                                        Text(source.title).font(.subheadline.weight(.medium)).foregroundStyle(ReaderColor.action)
+                                    }
+                                    Spacer()
+                                }.frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
+                            }.buttonStyle(.plain)
+                        }
+                    }
+                    if let topicID = section.topicIDs?.first,
+                       let topic = content.topics.first(where: { $0.id == topicID }),
+                       content.currentDeepDive(forTopic: topic.id) != nil {
+                        Button { onExploreTopic?(topic) } label: {
+                            VStack(alignment: .leading, spacing: 5) {
+                                Text("UNDERSTAND THIS BETTER").font(.caption.weight(.semibold)).tracking(0.7).foregroundStyle(ReaderColor.secondary)
+                                Text(content.currentDeepDive(forTopic: topic.id)?.title ?? topic.label).font(.subheadline.weight(.semibold))
+                            }.frame(maxWidth: .infinity, minHeight: 52, alignment: .leading)
+                        }.buttonStyle(.plain)
+                    }
+                }
+                if index + 1 < sections.count, let next = sections[safe: index + 1] {
+                    Button { onOpenNext?(next.id) } label: {
+                        VStack(alignment: .leading, spacing: 5) {
+                            Text("Next story").font(.caption.weight(.semibold)).foregroundStyle(ReaderColor.secondary)
+                            Text(next.heading).font(.system(size: 20, weight: .semibold, design: .serif))
+                        }.frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
+                    }.buttonStyle(.plain)
+                } else {
+                    Text("You're up to date").font(.headline)
+                    Button("Mark finished") {
+                        UserDefaults.standard.set(true, forKey: ReaderProgressKey.finished(itemID: edition.id, revisionID: edition.revisionID ?? "unversioned"))
+                    }.frame(minHeight: 44, alignment: .leading)
+                }
+            }
+            .padding(.horizontal, 20).padding(.vertical, 24)
+            .frame(maxWidth: 720, alignment: .leading).frame(maxWidth: .infinity)
+        }
+        .navigationTitle("Story \(index + 1) of \(sections.count)")
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar { ToolbarItem(placement: .topBarTrailing) {
+            LocalSaveButton(itemID: edition.id + "." + (section?.id ?? "story"), revision: edition.revisionID ?? edition.id, accessibilityTitle: "Save story")
+        }}
+    }
+
+    private func correctionLabel(_ correction: EditionCorrection) -> String {
+        guard let raw = correction.correctedAt,
+              let date = ISO8601DateFormatter().date(from: raw) else { return "CORRECTED" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = .current
+        formatter.dateFormat = "d MMM, h:mm a zzz"
+        return "CORRECTED · \(formatter.string(from: date))"
+    }
+}
+
 func playbackActionTitle(track: AudioTrack?, state: AudioPlaybackState, noun: String) -> String {
     guard let track, state.track?.contentIdentity == track.contentIdentity else { return "Play \(noun)" }
     if state.status == .playing { return "Pause \(noun)" }
@@ -496,7 +660,7 @@ struct SourceDetailView: View {
                     .accessibilityHint("Opens the original source in an in-app browser")
                 }
                 Divider()
-                Text("WHY THIS SOURCE")
+                Text("WHAT THIS SUPPORTS")
                     .font(.caption.weight(.semibold)).tracking(1)
                     .foregroundStyle(ReaderColor.secondary)
                 if let evidence = source.evidence ?? source.note {
@@ -508,12 +672,20 @@ struct SourceDetailView: View {
                         .foregroundStyle(ReaderColor.secondary)
                         .padding(.top, 8)
                     Text(scope).font(.body).fixedSize(horizontal: false, vertical: true)
+                } else {
+                    Text("LIMITS")
+                        .font(.caption.weight(.semibold)).tracking(1)
+                        .foregroundStyle(ReaderColor.secondary)
+                        .padding(.top, 8)
+                    Text("This source provides background context; it does not verify the fictional scenario.")
+                        .font(.body).foregroundStyle(ReaderColor.secondary)
                 }
                 if source.url == nil {
                     Text(source.availability ?? "Fictional demonstration source; no external original.")
                         .font(.subheadline).foregroundStyle(ReaderColor.secondary)
                 }
                 if let date = source.date, !date.isEmpty { metadata("Published", date) }
+                Text("Sample · fictional").font(.caption).foregroundStyle(ReaderColor.secondary)
                 if let host = source.url?.host { Text(host).font(.footnote).foregroundStyle(ReaderColor.secondary) }
             }
             .padding(20)
@@ -641,6 +813,7 @@ private struct SavedReaderItem: Identifiable {
     let edition: Edition?
     let topic: Topic?
     var isCorrected: Bool { subtitle.localizedCaseInsensitiveContains("· Corrected") }
+    var isUpdated: Bool { subtitle.localizedCaseInsensitiveContains("· Updated since saved") }
 }
 
 struct TopicsView: View {
@@ -699,7 +872,9 @@ struct TopicsView: View {
         .toolbar {
             if let onManageTopics {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Manage topics", action: onManageTopics).frame(minHeight: 44)
+                    Button(action: onManageTopics) {
+                        Image(systemName: "gearshape").frame(minWidth: 44, minHeight: 44)
+                    }.accessibilityLabel("Settings")
                 }
             }
         }
@@ -961,7 +1136,7 @@ struct LibraryView: View {
                                     if edition.materialCorrection != nil {
                                         Text("Corrected")
                                             .font(.caption.weight(.semibold))
-                                            .foregroundStyle(ReaderColor.action)
+                                            .foregroundStyle(ReaderColor.correction)
                                     }
                                     Text("\(readingMinutes(edition)) min read")
                                         .font(.footnote).foregroundStyle(ReaderColor.secondary)
@@ -988,7 +1163,9 @@ struct LibraryView: View {
         .toolbar {
             if let onSettings {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Settings", action: onSettings).frame(minHeight: 44)
+                    Button(action: onSettings) {
+                        Image(systemName: "gearshape").frame(minWidth: 44, minHeight: 44)
+                    }.accessibilityLabel("Settings")
                 }
             }
         }
@@ -1000,10 +1177,14 @@ struct LibraryView: View {
     private func savedRow(_ item: SavedReaderItem) -> some View {
         VStack(alignment: .leading, spacing: 5) {
             HStack(spacing: 6) {
-                Text(item.subtitle.replacingOccurrences(of: " · Corrected", with: ""))
+                Text(item.subtitle.replacingOccurrences(of: " · Corrected", with: "")
+                    .replacingOccurrences(of: " · Updated since saved", with: ""))
                     .font(.footnote.weight(.medium)).foregroundStyle(ReaderColor.secondary)
                 if item.isCorrected {
-                    Text("Corrected").font(.caption.weight(.semibold)).foregroundStyle(ReaderColor.action)
+                    Text("Corrected").font(.caption.weight(.semibold)).foregroundStyle(ReaderColor.correction)
+                }
+                if item.isUpdated {
+                    Text("Updated").font(.caption.weight(.semibold)).foregroundStyle(ReaderColor.correction)
                 }
             }
             Text(item.title).font(.body.weight(.semibold))
