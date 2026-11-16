@@ -75,19 +75,19 @@ jobs:
           mkdir -p /tmp/briefing-native-captures
           echo "Capturing light appearance"
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/today-light.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-light.png "The choices behind the tap" "Read today's briefing"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-light.png "The choices behind the tap" "Read"
           echo "Capturing dark appearance"
           xcrun simctl ui "$SIM_UDID" appearance dark
           sleep 3
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/today-dark.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-dark.png "The choices behind the tap" "Read today's briefing"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-dark.png "The choices behind the tap" "Read"
           echo "Capturing the focused edition reader"
           xcrun simctl terminate "$SIM_UDID" com.bencbanks.briefing.prototype
           xcrun simctl ui "$SIM_UDID" appearance light
           xcrun simctl launch "$SIM_UDID" com.bencbanks.briefing.prototype --briefing-reader-preview
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/reader-light.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/reader-light.png "Contents" "The choices behind the tap" "A faster checkout"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/reader-light.png "Story 1 of 4" "A faster checkout still needs a way back"
       - name: Capture native player states with test-only recording
         timeout-minutes: 5
         run: |
@@ -162,7 +162,7 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-missing --briefing-transcript-auto-read
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-missing.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-missing.png "Now playing" "Transcript unavailable" "This transcript is unavailable."
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-missing.png "Now playing" "Transcript unavailable" "This transcript is unavailable"
       - name: Capture native chapter list with test-only recording
         timeout-minutes: 4
         run: |
@@ -223,12 +223,14 @@ jobs:
           xcrun simctl terminate "$SIM_UDID" "$APP_ID" || true
           xcrun simctl ui "$SIM_UDID" appearance light
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r1 --briefing-correction-seed-save
-          sleep 5
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-r1-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-r1-light.png "Story 1 of 1" "A checkout pilot counted 120 participants"
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-today-light.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-today-light.png "Correction" "120 to 12" "Read the corrected section"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-today-light.png "Story 1 of 1" "CORRECTED" "120 to 12" "Audio paused"
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-correction-library
           sleep 8
@@ -245,7 +247,7 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-today-large-text-dark.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-today-large-text-dark.png "Correction" "120 to 12" "Read the corrected section" --dark-sheet
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-today-large-text-dark.png "1 of 1" "CORRECTED" "120 to 12" "Audio paused" --dark-sheet
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-correction-library
           sleep 8
@@ -266,7 +268,7 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-superseded-fixture
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-stopped-audio-light.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-stopped-audio-light.png "Correction" "Playback stopped" "Updated audio is unavailable"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-stopped-audio-light.png "Story 1 of 1" "CORRECTED" "Audio paused" "unavailable until it is re-recorded"
       - name: Upload native screenshots
         if: always()
         uses: actions/upload-artifact@v4

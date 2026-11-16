@@ -59,7 +59,7 @@ struct RootView: View {
                                        },
                                        onOpenWeekly: { edition in
                                            todayPath.append(.edition(edition.id, nil))
-                                       })
+                                       }, audioState: audioController.state, onPlay: play)
                             .safeAreaInset(edge: .bottom, spacing: 0) {
                                 AudioMiniPlayer(controller: audioController, isExpanded: tabPlayerBinding, focusRestoreToken: tabAudioFocusToken, shouldRestoreFocus: selectedTab == 0)
                             }
@@ -185,14 +185,14 @@ struct RootView: View {
             if let edition = content.currentEditions.first(where: { $0.id == id }) {
                 EditionReaderView(edition: edition, content: content,
                                   navigationTitle: edition.kind == "weekly" ? "Recap" : "Briefing",
-                                  returnTitle: editionReturnTitle(in: root),
                                   audioState: audioController.state, onPlay: play,
                                   onCoverage: { _ in },
                                   onReaderVisible: updateVisibleReader,
                                   onExploreTopic: { push(.explanation($0.id), in: root) },
                                   onOpenSource: { push(.source($0.id), in: root) },
                                   onOpenWeekly: { push(.edition($0.id, nil), in: root) },
-                                  initialSectionID: sectionID)
+                                  initialSectionID: sectionID,
+                                  onOpenNextStory: { nextID in push(.edition(id, nextID), in: root) })
                     .toolbar(.hidden, for: .tabBar)
             } else {
                 ContentUnavailableView("Edition unavailable", systemImage: "text.page",
@@ -204,8 +204,7 @@ struct RootView: View {
                                 audioState: audioController.state,
                                 onReaderVisible: updateVisibleReader,
                                 usesNavigationBackButton: true,
-                                onOpenSource: { push(.source($0.id), in: root) },
-                                returnTitle: explanationReturnTitle(in: root))
+                                onOpenSource: { push(.source($0.id), in: root) })
                     .toolbar(.hidden, for: .tabBar)
             } else {
                 ContentUnavailableView("Explanation unavailable", systemImage: "text.page",
@@ -220,18 +219,6 @@ struct RootView: View {
                                        description: Text("This source is not in the sample pack."))
             }
         }
-    }
-
-    private func editionReturnTitle(in root: Int) -> String {
-        let path = root == 0 ? todayPath : (root == 2 ? libraryPath : topicsPath)
-        if let parent = path.dropLast().last, case .edition(_, _) = parent { return "Briefing" }
-        return root == 2 ? "Library" : "Today"
-    }
-
-    private func explanationReturnTitle(in root: Int) -> String {
-        let path = root == 0 ? todayPath : (root == 2 ? libraryPath : topicsPath)
-        if let parent = path.dropLast().last, case .edition(_, _) = parent { return "Briefing" }
-        return root == 2 ? "Library" : (root == 0 ? "Today" : "Topics")
     }
 
     private func push(_ route: ReaderRoute, in root: Int) {
@@ -443,7 +430,11 @@ struct RootView: View {
         guard let mode = transcriptPreviewMode,
               let track = transcriptPreviewTrack(mode: mode, content: loaded) else { return false }
         if mode == "older-daily" {
-            content = olderDailyPreviewContent(from: loaded)
+            let olderContent = olderDailyPreviewContent(from: loaded)
+            content = olderContent
+            if let olderEdition = olderContent.currentEditions.first(where: { $0.id == track.id }) {
+                todayPath = [.edition(olderEdition.id, olderEdition.readingSections.first?.id)]
+            }
             selectedTab = 0
         } else if mode == "topic-origin" {
             guard let dive = loaded.currentDeepDives.last,

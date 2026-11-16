@@ -10,7 +10,11 @@ struct TodayFrontPage: View {
     let content: BriefingContent
     let onOpenEdition: (Edition, String?) -> Void
     let onOpenWeekly: (Edition) -> Void
+    var audioState = AudioPlaybackState()
+    var onPlay: (AudioTrack) -> Void = { _ in }
     @State private var readingSectionID: String?
+    @ScaledMetric(relativeTo: .headline) private var storyTitleSize: CGFloat = 20
+    @ScaledMetric(relativeTo: .title) private var weeklyTitleSize: CGFloat = 21
 
     private var daily: Edition? { content.currentEdition(kind: "daily") }
     private var weekly: Edition? { content.currentEdition(kind: "weekly") }
@@ -23,151 +27,194 @@ struct TodayFrontPage: View {
         ScrollView {
             if let daily {
                 VStack(alignment: .leading, spacing: 0) {
-                    Text(displayDate(daily.localDate))
-                        .font(.subheadline).foregroundStyle(ReaderColor.secondary)
-                        .padding(.bottom, 24)
-                    Text("SAMPLE · FICTIONAL CONTENT")
-                        .font(.caption.weight(.semibold)).tracking(1.2)
-                        .foregroundStyle(ReaderColor.secondary)
-                        .padding(.bottom, 10)
-                    Text(daily.title)
-                        .font(.system(size: 34, weight: .semibold, design: .serif))
-                        .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityAddTraits(.isHeader)
-                        .padding(.bottom, 12)
-                    if let summary = daily.summary {
-                        Text(summary)
-                            .font(.system(size: 18)).lineSpacing(6)
-                            .fixedSize(horizontal: false, vertical: true)
-                            .padding(.bottom, 14)
-                    }
-                    if let correction = daily.materialCorrection {
-                        VStack(alignment: .leading, spacing: 6) {
-                            Text("CORRECTION")
-                                .font(.caption.weight(.semibold)).tracking(1)
-                                .foregroundStyle(ReaderColor.correction)
-                            Text(correction.whatChanged)
-                                .font(.subheadline)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-                        .padding(.vertical, 12)
-                        .padding(.horizontal, 14)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .background(ReaderColor.correction.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
-                        .padding(.bottom, 16)
-                    }
-                    Text("About \(daily.readingMinutes) min read · \(dailySections.count) topics")
-                        .font(.subheadline).foregroundStyle(ReaderColor.secondary)
-                        .padding(.bottom, 24)
-                    Button {
-                        onOpenEdition(daily, readingSectionID)
-                    } label: {
-                        HStack {
-                            Text(readingSectionID == nil ? "Read today's briefing" : "Continue reading")
-                            Spacer()
-                            Image(systemName: "arrow.right")
-                        }
-                        .font(.headline)
-                        .padding(.horizontal, 18)
-                        .frame(minHeight: 52)
-                        .foregroundStyle(.white)
-                        .background(ReaderColor.primaryAction, in: RoundedRectangle(cornerRadius: 10))
-                    }
-                    .buttonStyle(.plain)
-                    if let readingSectionID,
-                       let index = dailySections.firstIndex(where: { $0.id == readingSectionID }) {
-                        Text("Section \(index + 1) of \(dailySections.count)")
-                            .font(.footnote).foregroundStyle(ReaderColor.secondary)
-                            .padding(.top, 8)
-                    }
-
-                    Text("IN THIS EDITION")
-                        .font(.caption.weight(.semibold)).tracking(1.1)
-                        .foregroundStyle(ReaderColor.secondary)
-                        .padding(.top, 40).padding(.bottom, 10)
-                    ForEach(dailySections.indices, id: \.self) { index in
-                        let section = dailySections[index]
-                        Button { onOpenEdition(daily, section.id) } label: {
-                            HStack(alignment: .top, spacing: 14) {
-                                Text(String(format: "%02d", index + 1))
-                                    .font(.subheadline.monospacedDigit())
-                                    .foregroundStyle(ReaderColor.secondary)
-                                    .frame(width: 28, alignment: .leading)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(section.topicIDs?.compactMap { id in content.topics.first(where: { $0.id == id })?.label }.joined(separator: " · ") ?? "Story")
-                                        .font(.caption.weight(.semibold)).foregroundStyle(ReaderColor.secondary)
-                                    Text(section.heading)
-                                        .font(.system(size: 19, weight: .semibold, design: .serif))
-                                        .foregroundStyle(.primary)
-                                        .fixedSize(horizontal: false, vertical: true)
-                                }
-                                Spacer(minLength: 0)
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(ReaderColor.secondary)
-                            }
-                            .padding(.vertical, 16)
-                            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        Divider()
-                    }
-                    if !quietCoverage.isEmpty {
-                        DisclosureGroup("Other followed topics (\(quietCoverage.count))") {
-                            ForEach(quietCoverage) { item in
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(content.topics.first(where: { $0.id == item.topicID })?.label ?? item.topicID)
-                                        .font(.subheadline.weight(.medium))
-                                    Text(item.state == "limited" ? "Coverage limited" : "Quiet today")
-                                        .font(.footnote).foregroundStyle(ReaderColor.secondary)
-                                }
-                                .frame(maxWidth: .infinity, alignment: .leading)
-                                .padding(.vertical, 6)
-                            }
-                        }
-                        .font(.subheadline)
-                        .padding(.top, 18)
-                    }
-                    if let weekly {
-                        Text("THE WEEK IN PERSPECTIVE")
-                            .font(.caption.weight(.semibold)).tracking(1.1)
-                            .foregroundStyle(ReaderColor.secondary)
-                            .padding(.top, 40).padding(.bottom, 10)
-                        Button { onOpenWeekly(weekly) } label: {
-                            HStack(spacing: 12) {
-                                VStack(alignment: .leading, spacing: 5) {
-                                    Text(weekly.title)
-                                        .font(.system(size: 21, weight: .semibold, design: .serif))
-                                        .foregroundStyle(.primary)
-                                    Text("Weekly recap · \(weekly.readingMinutes) min read")
-                                        .font(.subheadline).foregroundStyle(ReaderColor.secondary)
-                                }
-                                Spacer()
-                                Image(systemName: "chevron.right")
-                                    .font(.caption.weight(.semibold))
-                                    .foregroundStyle(ReaderColor.secondary)
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                    }
+                    editionHeader(daily)
+                    correctionNotice(for: daily)
+                    primaryActions(for: daily)
+                    storyList(for: daily)
+                    quietCoverageSection
+                    if let weekly { weeklySection(weekly) }
                 }
-                .padding(.horizontal, 20)
-                .padding(.top, 24)
-                .padding(.bottom, 40)
-                .frame(maxWidth: 720, alignment: .leading)
-                .frame(maxWidth: .infinity)
+                .padding(.horizontal, 20).padding(.top, 20).padding(.bottom, 40)
+                    .frame(maxWidth: 720, alignment: .leading).frame(maxWidth: .infinity)
             } else {
                 ContentUnavailableView("No edition available", systemImage: "text.page",
                                        description: Text("The bundled sample has no daily edition."))
             }
         }
         .background(Color(uiColor: .systemBackground))
-        .navigationTitle("Today")
-        .navigationBarTitleDisplayMode(.inline)
+        .navigationTitle("Today").navigationBarTitleDisplayMode(.inline)
         .onAppear { refreshReadingPlace() }
+    }
+
+    private func editionHeader(_ edition: Edition) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            HStack(spacing: 8) {
+                Text(displayDate(edition.localDate)).font(.subheadline).foregroundStyle(ReaderColor.secondary)
+                Text("· Sample · fictional").font(.caption.weight(.medium)).foregroundStyle(ReaderColor.secondary)
+            }
+            .padding(.bottom, 20)
+            Text(edition.title)
+                .font(.system(.largeTitle, design: .serif).weight(.semibold))
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityHeading(.h2)
+                .padding(.bottom, 12)
+            Text(editionMetadata(edition))
+                .font(.subheadline).foregroundStyle(ReaderColor.secondary).padding(.bottom, 20)
+        }
+    }
+
+    @ViewBuilder
+    private func correctionNotice(for edition: Edition) -> some View {
+        if edition.materialCorrection != nil {
+            VStack(alignment: .leading, spacing: 5) {
+                Text("Audio paused: one story was corrected")
+                    .font(.subheadline.weight(.semibold)).foregroundStyle(ReaderColor.correction)
+                Text("The corrected edition remains available to read.")
+                    .font(.footnote).foregroundStyle(ReaderColor.secondary)
+            }
+            .padding(14)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(ReaderColor.correction.opacity(0.10), in: RoundedRectangle(cornerRadius: 12))
+            .padding(.bottom, 16)
+        }
+    }
+
+    @ViewBuilder
+    private func primaryActions(for edition: Edition) -> some View {
+        Button { onOpenEdition(edition, dailySections.first?.id) } label: {
+            Label("Read today's briefing", systemImage: "arrow.right")
+                .font(.headline).frame(maxWidth: .infinity, minHeight: 52)
+        }
+        .buttonStyle(.borderedProminent).tint(ReaderColor.primaryAction).padding(.bottom, 8)
+
+        if let track = dailyTrack {
+            Button { onPlay(track) } label: {
+                Label(dailyPlayTitle, systemImage: dailyPlaySymbol)
+                    .font(.subheadline.weight(.medium)).frame(maxWidth: .infinity, minHeight: 44)
+            }
+            .buttonStyle(.plain).foregroundStyle(ReaderColor.action)
+        }
+    }
+
+    private var dailyPlayTitle: String {
+        isDailyTrackPlaying ? "Pause briefing" : "Play briefing"
+    }
+
+    private var dailyPlaySymbol: String {
+        isDailyTrackPlaying ? "pause.fill" : "play.fill"
+    }
+
+    private var isDailyTrackPlaying: Bool {
+        guard let track = dailyTrack else { return false }
+        return audioState.track?.contentIdentity == track.contentIdentity && audioState.status == .playing
+    }
+
+    private func storyList(for edition: Edition) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("IN THIS EDITION").font(.caption.weight(.semibold)).tracking(1.1)
+                .foregroundStyle(ReaderColor.secondary).padding(.top, 30).padding(.bottom, 8)
+            ForEach(dailySections.indices, id: \.self) { index in
+                storyRow(dailySections[index], edition: edition)
+                Divider().overlay(ReaderColor.separator)
+            }
+        }
+    }
+
+    private func storyRow(_ section: ArticleSection, edition: Edition) -> some View {
+        Button { onOpenEdition(edition, section.id) } label: {
+            VStack(alignment: .leading, spacing: 5) {
+                HStack {
+                    Text(topicName(for: section))
+                        .font(.caption.weight(.semibold)).foregroundStyle(ReaderColor.secondary)
+                    Spacer()
+                    if edition.materialCorrection?.sectionIDs.contains(section.id) == true {
+                        Text("Corrected").font(.caption.weight(.semibold)).foregroundStyle(ReaderColor.correction)
+                    }
+                }
+                Text(section.heading)
+                    .font(.system(size: storyTitleSize, weight: .semibold, design: .serif)).foregroundStyle(.primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(previewLine(section.body)).font(.subheadline).foregroundStyle(ReaderColor.secondary)
+                    .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                Text("\(readingMinutes(for: section)) min read")
+                    .font(.caption).foregroundStyle(ReaderColor.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 76, alignment: .leading)
+            .padding(.vertical, 14)
+        }
+        .buttonStyle(.plain)
+    }
+
+    private var quietCoverageSection: some View {
+        Group {
+            if !quietCoverage.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("QUIET TODAY").font(.caption.weight(.semibold)).tracking(1)
+                        .foregroundStyle(ReaderColor.secondary)
+                    ForEach(quietCoverage) { item in
+                        Text(topicLabel(for: item))
+                            .font(.subheadline).frame(maxWidth: .infinity, alignment: .leading)
+                    }
+                }
+                .padding(.top, 24)
+            }
+        }
+    }
+
+    private func weeklySection(_ edition: Edition) -> some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("THE WEEK IN PERSPECTIVE").font(.caption.weight(.semibold)).tracking(1)
+                .foregroundStyle(ReaderColor.secondary).padding(.top, 34).padding(.bottom, 8)
+            Button { onOpenWeekly(edition) } label: {
+                VStack(alignment: .leading, spacing: 5) {
+                    Text(edition.title)
+                        .font(.system(size: weeklyTitleSize, weight: .semibold, design: .serif)).foregroundStyle(.primary)
+                    Text("Weekly recap · \(edition.readingMinutes) min read")
+                        .font(.subheadline).foregroundStyle(ReaderColor.secondary)
+                    Text("Next recap available Sunday").font(.caption).foregroundStyle(ReaderColor.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 60, alignment: .leading)
+                .padding(.vertical, 12)
+            }
+            .buttonStyle(.plain)
+        }
+    }
+
+    private func editionMetadata(_ edition: Edition) -> String {
+        "\(edition.readingMinutes) min read · \(edition.readingSections.count) stories\(listenDuration)"
+    }
+
+    private func topicName(for section: ArticleSection) -> String {
+        guard let topicID = section.topicIDs?.first,
+              let topic = content.topics.first(where: { $0.id == topicID }) else { return "Story" }
+        return topic.label
+    }
+
+    private func topicLabel(for coverage: Coverage) -> String {
+        content.topics.first(where: { $0.id == coverage.topicID })?.label ?? coverage.topicID
+    }
+
+    private func readingMinutes(for section: ArticleSection) -> Int {
+        let wordCount = section.body.split(whereSeparator: \.isWhitespace).count
+        return max(1, Int(ceil(Double(wordCount) / 225)))
+    }
+
+    private var listenDuration: String {
+        guard dailyTrack != nil, let seconds = daily?.audio?.durationSeconds, seconds > 0 else { return "" }
+        return " · \(max(1, Int((Double(seconds) / 60).rounded()))) min listen"
+    }
+
+    private var dailyTrack: AudioTrack? {
+        // A material correction invalidates the whole edition recording, including untouched stories.
+        guard daily?.materialCorrection == nil else { return nil }
+        return daily?.audio?.track(id: daily?.id ?? "", title: daily?.title ?? "", kind: .dailyEdition,
+                                   revisionID: daily?.revisionID, scriptHash: daily?.scriptHash)
+    }
+
+    private func previewLine(_ text: String) -> String {
+        let first = text.split(separator: "\n", maxSplits: 1).first.map(String.init) ?? text
+        let sentence = first.split(separator: ".", maxSplits: 1).first.map(String.init) ?? first
+        return sentence.trimmingCharacters(in: .whitespacesAndNewlines) + (sentence.count < first.count ? "." : "")
     }
 
     private func refreshReadingPlace() {
