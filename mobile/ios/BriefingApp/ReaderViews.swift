@@ -525,7 +525,8 @@ private struct FocusedStoryReader: View {
 
     @ViewBuilder
     private var nextStoryControl: some View {
-        if index + 1 < sections.count, let next = sections[safe: index + 1] {
+        if index + 1 < sections.count {
+            let next = sections[index + 1]
             Button { onOpenNext?(next.id) } label: {
                 VStack(alignment: .leading, spacing: 5) {
                     Text("Next story").font(.caption.weight(.semibold)).foregroundStyle(ReaderColor.secondary)
