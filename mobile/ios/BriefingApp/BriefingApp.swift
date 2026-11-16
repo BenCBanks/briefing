@@ -17,6 +17,9 @@ struct RootView: View {
     @State private var content: BriefingContent?
     @State private var loadError: String?
     @State private var selectedTab = 0
+    @State private var todayPath: [ReaderRoute] = []
+    @State private var topicsPath: [ReaderRoute] = []
+    @State private var libraryPath: [ReaderRoute] = []
     @State private var selectedTopic: Topic?
     @State private var selectedTopicFromToday = false
     @State private var selectedEdition: Edition?
@@ -49,20 +52,14 @@ struct RootView: View {
         Group {
             if let content {
                 TabView(selection: $selectedTab) {
-                    NavigationStack {
-                        TodayView(content: content, onPlay: play, onCoverage: {
-                            contentSheetOriginReader = visibleReader
-                            selectedEdition = $0
-                        },
-                                  onExploreTopic: { topic in
-                                      contentSheetOriginReader = visibleReader
-                                      selectedTopicFromToday = true
-                                      selectedTopic = topic
-                                  },
-                                  audioState: audioController.state,
-                                  onReaderVisible: updateVisibleReader,
-                                  debugSourceID: CommandLine.arguments.contains("--briefing-correction-source")
-                                      ? content.currentEdition(kind: "daily")?.materialCorrection?.sourceIDs.first : nil)
+                    NavigationStack(path: $todayPath) {
+                        TodayFrontPage(content: content,
+                                       onOpenEdition: { edition, sectionID in
+                                           todayPath.append(.edition(edition.id, sectionID))
+                                       },
+                                       onOpenWeekly: { edition in
+                                           todayPath.append(.edition(edition.id, nil))
+                                       })
                             .safeAreaInset(edge: .bottom, spacing: 0) {
                                 AudioMiniPlayer(controller: audioController, isExpanded: tabPlayerBinding, focusRestoreToken: tabAudioFocusToken, shouldRestoreFocus: selectedTab == 0)
                             }
@@ -84,25 +81,38 @@ struct RootView: View {
                                 }
                                 #endif
                             }
+                            .navigationDestination(for: ReaderRoute.self) { route in
+                                readerDestination(route, content: content, root: 0)
+                            }
                     }
                     .tabItem { Label("Today", systemImage: "sun.max") }
                     .tag(0)
 
-                    NavigationStack {
+                    NavigationStack(path: $topicsPath) {
                         TopicsView(content: content, selectedTopic: $selectedTopic,
-                                   onReaderVisible: updateVisibleReader)
+                                   onReaderVisible: updateVisibleReader,
+                                   onOpenTopic: { topicsPath.append(.explanation($0.id)) },
+                                   onManageTopics: { isSettingsPresented = true })
                             .safeAreaInset(edge: .bottom, spacing: 0) {
                                 AudioMiniPlayer(controller: audioController, isExpanded: tabPlayerBinding, focusRestoreToken: tabAudioFocusToken, shouldRestoreFocus: selectedTab == 1)
+                            }
+                            .navigationDestination(for: ReaderRoute.self) { route in
+                                readerDestination(route, content: content, root: 1)
                             }
                     }
                     .tabItem { Label("Topics", systemImage: "square.grid.2x2") }
                     .tag(1)
 
-                    NavigationStack {
+                    NavigationStack(path: $libraryPath) {
                         LibraryView(content: content, audioState: audioController.state, onPlay: play,
-                                    onReaderVisible: updateVisibleReader)
+                                    onReaderVisible: updateVisibleReader,
+                                    onOpenEdition: { libraryPath.append(.edition($0.id, nil)) },
+                                    onOpenTopic: { libraryPath.append(.explanation($0.id)) })
                             .safeAreaInset(edge: .bottom, spacing: 0) {
                                 AudioMiniPlayer(controller: audioController, isExpanded: tabPlayerBinding, focusRestoreToken: tabAudioFocusToken, shouldRestoreFocus: selectedTab == 2)
+                            }
+                            .navigationDestination(for: ReaderRoute.self) { route in
+                                readerDestination(route, content: content, root: 2)
                             }
                     }
                     .tabItem { Label("Library", systemImage: "books.vertical") }
@@ -165,6 +175,56 @@ struct RootView: View {
             if phase != .active { audioController.appWillResignActive() }
         }
         .preferredColorScheme(nil)
+    }
+
+    @ViewBuilder
+    private func readerDestination(_ route: ReaderRoute, content: BriefingContent, root: Int) -> some View {
+        switch route {
+        case .edition(let id, let sectionID):
+            if let edition = content.currentEditions.first(where: { $0.id == id }) {
+                EditionReaderView(edition: edition, content: content,
+                                  navigationTitle: edition.kind == "weekly" ? "Recap" : "Briefing",
+                                  returnTitle: root == 2 ? "Library" : "Today",
+                                  audioState: audioController.state, onPlay: play,
+                                  onCoverage: { _ in },
+                                  onReaderVisible: updateVisibleReader,
+                                  onExploreTopic: { push(.explanation($0.id), in: root) },
+                                  onOpenSource: { push(.source($0.id), in: root) },
+                                  initialSectionID: sectionID)
+                    .toolbar(.hidden, for: .tabBar)
+            } else {
+                ContentUnavailableView("Edition unavailable", systemImage: "text.page",
+                                       description: Text("This edition is not in the sample pack."))
+            }
+        case .explanation(let topicID):
+            if let topic = content.topics.first(where: { $0.id == topicID }) {
+                TopicDetailView(topic: topic, content: content, onPlay: play,
+                                audioState: audioController.state,
+                                onReaderVisible: updateVisibleReader,
+                                usesNavigationBackButton: true,
+                                onOpenSource: { push(.source($0.id), in: root) })
+                    .toolbar(.hidden, for: .tabBar)
+            } else {
+                ContentUnavailableView("Explanation unavailable", systemImage: "text.page",
+                                       description: Text("This topic is not in the sample pack."))
+            }
+        case .source(let sourceID):
+            if let source = content.sources.first(where: { $0.id == sourceID }) {
+                SourceDetailView(source: source)
+                    .toolbar(.hidden, for: .tabBar)
+            } else {
+                ContentUnavailableView("Source unavailable", systemImage: "doc.text",
+                                       description: Text("This source is not in the sample pack."))
+            }
+        }
+    }
+
+    private func push(_ route: ReaderRoute, in root: Int) {
+        switch root {
+        case 1: topicsPath.append(route)
+        case 2: libraryPath.append(route)
+        default: todayPath.append(route)
+        }
     }
 
     private func loadContent() {
@@ -813,8 +873,8 @@ private indirect enum AudioModalRoute: Identifiable {
 }
 
 enum ReaderColor {
-    static let action = Color(light: 0x175CD3, dark: 0x8AB4FF)
-    static let secondary = Color(light: 0x62626A, dark: 0xA1A1AA)
+    static let action = Color(light: 0x215DB0, dark: 0x9BC2FF)
+    static let secondary = Color(light: 0x62676F, dark: 0xAEB4BF)
     static let separator = Color(light: 0xE5E5EA, dark: 0x303036)
     static let correction = Color(light: 0x9A3412, dark: 0xFDBA74)
 }
