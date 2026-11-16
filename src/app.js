@@ -1,4 +1,4 @@
-import { renderEdition } from './edition/edition.js';
+import { renderEdition, renderToday, visibleSections } from './edition/edition.js';
 import { renderTopics, renderDeepDive } from './topics/topics.js';
 import { loadState, saveState, resetState } from './storage.js';
 import { createPlayer } from './player.js';
@@ -17,6 +17,8 @@ let transcriptReturnHash = null;
 let pendingPlayerReturnFocus = false;
 let pendingReturnHeadingFocus = false;
 let readingObserver = null;
+let pendingRouteContext = null;
+let libraryFilter = 'editions';
 
 const player = createPlayer(document.querySelector('#player-root'), (id, seconds, revisionId) => {
   state.progress[id] = { seconds, revisionId };
@@ -107,27 +109,70 @@ function personalized(edition) {
   return edition;
 }
 
-function remember(sectionId = null) { returnTo = { hash: location.hash || '#today', sectionId, scrollY: window.scrollY, sourceID: document.activeElement?.dataset?.source || null }; }
-function navigate(hash) { if (location.hash === hash) route(); else location.hash = hash; }
+function focusToken() {
+  const active = document.activeElement;
+  if (!active) return null;
+  if (active.dataset?.nav) return { type: 'nav', id: active.dataset.nav };
+  if (active.classList?.contains('settings-link')) return { type: 'settings' };
+  if (!content.contains(active)) return null;
+  if (active.dataset.source) return { type: 'source', id: active.dataset.source };
+  if (active.dataset.topic) return { type: 'topic', id: active.dataset.topic };
+  if (active.hasAttribute('data-read-start')) return { type: 'read-start' };
+  if (active.hasAttribute('data-continue')) return { type: 'continue' };
+  if (active.dataset.readSection) return { type: 'read-section', id: active.dataset.readSection };
+  if (active instanceof HTMLAnchorElement && active.getAttribute('href')?.startsWith('#')) return { type: 'href', id: active.getAttribute('href') };
+  if (active.id) return { type: 'id', id: active.id };
+  return null;
+}
+function remember(sectionId = null) {
+  returnTo = { hash: location.hash || '#today', sectionId, scrollY: window.scrollY, focus: focusToken(), sourceID: document.activeElement?.dataset?.source || null };
+  return returnTo;
+}
+function rootForHash(hash = location.hash || '#today', context = history.state?.routeContext) {
+  if (hash === '#today') return 'today';
+  if (hash === '#topics') return 'topics';
+  if (hash === '#library') return 'library';
+  if (context?.root && ['today', 'topics', 'library'].includes(context.root)) return context.root;
+  if (['#weekly'].includes(hash) || hash.startsWith('#edition/')) return 'today';
+  if (hash.startsWith('#topic/') || hash.startsWith('#explanation/')) return 'topics';
+  return 'today';
+}
+function navigate(hash, context = null) {
+  const currentHash = location.hash || '#today';
+  const currentState = history.state || {};
+  history.replaceState({ ...currentState, viewState: { scrollY: window.scrollY, focus: focusToken() || context?.parentFocus || null } }, '', location.href);
+  pendingRouteContext = context || { root: rootForHash(currentHash), parentHash: currentHash, parentScroll: window.scrollY, parentFocus: focusToken() };
+  if (currentHash === hash) route(); else location.hash = hash;
+}
 function navigateTranscript(hash, placement) {
   pendingTranscriptPlacement = placement;
   if (location.hash === hash) route();
   else {
-    history.pushState({ ...(history.state || {}), transcriptOrigin: { ...transcriptReturnTo }, transcriptHash: hash }, '', hash);
+    history.pushState({ ...(history.state || {}), transcriptOrigin: { ...transcriptReturnTo }, transcriptHash: hash,
+      routeContext: { root: rootForHash(transcriptReturnTo.hash), parentHash: transcriptReturnTo.hash, parentScroll: transcriptReturnTo.scrollY, parentFocus: transcriptReturnTo.focus, transcript: true } }, '', hash);
     route();
   }
 }
-function openSource(id) { remember(); navigate(`#source/${encodeURIComponent(id)}`); }
+function openSource(id) {
+  const parent = remember();
+  parent.focus = { type: 'source', id }; parent.sourceID = id;
+  navigate(`#source/${encodeURIComponent(id)}`, { root: rootForHash(parent.hash), parentHash: parent.hash, parentScroll: parent.scrollY, parentFocus: parent.focus, parentType: parent.hash.startsWith('#explanation/') || parent.hash.startsWith('#topic/') ? 'explanation' : 'briefing' });
+}
 function openDeepDive(id, sectionId = null) {
-  remember(sectionId);
+  const parent = remember(sectionId);
+  parent.focus ||= { type: 'topic', id };
   deepDiveReturnTo = returnTo;
-  navigate(`#topic/${encodeURIComponent(id)}`);
+  navigate(`#topic/${encodeURIComponent(id)}`, { root: rootForHash(parent.hash), parentHash: parent.hash, parentScroll: parent.scrollY, parentFocus: parent.focus, sectionId });
 }
 function backTo(target) {
-  pendingScrollRestore = target.scrollY;
-  pendingSourceFocusID = target.sourceID || null;
-  pendingReturnHeadingFocus = true;
-  navigate(target.hash);
+  if (history.state?.routeContext?.parentHash === target.hash && history.length > 1) {
+    history.back();
+  } else {
+    pendingScrollRestore = target.scrollY;
+    pendingSourceFocusID = target.sourceID || null;
+    pendingReturnHeadingFocus = !target.focus && !target.sourceID;
+    navigate(target.hash, { root: rootForHash(target.hash), parentHash: null, restore: { scrollY: target.scrollY, focus: target.focus || (target.sourceID ? { type: 'source', id: target.sourceID } : null) } });
+  }
 }
 function back() {
   if (transcriptReturnTo && transcriptReturnHash && location.hash.startsWith('#source/') && returnTo.hash === transcriptReturnHash) {
@@ -136,7 +181,9 @@ function back() {
     history.back();
     return;
   }
-  backTo(returnTo);
+  const parent = history.state?.routeContext?.parentHash;
+  if (parent && history.length > 1) history.back();
+  else backTo(returnTo);
 }
 function toggleSave(id, revisionId = null, rerender = true) {
   if (state.savedIds.includes(id)) {
@@ -159,6 +206,10 @@ function revisionNumber(item) {
 
 function revisionDate(item) {
   return String(item.published_at || item.reviewed_at || item.local_date || item.week_start || item.created_at || '');
+}
+function displayDate(value) {
+  const date = new Date(`${String(value || '').slice(0, 10)}T12:00:00Z`);
+  return Number.isNaN(date.getTime()) ? String(value || '') : new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
 }
 
 function revisionGroup(items, id, predicate = () => true) {
@@ -258,7 +309,7 @@ function openTranscript(selected) {
     ? `#explanation/${encodeURIComponent(current.id)}`
     : `#edition/${encodeURIComponent(current.kind)}/${encodeURIComponent(current.id)}`;
   if (readerAlreadyShows(current)) return { available: true, correctedItem: corrected || selectedAudioMismatch ? current : null };
-  transcriptReturnTo = { hash: location.hash || '#today', sectionId: null, scrollY: window.scrollY };
+  transcriptReturnTo = { hash: location.hash || '#today', sectionId: null, scrollY: window.scrollY, focus: focusToken() };
   transcriptReturnHash = hash;
   const saved = state.readingProgress[current.id];
   const validAnchor = !corrected && saved?.revisionId === current.revision_id && current.sections.some(section => section.id === saved.sectionId);
@@ -277,17 +328,27 @@ function renderEditionPage(kind, exactEdition = null) {
     content.append(node('p', 'There is no unambiguous current version available right now.'));
     return;
   }
-  if (transcriptDestination(edition.id, edition.kind)) {
-    const returnButton = node('button', transcriptReturnLabel(), 'back-link transcript-return');
-    returnButton.type = 'button'; returnButton.addEventListener('click', () => returnFromTranscript());
-    content.append(returnButton);
-  }
+  const routeContext = history.state?.routeContext || {};
+  const returnHash = routeContext.parentHash === '#library' ? '#library' : '#today';
+  const readerHeader = node('div', null, 'reader-sticky');
+  const backButton = node('button', `‹ ${returnHash === '#library' ? 'Library' : 'Today'}`, 'reader-back');
+  if (transcriptDestination(edition.id, edition.kind)) backButton.classList.add('transcript-return');
+  backButton.type = 'button';
+  backButton.addEventListener('click', () => {
+    if (transcriptDestination(edition.id, edition.kind)) { returnFromTranscript(); return; }
+    if (routeContext.parentHash && history.length > 1) history.back();
+    else navigate(returnHash, { root: returnHash.slice(1), parentHash: null });
+  });
+  const contentsButton = node('button', 'Contents', 'reader-contents-open'); contentsButton.type = 'button';
+  readerHeader.append(backButton, contentsButton);
+  content.append(readerHeader);
   const body = node('div'); content.append(body);
   renderEdition(body, edition, pack.topics, {
     sources: pack.sources,
     play: item => player.play(item),
     openTopic: openDeepDive,
     hasDeepDive: id => pack.deepDives.some(item => item.topic_id === id),
+    deepDives: currentItems(pack.deepDives),
     openSource,
     correctionStopped: sessionStorage.getItem('briefing:correction-audio-notice'),
     save: (id, revisionId) => toggleSave(id, revisionId, false),
@@ -307,10 +368,44 @@ function renderEditionPage(kind, exactEdition = null) {
   });
   sessionStorage.removeItem('briefing:correction-audio-notice');
   if (!pendingTranscriptPlacement) trackReadingPlace(edition.id, edition.revision_id, '.edition-section');
-  const footer = node('div', null, 'button-row');
-  footer.append(link(kind === 'daily' ? 'Read the weekly recap →' : 'Return to today →', kind === 'daily' ? '#weekly' : '#today', 'button-link'));
-  footer.append(link('Adjust topics', '#preferences', 'button-link'));
-  content.append(footer);
+  const dialog = node('dialog', null, 'reader-contents-dialog');
+  let jumpedFromContents = false;
+  const dialogHead = node('div', null, 'reader-contents-heading');
+  dialogHead.append(node('h2', 'In this edition'));
+  const close = node('button', 'Close'); close.type = 'button'; close.addEventListener('click', () => dialog.close());
+  dialogHead.append(close); dialog.append(dialogHead);
+  const list = node('ol');
+  visibleSections(edition).forEach((section, index) => {
+    const item = node('li'); const jump = node('button', `${String(index + 1).padStart(2, '0')}  ${section.heading}`);
+    jump.type = 'button'; jump.addEventListener('click', () => { jumpedFromContents = true; dialog.close(); continueToSection(section.id); });
+    item.append(jump); list.append(item);
+  });
+  dialog.append(list); dialog.addEventListener('close', () => { if (!jumpedFromContents) contentsButton.focus(); });
+  content.append(dialog);
+  contentsButton.addEventListener('click', () => dialog.showModal());
+}
+
+function continueToSection(sectionId) {
+  const section = document.getElementById(sectionId);
+  section?.scrollIntoView({ block: 'start' });
+  section?.querySelector('h2')?.focus({ preventScroll: true });
+}
+
+function renderTodayPage() {
+  const edition = currentEdition('daily');
+  if (!edition) return renderMissing();
+  const body = node('div'); content.append(body);
+  renderToday(body, edition, pack.topics, {
+    weekly: currentEdition('weekly'),
+    readingPlace: (id, revision) => {
+      const place = state.readingProgress[id];
+      return place?.revisionId === revision ? place.sectionId : null;
+    },
+    openReader: sectionId => {
+      const hash = `#edition/daily/${encodeURIComponent(edition.id)}${sectionId ? `/${encodeURIComponent(sectionId)}` : ''}`;
+      navigate(hash, { root: 'today', parentHash: '#today', parentScroll: window.scrollY, parentFocus: focusToken(), sectionId });
+    },
+  });
 }
 
 function renderTopicsPage() {
@@ -331,15 +426,26 @@ function renderDeepDivePage(id, exactDive = null) {
   const topic = pack.topics.find(item => item.id === (dive?.topic_id || id));
   if (!topic || !dive) return renderMissing();
   const body = node('div'); content.append(body);
+  body.className = 'deep-dive-page';
   const isTranscriptDestination = transcriptDestination(dive.id, 'deep-dive');
-  const origin = isTranscriptDestination ? transcriptReturnTo : (deepDiveReturnTo || returnTo);
-  const fromToday = origin.hash === '#today';
-  const backLabel = fromToday ? '← Back to today’s briefing' : origin.hash === '#library' ? '← Back to Library' : '← Back to Topics';
+  const routeContext = history.state?.routeContext;
+  const origin = isTranscriptDestination ? transcriptReturnTo : (routeContext?.parentHash ? { hash: routeContext.parentHash, scrollY: routeContext.parentScroll || 0, focus: routeContext.parentFocus } : (deepDiveReturnTo || returnTo));
+  const root = rootForHash(location.hash, routeContext);
+  const backLabel = origin.hash?.startsWith('#edition/') || origin.hash === '#weekly' ? '‹ Briefing' : root === 'library' ? '‹ Library' : root === 'today' ? '‹ Briefing' : '‹ Topics';
+  const sticky = node('div', null, 'reader-sticky');
+  const back = node('button', backLabel, 'reader-back'); back.type = 'button';
+  if (isTranscriptDestination) back.classList.add('transcript-return');
+  back.addEventListener('click', () => {
+    if (isTranscriptDestination) { returnFromTranscript(); return; }
+    if (routeContext?.parentHash && !routeContext.direct && history.length > 1) history.back();
+    else navigate(root === 'library' ? '#library' : root === 'today' ? '#today' : '#topics', { root, parentHash: null });
+  });
+  sticky.append(back); content.insertBefore(sticky, body);
   renderDeepDive(body, topic, dive, pack.sources, {
-    back: () => isTranscriptDestination ? returnFromTranscript() : backTo(origin),
-    backLabel,
     play: item => player.play(item),
     openSource,
+    save: (itemId, revision) => toggleSave(itemId, revision, false),
+    isSaved: itemId => state.savedIds.includes(itemId),
   });
   const audioMatches = dive.audio?.state === 'recorded' && dive.audio.url &&
     dive.audio.revision_id === dive.revision_id && dive.audio.script_hash === dive.script_hash;
@@ -378,25 +484,33 @@ function returnFromTranscript() {
 function renderSourcePage(id) {
   const source = pack.sources.find(item => item.id === id);
   if (!source) return renderMissing();
-  const heading = node('h1', source.title);
-  heading.tabIndex = -1;
-  content.append(node('p', 'SOURCE REFERENCE', 'eyebrow'), heading);
-  content.append(node('p', source.note || 'This is a background reference, not evidence for the fictional sample.'));
-  const details = node('dl', null, 'source-details');
-  const supportedSection = pack.editions.flatMap(edition => edition.sections).find(section => section.id === source.supported_section)?.heading || source.supported_section;
-  for (const [label, value] of [['Publisher', source.publisher], ['Date', source.date], ['Kind', source.kind], ['Supported section', supportedSection], ['Scope', source.scope], ['Availability', source.availability]]) {
-    if (!value) continue;
-    details.append(node('dt', label), node('dd', value));
-  }
-  content.append(details);
-  const backButton = node('button', '← Return to briefing'); backButton.type = 'button'; backButton.addEventListener('click', back);
-  const row = node('div', null, 'button-row');
+  const routeContext = history.state?.routeContext || {};
+  const parentType = routeContext.parentType || (routeContext.parentHash?.startsWith('#explanation/') || routeContext.parentHash?.startsWith('#topic/') ? 'explanation' : 'briefing');
+  const sticky = node('div', null, 'reader-sticky');
+  const backButton = node('button', parentType === 'explanation' ? '‹ Explanation' : '‹ Briefing', 'reader-back');
+  backButton.type = 'button'; backButton.addEventListener('click', back);
+  sticky.append(backButton); content.append(sticky);
+  const domain = (() => { try { return new URL(source.url).hostname.replace(/^www\./, ''); } catch { return ''; } })();
+  const publisherNames = { 'federalreserve.gov': 'Federal Reserve', 'fdic.gov': 'FDIC', 'consumerfinance.gov': 'Consumer Financial Protection Bureau', 'pages.nist.gov': 'NIST', 'content.naic.org': 'National Association of Insurance Commissioners', 'theifab.com': 'The IFAB' };
+  const publisher = source.publisher || publisherNames[domain] || domain || 'Reference';
+  const heading = node('h1', source.title); heading.tabIndex = -1;
+  heading.className = 'source-title';
+  content.append(node('p', publisher, 'source-publisher'), heading);
+  const row = node('div', null, 'button-row source-actions');
   if (source.url) {
-    const external = link('Open the original source ↗', source.url, 'button-link');
+    const external = link('Open original ↗', source.url, 'button-link');
     external.target = '_blank'; external.rel = 'noopener noreferrer';
     row.append(external);
   }
-  row.append(backButton); content.append(row);
+  if (source.url) row.append(node('span', 'Opens in a new tab', 'source-new-tab'));
+  content.append(row);
+  content.append(node('h2', 'Why this source', 'source-section-heading'));
+  content.append(node('p', source.note || 'This source provides background for the explanation.'));
+  const limits = source.scope || source.availability || 'This reference supports background context; it does not verify the fictional example or establish an individual outcome.';
+  content.append(node('h2', 'Limits', 'source-section-heading'));
+  content.append(node('p', limits));
+  if (source.date) content.append(node('p', `Published ${source.date}`, 'source-published'));
+  if (domain) content.append(node('p', domain, 'source-domain'));
 }
 
 function renderPreferences() {
@@ -428,7 +542,10 @@ function renderPreferences() {
     try { new Intl.DateTimeFormat('en-US', { timeZone: zone.value.trim() }); }
     catch { message.textContent = 'Enter a valid time zone, such as America/New_York.'; return; }
     state = saveState({ ...state, selectedIds: picked, priorityIds: state.priorityIds.filter(id => picked.includes(id)), durationMinutes, timezone: zone.value.trim() });
-    navigate('#today');
+    sessionStorage.setItem('briefing:settings-saved', 'Topic choices saved.');
+    const parent = history.state?.routeContext?.parentHash;
+    if (parent && history.length > 1) history.back();
+    else navigate(history.state?.routeContext?.root === 'library' ? '#library' : history.state?.routeContext?.root === 'topics' ? '#topics' : '#today', { root: history.state?.routeContext?.root || 'today', parentHash: null });
   });
   content.append(form);
   const reset = node('button', 'Reset this browser’s choices'); reset.type = 'button';
@@ -437,35 +554,54 @@ function renderPreferences() {
 }
 
 function renderLibrary() {
-  content.append(node('p', 'YOUR LIBRARY', 'eyebrow'), node('h1', 'Editions and explanations'));
-  content.append(node('p', 'This is a small illustrative library. Saved items and progress live only in this browser.'));
-  const list = node('ul', null, 'library-list');
+  content.append(node('h1', 'Library'));
+  content.append(node('p', 'Revisit daily editions, weekly recaps and items you saved on this device.', 'library-intro'));
+  const filters = node('div', null, 'library-filters');
+  const editionsTab = node('button', 'Editions'); editionsTab.type = 'button'; editionsTab.setAttribute('aria-pressed', String(libraryFilter === 'editions'));
+  const savedTab = node('button', 'Saved'); savedTab.type = 'button'; savedTab.setAttribute('aria-pressed', String(libraryFilter === 'saved'));
+  filters.append(editionsTab, savedTab); content.append(filters);
+  const section = node('section', null, 'library-results'); content.append(section);
   const editions = currentItems(pack.editions);
   const deepDives = currentItems(pack.deepDives);
   const sectionLookup = new Map(editions.flatMap(edition => edition.sections.map(section => [section.id, { section, edition }])));
-  for (const id of state.savedIds) {
-    const match = sectionLookup.get(id);
-    if (!match) continue;
-    const li = node('li');
-    const destination = `#edition/${encodeURIComponent(match.edition.kind)}/${encodeURIComponent(match.edition.id)}`;
-    li.append(link(match.section.heading, destination));
-    li.append(node('small', ' · Saved section', 'muted'));
-    const remove = node('button', 'Remove saved item'); remove.type = 'button'; remove.addEventListener('click', () => toggleSave(id));
-    li.append(node('br'), remove); list.append(li);
-  }
-  for (const edition of editions) {
-    const li = node('li'); li.append(link(edition.title, `#edition/${encodeURIComponent(edition.kind)}/${encodeURIComponent(edition.id)}`));
-    const correction = edition.corrections?.find(item => item.severity === 'material');
-    const savedRevision = state.savedRevisions[edition.id];
-    li.append(node('small', ` · ${edition.kind === 'daily' ? 'Daily' : 'Weekly'} sample${state.savedIds.includes(edition.id) ? ' · Saved' : ''}${correction ? ' · Corrected' : ''}${savedRevision && savedRevision !== edition.revision_id ? ' · Updated since saved' : ''}`, 'muted')); list.append(li);
-  }
-  for (const dive of deepDives) {
-    const li = node('li'); li.append(link(dive.title, `#explanation/${encodeURIComponent(dive.id)}`));
-    li.querySelector('a').addEventListener('click', event => { event.preventDefault(); remember(); deepDiveReturnTo = returnTo; navigate(`#explanation/${encodeURIComponent(dive.id)}`); });
-    li.append(node('small', ` · Topic explanation${state.savedIds.includes(dive.id) ? ' · Saved' : ''}`, 'muted')); list.append(li);
-  }
-  content.append(list);
-  const settings = link('Edit your topics', '#preferences', 'button-link'); content.append(settings);
+  const addRow = (title, type, detail, hash) => {
+    const li = node('li'); li.append(link(title, hash));
+    li.append(node('small', `${type} · ${detail}`, 'muted')); section.querySelector('ul').append(li);
+  };
+  const renderRows = () => {
+    section.replaceChildren();
+    const list = node('ul', null, 'library-list'); section.append(list);
+    if (libraryFilter === 'editions') {
+      for (const edition of editions.sort((a, b) => revisionDate(b).localeCompare(revisionDate(a)))) {
+        const date = edition.kind === 'weekly' ? `Week of ${displayDate(edition.week_start)}` : displayDate(edition.local_date);
+        addRow(edition.title, edition.kind === 'weekly' ? 'Weekly recap' : 'Daily edition', `${date} · About ${readingMinutesFor(edition)} min`, `#edition/${encodeURIComponent(edition.kind)}/${encodeURIComponent(edition.id)}`);
+      }
+    } else {
+      const savedEditions = editions.filter(item => state.savedIds.includes(item.id));
+      const savedDives = deepDives.filter(item => state.savedIds.includes(item.id));
+      const savedSections = state.savedIds.filter(id => sectionLookup.has(id));
+      if (!savedEditions.length && !savedDives.length && !savedSections.length) {
+        section.append(node('p', 'Save an edition or explanation to find it here.', 'library-empty'));
+      }
+      for (const edition of savedEditions) {
+        const date = edition.kind === 'weekly' ? `Week of ${displayDate(edition.week_start)}` : displayDate(edition.local_date);
+        addRow(edition.title, edition.kind === 'weekly' ? 'Weekly recap' : 'Daily edition', `${date} · About ${readingMinutesFor(edition)} min`, `#edition/${encodeURIComponent(edition.kind)}/${encodeURIComponent(edition.id)}`);
+      }
+      for (const dive of savedDives) {
+        const topic = pack.topics.find(item => item.id === dive.topic_id);
+        addRow(dive.title, `${topic?.label || 'Topic'} explanation`, `About ${dive.duration_minutes} min`, `#explanation/${encodeURIComponent(dive.id)}`);
+      }
+      for (const id of savedSections) {
+        const match = sectionLookup.get(id);
+        addRow(match.section.heading, 'Saved section', match.edition.kind === 'weekly' ? 'Weekly recap' : 'Daily edition', `#edition/${encodeURIComponent(match.edition.kind)}/${encodeURIComponent(match.edition.id)}/${encodeURIComponent(id)}`);
+      }
+    }
+    section.append(node('p', 'Saved on this device', 'library-device-note'));
+  };
+  const readingMinutesFor = item => Math.max(1, Math.ceil(visibleSections(item).reduce((count, part) => count + part.body.split(/\s+/).length, 0) / 225));
+  editionsTab.addEventListener('click', () => { libraryFilter = 'editions'; editionsTab.setAttribute('aria-pressed', 'true'); savedTab.setAttribute('aria-pressed', 'false'); renderRows(); });
+  savedTab.addEventListener('click', () => { libraryFilter = 'saved'; editionsTab.setAttribute('aria-pressed', 'false'); savedTab.setAttribute('aria-pressed', 'true'); renderRows(); });
+  renderRows();
 }
 
 function renderMissing() {
@@ -479,6 +615,15 @@ function route() {
   content.textContent = '';
   const routeName = decodeURIComponent((location.hash || '#today').slice(1));
   const routeHash = location.hash || '#today';
+  const routeState = history.state || {};
+  if (pendingRouteContext) {
+    history.replaceState({ ...routeState, routeContext: pendingRouteContext }, '', location.href);
+    pendingRouteContext = null;
+  } else if (!routeState.routeContext) {
+    const directRoot = rootForHash(routeHash, null);
+    const directParent = routeName.startsWith('explanation/') ? '#topics' : routeName.startsWith('topic/') ? '#topics' : null;
+    history.replaceState({ ...routeState, routeContext: { root: directRoot, parentHash: directParent, parentScroll: 0, parentFocus: null, direct: Boolean(directParent) } }, '', location.href);
+  }
   if (history.state?.transcriptHash === routeHash && history.state?.transcriptOrigin) {
     transcriptReturnTo = history.state.transcriptOrigin;
     transcriptReturnHash = history.state.transcriptHash;
@@ -493,21 +638,27 @@ function route() {
   if (routeName.startsWith('topic/') && !deepDiveReturnTo) {
     deepDiveReturnTo = { hash: '#topics', sectionId: null, scrollY: 0 };
   }
-  const group = routeName === 'topics' || routeName.startsWith('topic/') || routeName.startsWith('explanation/') || routeName === 'preferences' ? 'topics' : routeName === 'library' ? 'library' : 'today';
+  const group = rootForHash(routeHash, history.state?.routeContext);
   const editionKind = routeName.startsWith('edition/') ? routeName.slice(8).split('/')[0] : null;
-  const pageTitle = routeName === 'preferences' ? 'Settings' : routeName.startsWith('source/') ? 'Source' : group === 'topics' ? 'Topics' : group === 'library' ? 'Library' : (routeName === 'weekly' || editionKind === 'weekly') ? 'Weekly' : 'Today';
+  const isReader = routeName === 'weekly' || routeName.startsWith('edition/') || routeName.startsWith('explanation/') || routeName.startsWith('topic/') || routeName.startsWith('source/');
+  document.body.classList.toggle('is-reader', isReader);
+  const pageTitle = routeName === 'preferences' ? 'Settings' : routeName.startsWith('source/') ? 'Source' : routeName.startsWith('explanation/') || routeName.startsWith('topic/') ? 'Explanation' : group === 'topics' ? 'Topics' : group === 'library' ? 'Library' : (routeName === 'weekly' || editionKind === 'weekly') ? 'Weekly' : 'Today';
   document.querySelector('[data-page-title]').textContent = pageTitle;
   document.querySelector('.settings-link').hidden = routeName === 'preferences';
   document.title = `${pageTitle} · Personal briefing`;
   for (const item of nav) item.setAttribute('aria-current', item.dataset.nav === group ? 'page' : 'false');
-  if (routeName === 'today' || !routeName) renderEditionPage('daily');
+  if (routeName === 'today' || !routeName) renderTodayPage();
   else if (routeName === 'weekly') renderEditionPage('weekly');
   else if (routeName.startsWith('edition/')) {
     const parts = routeName.slice(8).split('/');
     const kind = parts.length > 1 ? parts.shift() : null;
-    const id = parts.join('/');
+    const id = parts.shift();
+    const sectionId = parts.shift() || history.state?.routeContext?.sectionId || null;
     const edition = currentRevision(pack.editions, id, item => !kind || item.kind === kind);
-    if (edition) renderEditionPage(edition.kind, edition); else renderMissing();
+    if (edition) {
+      renderEditionPage(edition.kind, edition);
+      if (sectionId) requestAnimationFrame(() => continueToSection(sectionId));
+    } else renderMissing();
   }
   else if (routeName.startsWith('explanation/')) {
     const dive = currentRevision(pack.deepDives, routeName.slice(12));
@@ -519,15 +670,34 @@ function route() {
   else if (routeName === 'preferences') renderPreferences();
   else if (routeName === 'library') renderLibrary();
   else renderMissing();
+  const settingsNotice = sessionStorage.getItem('briefing:settings-saved');
+  if (settingsNotice && ['today', 'topics', 'library'].includes(group) && !isReader) {
+    const status = node('p', settingsNotice, 'settings-confirmation'); status.setAttribute('role', 'status');
+    content.prepend(status); sessionStorage.removeItem('briefing:settings-saved');
+  }
   player.refresh();
   const restoreScroll = pendingScrollRestore;
   pendingScrollRestore = null;
+  const viewState = history.state?.viewState || history.state?.routeContext?.restore;
   if (restoreScroll != null) requestAnimationFrame(() => window.scrollTo({ top: restoreScroll, behavior: 'instant' }));
+  else if (viewState && routeName !== 'preferences') requestAnimationFrame(() => window.scrollTo({ top: viewState.scrollY || 0, behavior: 'instant' }));
   else if (routeName !== 'preferences') window.scrollTo({ top: 0, behavior: 'instant' });
   const sourceFocusID = pendingSourceFocusID;
   pendingSourceFocusID = null;
   if (sourceFocusID) requestAnimationFrame(() => [...content.querySelectorAll('[data-source]')].find(button => button.dataset.source === sourceFocusID)?.focus({ preventScroll: true }));
   else if (routeName.startsWith('source/')) requestAnimationFrame(() => content.querySelector('h1')?.focus({ preventScroll: true }));
+  else if (viewState?.focus) requestAnimationFrame(() => {
+    const selector = viewState.focus.type === 'source' ? `[data-source="${CSS.escape(viewState.focus.id)}"]` :
+      viewState.focus.type === 'topic' ? `[data-topic="${CSS.escape(viewState.focus.id)}"]` :
+      viewState.focus.type === 'read-start' ? '[data-read-start]' : viewState.focus.type === 'continue' ? '[data-continue]' :
+      viewState.focus.type === 'read-section' ? `[data-read-section="${CSS.escape(viewState.focus.id)}"]` :
+      viewState.focus.type === 'nav' ? `[data-nav="${CSS.escape(viewState.focus.id)}"]` :
+      viewState.focus.type === 'settings' ? '.settings-link' : viewState.focus.type === 'href' ? null : `#${CSS.escape(viewState.focus.id)}`;
+    const target = viewState.focus.type === 'nav' || viewState.focus.type === 'settings' ? document.querySelector(selector) :
+      viewState.focus.type === 'href' ? [...content.querySelectorAll('a[href]')].find(anchor => anchor.getAttribute('href') === viewState.focus.id) : content.querySelector(selector);
+    if (target?.closest('details')) target.closest('details').open = true;
+    target?.focus({ preventScroll: true });
+  });
   const focusReturnHeading = pendingReturnHeadingFocus;
   pendingReturnHeadingFocus = false;
   if (focusReturnHeading && !sourceFocusID) requestAnimationFrame(() => (content.querySelector('h1') || document.querySelector('[data-page-title]'))?.focus({ preventScroll: true }));
@@ -555,6 +725,17 @@ function route() {
 }
 
 window.addEventListener('hashchange', route);
+document.addEventListener('click', event => {
+  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+  const anchor = event.target.closest?.('a[href^="#"]');
+  if (!anchor || anchor.target === '_blank') return;
+  const hash = anchor.getAttribute('href');
+  if (!hash || hash === '#content') return;
+  event.preventDefault();
+  const isRoot = ['#today', '#topics', '#library'].includes(hash);
+  const root = isRoot ? hash.slice(1) : rootForHash(location.hash);
+  navigate(hash, { root, parentHash: isRoot ? null : (location.hash || '#today'), parentScroll: window.scrollY, parentFocus: focusToken() });
+});
 loadPack().then(data => {
   pack = data;
   const saved = state.activeAudio;
