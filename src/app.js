@@ -579,7 +579,8 @@ function renderLibrary() {
     if (libraryFilter === 'editions') {
       for (const edition of editions.sort((a, b) => revisionDate(b).localeCompare(revisionDate(a)))) {
         const date = edition.kind === 'weekly' ? `Week of ${displayDate(edition.week_start)}` : displayDate(edition.local_date);
-        addRow(edition.title, edition.kind === 'weekly' ? 'Weekly recap' : 'Daily edition', `${date} · About ${readingMinutesFor(edition)} min`, `#edition/${encodeURIComponent(edition.kind)}/${encodeURIComponent(edition.id)}`);
+        const corrected = edition.corrections?.some(item => item.severity === 'material');
+        addRow(edition.title, edition.kind === 'weekly' ? 'Weekly recap' : 'Daily edition', `${corrected ? 'Corrected · ' : ''}${date} · About ${readingMinutesFor(edition)} min`, `#edition/${encodeURIComponent(edition.kind)}/${encodeURIComponent(edition.id)}`);
       }
     } else {
       const savedEditions = editions.filter(item => state.savedIds.includes(item.id));
@@ -590,7 +591,10 @@ function renderLibrary() {
       }
       for (const edition of savedEditions) {
         const date = edition.kind === 'weekly' ? `Week of ${displayDate(edition.week_start)}` : displayDate(edition.local_date);
-        addRow(edition.title, edition.kind === 'weekly' ? 'Weekly recap' : 'Daily edition', `${date} · About ${readingMinutesFor(edition)} min`, `#edition/${encodeURIComponent(edition.kind)}/${encodeURIComponent(edition.id)}`);
+        const corrected = edition.corrections?.some(item => item.severity === 'material');
+        const savedRevision = state.savedRevisions?.[edition.id];
+        const updated = savedRevision && savedRevision !== edition.revision_id;
+        addRow(edition.title, edition.kind === 'weekly' ? 'Weekly recap' : 'Daily edition', `Saved · ${corrected ? 'Corrected · ' : ''}${updated ? 'Updated since saved · ' : ''}${date} · About ${readingMinutesFor(edition)} min`, `#edition/${encodeURIComponent(edition.kind)}/${encodeURIComponent(edition.id)}`);
       }
       for (const dive of savedDives) {
         const topic = pack.topics.find(item => item.id === dive.topic_id);

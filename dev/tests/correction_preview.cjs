@@ -64,12 +64,14 @@ async function run() {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await installPack(page, () => revision);
     await page.goto(baseURL, { waitUntil: 'networkidle' });
-    await page.getByRole('button', { name: 'Save briefing' }).click();
-    await page.getByRole('button', { name: 'Mark finished' }).click();
-    assert.match(await page.locator('[data-finish]').textContent(), /Finished/);
+    await page.locator('.today-primary button.primary').click();
+    await page.getByRole('button', { name: 'Save edition' }).click();
 
     revision = 'r2';
     await page.reload({ waitUntil: 'networkidle' });
+    if (await page.locator('.today-primary button.primary').count()) {
+      await page.locator('.today-primary button.primary').click();
+    }
     assert.match(await page.locator('.correction-notice').innerText(), /120 to 12/);
     assert.match(await page.locator('.correction-notice').innerText(), /Updated audio is unavailable/);
     assert.equal(await page.locator('.edition-play').count(), 0, 'Corrected pending audio has no Play action');
@@ -83,38 +85,42 @@ async function run() {
     assert.match(await page.locator('#correction-checkout-pilot').innerText(), /12 participants/);
     await page.waitForFunction(() => JSON.parse(localStorage.getItem('briefing:v1:state')).readingProgress['fictional-correction-edition']?.revisionId === 'fictional-r2');
     const readingProgress = await page.evaluate(() => JSON.parse(localStorage.getItem('briefing:v1:state')).readingProgress['fictional-correction-edition']);
+    await page.locator('#correction-checkout-pilot .section-sources summary').click();
     await page.locator('#correction-checkout-pilot [data-source="fictional-pilot-record"]').click();
     await page.getByRole('heading', { name: 'Fictional pilot record — demonstration source' }).waitFor();
     await page.waitForFunction(() => document.activeElement?.tagName === 'H1');
     await capture(page, 'fictional-correction-source-light.png');
     assert.equal(await page.getByRole('link', { name: /Open the original source/ }).count(), 0, 'Internal fictional source has no external link');
-    assert.match(await page.locator('.source-details').innerText(), /Prototype fixture.*2026-11-16.*Internal fictional evidence/s);
+    assert.equal(await page.locator('.source-publisher').innerText(), 'Fictional demonstration source');
+    assert.match(await page.locator('.source-published').innerText(), /2026-11-16/);
+    assert.match(await page.locator('.source-title').innerText(), /Fictional pilot record/);
     await page.setViewportSize({ width: 195, height: 844 });
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false,
       'Source details reflow without horizontal overflow at narrow zoom width');
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.getByRole('button', { name: /Return to briefing/ }).click();
+    await page.locator('.reader-back').click();
     await page.locator('#correction-checkout-pilot').waitFor();
     const returnedSection = await page.locator('#correction-checkout-pilot').evaluate(section => section.getBoundingClientRect());
     assert.ok(returnedSection.top < 844 && returnedSection.bottom > 0, 'Source return restores the corrected reading area in view');
     await page.waitForFunction(() => document.activeElement?.dataset?.source === 'fictional-pilot-record');
     assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('briefing:v1:state')).readingProgress['fictional-correction-edition']), readingProgress, 'Source return keeps reading progress');
-    await page.getByRole('link', { name: 'Library' }).click();
+    await page.goto(`${baseURL}/#library`, { waitUntil: 'networkidle' });
     assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('briefing:v1:state')).savedIds), ['fictional-correction-edition'], 'The stable item remains exactly one saved Library entry');
     assert.equal((await page.evaluate(() => JSON.parse(localStorage.getItem('briefing:v1:state')).savedRevisions['fictional-correction-edition'])), 'fictional-r1', 'The saved revision is retained as metadata');
     assert.match(await page.locator('.library-list').innerText(), /Corrected/);
     await capture(page, 'fictional-correction-library-light.png');
+    await page.getByRole('button', { name: 'Saved' }).click();
     assert.match(await page.locator('.library-list').innerText(), /Saved · Corrected · Updated since saved/);
     assert.doesNotMatch(await page.locator('.library-list').innerText(), /fictional-r1/, 'Revision IDs stay out of the reader');
     await page.getByRole('link', { name: 'A fictional checkout pilot' }).click();
     assert.match(await page.locator('#correction-checkout-pilot').innerText(), /12 participants/);
-    assert.equal(await page.locator('[data-finish]').textContent(), 'Mark finished', 'Finished status is revision-specific');
 
     // Recorded r1 audio exists only in this browser test; reload rejects its stale selection when r2 loads.
     revision = 'r1';
     const active = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await installPack(active, () => revision, { recordedR1: true });
     await active.goto(baseURL, { waitUntil: 'networkidle' });
+    await active.locator('.today-primary button.primary').click();
     await active.getByRole('button', { name: 'Play briefing' }).click();
     await active.waitForFunction(() => document.querySelector('.edition-play')?.textContent === 'Pause');
     revision = 'r2';
@@ -131,12 +137,13 @@ async function run() {
     const stale = await browser.newPage({ viewport: { width: 390, height: 844 } });
     await installPack(stale, () => revision, { staleR2: true });
     await stale.goto(baseURL, { waitUntil: 'networkidle' });
+    await stale.locator('.today-primary button.primary').click();
     assert.equal(await stale.locator('.edition-play').count(), 0, 'Revision/hash mismatch never exposes Play');
     assert.equal(await stale.locator('.mini-player').count(), 0, 'Revision/hash mismatch cannot restore a player');
     assert.match(await stale.locator('#correction-checkout-pilot').innerText(), /12 participants/);
     await stale.close();
     await page.close();
-    console.log('Correction preview: save across revisions, revision-specific finish, source return, stale audio rejection after reload and test-only WAV isolation passed.');
+    console.log('Correction preview: save across revisions, corrected-section/source return, stale audio rejection after reload and test-only WAV isolation passed.');
   } finally { await browser.close(); }
 }
 

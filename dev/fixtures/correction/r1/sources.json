@@ -45,12 +45,12 @@
     {
       "id": "fictional-pilot-record",
       "title": "Fictional pilot record \u2014 demonstration source",
-      "publisher": "Prototype fixture",
+      "publisher": "Fictional demonstration source",
       "date": "2026-11-16",
       "kind": "Internal fictional evidence",
       "supported_section": "correction-checkout-pilot",
       "scope": "Invented record created solely to demonstrate a material correction from 120 to 12 participants.",
-      "availability": "Bundled with this test fixture; not externally available.",
+      "availability": "This fictional record illustrates a correction. No external original exists.",
       "note": "This source and its count are invented for this preview. No real publisher or study supports the number."
     }
   ]

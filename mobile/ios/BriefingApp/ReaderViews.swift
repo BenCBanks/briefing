@@ -125,7 +125,10 @@ struct EditionReaderView: View {
                             .font(.subheadline.weight(.medium)).frame(minHeight: 44, alignment: .leading)
                             ForEach(correction.sourceIDs, id: \.self) { sourceID in
                                 if let source = content.sources.first(where: { $0.id == sourceID }) {
-                                    Button { selectedSource = source } label: {
+                                    Button {
+                                        if let onOpenSource { onOpenSource(source) }
+                                        else { selectedSource = source }
+                                    } label: {
                                         Text("Evidence: \(source.title)")
                                             .font(.footnote.weight(.medium))
                                             .multilineTextAlignment(.leading)

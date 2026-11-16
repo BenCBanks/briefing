@@ -304,14 +304,14 @@ final class ContentTests: XCTestCase {
     func testInternalFictionalSourceDecodesWithoutExternalURL() throws {
         let json = """
         {"id":"record-1","title":"Fictional pilot record — demonstration source",
-         "publisher":"Prototype fixture","date":"2026-11-16","kind":"Internal fictional evidence",
+         "publisher":"Fictional demonstration source","date":"2026-11-16","kind":"Internal fictional evidence",
          "supported_section":"pilot-count","scope":"Invented count for demonstration",
          "availability":"Bundled only; not externally available.",
          "note":"This evidence is invented."}
         """
         let source = try JSONDecoder().decode(Source.self, from: Data(json.utf8))
         XCTAssertNil(source.url)
-        XCTAssertEqual(source.publisher, "Prototype fixture")
+        XCTAssertEqual(source.publisher, "Fictional demonstration source")
         XCTAssertEqual(source.supportedSection, "pilot-count")
         XCTAssertEqual(source.availability, "Bundled only; not externally available.")
     }
