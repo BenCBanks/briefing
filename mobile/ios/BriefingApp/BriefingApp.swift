@@ -430,7 +430,11 @@ struct RootView: View {
         guard let mode = transcriptPreviewMode,
               let track = transcriptPreviewTrack(mode: mode, content: loaded) else { return false }
         if mode == "older-daily" {
-            content = olderDailyPreviewContent(from: loaded)
+            let olderContent = olderDailyPreviewContent(from: loaded)
+            content = olderContent
+            if let olderEdition = olderContent.currentEditions.first(where: { $0.id == track.id }) {
+                todayPath = [.edition(olderEdition.id, olderEdition.readingSections.first?.id)]
+            }
             selectedTab = 0
         } else if mode == "topic-origin" {
             guard let dive = loaded.currentDeepDives.last,

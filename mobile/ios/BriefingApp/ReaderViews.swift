@@ -391,6 +391,10 @@ private struct FocusedStoryReader: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 progressHeader
+                Text(edition.title)
+                    .font(.footnote)
+                    .foregroundStyle(ReaderColor.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(topicLabel).font(.caption.weight(.semibold)).tracking(0.8).foregroundStyle(ReaderColor.secondary)
                 storyHeadline
                 correctionNotice
