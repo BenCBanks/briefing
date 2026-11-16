@@ -245,7 +245,7 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-today-large-text-dark.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-today-large-text-dark.png "Story 1 of 4" "CORRECTED" "120 to 12" "Audio paused" --dark-sheet
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-today-large-text-dark.png "1 of 4" "CORRECTED" "120 to 12" "Audio paused" --dark-sheet
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-correction-library
           sleep 8

@@ -22,14 +22,15 @@ public struct AudioMiniPlayer: View {
                 HStack(spacing: 12) {
                     Button { isExpanded = true } label: {
                         VStack(alignment: .leading, spacing: 3) {
-                            Text(track.title).font(.subheadline.weight(.semibold)).lineLimit(1)
+                            Text(track.title).font(.subheadline.weight(.semibold))
+                                .lineLimit(2).fixedSize(horizontal: false, vertical: true)
                             Text(statusText).font(.caption).foregroundStyle(ReaderColor.secondary).lineLimit(1)
                         }
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .frame(maxWidth: .infinity, minHeight: 44, alignment: .leading)
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityHint("Opens the expanded audio player")
+                    .accessibilityLabel(miniPlayerAccessibilityLabel(for: track))
                     .accessibilityFocused($playerTitleFocused)
 
                     if controller.state.status != .superseded {
@@ -68,6 +69,12 @@ public struct AudioMiniPlayer: View {
         if controller.state.status.isPlaying { return "Pause audio" }
         if controller.state.duration > 0 && controller.state.position >= controller.state.duration { return "Replay audio" }
         return "Play audio"
+    }
+    private func miniPlayerAccessibilityLabel(for track: AudioTrack) -> String {
+        let chapter = controller.state.currentChapter?.title ?? "Briefing"
+        let elapsed = AudioTime.format(controller.state.position)
+        let duration = AudioTime.format(controller.state.duration)
+        return "\(track.title), \(chapter), \(elapsed) of \(duration), opens player"
     }
     private var statusText: String {
         let elapsed = AudioTime.format(controller.state.position)
@@ -119,6 +126,7 @@ public struct AudioExpandedPlayer: View {
                 Slider(value: Binding(get: { controller.state.position }, set: { controller.seek(to: $0) }), in: 0...max(controller.state.duration, 1))
                     .accessibilityLabel("Audio position")
                     .disabled(controller.state.duration <= 0 || isLoading || isUnavailable || isPending || isSuperseded || isFailed)
+                    .frame(height: 44)
                 HStack { Text(AudioTime.format(controller.state.position)); Spacer(); Text("−\(AudioTime.format(max(0, controller.state.duration - controller.state.position)))") }
                     .font(.caption.monospacedDigit()).foregroundStyle(ReaderColor.secondary)
                     .padding(.top, -22)

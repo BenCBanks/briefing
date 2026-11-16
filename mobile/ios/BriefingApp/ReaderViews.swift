@@ -31,11 +31,9 @@ struct TodayView: View {
 
 struct EditionReaderView: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @Environment(\.dismiss) private var dismiss
     let edition: Edition
     let content: BriefingContent
     let navigationTitle: String
-    let returnTitle: String
     let audioState: AudioPlaybackState
     let onPlay: (AudioTrack) -> Void
     let onCoverage: (Edition) -> Void
@@ -60,7 +58,6 @@ struct EditionReaderView: View {
     @ScaledMetric(relativeTo: .body) private var summarySize: CGFloat = 18
 
     init(edition: Edition, content: BriefingContent, navigationTitle: String,
-         returnTitle: String = "Today",
          audioState: AudioPlaybackState = AudioPlaybackState(),
          onPlay: @escaping (AudioTrack) -> Void = { _ in },
          onCoverage: @escaping (Edition) -> Void = { _ in },
@@ -74,7 +71,6 @@ struct EditionReaderView: View {
         self.edition = edition
         self.content = content
         self.navigationTitle = navigationTitle
-        self.returnTitle = returnTitle
         self.audioState = audioState
         self.onPlay = onPlay
         self.onCoverage = onCoverage
@@ -95,8 +91,7 @@ struct EditionReaderView: View {
             if edition.kind == "daily" {
                 FocusedStoryReader(edition: edition, content: content, sectionID: initialSectionID ?? edition.readingSections.first?.id,
                                    audioState: audioState, onPlay: onPlay, onExploreTopic: onExploreTopic,
-                                   onOpenSource: onOpenSource, onOpenNext: { nextSection in onOpenNextStory?(nextSection) },
-                                   returnTitle: returnTitle)
+                                   onOpenSource: onOpenSource, onOpenNext: { nextSection in onOpenNextStory?(nextSection) })
             } else {
                 legacyBody
             }
@@ -111,7 +106,7 @@ struct EditionReaderView: View {
                         .font(.footnote).foregroundStyle(ReaderColor.secondary)
 
                     Text(edition.title).font(.system(size: titleSize, weight: .semibold, design: .serif))
-                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityHeading(.h1)
                         .accessibilityFocused($articleTitleFocused)
                     Text(metadata)
                         .font(.footnote).foregroundStyle(ReaderColor.secondary)
@@ -195,8 +190,6 @@ struct EditionReaderView: View {
                                 onExploreTopic: onExploreTopic)
                     Text(edition.kind == "weekly" ? "End of this week's recap" : "End of today's briefing")
                         .font(.headline).padding(.top, 8)
-                    Button("Back to \(returnTitle)") { dismiss() }
-                        .frame(minHeight: 44, alignment: .leading)
                     LocalSaveButton(itemID: edition.id, revision: edition.revisionID ?? edition.id,
                                     accessibilityTitle: edition.kind == "weekly" ? "Save recap" : "Save briefing")
                         .id("save-\(edition.id)-\(edition.revisionID ?? edition.id)")
@@ -355,12 +348,14 @@ private struct FocusedStoryReader: View {
     let onExploreTopic: ((Topic) -> Void)?
     let onOpenSource: ((Source) -> Void)?
     let onOpenNext: ((String) -> Void)?
-    let returnTitle: String
-    @Environment(\.dismiss) private var dismiss
     @ScaledMetric(relativeTo: .largeTitle) private var headlineSize: CGFloat = 30
+    @ScaledMetric(relativeTo: .title) private var nextTitleSize: CGFloat = 20
 
     private var sections: [ArticleSection] { edition.readingSections }
     private var index: Int { max(0, sections.firstIndex(where: { $0.id == sectionID }) ?? 0) }
+    private var progressTitle: String {
+        dynamicTypeSize >= .xxxLarge ? "\(index + 1) of \(sections.count)" : "Story \(index + 1) of \(sections.count)"
+    }
     private var section: ArticleSection? { sections.indices.contains(index) ? sections[index] : nil }
     private var storyText: (whatHappened: String, whyItMatters: String?) {
         let paragraphs = (section?.body ?? "This story is unavailable.")
@@ -385,9 +380,9 @@ private struct FocusedStoryReader: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 22) {
                 HStack(spacing: 8) {
-                    Text("Story \(index + 1) of \(sections.count)")
+                    Text(progressTitle)
                         .font(.subheadline.weight(.semibold)).foregroundStyle(ReaderColor.secondary)
-                    if !dynamicTypeSize.isAccessibilitySize {
+                    if dynamicTypeSize < .xxxLarge {
                         HStack(spacing: 5) {
                             ForEach(sections.indices, id: \.self) { dot in
                                 Circle().fill(dot <= index ? ReaderColor.action : ReaderColor.secondary.opacity(0.3))
@@ -402,7 +397,7 @@ private struct FocusedStoryReader: View {
                     .font(.caption.weight(.semibold)).tracking(0.8).foregroundStyle(ReaderColor.secondary)
                 Text(section?.heading ?? edition.title)
                     .font(.system(size: headlineSize, weight: .semibold, design: .serif))
-                    .fixedSize(horizontal: false, vertical: true).accessibilityAddTraits(.isHeader)
+                    .fixedSize(horizontal: false, vertical: true).accessibilityHeading(.h1)
                 if let correction {
                     VStack(alignment: .leading, spacing: 8) {
                         Text(correctionLabel(correction)).font(.caption.weight(.bold)).tracking(0.7).foregroundStyle(ReaderColor.correction)
@@ -419,21 +414,21 @@ private struct FocusedStoryReader: View {
                         .buttonStyle(.borderedProminent).tint(ReaderColor.primaryAction)
                         .disabled(audioState.status == .superseded || (audioState.track?.contentIdentity == track.contentIdentity && audioState.status == .loading))
                 }
-                Text("What happened").font(.headline).accessibilityAddTraits(.isHeader)
+                Text("What happened").font(.headline).accessibilityHeading(.h2)
                 Text(storyText.whatHappened)
                     .font(.system(.body, design: .serif)).lineSpacing(7).fixedSize(horizontal: false, vertical: true)
                 if let whyItMatters = storyText.whyItMatters {
-                    Text("Why it matters").font(.headline).accessibilityAddTraits(.isHeader)
+                    Text("Why it matters").font(.headline).accessibilityHeading(.h2)
                     Text(whyItMatters)
                         .font(.system(.body, design: .serif)).lineSpacing(7).fixedSize(horizontal: false, vertical: true)
                 }
-                Text("Things to consider").font(.headline).accessibilityAddTraits(.isHeader)
+                Text("Things to consider").font(.headline).accessibilityHeading(.h2)
                 Text("This report is for general information and does not offer personal financial or health advice.")
                     .font(.footnote).foregroundStyle(ReaderColor.secondary)
                 if let section {
                     let refs = (section.sourceIDs ?? []).compactMap { id in content.sources.first(where: { $0.id == id }) }
                     if !refs.isEmpty {
-                        Text("Sources").font(.headline).accessibilityAddTraits(.isHeader)
+                        Text("Sources").font(.headline).accessibilityHeading(.h2)
                         ForEach(Array(refs.enumerated()), id: \.element.id) { i, source in
                             Button { onOpenSource?(source) } label: {
                                 HStack(alignment: .firstTextBaseline, spacing: 10) {
@@ -462,7 +457,7 @@ private struct FocusedStoryReader: View {
                     Button { onOpenNext?(next.id) } label: {
                         VStack(alignment: .leading, spacing: 5) {
                             Text("Next story").font(.caption.weight(.semibold)).foregroundStyle(ReaderColor.secondary)
-                            Text(next.heading).font(.system(size: 20, weight: .semibold, design: .serif))
+                            Text(next.heading).font(.system(size: nextTitleSize, weight: .semibold, design: .serif))
                         }.frame(maxWidth: .infinity, minHeight: 56, alignment: .leading)
                     }.buttonStyle(.plain)
                 } else {
@@ -475,7 +470,7 @@ private struct FocusedStoryReader: View {
             .padding(.horizontal, 20).padding(.vertical, 24)
             .frame(maxWidth: 720, alignment: .leading).frame(maxWidth: .infinity)
         }
-        .navigationTitle("Story \(index + 1) of \(sections.count)")
+        .navigationTitle(progressTitle)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .topBarTrailing) {
             LocalSaveButton(itemID: edition.id + "." + (section?.id ?? "story"), revision: edition.revisionID ?? edition.id, accessibilityTitle: "Save story")
@@ -547,7 +542,7 @@ struct ArticleBody: View {
                             .foregroundStyle(ReaderColor.secondary)
                     }
                     Text(section.heading).font(.system(size: sectionTitleSize, weight: .semibold, design: .serif))
-                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityHeading(.h2)
                         .accessibilityFocused($focusedHeadingID, equals: section.id)
                     Text(section.body).font(.system(size: sectionBodySize)).lineSpacing(8).fixedSize(horizontal: false, vertical: true)
                     if let topicIDs = section.topicIDs, let onExploreTopic {
@@ -639,6 +634,7 @@ struct SourceDetailView: View {
     var modal = false
     @Environment(\.dismiss) private var dismiss
     @State private var showingOriginal = false
+    @ScaledMetric(relativeTo: .largeTitle) private var titleSize: CGFloat = 30
 
     var body: some View {
         ScrollView {
@@ -647,9 +643,9 @@ struct SourceDetailView: View {
                     .font(.caption.weight(.semibold)).tracking(1)
                     .foregroundStyle(ReaderColor.secondary)
                 Text(source.title)
-                    .font(.system(size: 30, weight: .semibold, design: .serif))
+                    .font(.system(size: titleSize, weight: .semibold, design: .serif))
                     .fixedSize(horizontal: false, vertical: true)
-                    .accessibilityAddTraits(.isHeader)
+                    .accessibilityHeading(.h1)
                 if source.url != nil {
                     Button {
                         showingOriginal = true
@@ -822,11 +818,13 @@ struct TopicsView: View {
     var onReaderVisible: ((AudioContentIdentity?) -> Void)? = nil
     var onOpenTopic: ((Topic) -> Void)? = nil
     var onManageTopics: (() -> Void)? = nil
+    @ScaledMetric(relativeTo: .body) private var introSize: CGFloat = 18
+    @ScaledMetric(relativeTo: .title) private var diveTitleSize: CGFloat = 21
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 Text("Background for the stories you read.")
-                    .font(.system(size: 18)).foregroundStyle(ReaderColor.secondary)
+                    .font(.system(size: introSize)).foregroundStyle(ReaderColor.secondary)
                     .padding(.bottom, 26)
                 ForEach(content.topics) { topic in
                     if let dive = content.currentDeepDive(forTopic: topic.id) {
@@ -840,9 +838,10 @@ struct TopicsView: View {
                                         .font(.caption.weight(.semibold)).tracking(0.8)
                                         .foregroundStyle(ReaderColor.secondary)
                                     Text(dive.title)
-                                        .font(.system(size: 21, weight: .semibold, design: .serif))
+                                        .font(.system(size: diveTitleSize, weight: .semibold, design: .serif))
                                         .foregroundStyle(.primary)
                                         .fixedSize(horizontal: false, vertical: true)
+                                        .accessibilityHeading(.h2)
                                     Text("\(dive.durationMinutes ?? 0) min explanation")
                                         .font(.subheadline).foregroundStyle(ReaderColor.secondary)
                                 }
@@ -894,7 +893,6 @@ struct TopicDetailView: View {
     var onReaderVisible: ((AudioContentIdentity?) -> Void)? = nil
     var usesNavigationBackButton = false
     var onOpenSource: ((Source) -> Void)? = nil
-    var returnTitle = "Topics"
     @Environment(\.dismiss) private var dismiss
     @State private var selectedSource: Source?
     @AccessibilityFocusState private var topicHeadingFocused: Bool
@@ -917,7 +915,7 @@ struct TopicDetailView: View {
                         .font(.caption.weight(.semibold)).tracking(0.8)
                         .foregroundStyle(ReaderColor.secondary)
                     Text(dive.title).font(.system(size: titleSize, weight: .semibold, design: .serif))
-                        .accessibilityAddTraits(.isHeader)
+                        .accessibilityHeading(.h1)
                         .accessibilityFocused($topicHeadingFocused)
                     Text("\(dive.durationMinutes ?? 0) min read")
                         .font(.footnote).foregroundStyle(ReaderColor.secondary)
@@ -949,10 +947,6 @@ struct TopicDetailView: View {
                     if let reviewedAt = dive.reviewedAt {
                         Text("Reviewed \(reviewedAt)")
                             .font(.footnote).foregroundStyle(ReaderColor.secondary)
-                    }
-                    if usesNavigationBackButton {
-                        Button("Return to \(returnTitle)") { dismiss() }
-                            .frame(minHeight: 44, alignment: .leading)
                     }
                     }.padding(20)
                 } else {
@@ -1080,6 +1074,7 @@ struct LibraryView: View {
     var onSettings: (() -> Void)? = nil
     @State private var showingSaved = false
     @State private var savedItems: [SavedReaderItem] = []
+    @ScaledMetric(relativeTo: .title) private var editionTitleSize: CGFloat = 21
     private var editions: [Edition] { content.currentEditions }
 
     var body: some View {
@@ -1131,8 +1126,9 @@ struct LibraryView: View {
                                     Text(edition.localDate ?? edition.weekStart ?? edition.asOf ?? "Date unavailable")
                                         .font(.subheadline).foregroundStyle(ReaderColor.secondary)
                                     Text(edition.title)
-                                        .font(.system(size: 21, weight: .semibold, design: .serif))
+                                        .font(.system(size: editionTitleSize, weight: .semibold, design: .serif))
                                         .foregroundStyle(.primary)
+                                        .accessibilityHeading(.h2)
                                     if edition.materialCorrection != nil {
                                         Text("Corrected")
                                             .font(.caption.weight(.semibold))

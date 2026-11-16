@@ -13,6 +13,8 @@ struct TodayFrontPage: View {
     var audioState = AudioPlaybackState()
     var onPlay: (AudioTrack) -> Void = { _ in }
     @State private var readingSectionID: String?
+    @ScaledMetric(relativeTo: .headline) private var storyTitleSize: CGFloat = 20
+    @ScaledMetric(relativeTo: .title) private var weeklyTitleSize: CGFloat = 21
 
     private var daily: Edition? { content.currentEdition(kind: "daily") }
     private var weekly: Edition? { content.currentEdition(kind: "weekly") }
@@ -32,7 +34,7 @@ struct TodayFrontPage: View {
                     Text(daily.title)
                         .font(.system(.largeTitle, design: .serif).weight(.semibold))
                         .fixedSize(horizontal: false, vertical: true)
-                        .accessibilityAddTraits(.isHeader).padding(.bottom, 12)
+                        .accessibilityHeading(.h2).padding(.bottom, 12)
                     Text("\(daily.readingMinutes) min read · \(dailySections.count) stories\(listenDuration)")
                         .font(.subheadline).foregroundStyle(ReaderColor.secondary).padding(.bottom, 20)
                     if daily.materialCorrection != nil {
@@ -72,7 +74,7 @@ struct TodayFrontPage: View {
                                         Text("Corrected").font(.caption.weight(.semibold)).foregroundStyle(ReaderColor.correction)
                                     }
                                 }
-                                Text(section.heading).font(.system(size: 20, weight: .semibold, design: .serif)).foregroundStyle(.primary)
+                                Text(section.heading).font(.system(size: storyTitleSize, weight: .semibold, design: .serif)).foregroundStyle(.primary)
                                     .fixedSize(horizontal: false, vertical: true)
                                 Text(previewLine(section.body)).font(.subheadline).foregroundStyle(ReaderColor.secondary)
                                     .lineLimit(2).fixedSize(horizontal: false, vertical: true)
@@ -96,7 +98,7 @@ struct TodayFrontPage: View {
                             .foregroundStyle(ReaderColor.secondary).padding(.top, 34).padding(.bottom, 8)
                         Button { onOpenWeekly(weekly) } label: {
                             VStack(alignment: .leading, spacing: 5) {
-                                Text(weekly.title).font(.system(size: 21, weight: .semibold, design: .serif)).foregroundStyle(.primary)
+                                Text(weekly.title).font(.system(size: weeklyTitleSize, weight: .semibold, design: .serif)).foregroundStyle(.primary)
                                 Text("Weekly recap · \(weekly.readingMinutes) min read")
                                     .font(.subheadline).foregroundStyle(ReaderColor.secondary)
                                 Text("Next recap available Sunday").font(.caption).foregroundStyle(ReaderColor.secondary)
