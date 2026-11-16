@@ -185,12 +185,13 @@ struct RootView: View {
             if let edition = content.currentEditions.first(where: { $0.id == id }) {
                 EditionReaderView(edition: edition, content: content,
                                   navigationTitle: edition.kind == "weekly" ? "Recap" : "Briefing",
-                                  returnTitle: root == 2 ? "Library" : "Today",
+                                  returnTitle: editionReturnTitle(in: root),
                                   audioState: audioController.state, onPlay: play,
                                   onCoverage: { _ in },
                                   onReaderVisible: updateVisibleReader,
                                   onExploreTopic: { push(.explanation($0.id), in: root) },
                                   onOpenSource: { push(.source($0.id), in: root) },
+                                  onOpenWeekly: { push(.edition($0.id, nil), in: root) },
                                   initialSectionID: sectionID)
                     .toolbar(.hidden, for: .tabBar)
             } else {
@@ -204,7 +205,7 @@ struct RootView: View {
                                 onReaderVisible: updateVisibleReader,
                                 usesNavigationBackButton: true,
                                 onOpenSource: { push(.source($0.id), in: root) },
-                                returnTitle: root == 0 ? "Briefing" : (root == 2 ? "Library" : "Topics"))
+                                returnTitle: explanationReturnTitle(in: root))
                     .toolbar(.hidden, for: .tabBar)
             } else {
                 ContentUnavailableView("Explanation unavailable", systemImage: "text.page",
@@ -219,6 +220,18 @@ struct RootView: View {
                                        description: Text("This source is not in the sample pack."))
             }
         }
+    }
+
+    private func editionReturnTitle(in root: Int) -> String {
+        let path = root == 0 ? todayPath : (root == 2 ? libraryPath : topicsPath)
+        if let parent = path.dropLast().last, case .edition(_, _) = parent { return "Briefing" }
+        return root == 2 ? "Library" : "Today"
+    }
+
+    private func explanationReturnTitle(in root: Int) -> String {
+        let path = root == 0 ? todayPath : (root == 2 ? libraryPath : topicsPath)
+        if let parent = path.dropLast().last, case .edition(_, _) = parent { return "Briefing" }
+        return root == 2 ? "Library" : (root == 0 ? "Today" : "Topics")
     }
 
     private func push(_ route: ReaderRoute, in root: Int) {

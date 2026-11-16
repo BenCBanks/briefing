@@ -14,6 +14,10 @@ struct TodayFrontPage: View {
 
     private var daily: Edition? { content.currentEdition(kind: "daily") }
     private var weekly: Edition? { content.currentEdition(kind: "weekly") }
+    private var dailySections: [ArticleSection] { daily?.readingSections ?? [] }
+    private var quietCoverage: [Coverage] {
+        (daily?.coverage ?? []).filter { $0.state == "quiet" || $0.state == "limited" }
+    }
 
     var body: some View {
         ScrollView {
@@ -52,7 +56,7 @@ struct TodayFrontPage: View {
                         .background(ReaderColor.correction.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
                         .padding(.bottom, 16)
                     }
-                    Text("\(readingMinutes(daily)) min read · \(daily.sections.count) stories")
+                    Text("About \(daily.readingMinutes) min read · \(dailySections.count) topics")
                         .font(.subheadline).foregroundStyle(ReaderColor.secondary)
                         .padding(.bottom, 24)
                     Button {
@@ -71,8 +75,8 @@ struct TodayFrontPage: View {
                     }
                     .buttonStyle(.plain)
                     if let readingSectionID,
-                       let index = daily.sections.firstIndex(where: { $0.id == readingSectionID }) {
-                        Text("Section \(index + 1) of \(daily.sections.count)")
+                       let index = dailySections.firstIndex(where: { $0.id == readingSectionID }) {
+                        Text("Section \(index + 1) of \(dailySections.count)")
                             .font(.footnote).foregroundStyle(ReaderColor.secondary)
                             .padding(.top, 8)
                     }
@@ -81,8 +85,8 @@ struct TodayFrontPage: View {
                         .font(.caption.weight(.semibold)).tracking(1.1)
                         .foregroundStyle(ReaderColor.secondary)
                         .padding(.top, 40).padding(.bottom, 10)
-                    ForEach(daily.sections.indices, id: \.self) { index in
-                        let section = daily.sections[index]
+                    ForEach(dailySections.indices, id: \.self) { index in
+                        let section = dailySections[index]
                         Button { onOpenEdition(daily, section.id) } label: {
                             HStack(alignment: .top, spacing: 14) {
                                 Text(String(format: "%02d", index + 1))
@@ -109,6 +113,22 @@ struct TodayFrontPage: View {
                         .buttonStyle(.plain)
                         Divider()
                     }
+                    if !quietCoverage.isEmpty {
+                        DisclosureGroup("Other followed topics (\(quietCoverage.count))") {
+                            ForEach(quietCoverage) { item in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(content.topics.first(where: { $0.id == item.topicID })?.label ?? item.topicID)
+                                        .font(.subheadline.weight(.medium))
+                                    Text(item.state == "limited" ? "Coverage limited" : "Quiet today")
+                                        .font(.footnote).foregroundStyle(ReaderColor.secondary)
+                                }
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 6)
+                            }
+                        }
+                        .font(.subheadline)
+                        .padding(.top, 18)
+                    }
                     if let weekly {
                         Text("THE WEEK IN PERSPECTIVE")
                             .font(.caption.weight(.semibold)).tracking(1.1)
@@ -120,7 +140,7 @@ struct TodayFrontPage: View {
                                     Text(weekly.title)
                                         .font(.system(size: 21, weight: .semibold, design: .serif))
                                         .foregroundStyle(.primary)
-                                    Text("Weekly recap · \(readingMinutes(weekly)) min read")
+                                    Text("Weekly recap · \(weekly.readingMinutes) min read")
                                         .font(.subheadline).foregroundStyle(ReaderColor.secondary)
                                 }
                                 Spacer()
@@ -155,11 +175,12 @@ struct TodayFrontPage: View {
         let key = ReaderProgressKey.reading(itemID: daily.id,
                                             revisionID: daily.revisionID ?? "unversioned",
                                             scriptHash: daily.scriptHash)
-        readingSectionID = UserDefaults.standard.string(forKey: key)
-    }
-
-    private func readingMinutes(_ edition: Edition) -> Int {
-        max(1, Int(ceil(Double(edition.sections.reduce(0) { $0 + $1.body.split(separator: " ").count }) / 220)))
+        if let saved = UserDefaults.standard.string(forKey: key),
+           daily.readingSections.contains(where: { $0.id == saved }) {
+            readingSectionID = saved
+        } else {
+            readingSectionID = nil
+        }
     }
 
     private func displayDate(_ raw: String?) -> String {

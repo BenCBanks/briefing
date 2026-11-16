@@ -58,6 +58,20 @@ struct Edition: Decodable, Identifiable {
     var materialCorrection: EditionCorrection? {
         corrections?.first(where: { $0.severity == "material" })
     }
+
+    var readingSections: [ArticleSection] {
+        let quiet = Set((coverage ?? []).filter { $0.state == "quiet" || $0.state == "limited" }.map(\.topicID))
+        let visible = sections.filter { section in
+            let topics = section.topicIDs ?? []
+            return topics.isEmpty || topics.contains { !quiet.contains($0) }
+        }
+        return visible.isEmpty ? sections : visible
+    }
+
+    var readingMinutes: Int {
+        let words = readingSections.reduce(0) { $0 + $1.body.split(whereSeparator: \.isWhitespace).count }
+        return max(1, Int(ceil(Double(words) / 225)))
+    }
 }
 
 struct EditionCorrection: Decodable, Identifiable {

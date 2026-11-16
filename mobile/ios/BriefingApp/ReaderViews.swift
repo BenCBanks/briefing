@@ -42,6 +42,7 @@ struct EditionReaderView: View {
     var onReaderVisible: ((AudioContentIdentity?) -> Void)? = nil
     var onExploreTopic: ((Topic) -> Void)? = nil
     var onOpenSource: ((Source) -> Void)? = nil
+    var onOpenWeekly: ((Edition) -> Void)? = nil
     var initialSectionID: String? = nil
     var debugSourceID: String? = nil
     @State private var isFinished: Bool
@@ -65,6 +66,7 @@ struct EditionReaderView: View {
          onReaderVisible: ((AudioContentIdentity?) -> Void)? = nil,
          onExploreTopic: ((Topic) -> Void)? = nil,
          onOpenSource: ((Source) -> Void)? = nil,
+         onOpenWeekly: ((Edition) -> Void)? = nil,
          initialSectionID: String? = nil,
          debugSourceID: String? = nil) {
         self.edition = edition
@@ -77,6 +79,7 @@ struct EditionReaderView: View {
         self.onReaderVisible = onReaderVisible
         self.onExploreTopic = onExploreTopic
         self.onOpenSource = onOpenSource
+        self.onOpenWeekly = onOpenWeekly
         self.initialSectionID = initialSectionID
         self.debugSourceID = debugSourceID
         let key = Self.finishedKey(edition)
@@ -111,7 +114,7 @@ struct EditionReaderView: View {
                             }
                             Button("Read the corrected section") {
                                 guard let anchor = correction.sectionIDs.first,
-                                      edition.sections.contains(where: { $0.id == anchor }) else { return }
+                                      edition.readingSections.contains(where: { $0.id == anchor }) else { return }
                                 if reduceMotion { scrollProxy.scrollTo(anchor, anchor: .top) }
                                 else { withAnimation(.easeInOut(duration: 0.25)) { scrollProxy.scrollTo(anchor, anchor: .top) } }
                                 focusSectionID = nil
@@ -140,7 +143,7 @@ struct EditionReaderView: View {
                             .accessibilityHint("Plays the recorded \(edition.kind == "weekly" ? "weekly recap" : "daily briefing")")
                     }
 
-                    if let anchor = readingSectionID, edition.sections.contains(where: { $0.id == anchor }) {
+                    if let anchor = readingSectionID, edition.readingSections.contains(where: { $0.id == anchor }) {
                         Button("Continue reading") {
                             withAnimation(.easeInOut(duration: 0.25)) { scrollProxy.scrollTo(anchor, anchor: .top) }
                         }
@@ -152,7 +155,7 @@ struct EditionReaderView: View {
                             .fixedSize(horizontal: false, vertical: true)
                     }
 
-                    ArticleBody(sections: edition.sections, sources: content.sources,
+                    ArticleBody(sections: edition.readingSections, sources: content.sources,
                                 coordinateSpace: Self.scrollSpace(edition), onSectionVisible: saveReadingPosition,
                                 onSourceSelected: { source in
                                     if let onOpenSource { onOpenSource(source) }
@@ -160,7 +163,7 @@ struct EditionReaderView: View {
                                 },
                                 focusSectionID: focusSectionID,
                                 showSectionNumbers: true,
-                                exploreTopics: edition.kind == "daily" && onExploreTopic != nil ? content.topics.filter { topic in
+                                exploreTopics: onExploreTopic != nil ? content.topics.filter { topic in
                                     content.currentDeepDive(forTopic: topic.id) != nil
                                 } : [],
                                 explanationTitles: Dictionary(uniqueKeysWithValues: content.currentDeepDives.map { ($0.topicID, $0.title) }),
@@ -172,6 +175,10 @@ struct EditionReaderView: View {
                     LocalSaveButton(itemID: edition.id, revision: edition.revisionID ?? edition.id,
                                     accessibilityTitle: edition.kind == "weekly" ? "Save recap" : "Save briefing")
                         .id("save-\(edition.id)-\(edition.revisionID ?? edition.id)")
+                    if edition.kind == "daily", let weekly = content.currentEdition(kind: "weekly"), let onOpenWeekly {
+                        Button("Read the weekly recap") { onOpenWeekly(weekly) }
+                            .frame(minHeight: 44, alignment: .leading)
+                    }
                 }
                 .padding(.horizontal, 20).padding(.vertical, 16)
             }
@@ -186,7 +193,11 @@ struct EditionReaderView: View {
                 guard let target else { return }
                 if reduceMotion { scrollProxy.scrollTo(target, anchor: .top) }
                 else { withAnimation(.easeInOut(duration: 0.25)) { scrollProxy.scrollTo(target, anchor: .top) } }
-                focusSectionID = target
+                focusSectionID = nil
+                DispatchQueue.main.async {
+                    focusSectionID = target
+                    contentsSelection = nil
+                }
             }
         }
         .navigationTitle(navigationTitle)
@@ -197,8 +208,8 @@ struct EditionReaderView: View {
         }
         .sheet(isPresented: $showingContents) {
             NavigationStack {
-                List(edition.sections.indices, id: \.self) { index in
-                    let section = edition.sections[index]
+                List(edition.readingSections.indices, id: \.self) { index in
+                    let section = edition.readingSections[index]
                     Button {
                         showingContents = false
                         contentsSelection = section.id
@@ -262,7 +273,7 @@ struct EditionReaderView: View {
     }
 
     private var readingMinutes: Int {
-        max(1, Int(ceil(Double(edition.sections.reduce(0) { $0 + $1.body.split(separator: " ").count }) / 220)))
+        edition.readingMinutes
     }
 
     private static func finishedKey(_ edition: Edition) -> String {
@@ -296,7 +307,7 @@ struct EditionReaderView: View {
             return
         }
         guard let anchor = readingSectionID,
-              edition.sections.contains(where: { $0.id == anchor }) else {
+              edition.readingSections.contains(where: { $0.id == anchor }) else {
             DispatchQueue.main.async { articleTitleFocused = true }
             return
         }
@@ -989,7 +1000,7 @@ struct LibraryView: View {
     }
 
     private func readingMinutes(_ edition: Edition) -> Int {
-        max(1, Int(ceil(Double(edition.sections.reduce(0) { $0 + $1.body.split(separator: " ").count }) / 220)))
+        edition.readingMinutes
     }
 
     private func loadSavedItems() {
