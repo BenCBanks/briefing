@@ -13,6 +13,18 @@ final class ContentTests: XCTestCase {
         }
     }
 
+    func testQuietSampleTopicDoesNotAppearAsAStory() throws {
+        let content = try BriefingContent.load()
+        let daily = try XCTUnwrap(content.currentEdition(kind: "daily"))
+        let quietTopics = Set((daily.coverage ?? []).filter { $0.state == "quiet" || $0.state == "limited" }.map(\.topicID))
+        XCTAssertFalse(quietTopics.isEmpty)
+        XCTAssertEqual(daily.readingSections.count, 4)
+        XCTAssertEqual(daily.readingMinutes, 7)
+        XCTAssertTrue(daily.readingSections.allSatisfy { section in
+            (section.topicIDs ?? []).allSatisfy { !quietTopics.contains($0) }
+        })
+    }
+
     func testOrdinaryBundledEditionsKeepAudioPendingAndExposeNoPlayTrack() throws {
         let content = try BriefingContent.load()
         for edition in content.editions {
