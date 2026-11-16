@@ -15,6 +15,8 @@ export const visibleSections = item => {
 };
 const readingMinutes = item => Math.max(1, Math.ceil(visibleSections(item).reduce((count, section) => count + section.body.split(/\s+/).length, 0) / 225));
 
+const lede = body => { const first = String(body || '').trim().split(/(?<=[.!?])\s+/)[0] || ''; return first.length > 150 ? first.slice(0, 147).trimEnd() + '…' : first; };
+
 export function renderToday(container, edition, topics, actions = {}) {
   if (!edition?.sections?.length) { container.innerHTML = '<p>Today’s edition is unavailable.</p>'; return; }
   const topicById = new Map(topics.map(topic => [topic.id, topic]));
@@ -38,7 +40,7 @@ export function renderToday(container, edition, topics, actions = {}) {
     <div class="today-primary">${currentSection ? `<button type="button" class="primary" data-continue>Continue reading</button><p class="today-continue-story">${esc(currentTopic)} · Section ${currentIndex + 1} of ${sections.length}<br><strong>${esc(currentSection.heading)}</strong></p><button type="button" class="today-read-link" data-read-start>Read from the beginning</button>` : `<button type="button" class="primary" data-read-start>Read today’s briefing</button>`}</div>
     <section class="today-contents" aria-labelledby="today-contents-title"><h2 id="today-contents-title">In this edition</h2><ol>${covered.map(row => {
       const { section, index } = sectionForTopic.get(row.topic_id);
-      return `<li><button type="button" data-read-section="${esc(section.id)}"><span class="today-story-number">${String(index + 1).padStart(2, '0')}</span><span><small>${esc(topicById.get(row.topic_id)?.label || row.topic_id)}</small><strong>${esc(section.heading)}</strong></span><span aria-hidden="true">›</span></button></li>`;
+      return `<li><button type="button" data-read-section="${esc(section.id)}"><span class="today-story-number">${String(index + 1).padStart(2, '0')}</span><span><small>${esc(topicById.get(row.topic_id)?.label || row.topic_id)}</small><strong>${esc(section.heading)}</strong><span class="row-lede">${esc(lede(section.body))}</span></span><span aria-hidden="true">›</span></button></li>`;
     }).join('')}</ol></section>
     ${other.length ? `<details class="today-other-topics"><summary>Other followed topics (${other.length})</summary><ul>${other.map(row => `<li><strong>${esc(topicById.get(row.topic_id)?.label || row.topic_id)}</strong><span>${esc(coverageLabels[row.state] || row.state)}${row.reason ? ` · ${esc(row.reason)}` : ''}</span></li>`).join('')}</ul></details>` : ''}
     ${weekly ? `<a class="today-weekly-link" href="#weekly"><small>The week in perspective · About ${readingMinutes(weekly)} min read</small><strong>${esc(weekly.title)}</strong><span>Open recap →</span></a>` : ''}
