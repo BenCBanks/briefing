@@ -1,0 +1,284 @@
+name: iOS simulator build
+
+on:
+  pull_request:
+    paths:
+      - "mobile/ios/**"
+      - "content/**"
+      - ".github/workflows/ios.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: briefing-ios-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  simulator-build:
+    runs-on: macos-15-intel
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate bundled scripts and audio contract
+        run: python3 dev/check_content.py
+      - name: Install XcodeGen
+        run: brew install xcodegen
+      - name: Generate test-only playback audio
+        run: python3 mobile/ios/dev/make_playback_fixture.py mobile/ios/dev/generated/playback-fixture.wav
+      - name: Generate Xcode project
+        working-directory: mobile/ios
+        run: xcodegen generate
+      - name: Compile iOS app
+        timeout-minutes: 10
+        run: >-
+          xcodebuild -quiet -project mobile/ios/BriefingPreview.xcodeproj
+          -scheme BriefingApp
+          -destination 'generic/platform=iOS Simulator'
+          -derivedDataPath /tmp/BriefingPreviewDerived
+          CODE_SIGNING_ALLOWED=NO build
+      - name: Check bundled content
+        run: |
+          APP_PATH="/tmp/BriefingPreviewDerived/Build/Products/Debug-iphonesimulator/BriefingApp.app"
+          for name in topics editions deep-dives sources; do
+            test -s "$APP_PATH/$name.json" || { echo "Missing $name.json in app bundle"; exit 1; }
+          done
+          test ! -e "$APP_PATH/playback-fixture.wav" || { echo "Test fixture leaked into the ordinary app bundle"; exit 1; }
+      - name: Select and boot iPhone simulator
+        timeout-minutes: 10
+        run: |
+          SIM_UDID=$(xcrun simctl list devices available -j | python3 mobile/ios/dev/select_simulator.py)
+          echo "SIM_UDID=$SIM_UDID" >> "$GITHUB_ENV"
+          xcrun simctl boot "$SIM_UDID"
+          xcrun simctl bootstatus "$SIM_UDID" -b
+      - name: Build and run content tests
+        timeout-minutes: 10
+        run: >-
+          xcodebuild -quiet -project mobile/ios/BriefingPreview.xcodeproj
+          -scheme BriefingApp
+          -destination "platform=iOS Simulator,id=$SIM_UDID"
+          -parallel-testing-enabled NO
+          -derivedDataPath /tmp/BriefingPreviewDerived
+          CODE_SIGNING_ALLOWED=NO test
+      - name: Capture actual native Today screen
+        timeout-minutes: 7
+        run: |
+          APP_PATH="/tmp/BriefingPreviewDerived/Build/Products/Debug-iphonesimulator/BriefingApp.app"
+          test -d "$APP_PATH"
+          echo "Checking the app on the simulator"
+          if ! xcrun simctl get_app_container "$SIM_UDID" com.bencbanks.briefing.prototype app >/dev/null 2>&1; then
+            echo "Installing the app on the simulator"
+            xcrun simctl install "$SIM_UDID" "$APP_PATH"
+          fi
+          echo "Setting light appearance and launching the app"
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcrun simctl launch "$SIM_UDID" com.bencbanks.briefing.prototype
+          sleep 8
+          mkdir -p /tmp/briefing-native-captures
+          echo "Capturing light appearance"
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/today-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-light.png "The choices behind the tap" "Read today's briefing"
+          echo "Capturing dark appearance"
+          xcrun simctl ui "$SIM_UDID" appearance dark
+          sleep 3
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/today-dark.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-dark.png "The choices behind the tap" "Read today's briefing"
+          echo "Capturing the focused edition reader"
+          xcrun simctl terminate "$SIM_UDID" com.bencbanks.briefing.prototype
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcrun simctl launch "$SIM_UDID" com.bencbanks.briefing.prototype --briefing-reader-preview
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/reader-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/reader-light.png "Contents" "The choices behind the tap" "A faster checkout"
+      - name: Capture native player states with test-only recording
+        timeout-minutes: 5
+        run: |
+          APP_ID="com.bencbanks.briefing.prototype"
+          mkdir -p /tmp/briefing-native-captures
+          APP_DATA=$(xcrun simctl get_app_container "$SIM_UDID" "$APP_ID" data)
+          mkdir -p "$APP_DATA/Documents"
+          cp mobile/ios/dev/generated/playback-fixture.wav "$APP_DATA/Documents/playback-fixture.wav"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID" || true
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-playback-fixture
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/technical-audio-mini-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/technical-audio-mini-light.png "Playback test recording" "The choices behind the tap" "Topics" "Library"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-playback-fixture --briefing-seek-six
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/technical-audio-mini-paused-at-six-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/technical-audio-mini-paused-at-six-light.png "Playback test recording" "0:06" "0:20" "Topics" "Library"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-playback-fixture --briefing-audio-expanded
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/technical-audio-expanded-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/technical-audio-expanded-light.png "Now playing" "Read transcript" --light-sheet
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl ui "$SIM_UDID" appearance dark
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-playback-fixture --briefing-audio-expanded
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/technical-audio-expanded-dark.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/technical-audio-expanded-dark.png "Now playing" "Read transcript" --dark-sheet
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-playback-fixture
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/technical-audio-mini-dark.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/technical-audio-mini-dark.png "Playback test recording" "The choices behind the tap" "Topics" "Library"
+      - name: Verify native transcript handoffs and preserved origins
+        timeout-minutes: 7
+        run: |
+          APP_ID="com.bencbanks.briefing.prototype"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID" || true
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-daily --briefing-transcript-auto-read
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-same-today.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-same-today.png "Today" "The choices behind the tap"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-older-daily --briefing-transcript-auto-read -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-older-daily-large.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-older-daily-large.png "Older fictional daily briefing" "Today" --light-sheet
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-topic-origin --briefing-transcript-auto-read
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-topic-origin.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-topic-origin.png "Weekly" "Sports"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-coverage-origin --briefing-transcript-auto-read
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-coverage-origin.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-coverage-origin.png "Coverage" "The choices behind the tap"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-stale-explanation
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-stale-explanation-player.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-stale-explanation-player.png "Now playing" "Read current explanation" "Recording is out of date"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-stale-explanation --briefing-transcript-auto-read
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-current-explanation.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-current-explanation.png "Sports" "Why can a football match"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-missing --briefing-transcript-auto-read
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-missing.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-missing.png "Now playing" "Transcript unavailable" "This transcript is unavailable."
+      - name: Capture native chapter list with test-only recording
+        timeout-minutes: 4
+        run: |
+          APP_ID="com.bencbanks.briefing.prototype"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID" || true
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-playback-fixture --briefing-chapters-fixture --briefing-seek-six --briefing-audio-expanded --briefing-chapters-open
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/technical-chapters-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/technical-chapters-light.png "Back to player" "Chapters" "What changed" "Why it matters" "Current" "What to watch"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl ui "$SIM_UDID" appearance dark
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-playback-fixture --briefing-chapters-fixture --briefing-seek-six --briefing-audio-expanded --briefing-chapters-open
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/technical-chapters-dark.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/technical-chapters-dark.png "Back to player" "Chapters" "What changed" "Why it matters" "Current" "What to watch" --dark-sheet
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-playback-fixture --briefing-chapters-fixture --briefing-long-chapter-fixture --briefing-seek-six --briefing-audio-expanded --briefing-chapters-open -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/technical-chapters-large-text.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/technical-chapters-large-text.png "Back to player" "Chapters" "What changed" "How a faster checkout" "Current" "What to watch" --dark-sheet
+      - name: Capture native topic explanation from Today
+        timeout-minutes: 3
+        run: |
+          APP_ID="com.bencbanks.briefing.prototype"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID" || true
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-deeper-preview
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-explanation-from-today-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-explanation-from-today-light.png "Explanation" "Payments" "Why does a payment"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl ui "$SIM_UDID" appearance dark
+          sleep 3
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-deeper-preview -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-explanation-from-today-large-text.png
+          if ! swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-explanation-from-today-large-text.png "Explanation" "Payments" "Why does a payment" --dark-sheet; then
+            sleep 4
+            xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-explanation-from-today-large-text.png
+            swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-explanation-from-today-large-text.png "Explanation" "Payments" "Why does a payment" --dark-sheet
+          fi
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-source-preview
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-source-from-explanation-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-source-from-explanation-light.png "Source" "FedNow Service" "Open original"
+      - name: Capture fictional correction across revisions
+        timeout-minutes: 6
+        run: |
+          APP_ID="com.bencbanks.briefing.prototype"
+          APP_PATH="/tmp/BriefingPreviewDerived/Build/Products/Debug-iphonesimulator/BriefingApp.app"
+          test ! -e "$APP_PATH/fictional-pilot-record.json" || { echo "Correction fixture leaked into app bundle"; exit 1; }
+          APP_DATA=$(xcrun simctl get_app_container "$SIM_UDID" "$APP_ID" data)
+          mkdir -p "$APP_DATA/Documents/briefing-correction"
+          cp -R dev/fixtures/correction/r1 dev/fixtures/correction/r2 "$APP_DATA/Documents/briefing-correction/"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID" || true
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r1 --briefing-correction-seed-save
+          sleep 5
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-today-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-today-light.png "Correction" "120 to 12" "Read the corrected section"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-correction-library
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-library-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-library-light.png "Library" "A fictional checkout pilot" "Corrected"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-correction-source
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-source-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-source-light.png "Source" "Fictional pilot record" "Fictional demonstration source"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl ui "$SIM_UDID" appearance dark
+          sleep 3
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-today-large-text-dark.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-today-large-text-dark.png "Correction" "120 to 12" "Read the corrected section" --dark-sheet
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-correction-library
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-library-dark.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-library-dark.png "Library" "A fictional checkout pilot" "Corrected"
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-correction-library -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-library-large-text-dark.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-library-large-text-dark.png "Library" "A fictional checkout pilot" "Corrected" --dark-sheet
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-correction-source -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-source-large-text-dark.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-source-large-text-dark.png "Source" "Fictional pilot record" --dark-sheet
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-superseded-fixture
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-stopped-audio-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-stopped-audio-light.png "Correction" "Playback stopped" "Updated audio is unavailable"
+      - name: Upload native screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: briefing-native-screens-and-technical-audio
+          path: /tmp/briefing-native-captures/*.png
+          retention-days: 14
+      - name: Shut down simulator
+        if: always()
+        timeout-minutes: 1
+        run: |
+          if [ -n "${SIM_UDID:-}" ]; then xcrun simctl shutdown "$SIM_UDID" || true; fi
+      - name: Remove generated playback audio
+        if: always()
+        run: rm -f mobile/ios/dev/generated/playback-fixture.wav
