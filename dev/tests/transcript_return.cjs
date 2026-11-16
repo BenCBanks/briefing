@@ -70,8 +70,8 @@ async function run() {
     });
 
     await page.goto(baseURL, { waitUntil: 'networkidle' });
-    assert.equal(await page.locator('.edition h1').textContent(), 'The choices behind the tap',
-      'Today resolves to the current daily edition despite an older same-ID revision');
+    assert.equal(await page.locator('.today-page h1').textContent(), 'The choices behind the tap',
+      'Today resolves its current daily edition despite an older same-ID revision');
     await page.evaluate(() => { location.hash = '#edition/daily/daily-sample-001'; });
     await page.locator('[data-edition="daily-sample-001"]').waitFor();
     assert.equal(await page.locator('.edition h1').textContent(), 'The choices behind the tap',
@@ -126,23 +126,33 @@ async function run() {
     await page.goBack();
     await page.waitForFunction(() => location.hash === '#today');
     await page.waitForFunction(() => document.activeElement?.classList.contains('mini-player-open'));
-    assert.equal(await page.locator('.edition h1').textContent(), 'The choices behind the tap',
+    assert.equal(await page.locator('.today-page h1').textContent(), 'The choices behind the tap',
       'Browser Back returns to the originating screen rather than reopening the transcript');
 
     await page.locator('.mini-player-open').click();
     await page.getByRole('button', { name: 'Read transcript' }).click();
     await page.locator('[data-edition="weekly-sample-001"]').waitFor();
     const sourceButton = page.locator('.edition-section [data-source]').first();
+    await page.locator('.section-sources summary').first().click();
     const sourceID = await sourceButton.getAttribute('data-source');
     await sourceButton.click();
-    await page.locator('.source-details').waitFor();
-    await page.getByRole('button', { name: 'Return to briefing' }).click();
+    await page.locator('.source-actions').waitFor();
+    await page.locator('.reader-back').click();
     await page.locator('.transcript-return').waitFor();
     assert.equal(await page.locator('.transcript-return').count(), 1,
       'Transcript origin remains available after a source visit and return');
+    assert.equal(new URL(page.url()).hash, '#edition/weekly/weekly-sample-001',
+      'The visible Source Back action returns to the exact transcript reader');
     await page.waitForFunction(id => document.activeElement?.dataset?.source === id, sourceID);
     assert.equal(await page.evaluate(() => document.activeElement?.dataset?.source), sourceID,
-      'Source return restores focus to the originating source control');
+      'Visible Source Back restores focus to the originating source control');
+    await page.goForward();
+    await page.locator('.source-actions').waitFor();
+    await page.goBack();
+    await page.locator('.transcript-return').waitFor();
+    await page.waitForFunction(id => document.activeElement?.dataset?.source === id, sourceID);
+    assert.equal(await page.evaluate(() => document.activeElement?.dataset?.source), sourceID,
+      'Browser Back restores focus to the originating source control');
     await page.locator('.transcript-return').click();
     await page.waitForFunction(() => location.hash === '#today');
     await page.goBack();
@@ -159,7 +169,7 @@ async function run() {
     await page.waitForFunction(() => /^Resume/.test(document.querySelector('[data-player-toggle]')?.textContent || ''));
     await page.locator('[data-player-close]').click();
     await page.evaluate(() => { location.hash = '#library'; });
-    await page.getByText('Editions and explanations').waitFor();
+    await page.locator('.library-filters').waitFor();
     const beforeDive = await page.evaluate(() => ({
       active: JSON.parse(localStorage.getItem('briefing:v1:state')).activeAudio,
       progress: JSON.parse(localStorage.getItem('briefing:v1:state')).progress,
@@ -176,9 +186,9 @@ async function run() {
       playerLabel: document.querySelector('.mini-player-toggle')?.getAttribute('aria-label'),
       time: document.querySelector('.mini-player-open small')?.textContent,
     })), beforeDive, 'Explanation transcript navigation preserves playback and position');
-    assert.equal(await page.getByRole('button', { name: 'Back to Library' }).count(), 2,
-      'Explanation return controls preserve the Library origin');
-    await page.locator('.back-link').first().click();
+    assert.equal(await page.locator('.reader-back').textContent(), '‹ Library',
+      'Explanation return preserves the Library origin');
+    await page.locator('.transcript-return').click();
     await page.waitForFunction(() => location.hash === '#library');
     await page.waitForFunction(() => document.activeElement?.classList.contains('mini-player-open'));
     assert.equal(await page.evaluate(() => document.activeElement?.classList.contains('mini-player-open')), true,
@@ -197,7 +207,7 @@ async function run() {
     await page.locator('.mini-player-toggle').click();
     await page.waitForFunction(() => document.querySelector('.mini-player-toggle')?.getAttribute('aria-label')?.startsWith('Pause'));
     await page.evaluate(() => { location.hash = '#library'; });
-    await page.getByText('Editions and explanations').waitFor();
+    await page.locator('.library-filters').waitFor();
     await page.locator('.mini-player-open').click();
     await page.getByRole('button', { name: 'Read corrected edition' }).click();
     await page.locator('[data-edition="weekly-sample-001"] .correction-notice').waitFor();
@@ -306,7 +316,7 @@ async function run() {
         headers: { 'Accept-Ranges': 'bytes', 'Content-Range': `bytes ${start}-${end}/${wav.length}` }, body: wav.subarray(start, end + 1) });
     });
     await ambiguous.goto(baseURL, { waitUntil: 'networkidle' });
-    await ambiguous.getByRole('heading', { name: 'Today’s briefing is unavailable' }).waitFor();
+    await ambiguous.getByRole('heading', { name: 'This page is unavailable' }).waitFor();
     await ambiguous.locator('.mini-player-open').click();
     await ambiguous.getByRole('button', { name: 'Read transcript' }).click();
     const ambiguousDialog = ambiguous.locator('.player-dialog');
@@ -343,7 +353,7 @@ async function run() {
         headers: { 'Accept-Ranges': 'bytes', 'Content-Range': `bytes ${start}-${end}/${wav.length}` }, body: wav.subarray(start, end + 1) });
     });
     await withdrawn.goto(baseURL, { waitUntil: 'networkidle' });
-    await withdrawn.getByRole('heading', { name: 'Today’s briefing is unavailable' }).waitFor();
+    await withdrawn.getByRole('heading', { name: 'This page is unavailable' }).waitFor();
     await withdrawn.locator('.mini-player-open').click();
     await withdrawn.getByRole('button', { name: 'Read transcript' }).click();
     const withdrawnDialog = withdrawn.locator('.player-dialog');
