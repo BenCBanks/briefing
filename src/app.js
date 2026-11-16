@@ -689,7 +689,11 @@ function route() {
   else if (routeName !== 'preferences') window.scrollTo({ top: 0, behavior: 'instant' });
   const sourceFocusID = pendingSourceFocusID;
   pendingSourceFocusID = null;
-  if (sourceFocusID) requestAnimationFrame(() => [...content.querySelectorAll('[data-source]')].find(button => button.dataset.source === sourceFocusID)?.focus({ preventScroll: true }));
+  if (sourceFocusID) requestAnimationFrame(() => {
+    const source = [...content.querySelectorAll('[data-source]')].find(button => button.dataset.source === sourceFocusID);
+    if (source?.closest('details')) source.closest('details').open = true;
+    source?.focus({ preventScroll: true });
+  });
   else if (routeName.startsWith('source/')) requestAnimationFrame(() => content.querySelector('h1')?.focus({ preventScroll: true }));
   else if (viewState?.focus) requestAnimationFrame(() => {
     const selector = viewState.focus.type === 'source' ? `[data-source="${CSS.escape(viewState.focus.id)}"]` :
