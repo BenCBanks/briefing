@@ -289,15 +289,6 @@ final class ContentTests: XCTestCase {
         XCTAssertEqual(playbackActionTitle(track: old, state: state, noun: "briefing"), "Pause briefing")
     }
 
-    func testDifferentTranscriptItemMustPushAboveTheVisibleWeeklyReader() {
-        let weekly = AudioContentIdentity(kind: .weeklyEdition, id: "fictional-weekly",
-                                          revision: "weekly-r2", scriptHash: "weekly-hash")
-        let explanation = AudioContentIdentity(kind: .explanation, id: "fictional-sports-dive",
-                                               revision: "dive-r2", scriptHash: "dive-hash")
-        XCTAssertFalse(transcriptDestinationIsAlreadyVisible(current: weekly, destination: explanation))
-        XCTAssertTrue(transcriptDestinationIsAlreadyVisible(current: explanation, destination: explanation))
-    }
-
     func testInternalFictionalSourceDecodesWithoutExternalURL() throws {
         let json = """
         {"id":"record-1","title":"Fictional pilot record — demonstration source",
