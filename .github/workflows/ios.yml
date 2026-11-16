@@ -75,12 +75,19 @@ jobs:
           mkdir -p /tmp/briefing-native-captures
           echo "Capturing light appearance"
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/today-light.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-light.png "The choices behind the tap" "Audio pending approval"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-light.png "The choices behind the tap" "Read today's briefing"
           echo "Capturing dark appearance"
           xcrun simctl ui "$SIM_UDID" appearance dark
           sleep 3
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/today-dark.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-dark.png "The choices behind the tap" "Audio pending approval"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/today-dark.png "The choices behind the tap" "Read today's briefing"
+          echo "Capturing the focused edition reader"
+          xcrun simctl terminate "$SIM_UDID" com.bencbanks.briefing.prototype
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcrun simctl launch "$SIM_UDID" com.bencbanks.briefing.prototype --briefing-reader-preview
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/reader-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/reader-light.png "Contents" "The choices behind the tap" "A faster checkout"
       - name: Capture native player states with test-only recording
         timeout-minutes: 5
         run: |
@@ -130,7 +137,7 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-older-daily --briefing-transcript-auto-read -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-older-daily-large.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-older-daily-large.png "Older fictional daily briefing" "The choices behind the tap" --light-sheet
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-older-daily-large.png "Older fictional daily briefing" "Back to Today" --light-sheet
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-topic-origin --briefing-transcript-auto-read
           sleep 8
@@ -186,18 +193,24 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-deeper-preview
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-explanation-from-today-light.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-explanation-from-today-light.png "Today" "Payments" "Audio pending approval"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-explanation-from-today-light.png "Explanation" "Payments" "Why does a payment"
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl ui "$SIM_UDID" appearance dark
           sleep 3
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-deeper-preview -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-explanation-from-today-large-text.png
-          if ! swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-explanation-from-today-large-text.png "Today" "Payments" "Audio pending approval" --dark-sheet; then
+          if ! swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-explanation-from-today-large-text.png "Explanation" "Payments" "Why does a payment" --dark-sheet; then
             sleep 4
             xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-explanation-from-today-large-text.png
-            swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-explanation-from-today-large-text.png "Today" "Payments" "Audio pending approval" --dark-sheet
+            swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-explanation-from-today-large-text.png "Explanation" "Payments" "Why does a payment" --dark-sheet
           fi
+          xcrun simctl terminate "$SIM_UDID" "$APP_ID"
+          xcrun simctl ui "$SIM_UDID" appearance light
+          xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-source-preview
+          sleep 8
+          xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-source-from-explanation-light.png
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-source-from-explanation-light.png "Source" "FedNow Service" "Open original"
       - name: Capture fictional correction across revisions
         timeout-minutes: 6
         run: |
@@ -225,7 +238,7 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-correction-source
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-source-light.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-source-light.png "Source details" "Fictional pilot record" "Prototype fixture"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-source-light.png "Source" "Fictional pilot record" "Prototype fixture"
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl ui "$SIM_UDID" appearance dark
           sleep 3
@@ -247,7 +260,7 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-correction-source -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/fictional-correction-source-large-text-dark.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-source-large-text-dark.png "Source details" "Fictional pilot record" --dark-sheet
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/fictional-correction-source-large-text-dark.png "Source" "Fictional pilot record" --dark-sheet
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl ui "$SIM_UDID" appearance light
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-correction-preview-r2 --briefing-superseded-fixture

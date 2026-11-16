@@ -37,6 +37,21 @@ struct TodayFrontPage: View {
                             .fixedSize(horizontal: false, vertical: true)
                             .padding(.bottom, 14)
                     }
+                    if let correction = daily.materialCorrection {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("CORRECTION")
+                                .font(.caption.weight(.semibold)).tracking(1)
+                                .foregroundStyle(ReaderColor.correction)
+                            Text(correction.whatChanged)
+                                .font(.subheadline)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                        .padding(.vertical, 12)
+                        .padding(.horizontal, 14)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(ReaderColor.correction.opacity(0.08), in: RoundedRectangle(cornerRadius: 10))
+                        .padding(.bottom, 16)
+                    }
                     Text("\(readingMinutes(daily)) min read · \(daily.sections.count) stories")
                         .font(.subheadline).foregroundStyle(ReaderColor.secondary)
                         .padding(.bottom, 24)
