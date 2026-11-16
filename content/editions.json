@@ -4,11 +4,11 @@
       "id": "daily-sample-001",
       "kind": "daily",
       "local_date": "2026-11-15",
-      "revision_id": "sample-r4",
+      "revision_id": "sample-r5",
       "title": "The choices behind the tap",
       "as_of": "Illustrative scenario, 15 November 2026",
       "duration_minutes": 11,
-      "summary": "Five illustrative systems raise one question: can people understand and correct the choices made for them?",
+      "summary": "Four illustrative systems raise one question: can people understand and correct the choices made for them?",
       "sections": [
         {
           "id": "daily-payments-001",
@@ -51,15 +51,6 @@
           "source_ids": [
             "naic-insurance-basics"
           ]
-        },
-        {
-          "id": "daily-sports-001",
-          "heading": "Sports is quiet today: what makes a plan adaptable?",
-          "body": "Sports is quiet in this illustrative edition: no meaningful development was selected for coverage, so no match or result has been added. This disclosure keeps the topic visible without implying a current update. Its deeper explanation remains available separately; today's quiet note does not replace it.",
-          "topic_ids": [
-            "sports"
-          ],
-          "source_ids": []
         }
       ],
       "coverage": [
@@ -89,11 +80,11 @@
           "reason": "No sports item selected; evergreen question available"
         }
       ],
-      "script_hash": "b30843c970c77d59a7acf0327449cfa4fc1a3cd8167eafb105a79e5c4ce1cae8",
+      "script_hash": "db2491b843a84448f987846eb6ffe1bc3d640b2ada8b6ccb041f7fbd2f2ba9cb",
       "audio": {
         "state": "pending",
-        "revision_id": "sample-r4",
-        "script_hash": "b30843c970c77d59a7acf0327449cfa4fc1a3cd8167eafb105a79e5c4ce1cae8"
+        "revision_id": "sample-r5",
+        "script_hash": "db2491b843a84448f987846eb6ffe1bc3d640b2ada8b6ccb041f7fbd2f2ba9cb"
       }
     },
     {

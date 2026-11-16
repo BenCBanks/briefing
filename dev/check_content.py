@@ -113,6 +113,11 @@ def validate_content(content_dir=CONTENT):
         require(len(coverage) == len(topics), f"{edition['id']}: duplicate or missing coverage")
         require({row["topic_id"] for row in coverage} == topic_ids,
                 f"{edition['id']}: missing topic coverage")
+        quiet = {row["topic_id"] for row in coverage if row.get("state") in {"quiet", "limited"}}
+        for section in edition["sections"]:
+            covered_topics = section.get("topic_ids", [])
+            require(not covered_topics or any(topic not in quiet for topic in covered_topics),
+                    f"{edition['id']}: quiet topic belongs in coverage, not the spoken edition")
 
     return {"topics": len(topics), "deep_dives": len(dives),
             "editions": len(editions), "sources": len(sources)}
