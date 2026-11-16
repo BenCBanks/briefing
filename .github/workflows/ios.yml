@@ -137,17 +137,17 @@ jobs:
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-older-daily --briefing-transcript-auto-read -UIPreferredContentSizeCategoryName UICTContentSizeCategoryXXXL
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-older-daily-large.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-older-daily-large.png "Older fictional daily briefing" "Back to Today" --light-sheet
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-older-daily-large.png "Older fictional daily briefing" "Today" --light-sheet
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-topic-origin --briefing-transcript-auto-read
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-topic-origin.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-topic-origin.png "Weekly" "Back to Sports"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-topic-origin.png "Weekly" "Sports"
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-coverage-origin --briefing-transcript-auto-read
           sleep 8
           xcrun simctl io "$SIM_UDID" screenshot /tmp/briefing-native-captures/transcript-coverage-origin.png
-          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-coverage-origin.png "Back to Coverage" "The choices behind the tap"
+          swift mobile/ios/dev/check_capture.swift /tmp/briefing-native-captures/transcript-coverage-origin.png "Coverage" "The choices behind the tap"
           xcrun simctl terminate "$SIM_UDID" "$APP_ID"
           xcrun simctl launch "$SIM_UDID" "$APP_ID" --briefing-transcript-stale-explanation
           sleep 8

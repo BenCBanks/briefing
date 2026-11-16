@@ -873,26 +873,25 @@ struct TopicDetailView: View {
 }
 
 struct ContextReturnButton: View {
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     let title: String
     let action: () -> Void
 
     var body: some View {
         Button(action: action) {
-            Group {
-                if dynamicTypeSize.isAccessibilitySize {
-                    Image(systemName: "chevron.left")
-                        .frame(minWidth: 44, minHeight: 44)
-                } else {
-                    Label(title, systemImage: "chevron.left")
-                        .labelStyle(.titleAndIcon)
-                        .lineLimit(1)
-                        .frame(minHeight: 44)
-                }
+            HStack(spacing: 5) {
+                Image(systemName: "chevron.left")
+                Text(parentTitle).multilineTextAlignment(.leading)
             }
+            .frame(minWidth: 44, minHeight: 44, alignment: .leading)
             .contentShape(Rectangle())
         }
         .accessibilityLabel(title)
+    }
+
+    private var parentTitle: String {
+        if title.hasPrefix("Back to ") { return String(title.dropFirst("Back to ".count)) }
+        if title.hasPrefix("Return to ") { return String(title.dropFirst("Return to ".count)) }
+        return title
     }
 }
 
