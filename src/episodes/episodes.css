@@ -1,0 +1,124 @@
+/* fixture episode prototype. Every selector stays inside its route. */
+.episode-deck-page .visually-hidden { position:absolute!important; width:1px!important; height:1px!important; padding:0!important; margin:-1px!important; overflow:hidden!important; clip:rect(0,0,0,0)!important; white-space:nowrap!important; border:0!important; }
+.episode-page { max-width: 640px; margin: 0 auto; padding-bottom: 150px; }
+.episode-back { display: inline-flex; align-items: center; min-height: 48px; margin: -8px 0 14px; text-decoration: none; font-weight: 600; }
+.episode-topic { margin: 0 0 6px; color: var(--muted); font-size: var(--type-meta, 13px); }
+.episode-page h1 { margin: 0 0 16px; font: 400 clamp(1.65rem, 7vw, 2rem)/1.2 var(--read, Georgia, serif); text-wrap: pretty; }
+.episode-asked { margin: 16px 0; padding: 14px 16px; border-left: 3px solid var(--accent); background: var(--soft); color: var(--ink); }
+.episode-asked strong { display: block; margin-bottom: 4px; font: 600 13px/1.4 var(--ui, system-ui, sans-serif); }
+.episode-asked p { margin: 0; font: 400 1.05rem/1.45 var(--read, Georgia, serif); }
+.episode-meta { margin: 12px 0 18px; color: var(--muted); font-size: var(--type-meta, 13px); }
+.episode-listen-group { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; margin: 0 0 28px; }
+.episode-listen { min-width: 140px; min-height: 48px; }
+.episode-listen-group button:disabled { opacity: .65; }
+.episode-audio-unavailable { color: var(--muted); font-size: 13px; }
+.episode-updated { display: inline-flex; flex: 0 0 auto; align-items: center; min-height: 44px; white-space: nowrap; border-radius: 999px; padding: 2px 9px; color: var(--warn); background: var(--warnbg); font-size: 12px; font-weight: 650; text-decoration: none; }
+.episode-updated-note { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 4px 10px; margin: 0 0 16px; padding: 8px 10px; border-radius: 10px; background: var(--soft); color: var(--muted); font-size: 13px; line-height: 1.45; }
+.episode-updated-note > span:not(.episode-updated) { min-width: 0; }
+.episode-updated-note .episode-correction-history-link { grid-column: 1 / -1; display: inline-flex; align-items: center; min-height: 44px; width: fit-content; }
+.episode-page h1:focus { outline: 3px solid var(--focus); outline-offset: 3px; border-radius: 2px; }
+.episode-page h2 { margin: 28px 0 10px; font-size: 18px; font-weight: 600; }
+.episode-page .episode-transcript-note { margin: -4px 0 18px; color: var(--muted); font: 400 13px/1.45 var(--ui, system-ui, sans-serif); }
+.episode-chapter-list { margin: 0; padding: 0; list-style: none; border-top: 1px solid var(--line); }
+.episode-chapter-list li { border-bottom: 1px solid var(--line); }
+.episode-chapter-list a { display: flex; align-items: center; min-height: 48px; color: var(--ink); text-decoration: none; }
+.episode-chapter { margin-top: 24px; scroll-margin-top: 16px; }
+.episode-chapter h3 { margin: 0 0 9px; font: 600 17px/1.4 var(--ui, system-ui, sans-serif); }
+.episode-sentence { position: relative; margin: 0 0 14px; font: 400 1.125rem/1.58 var(--read, Georgia, serif); }
+.episode-citation { position: relative; display: inline-block; vertical-align: baseline; margin: 0 0 0 3px; font: 500 11px/1 var(--ui, system-ui, sans-serif); }
+.episode-citation summary { display: inline-flex; align-items: center; justify-content: center; min-width: 44px; min-height: 44px; border: 1px solid var(--control-line); border-radius: 50%; background: var(--soft); color: var(--accent); font-weight: 650; cursor: pointer; list-style: none; }
+.episode-citation summary::-webkit-details-marker, .episode-report summary::-webkit-details-marker { display: none; }
+.episode-citation summary::marker, .episode-report summary::marker { content: ''; }
+.episode-citation[open] summary { background: var(--tint, var(--soft)); }
+.episode-citation-detail { position: absolute; z-index: 3; left: 0; top: 100%; display: grid; gap: 4px; width: max-content; max-width: min(260px, calc(100vw - 48px)); padding: 12px; border: 1px solid var(--control-line, var(--line)); border-radius: 10px; background: var(--paper); box-shadow: 0 8px 28px #0002; font: 400 13px/1.4 var(--ui, system-ui, sans-serif); }
+.episode-citation-detail a { min-height: 44px; display: inline-flex; align-items: center; }
+.episode-uncertain { margin-top: 36px; padding-top: 4px; border-top: 1px solid var(--line); }
+.episode-uncertain ul { padding-left: 20px; }
+.episode-uncertain li { margin: 8px 0; }
+.episode-report { margin-top: 30px; border-top: 1px solid var(--line); }
+.episode-report summary { display: flex; align-items: center; min-height: 48px; color: var(--accent); cursor: pointer; list-style: none; font-weight: 600; }
+.episode-report p { color: var(--muted); font-size: 14px; }
+
+.episode-deck-page { position: fixed; z-index: 50; inset: 0; display: flex; flex-direction: column; gap: 10px; padding: max(8px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(8px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left)); background: var(--paper); color: var(--ink); }
+.episode-deck-topbar { display: flex; align-items: center; justify-content: space-between; flex: 0 0 48px; max-width: 640px; width: 100%; margin-inline: auto; }
+.episode-deck-topbar button, .episode-deck-controls button { min-width: 48px; min-height: 48px; }
+.episode-deck-close { font-size: 25px; padding: 0; }
+.episode-deck-track { display: flex; flex: 1 1 auto; min-height: 0; width: 100%; max-width: 640px; margin-inline: auto; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; outline-offset: -3px; }
+.episode-deck-track::-webkit-scrollbar { display: none; }
+.episode-card { display: flex; flex: 0 0 100%; flex-direction: column; min-height: 100%; overflow-y: auto; scroll-snap-align: center; scroll-snap-stop: always; padding: clamp(18px, 5vw, 30px); border-radius: 18px; background: var(--tint, var(--soft)); }
+.episode-card-topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 30px; }
+.episode-card h2 { margin: 24px 0 8px; font: 400 clamp(1.65rem, 7vw, 2.25rem)/1.18 var(--read, Georgia, serif); text-wrap: pretty; }
+.episode-card .episode-meta { margin: 4px 0 14px; }
+.episode-hook { margin: 0 0 8px; font: 400 1.08rem/1.5 var(--read, Georgia, serif); }
+.episode-card .episode-asked { margin: auto 0 16px; background: color-mix(in srgb, var(--paper) 72%, transparent); }
+.episode-card .episode-listen-group { margin: 0 0 8px; }
+.episode-preview { min-height: 48px; margin: 0 0 10px; align-self: flex-start; color: var(--muted); }
+.episode-open { min-height: 48px; align-self: stretch; }
+.episode-deck-controls { display: flex; flex: 0 0 48px; align-items: center; justify-content: space-between; max-width: 640px; width: 100%; margin-inline: auto; }
+.episode-deck-controls p { margin: 0; color: var(--muted); font-size: 13px; }
+.episode-chapter h3:focus { outline: 3px solid var(--focus); outline-offset: 4px; }
+
+@media (min-width: 700px) {
+  .episode-page { padding-top: 12px; }
+  .episode-deck-page { padding: 16px 24px; }
+  .episode-card { padding: 32px; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .episode-deck-track { scroll-behavior: auto; }
+  .episode-deck-page, .episode-card, .episode-deck-track { animation: none !important; transition: none !important; }
+}
+
+/* Episodes history controls and truthful status rings. */
+.episode-list-page { width:min(100%, 680px); margin:0 auto; padding-bottom:140px; }
+body.is-episodes-list .site-header { display:none; }
+.episode-list-page > h1 { margin-bottom:12px; }
+.episode-list-page > .button-link { display:inline-flex; align-items:center; min-height:44px; }
+.episode-history-filters { display:grid; grid-template-columns:repeat(5,minmax(0,1fr)); gap:4px; margin:18px 0 14px; }
+.episode-history-filter { min-width:0; min-height:44px; padding:6px 4px; border:1px solid var(--control-line); border-radius:8px; background:var(--paper); color:var(--ink); font:500 13px/1.2 var(--ui); white-space:nowrap; }
+.episode-history-filter[aria-pressed="true"] { border-color:var(--accent); background:var(--tint); color:var(--ink); }
+.episode-history-search-label { display:grid; gap:6px; margin:0 0 8px; color:var(--muted); font-size:var(--type-meta,13px); }
+.episode-history-search-label input { width:100%; min-height:48px; padding:10px 12px; border:1px solid var(--control-line); border-radius:8px; background:var(--paper); color:var(--ink); font:400 max(16px,1em)/1.4 var(--ui); }
+.episode-history-count { min-height:22px; margin:12px 0 0; color:var(--muted); font-size:var(--type-meta,13px); }
+.episode-job-list { margin:4px 0 0; border-top:1px solid var(--line); }
+.episode-job-card { padding:18px 0 14px; border-bottom:1px solid var(--line); }
+.episode-job-card h2 { margin:0 0 7px; font:500 17px/1.35 var(--ui); }
+.episode-job-title { display:inline-flex; align-items:center; min-height:44px; color:var(--ink); text-decoration:none; }
+.episode-job-title:hover { text-decoration:underline; text-decoration-color:var(--accent); text-underline-offset:3px; }
+.episode-job-topic,.episode-job-card-status { margin:4px 0; color:var(--muted); font-size:var(--type-meta,13px); }
+.episode-job-status-line { display:flex; align-items:center; flex-wrap:wrap; gap:10px; min-height:36px; }
+.episode-status-chip { display:inline-flex; align-items:center; gap:7px; min-height:32px; color:var(--ink); font:500 14px/1.2 var(--ui); }
+.episode-status-chip .episode-stage-ring { width:22px; height:22px; margin:0; font-size:11px; }
+.episode-status-chip .episode-stage-ring::before { inset:3px; }
+.episode-status-chip[data-state="done"] .episode-stage-ring { background:var(--accent); }
+.episode-status-chip[data-state="done"] .episode-stage-ring::before { display:none; }
+.episode-status-chip[data-state="done"] .episode-stage-ring::after { color:var(--onaccent); }
+.episode-status-chip[data-state="active"] .episode-stage-ring { animation:episode-ring-spin 1.2s linear infinite; }
+.episode-status-chip[data-state="failed"] .episode-stage-ring { background:var(--warn, #8c3a00); color:var(--warn, #8c3a00); }
+.episode-status-chip[data-state="cancelled"] .episode-stage-ring { background:var(--line); color:var(--muted); }
+.episode-job-status-line .episode-updated { min-height:44px; }
+.episode-daily-briefing { margin:12px 0 20px; padding:10px 0; border-block:1px solid var(--line); }
+.episode-daily-briefing-toggle { position:relative; display:flex; align-items:center; min-height:48px; padding-left:34px; color:var(--ink); font:500 16px/1.35 var(--ui); cursor:pointer; }
+.episode-daily-briefing-toggle input { position:absolute; inset:0 auto 0 0; z-index:1; width:48px; height:48px; margin:0; opacity:0; cursor:pointer; }
+.episode-daily-briefing-toggle span::before { content:""; position:absolute; left:0; top:13px; width:20px; height:20px; border:2px solid var(--control-line); border-radius:4px; background:var(--paper); }
+.episode-daily-briefing-toggle input:checked + span::before { border-color:var(--accent); background:var(--accent); }
+.episode-daily-briefing-toggle input:checked + span::after { content:"✓"; position:absolute; left:4px; top:12px; color:var(--onaccent); font-size:16px; font-weight:700; line-height:24px; }
+.episode-daily-briefing-toggle input:focus-visible + span::before { outline:3px solid var(--focus); outline-offset:3px; }
+.episode-daily-briefing-status { min-height:1.4em; margin:0 0 0 34px; color:var(--muted); font-size:var(--type-meta,13px); }
+.episode-job-actions { display:flex; gap:8px; margin-top:8px; }
+.episode-job-actions button,.episode-history-undo button { min-width:72px; min-height:44px; padding:8px 12px; border:1px solid var(--control-line); border-radius:8px; background:var(--paper); color:var(--ink); font:500 14px/1.2 var(--ui); }
+.episode-job-actions button[aria-pressed="true"] { border-color:var(--accent); color:var(--accent); }
+.episode-list-page .episode-status-chip { display:inline-flex; align-items:center; gap:8px; min-height:32px; padding:3px 10px 3px 6px; border-radius:999px; background:var(--soft); color:var(--muted); }
+.episode-list-page .episode-status-chip[data-state="active"] { color:var(--ink); }
+.episode-list-page .episode-status-chip[data-state="done"] { background:var(--tint); color:var(--accent); }
+.episode-list-page .episode-status-chip[data-state="failed"] { background:var(--warnbg); color:var(--warn); }
+.episode-list-page .episode-status-chip .episode-stage-ring { flex:none; width:18px; height:18px; margin:0; font-size:10px; }
+.episode-history-empty { padding:28px 0; border-top:1px solid var(--line); }
+.episode-history-empty h2 { margin:0 0 8px; font-size:18px; }
+.episode-history-empty p { margin:0 0 12px; color:var(--muted); }
+.episode-history-undo { position:sticky; bottom:calc(76px + env(safe-area-inset-bottom)); display:flex; align-items:center; justify-content:space-between; gap:12px; margin:14px 0; padding:10px 12px; border:1px solid var(--line); border-radius:8px; background:var(--soft); color:var(--ink); }
+.episode-history-making { width:min(100%,640px); margin:0 auto; padding-bottom:140px; }
+.episode-history-making > .episode-back { margin-bottom:20px; }
+.episode-history-making > h1 { font:400 clamp(1.65rem,7vw,2rem)/1.2 var(--read,Georgia,serif); }
+.episode-history-making .episode-status-chip { min-height:44px; margin:6px 0; }
+.episode-history-making .episode-job-card-status { margin-top:10px; text-transform:capitalize; }
+@media (prefers-reduced-motion:reduce) { .episode-status-chip[data-state="active"] .episode-stage-ring { animation:none; } }
