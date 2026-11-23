@@ -18,7 +18,11 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from dev.ingest.episodes.policy import WORDS_PER_MINUTE
-TOPICS = ('How do instant payments work', 'Why did US health insurance premiums rise')
+# Keep the default quality pass aligned with the product's three core asks:
+# factual explanation, practical how-to, and a current development.
+TOPICS = ('How do instant payment systems work',
+          'How should I prepare for a salary negotiation',
+          'What changed recently in AI chips')
 
 
 def report(episode):
