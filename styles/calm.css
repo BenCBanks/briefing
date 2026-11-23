@@ -833,6 +833,10 @@ button:disabled {
 
 /* Let headlines and quick-hit text occupy their actual height. */
 .today-page .today-contents li button .story-row-copy > strong { display: block; -webkit-line-clamp: unset; line-clamp: unset; overflow: visible; text-overflow: clip; white-space: normal; }
+.today-page .inline-story .story-more p { color: var(--ink); }
+.today-page .story-more { opacity: 1; animation: none; }
+.today-page .story-source-line { min-height: 0; margin: 8px 0 0; padding: 0; border: 0; border-radius: 0; justify-content: flex-start; }
+.today-page .story-more-toggle { min-height: 44px; padding: 0; border: 0; border-radius: 0; background: transparent; font-weight: 500; }
 .story-read { margin: 16px 0 8px; color: var(--muted); font: 400 14px/1.5 var(--ui); }
 .story-interest-feedback { display: block; margin: 8px 0; }
 .story-interest-feedback summary { display: flex; align-items: center; width: fit-content; min-height: 44px; color: var(--muted); font: 400 13px/1.5 var(--ui); cursor: pointer; }

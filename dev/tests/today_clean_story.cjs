@@ -34,15 +34,29 @@ const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8932';
         id: 'fictional-day', revision_id: 'fictional-r1', kind: 'daily', local_date: '2026-11-18',
         sections, coverage: sections.map((section, index) => ({ topic_id: `topic-${index}`, state: 'covered' })),
       }, [], { sources, followedTopicCount: 3 });
-      host.querySelectorAll('.story-more-toggle').forEach(button => button.click());
       const rows = [...host.querySelectorAll('.today-story-row')];
+      const toggles = [...host.querySelectorAll('.story-more-toggle')];
+      const toggleState = button => ({
+        label: button.innerText.trim(), expanded: button.getAttribute('aria-expanded'),
+        border: getComputedStyle(button).borderTopWidth,
+        background: getComputedStyle(button).backgroundColor,
+        chevron: button.querySelector('svg path')?.getAttribute('d') || '',
+      });
+      const closedToggle = toggleState(toggles[0]);
+      toggles.forEach(button => button.click());
       return rows.map(row => ({
         heading: row.querySelector('.inline-story-heading').textContent.trim(),
         storyText: row.querySelector('.inline-story').innerText,
+        expandedTextColor: getComputedStyle(row.querySelector('.story-more p')).color,
+        bodyTextColor: getComputedStyle(row.querySelector('.story-lead p')).color,
         markerCount: row.querySelectorAll('.inline-story .citation-number, .inline-story .cite, .inline-story [data-cite]').length,
         sourceLists: row.querySelectorAll('.inline-story-sources').length,
         sourceText: row.querySelector('.inline-story-sources')?.innerText || '',
         sourceLine: row.querySelector('.story-source-line > span')?.innerText.trim() || '',
+        toggle: toggleState(row.querySelector('.story-more-toggle')),
+        topHeadline: host.querySelectorAll('.today-top-story-copy strong')[rows.indexOf(row)]?.innerText.trim() || '',
+        topHeadlineFits: (() => { const title = host.querySelectorAll('.today-top-story-copy strong')[rows.indexOf(row)]; return title.scrollHeight <= title.clientHeight + 1; })(),
+        closedToggle: rows.indexOf(row) === 0 ? closedToggle : null,
       }));
     });
     assert.equal(evidence.length, 3, 'a three-story day renders all three stories');
@@ -51,6 +65,13 @@ const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8932';
       assert.equal(row.sourceLists, 1, `story ${index + 1} has one source list at the end`);
       assert.equal(row.sourceLine, '', `story ${index + 1} has no duplicate source attribution`);
       assert.match(row.sourceText, new RegExp(`Fictional Publisher ${index + 1} · 17 Nov`));
+      assert.equal(row.expandedTextColor, row.bodyTextColor, `story ${index + 1} expanded prose uses normal body color`);
+      assert.equal(row.toggle.border, '0px', 'the expanded More control has no border box');
+      assert.equal(row.toggle.background, 'rgba(0, 0, 0, 0)', 'the expanded More control has a plain background');
+      assert.match(row.toggle.chevron, /m7 14 5-5 5 5/u, 'the open control points up');
+      assert.equal(row.topHeadline, row.heading, `story ${index + 1} Top stories shows the complete headline`);
+      assert.equal(row.topHeadlineFits, true, `story ${index + 1} Top stories wraps without clipping`);
+      if (index === 0) assert.match(row.closedToggle.chevron, /m7 10 5 5 5-5/u, 'the closed control points down');
       assert.equal((row.storyText.match(new RegExp(row.heading.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) || []).length, 0,
         `story ${index + 1} body does not repeat its headline`);
       assert.match(row.storyText, /Riders can check the revised times/u, `story ${index + 1} keeps body detail`);
