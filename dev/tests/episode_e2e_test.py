@@ -51,8 +51,7 @@ class MockLLM:
         if 'script' in payload:
             return {'on_topic': True, 'coherent': True, 'uncertainty_relevant': True,
                     'verdicts': [{'id': row['id'], 'supported': row['kind'] == 'heading' or any(
-                        (re.sub(r'^(?:Overall|In short|Taken together),?\s+', '', row['text'])
-                         if row['kind'] == 'closing' else row['text']) == payload['evidence'][eid]['text']
+                        row['text'] == payload['evidence'][eid]['text']
                         for eid in row['evidence_ids'])}
                         for row in payload['script']
                         if row['kind'] not in {'navigation', 'opening'}]}
@@ -78,18 +77,16 @@ class MockLLM:
                 first = index == 0
                 last = index == len(chapter_sources) - 1
             if first:
-                length = payload.get('spoken_length', 'five')
-                topic = str(payload.get('topic') or 'the fictional ferry trial').strip().rstrip('.!?')
-                chapter['sentences'].insert(0, {'text': f'Here is your {length}-minute briefing on {topic}.',
+                chapter['sentences'].insert(0, {'text': 'Let us start with the part that answers your question.',
                                                 'kind': 'opening', 'evidence_ids': []})
             else:
-                transition = ('resident access', 'the trial review', 'ferry operations')[index % 3]
-                bridge = ("Turning to", "Let's turn to", "Now, let's look at")[index % 3]
-                chapter['sentences'].insert(0, {'text': f'{bridge} {transition}.',
+                transition = ('That leaves another part of the process to explain.',
+                              'A different detail helps connect those pieces.',
+                              'There is also a question about what happens next.')[index % 3]
+                chapter['sentences'].insert(0, {'text': transition,
                                                 'kind': 'navigation', 'evidence_ids': []})
             if last and chapter['sentences'][-1]['kind'] == 'claim':
                 chapter['sentences'][-1] = {**chapter['sentences'][-1],
-                                            'text': f"Overall, {chapter['sentences'][-1]['text']}",
                                             'kind': 'closing'}
             chapters.append(chapter)
         if self.force_short_claim:
@@ -149,19 +146,18 @@ class EpisodeEndToEndTests(unittest.TestCase):
         self.assertEqual(len(self.model.missing_questions), 2)
         for question in missing_questions:
             with self.subTest(unresolved_question=question):
-                self.assertEqual(episode['transcript'].count(question), 1)
+                self.assertNotIn(question, episode['transcript'])
         self.assertTrue(any('background' in question for question in missing_questions))
         self.assertEqual(episode['audio']['status'], 'not_recorded')
         self.assertTrue(episode['shorter_than_requested'])
-        notes = episode['chapters'][-1]
-        self.assertEqual(notes['id'], 'evidence-notes')
-        self.assertEqual(sum("what we couldn't confirm" in row['text'].casefold()
-                             for row in notes['sentences']), 1,
-                         'announce the unanswered questions once, without a second setup')
-        self.assertEqual(notes['spoken_text'].count(self.fixture['missing_question']), 1)
-        self.assertIn('This episode is shorter than requested because the available evidence is limited.',
-                      notes['spoken_text'])
-        closing = notes['sentences'][-1]
+        final_chapter = episode['chapters'][-1]
+        gap_rows = [row for chapter in episode['chapters'] for row in chapter['sentences']
+                    if row['kind'] == 'editorial']
+        self.assertEqual(len(gap_rows), 1, 'state the evidence gap once in one plain sentence')
+        self.assertIn("couldn't find solid evidence", gap_rows[0]['text'])
+        self.assertNotIn('What we couldn\'t confirm', episode['transcript'])
+        self.assertIn('episode is shorter', final_chapter['spoken_text'])
+        closing = final_chapter['sentences'][-1]
         self.assertEqual(closing['kind'], 'closing')
         self.assertTrue(closing['evidence_ids'] and closing['source_ids'] and closing['source_numbers'])
         self.assertEqual(sum(row['kind'] == 'closing' for chapter in episode['chapters']
@@ -185,7 +181,7 @@ class EpisodeEndToEndTests(unittest.TestCase):
                 locators = {loc['id'] for sid in row['source_ids'] for loc in source_by_id[sid]['locators']}
                 self.assertTrue(set(row['evidence_ids']) <= locators)
         self.assertEqual(len(identifiers), sum(len(chapter['sentences']) for chapter in episode['chapters']))
-        story_chapters = [chapter for chapter in episode['chapters'] if chapter['id'] != 'evidence-notes']
+        story_chapters = episode['chapters']
         self.assertEqual(story_chapters[0]['sentences'][0]['kind'], 'opening')
         self.assertTrue(all(chapter['sentences'][0]['kind'] == 'navigation'
                             for chapter in story_chapters[1:]))
@@ -239,7 +235,7 @@ class EpisodeEndToEndTests(unittest.TestCase):
         last = fixture['plan']['questions'][-1]
         fixture['searches'][last['query']] = fixture['searches'][last['query']][:1]
         episode = self.generate(fixture)
-        self.assertEqual(len(episode['chapters']), 3)
+        self.assertEqual(len(episode['chapters']), 2)
         self.assertEqual(episode['sources_read'], 5)
         self.assertEqual(episode['source_count'], 4)
         self.assertIn({'question': last['sub_question']}, episode['could_not_confirm'])
