@@ -15,6 +15,10 @@ class FixtureNode {
     this.dataset = {};
     this.isConnected = true;
     this._text = String(text);
+    this.classList = {
+      add: name => { if (!this.className.split(/\s+/).includes(name)) this.className = `${this.className} ${name}`.trim(); },
+      remove: name => { this.className = this.className.split(/\s+/).filter(value => value && value !== name).join(' '); },
+    };
   }
   get textContent() { return this._text + this.children.map(child => child.textContent).join(''); }
   set textContent(value) { this._text = String(value ?? ''); this.children = []; }
@@ -120,7 +124,7 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
       assert.equal(played.length, 0, 'stale/pending API route never reaches player');
       if (row.history.includes('Listen')) issues.push(`${control.name}: history promises stale listening`);
       if (row.action !== 'Open transcript') issues.push(`${control.name}: done card does not offer the transcript`);
-      if (!row.history.includes('Requested: 10 min') || !row.done.includes('Requested: 10 min')) issues.push(`${control.name}: requested length is not truthful`);
+      if (!row.history.includes('Requested: 10 min') || !row.done.includes('You chose 10 min')) issues.push(`${control.name}: requested length is not truthful`);
       if (/One narrator|Your episode is ready|\b2 min/.test(row.done)) issues.push(`${control.name}: done card promises stale recorded audio`);
       if (routeListen || !routeMeta.startsWith('Requested: 10 min')) issues.push(`${control.name}: route exposes stale audio or measured duration`);
     }

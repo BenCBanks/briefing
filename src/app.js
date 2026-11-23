@@ -149,7 +149,7 @@ function rememberEpisodeLength(value) {
   episodeDraft.minutes = value;
   try { localStorage.setItem(EPISODE_LENGTH_KEY, String(value)); } catch { /* Keep the choice for this visit. */ }
 }
-let episodeDraft = { prompt: '', minutes: readLastEpisodeLength(), tellWhenReady: false };
+let episodeDraft = { prompt: '', minutes: readLastEpisodeLength() };
 let episodeJob = null;
 let episodeJobTimer = null;
 let episodeRequestError = '';
@@ -3193,12 +3193,15 @@ function renderEpisodeRequestPage() {
   const prompt = document.createElement('textarea');
   prompt.id = 'episode-request-prompt'; prompt.setAttribute('aria-label', 'What do you want to understand?');
   prompt.placeholder = 'e.g. U.S. payments regulation this month'; prompt.rows = 2; prompt.maxLength = 500; prompt.value = episodeDraft.prompt;
-  const promptLimit = node('p', `Up to ${prompt.maxLength} characters`, 'episode-request-character-count');
-  promptLimit.id = 'episode-request-character-count'; prompt.setAttribute('aria-describedby', promptLimit.id);
+  const promptLimit = node('p', '', 'episode-request-character-count');
+  promptLimit.id = 'episode-request-character-count'; promptLimit.hidden = true;
   const updatePromptLimit = () => {
     const atLimit = prompt.value.length >= prompt.maxLength;
-    promptLimit.textContent = atLimit ? `${prompt.maxLength}-character limit reached` : prompt.value ? `${prompt.value.length} / ${prompt.maxLength} characters` : `Up to ${prompt.maxLength} characters`;
+    promptLimit.textContent = atLimit ? `${prompt.maxLength}-character limit reached` : '';
     promptLimit.classList.toggle('is-at-limit', atLimit);
+    promptLimit.hidden = !atLimit;
+    if (atLimit) prompt.setAttribute('aria-describedby', promptLimit.id);
+    else prompt.removeAttribute('aria-describedby');
   };
   const suggestions = node('section', null, 'episode-topic-suggestions');
   suggestions.hidden = true; suggestions.setAttribute('aria-label', 'Sharper topic suggestions');
@@ -3250,7 +3253,6 @@ function renderEpisodeRequestPage() {
     chips.append(choice);
   }
   lengths.append(chips); page.append(lengths);
-  page.append(node('p', 'Cost is checked before an episode is queued; the estimate appears with your request.', 'on-demand-cost-line'));
   const examples = node('div', null, 'episode-request-examples');
   examples.append(node('p', 'Try an example', 'episode-request-examples-label'));
   for (const example of ['How do contactless payments settle?', 'Why do storms strengthen over warm water?', 'How do vaccines train the immune system?']) {
@@ -3274,8 +3276,7 @@ async function loadEpisodeCards(cards, examples = null, prompt = null, { earlier
       if (!cards.isConnected) return;
       cards.setAttribute('aria-busy', 'false');
       if (examples) examples.hidden = false;
-      const empty = node('div', null, 'state-pattern');
-      empty.append(node('p', earlier ? 'No earlier episodes yet. Briefings you request will appear here.' : 'No on-demand briefings yet. Your first one will appear here.'));
+      const empty = node('p', earlier ? 'No earlier episodes yet. Briefings you request will appear here.' : 'No on-demand briefings yet. Your first one will appear here.', 'episode-empty-copy');
       cards.replaceChildren(...(earlierAsk ? [earlierAsk] : []), empty);
       return;
     }
@@ -3288,9 +3289,7 @@ async function loadEpisodeCards(cards, examples = null, prompt = null, { earlier
     if (examples) examples.hidden = false;
     cards.replaceChildren();
     if (!jobs.length) {
-      const empty = node('div', null, 'state-pattern');
-      empty.append(node('p', earlier ? 'No earlier episodes yet. Briefings you request will appear here.' : 'No on-demand briefings yet. Your first one will appear here.'));
-      cards.append(empty);
+      cards.append(node('p', earlier ? 'No earlier episodes yet. Briefings you request will appear here.' : 'No on-demand briefings yet. Your first one will appear here.', 'episode-empty-copy'));
     }
     if (earlierAsk) cards.prepend(earlierAsk);
     for (const job of jobs) {
@@ -3306,8 +3305,9 @@ async function loadEpisodeCards(cards, examples = null, prompt = null, { earlier
   } catch {
     if (!cards.isConnected) return;
     cards.setAttribute('aria-busy', 'false');
-    const empty = node('div', null, 'state-pattern'); const retry = node('button', 'Try again'); retry.addEventListener('click', () => loadEpisodeCards(cards, examples, prompt, { earlier }));
-    empty.append(node('p', earlier ? 'Earlier episodes could not be loaded. Try again in a moment.' : 'Your episodes could not be loaded. Try again in a moment.'), retry); cards.replaceChildren(empty);
+    const empty = node('div', null, 'episode-list-error'); const message = node('p', earlier ? 'Earlier episodes could not be loaded. Try again in a moment.' : 'Your episodes could not be loaded. Try again in a moment.');
+    const retry = node('button', 'Try again', 'episode-list-retry'); retry.addEventListener('click', () => loadEpisodeCards(cards, examples, prompt, { earlier }));
+    empty.append(message, retry); cards.replaceChildren(empty);
   }
 }
 
@@ -3420,6 +3420,7 @@ async function renderEpisodeRoute(routeName) {
           audio_status: audioReady ? 'recorded' : 'pending',
           made_date: String(result.finished_at || result.updated_at || '').slice(0, 10), audio_recorded: audioReady }, {
           onListen: episode => player.playRecording(episode),
+          compactSources: true,
           inDailyBriefing: isEpisodeInDailyBriefing({ ...result.episode, topic_label: result.topic || result.episode.topic_label }),
           onDailyBriefingChange: setEpisodeDailyBriefing,
         });
@@ -3711,7 +3712,7 @@ async function startEpisodeJob(mode) {
     if (!response.ok || !result.job_id) throw new Error('episode_request_failed');
     episodeJob = {
       costEstimate: result.cost_estimate?.label, jobId: result.job_id, request, minutes: episodeDraft.minutes, mode,
-      tellWhenReady: episodeDraft.tellWhenReady, status: result.status || 'queued',
+      status: result.status || 'queued',
       stage: result.stage || 'queued', counts: result.counts || { chapters: 0, sentences: 0, sources: 0 },
       startedAt: Date.now(), stageStartedAt: Date.now(), stageIndex: 0,
       announcedStage: -1, activityKey: '', done: false,
@@ -3832,7 +3833,7 @@ function renderEpisodeMakingPage() {
   const page = node('section', null, 'episode-making-page');
   page.append(node('p', job.done ? 'Ready' : job.failed ? 'Not finished' : 'Making your episode', 'episode-making-kicker'));
   page.append(node('blockquote', `“${job.request}”`, 'episode-making-quote'));
-  page.append(node('p', `About ${job.minutes} min to listen · ${job.mode.label}`, 'episode-making-meta'));
+  page.append(node('p', `You chose ${job.minutes} min`, 'episode-making-meta'));
   const longWait = node('p', 'This is taking a little longer. Your briefing will stay in the On demand list if you leave this page.', 'episode-long-wait');
   longWait.setAttribute('role', 'status'); longWait.hidden = true;
   page.append(longWait);
@@ -3847,17 +3848,9 @@ function renderEpisodeMakingPage() {
   });
   page.append(stages);
 
-  const activity = node('section', null, 'episode-live-panel');
-  activity.setAttribute('aria-label', 'Episode activity');
+  const activity = node('p', null, 'episode-progress-note');
   page.append(activity);
 
-  if (!job.failed) {
-    const notify = node('label', null, 'episode-ready-check');
-    const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = job.tellWhenReady;
-    checkbox.addEventListener('change', () => { job.tellWhenReady = checkbox.checked; episodeDraft.tellWhenReady = checkbox.checked; });
-    notify.append(checkbox, document.createTextNode('Tell me when it’s ready'));
-    page.append(notify, node('p', 'Notifications are not available yet.', 'episode-notification-note'));
-  }
   const actions = node('div', null, 'episode-making-actions');
   if (!job.done && !job.failed) {
     const cancel = node('button', 'Cancel this episode', 'episode-cancel-button'); cancel.type = 'button';
@@ -3909,16 +3902,14 @@ function updateEpisodeMakingView(job, elapsed, totalElapsed = elapsed) {
   const activityKey = `${job.done ? 'done' : job.stageIndex}:${JSON.stringify(job.counts)}`;
   if (job.activityKey !== activityKey) {
     job.activityKey = activityKey;
-    renderEpisodeActivityPanel(page.querySelector('.episode-live-panel'), job, progress);
+    renderEpisodeActivityPanel(page.querySelector('.episode-progress-note'), job);
   }
   if (job.done && !page.querySelector('.episode-done-card')) appendEpisodeDoneCard(page, job);
 }
 
 function renderEpisodeFailureState(page, job) {
   page.querySelector('.episode-stage-list')?.remove();
-  page.querySelector('.episode-live-panel')?.remove();
-  page.querySelector('.episode-ready-check')?.remove();
-  page.querySelector('.episode-notification-note')?.remove();
+  page.querySelector('.episode-progress-note')?.remove();
   let notice = page.querySelector('.episode-job-error');
   if (!notice) {
     notice = node('p', '', 'episode-job-error'); notice.setAttribute('role', 'status');
@@ -3935,49 +3926,13 @@ function renderEpisodeFailureState(page, job) {
   page.append(retry);
 }
 
-function renderEpisodeActivityPanel(panel, job, progress) {
+function renderEpisodeActivityPanel(panel, job) {
   if (!panel) return;
-  panel.replaceChildren();
-  panel.append(node('h2', 'Work so far'));
-  if (job.costEstimate) panel.append(node('p', `Cost estimate: ${job.costEstimate}`, 'episode-cost-estimate'));
-  if (job.shorterThanRequested && !job.done) panel.append(node('p', 'We found limited coverage; here is a shorter episode.', 'episode-thin-evidence'));
   const counts = job.counts || {};
-  const episode = job.episode || {};
-  const episodeSources = Array.isArray(episode.sources) ? episode.sources : [];
-  const sourceCount = Math.max(Number(counts.sources) || 0, episodeSources.length);
-  const sources = node('section', null, 'episode-work-sources');
-  sources.append(node('h3', 'Sources'));
-  if (episodeSources.length) {
-    const list = node('ul');
-    episodeSources.forEach(source => {
-      const item = node('li'); item.append(node('strong', source.outlet || source.publisher || source.name || 'Source'), node('small', source.title || source.date || '')); list.append(item);
-    });
-    sources.append(list);
-  } else if (Number(counts.sources_found)) sources.append(node('p', `${counts.sources_found} sources found · ${Number(counts.sources_read) || 0} read`, 'episode-work-placeholder'));
-  else if (sourceCount) sources.append(node('p', `${sourceCount} ${sourceCount === 1 ? 'source' : 'sources'} found`, 'episode-work-placeholder'));
-  else sources.append(node('p', 'Choosing sources for this topic…', 'episode-work-placeholder'));
-  panel.append(sources);
-
-  const claimsRow = node('p', null, 'episode-claims-counter');
-  claimsRow.append(document.createTextNode('Claims checked '), node('strong', String(Number(counts.claims_matched ?? counts.sentences) || 0)));
-  panel.append(claimsRow);
-
-  const chaptersData = Array.isArray(episode.chapters) ? episode.chapters : [];
-  if (chaptersData.length) {
-    const chapters = node('section', null, 'episode-work-chapters');
-    chapters.append(node('h3', 'Chapter titles'));
-    const list = node('ol'); chaptersData.forEach(chapter => list.append(node('li', chapter.title || 'Chapter')));
-    chapters.append(list); panel.append(chapters);
-  } else if (Number(counts.chapters) > 0) {
-    panel.append(node('p', `${Number(counts.chapters)} chapter${Number(counts.chapters) === 1 ? '' : 's'} outlined`, 'episode-work-placeholder'));
-  }
-  if (job.status === 'recording' || job.done) {
-    const waveform = node('div', null, 'episode-waveform'); waveform.setAttribute('role', 'img'); waveform.setAttribute('aria-label', 'Illustrative recording waveform');
-    [20, 36, 52, 28, 64, 44, 24, 48, 68, 32, 56, 38, 22, 60, 42, 30, 54, 26, 66, 40].forEach((height, index) => {
-      const bar = node('i'); bar.style.setProperty('--episode-wave-height', `${height}%`); bar.style.setProperty('--episode-wave-delay', `${index * 35}ms`); waveform.append(bar);
-    });
-    panel.append(node('h3', 'Recording'), node('p', `${Number(counts.audio_seconds) || 0} seconds recorded`, 'episode-work-placeholder'), waveform);
-  }
+  const episodeSources = Array.isArray(job.episode?.sources) ? job.episode.sources.length : 0;
+  const found = Number(counts.sources_found) || Number(counts.sources) || episodeSources;
+  const read = Number(counts.sources_read) || 0;
+  panel.textContent = found ? `${found} ${found === 1 ? 'source' : 'sources'} found${read ? `, ${read} read` : ''}` : '';
 }
 
 function appendEpisodeDoneCard(page, job) {
@@ -3985,10 +3940,9 @@ function appendEpisodeDoneCard(page, job) {
   const card = node('section', null, 'episode-done-card');
   card.append(node('p', audioReady ? 'Episode ready' : 'Transcript ready', 'episode-done-kicker'),
     node('h2', audioReady ? 'Your episode is ready' : 'Your transcript is ready'));
-  card.append(node('p', `${episodeLengthCopy(job)} · ${job.mode.label}`, 'episode-done-meta'));
+  card.append(node('p', `You chose ${job.minutes} min`, 'episode-done-meta'));
   if (!audioReady) card.append(node('p', 'Audio is not recorded yet. The transcript is ready to read.', 'episode-audio-pending-note'));
   if (job.shorterThanRequested || job.episode?.shortfall_notice) card.append(node('p', 'We found limited coverage; here is a shorter episode.', 'episode-done-notice episode-thin-evidence'));
-  if (job.tellWhenReady) card.append(node('p', 'You asked to be told when it’s ready. Notifications are not available yet.', 'episode-done-notice'));
   const actions = node('div', null, 'episode-done-actions');
   const open = node('button', audioReady ? 'Open episode' : 'Open transcript', 'episode-read-button'); open.type = 'button';
   open.addEventListener('click', () => navigate(`#episode/${encodeURIComponent(job.jobId)}`, { root: 'today', parentHash: '#episode-making', parentScroll: window.scrollY }));

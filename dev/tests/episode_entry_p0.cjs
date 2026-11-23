@@ -176,8 +176,8 @@ async function run() {
     await screenshot(page, 'episode-making-light');
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-making-dark');
     await page.emulateMedia({ colorScheme: 'light' });
-    assert.deepEqual((await page.locator('.episode-making-meta').innerText()).split(' · ').slice(0, 2), ['About 10 min to listen', 'Brief']);
-    await page.getByText('Claims checked 6', { exact: true }).waitFor({ timeout: 10000 });
+    assert.equal(await page.locator('.episode-making-meta').innerText(), 'You chose 10 min');
+    await page.locator('.episode-progress-note').waitFor({ timeout: 10000 });
     assert.deepEqual(mainRoutes.createdPayload, { topic: 'Fictional Alder Bay transit', length: 10, style: 'news-brief' });
     await page.getByRole('button', { name: 'Open transcript' }).waitFor({ timeout: 15000 });
     const apiState = await page.evaluate(() => ({ hash: location.hash }));
