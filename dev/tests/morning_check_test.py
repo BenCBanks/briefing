@@ -69,7 +69,8 @@ class MorningCheckTests(unittest.TestCase):
                         'usage': {'available': True,
                                   'today': {'estimated_cost_usd': '0.1', 'cap_usd': '0.5', 'remaining_usd': '0.4'},
                                   'month': {'estimated_cost_usd': '1', 'cap_usd': '5', 'remaining_usd': '4'}},
-                        'audio': {'daily_status': audio_status, 'episodes_by_status': {}}}
+                        'audio': {'daily_status': audio_status,
+                                  'daily_duration_seconds': 300, 'episodes_by_status': {}}}
             return {'ok': True, 'feeds_disabled': [{'source_id': 'one'}, {'source_id': 'two'}],
                     'daily_run': {'topic_supply': [{'topic_id': 'payments',
                                                     'gap': 'Payments: one story remains.'}]}}
@@ -104,7 +105,7 @@ class MorningCheckTests(unittest.TestCase):
         self.assertEqual(lines[9], 'Feeds: 5 enabled · 0 backing off')
         self.assertIn('2 done', lines[10])
         self.assertIn('today $0.100000 / $0.500000 cap ($0.400000 left)', lines[11])
-        self.assertEqual(lines[12], 'Audio: daily ready')
+        self.assertEqual(lines[12], 'Audio: daily ready · 5m 0s')
         self.assertEqual(lines[13], 'Feed health: 5 enabled / 0 backing_off / 2 disabled_permanent (7 tracked)')
         self.assertEqual(lines[14], 'Top failing sources: alpha (5), bravo (4), charlie (3), delta (2), echo (1)')
 
@@ -113,7 +114,7 @@ class MorningCheckTests(unittest.TestCase):
             lines, _code = summarize('https://briefing.example.test', checks, fetch, today=TODAY,
                                     health_reader=lambda: health,
                                     backup_age_reader=lambda: 'Last backup age: unavailable')
-            self.assertEqual(lines[12], f'Audio: daily {audio_status}')
+            self.assertEqual(lines[12], f'Audio: daily {audio_status} · 5m 0s')
 
     def test_morning_story_count_uses_short_two_fact_assessor(self):
         payload = sample_payload()

@@ -11,6 +11,7 @@ async function run() {
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: 'America/New_York' });
     await page.route('**/audition-audio/manifest.json', route => route.fulfill({ json: auditionManifest }));
+    await page.route('**/api/voice', route => route.fulfill({ json: {} }));
     const seeded = { version: 1, words: 'I follow savings rates and digital privacy.', minutes: 12, background: null, muted: [], behavior_weights: { banking: 1.3, digital: 0.8 }, topics: [
       { id: 'banking', label: 'Savings rates', scope: 'Deposit rates and changes', include: ['savings rates'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'savings rates' },
       { id: 'digital', label: 'Digital privacy', scope: 'Identity and data security', include: ['digital privacy'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'digital privacy' },
@@ -34,7 +35,8 @@ async function run() {
     assert.match(await page.locator('.preferences-interests').innerText(), /Savings rates.*Digital privacy/);
     assert.equal(await page.locator('.settings-list input[type=checkbox]').count(), 0, 'Settings has no fixed topic checklist');
     assert.doesNotMatch(await page.locator('#content').innerText(), /one to five topics|fictional sample is fixed/i);
-    assert.match(await page.locator('.preferences-voice').innerText(), /Narrator.*Sample A/s);
+    assert.match(await page.locator('.preferences-voice').innerText(), /Choose your voice.*Sample A/s,
+      'first-run Settings explains that a voice choice is needed before treating the default sample as selected');
     assert.equal(await page.locator('.narrator-sample').count(), 6, 'Settings lists the six narrator audition samples');
     const resetSaved = page.waitForResponse(response => response.url().endsWith('/api/profile') && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Reset topic balance' }).click();

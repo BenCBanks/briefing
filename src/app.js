@@ -2784,9 +2784,12 @@ function renderPreferences() {
   nextRunRow.setAttribute('aria-readonly', 'true');
   nextRunRow.append(node('span', 'Next run', 'settings-row-title'), node('span', nextDailyRunTime(dailyTimeValue()), 'settings-row-value settings-next-run-value'));
   quickSettings.append(nextRunRow);
+  let selectedNarrator = /^[A-F]$/.test(localStorage.getItem(NARRATOR_KEY) || '')
+    ? localStorage.getItem(NARRATOR_KEY) : 'A';
+  let hasVoicePreference = /^[A-F]$/.test(localStorage.getItem(NARRATOR_KEY) || '');
   const voiceRow = node('button', null, 'settings-quick-row settings-voice-row'); voiceRow.type = 'button';
   voiceRow.append(node('span', 'Voice', 'settings-row-title'));
-  const voiceValue = node('span', `Sample ${localStorage.getItem(NARRATOR_KEY) || 'A'}`, 'settings-row-value');
+  const voiceValue = node('span', hasVoicePreference ? `Sample ${selectedNarrator}` : 'Choose a voice', 'settings-row-value');
   voiceRow.append(voiceValue); quickSettings.append(voiceRow);
   const spendingRow = node('div', null, 'settings-quick-row settings-spending-row');
   spendingRow.setAttribute('aria-readonly', 'true');
@@ -2817,7 +2820,8 @@ function renderPreferences() {
   behavior.append(resetBehavior);
   content.append(behavior);
   const voice = node('section', null, 'preferences-voice'); voice.id = 'settings-voice'; voice.tabIndex = -1;
-  voice.append(node('h2', 'Narrator'));
+  const voiceHeading = node('h2', hasVoicePreference ? 'Narrator' : 'Choose your voice');
+  voice.append(voiceHeading);
   voiceRow.addEventListener('click', () => { voice.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
   const voiceStatus = node('p', '', 'narrator-status'); voiceStatus.setAttribute('role', 'status'); voiceStatus.setAttribute('aria-live', 'polite');
   const retrySamples = node('button', 'Try again', 'narrator-retry'); retrySamples.type = 'button'; retrySamples.hidden = true;
@@ -2826,9 +2830,24 @@ function renderPreferences() {
   const preview = document.createElement('audio'); preview.preload = 'none'; preview.hidden = true; preview.setAttribute('aria-label', 'Narrator sample audio');
   let auditionSamples = [];
   let activePreviewButton = null;
+  async function loadVoicePreference() {
+    try {
+      const response = await fetch('/api/voice', { cache: 'no-store' });
+      if (!response.ok) return;
+      const preference = await response.json();
+      if (!/^[A-F]$/.test(preference?.letter || '')) return;
+      selectedNarrator = preference.letter;
+      if (player.narratorSample !== selectedNarrator) player.setNarratorSample(selectedNarrator);
+      if (!hasVoicePreference && selectedNarrator !== 'A') hasVoicePreference = true;
+      voiceHeading.textContent = hasVoicePreference ? 'Narrator' : 'Choose your voice';
+      voiceValue.textContent = hasVoicePreference ? `Sample ${selectedNarrator}` : 'Choose a voice';
+    } catch { /* Keep the default when the saved setting cannot load. */ }
+  }
+  const voicePreferenceReady = loadVoicePreference();
   async function loadAuditionSamples() {
     voiceStatus.textContent = 'Loading voice samples…';
     try {
+      await voicePreferenceReady;
       const response = await fetch('/audition-audio/manifest.json', { cache: 'no-store' });
       if (!response.ok) throw Error('samples unavailable');
       const manifest = await response.json();
@@ -2852,7 +2871,7 @@ function renderPreferences() {
           catch { play.textContent = 'Play'; play.setAttribute('aria-label', `Play sample ${sample.label}`); activePreviewButton = null; voiceStatus.textContent = `Sample ${sample.label} could not be played.`; }
         });
         const use = node('button', 'Use this voice', 'narrator-use'); use.type = 'button';
-        const selected = (localStorage.getItem(NARRATOR_KEY) || 'A') === sample.label;
+        const selected = hasVoicePreference && selectedNarrator === sample.label;
         use.setAttribute('aria-pressed', String(selected));
         if (selected) { use.textContent = 'Selected'; use.disabled = true; }
         use.addEventListener('click', async () => {
@@ -2860,8 +2879,11 @@ function renderPreferences() {
           try {
             const result = await fetch('/api/voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice_name: sample.voice }) });
             if (!result.ok) throw Error('voice could not be saved');
+            hasVoicePreference = true;
+            selectedNarrator = sample.label;
             localStorage.setItem(NARRATOR_KEY, sample.label);
             player.setNarratorSample(sample.label);
+            voiceHeading.textContent = 'Narrator';
             voiceValue.textContent = `Sample ${sample.label}`;
             sampleList.querySelectorAll('.narrator-use').forEach(button => { button.disabled = false; button.textContent = 'Use this voice'; button.setAttribute('aria-pressed', 'false'); });
             use.disabled = true; use.textContent = 'Selected'; use.setAttribute('aria-pressed', 'true');

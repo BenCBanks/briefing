@@ -4,6 +4,7 @@
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 import json
+import math
 import os
 from pathlib import Path
 import sys
@@ -65,6 +66,7 @@ def _safe_timestamp(value):
 
 
 def build_health_payload(*, status, feeds, jobs, usage, daily_audio_status,
+                         daily_audio_duration_seconds=None,
                          service_ok=True, now=None) -> dict:
     """Project component data onto a strict count-only health schema."""
     now = now or datetime.now(timezone.utc)
@@ -83,6 +85,10 @@ def build_health_payload(*, status, feeds, jobs, usage, daily_audio_status,
     daily_audio = daily_audio_status if daily_audio_status in DAILY_AUDIO_STATES else 'unavailable'
     if daily_audio == 'recorded':
         daily_audio = 'ready'
+    duration = daily_audio_duration_seconds
+    if (isinstance(duration, bool) or not isinstance(duration, (int, float))
+            or not math.isfinite(duration) or duration < 0 or duration > 86400):
+        duration = None
     audio_counts = _count_map(jobs.get('by_audio_status') if jobs else None, AUDIO_STATES)
     return {
         'ok': service_ok is True,
@@ -104,7 +110,8 @@ def build_health_payload(*, status, feeds, jobs, usage, daily_audio_status,
                   'month': {key: _money(monthly_usage.get(source)) for key, source in (
                       ('estimated_cost_usd', 'estimated_cost_usd'), ('cap_usd', 'cap_usd'),
                       ('remaining_usd', 'remaining_usd'))}},
-        'audio': {'daily_status': daily_audio, 'episodes_by_status': audio_counts},
+        'audio': {'daily_status': daily_audio, 'daily_duration_seconds': duration,
+                  'episodes_by_status': audio_counts},
     }
 
 
@@ -167,7 +174,14 @@ def format_status_report(health) -> list[str]:
     if audio.get('daily_status') in DAILY_AUDIO_STATES:
         audio_counts = _count_map(audio.get('episodes_by_status'), AUDIO_STATES)
         episodes = ', '.join(f'{key} {value}' for key, value in audio_counts.items() if value)
-        audio_line = f"Audio: daily {audio['daily_status']}"
+        duration = audio.get('daily_duration_seconds')
+        if (isinstance(duration, bool) or not isinstance(duration, (int, float))
+                or not math.isfinite(duration) or duration < 0 or duration > 86400):
+            duration_text = 'duration unavailable'
+        else:
+            minutes, seconds = divmod(int(round(duration)), 60)
+            duration_text = f'{minutes}m {seconds}s' if minutes else f'{seconds}s'
+        audio_line = f"Audio: daily {audio['daily_status']} · {duration_text}"
         if episodes:
             audio_line += f" · episodes {episodes}"
     else:
