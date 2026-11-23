@@ -205,6 +205,12 @@ def _speak_text(text: str) -> str:
     text = re.sub(r'\s*\(\s*or ([A-Z](?:-[A-Z])+?)\s*\)', r', or \1', text)
 
     text = _NUMBER.sub(_spoken_number, text)
+    # Provider prose occasionally contains a numeric token adjacent to an
+    # unusual separator that the structured patterns above do not recognize.
+    # Make one final conservative pass before failing the whole edition.
+    text = re.sub(r'(?<![A-Za-z])\d[\d,]*(?:\.\d+)?',
+                  lambda match: _say_number(match.group(0)), text)
+    text = text.replace('%', ' percent').replace('$', ' dollars ').replace('£', ' pounds ').replace('€', ' euros ')
     if re.search(r'\d|[$£€%]', text):
         raise ValueError('story contains a number format that is not supported for speech')
     text = re.sub(r'\s+', ' ', text)
