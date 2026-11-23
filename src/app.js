@@ -18,6 +18,7 @@ import { renderInterests } from './interests/interests.js';
 import { interpret, validateProfile } from './interests/interpret.js';
 import { clearProfile, getProfile, saveProfile, syncProfile } from './interests/store.js';
 import { renderCorrections } from './corrections/corrections.js';
+import { renderTopicsScreen } from './screens/topics.js';
 
 const app = document.querySelector('#app');
 const content = document.querySelector('#content');
@@ -1815,13 +1816,15 @@ async function updateTopicsBriefing(words, profile = null) {
 
 function renderTopicsPage() {
   document.querySelector('[data-page-title]').textContent = '';
-  const body = node('div', null, 'topics-page'); content.append(body);
   const profileTopics = (interestProfile?.topics || pack.topics.filter(topic => state.selectedIds.includes(topic.id)))
     .filter(topic => (topic.include || []).length || !topic.exclude?.length || topic.mustFollow);
   const daily = currentEdition('daily');
   const matched = !interestProfile || localStorage.getItem('briefing:v1:built-profile-key') === profileBuildKey(interestProfile);
-  renderTopics(body, profileTopics, currentItems(pack.deepDives), profileTopics.map(topic => topic.id),
-    matched && !pendingTopicsUpdate() ? daily?.coverage || [] : [], {
+  renderTopicsScreen({
+    content, document, node, link, renderTopics, profile: interestProfile, profileTopics,
+    deepDives: currentItems(pack.deepDives), selectedIds: profileTopics.map(topic => topic.id),
+    dailyCoverage: matched && !pendingTopicsUpdate() ? daily?.coverage || [] : [],
+    actions: {
     openDeepDive,
     words: topicsDraft ?? interestProfile?.words ?? '',
     savedWords: interestProfile?.words || '',
@@ -1843,14 +1846,8 @@ function renderTopicsPage() {
     interestBrief: deriveInterestBrief(interestProfile || { topics: profileTopics, muted: [] }),
     openEpisodeRequest: () => navigate('#ask-episode', { root: 'topics', parentHash: '#topics', parentScroll: window.scrollY,
       parentFocus: { type: 'href', id: '#ask-episode' } }),
+  },
   });
-  const mutedLabels = new Set((interestProfile?.muted || []).map(item => item.label.toLocaleLowerCase()));
-  const coveredLabels = profileTopics.filter(topic => !mutedLabels.has(topic.label.toLocaleLowerCase())).map(topic => topic.label);
-  const dailySummary = node('p', `Your daily briefing covers: ${coveredLabels.join(', ') || 'no topics yet'}.`, 'topics-daily-summary');
-  body.querySelector('.topics-heading')?.after(dailySummary);
-  const settings = link('⚙', '#preferences', 'settings-link topics-settings');
-  settings.setAttribute('aria-label', 'Settings'); settings.title = 'Settings';
-  body.querySelector('.topics-heading').append(settings);
 }
 
 function renderInterestsPage() {
