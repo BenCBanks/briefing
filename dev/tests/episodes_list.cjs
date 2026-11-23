@@ -22,7 +22,8 @@ const jobs = [
 async function capture(page, filename) {
   if (!process.env.BRIEFING_SHOT_DIR) return;
   fs.mkdirSync(process.env.BRIEFING_SHOT_DIR, { recursive: true });
-  await page.screenshot({ path: path.join(process.env.BRIEFING_SHOT_DIR, filename) });
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ animations: 'disabled', caret: 'hide', path: path.join(process.env.BRIEFING_SHOT_DIR, filename) });
 }
 
 async function openList(browser, options = {}) {
