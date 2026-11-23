@@ -383,7 +383,7 @@ async function screenshot(page, name) {
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-making-active-dark');
     await page.emulateMedia({ colorScheme: 'light' });
     assert.equal(await page.locator('.episode-making-meta').innerText(), 'You chose 10 min');
-    await page.getByLabel('Tell me when it’s ready').check();
+    assert.equal(await page.locator('.episode-ready-check,.episode-notification-note').count(), 0, 'the making state shows no inert notification control or message');
     await page.locator('.episode-progress-note').waitFor();
     await page.locator('.episode-done-card').waitFor({ timeout: 15000 });
     assert.equal(await page.locator('.episode-cancel-button').count(), 0, 'A finished job no longer offers cancellation');
@@ -398,7 +398,7 @@ async function screenshot(page, name) {
     assert.equal(announcements.filter(message => message === 'Your episode is ready.').length, 1, 'Ready is announced once');
     assert.equal(await page.getByText('We found limited coverage; here is a shorter episode.', { exact: true }).count(), 1, 'Thin evidence is disclosed plainly without padding language');
     assert.equal(await page.locator('.episode-progress-note').count(), 1);
-    assert.match(await page.locator('.episode-done-card').innerText(), /You asked to be told when it’s ready/);
+    assert.doesNotMatch(await page.locator('.episode-done-card').innerText(), /notifications are not available|tell me when it.s ready/i);
     await page.getByText('We found limited coverage; here is a shorter episode.', { exact: true }).scrollIntoViewIfNeeded();
     await screenshot(page, 'episode-thin-evidence-light');
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-thin-evidence-dark');

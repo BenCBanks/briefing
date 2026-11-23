@@ -149,7 +149,7 @@ function rememberEpisodeLength(value) {
   episodeDraft.minutes = value;
   try { localStorage.setItem(EPISODE_LENGTH_KEY, String(value)); } catch { /* Keep the choice for this visit. */ }
 }
-let episodeDraft = { prompt: '', minutes: readLastEpisodeLength(), tellWhenReady: false };
+let episodeDraft = { prompt: '', minutes: readLastEpisodeLength() };
 let episodeJob = null;
 let episodeJobTimer = null;
 let episodeRequestError = '';
@@ -3712,7 +3712,7 @@ async function startEpisodeJob(mode) {
     if (!response.ok || !result.job_id) throw new Error('episode_request_failed');
     episodeJob = {
       costEstimate: result.cost_estimate?.label, jobId: result.job_id, request, minutes: episodeDraft.minutes, mode,
-      tellWhenReady: episodeDraft.tellWhenReady, status: result.status || 'queued',
+      status: result.status || 'queued',
       stage: result.stage || 'queued', counts: result.counts || { chapters: 0, sentences: 0, sources: 0 },
       startedAt: Date.now(), stageStartedAt: Date.now(), stageIndex: 0,
       announcedStage: -1, activityKey: '', done: false,
@@ -3851,13 +3851,6 @@ function renderEpisodeMakingPage() {
   const activity = node('p', null, 'episode-progress-note');
   page.append(activity);
 
-  if (!job.failed) {
-    const notify = node('label', null, 'episode-ready-check');
-    const checkbox = document.createElement('input'); checkbox.type = 'checkbox'; checkbox.checked = job.tellWhenReady;
-    checkbox.addEventListener('change', () => { job.tellWhenReady = checkbox.checked; episodeDraft.tellWhenReady = checkbox.checked; });
-    notify.append(checkbox, document.createTextNode('Tell me when it’s ready'));
-    page.append(notify, node('p', 'Notifications are not available yet.', 'episode-notification-note'));
-  }
   const actions = node('div', null, 'episode-making-actions');
   if (!job.done && !job.failed) {
     const cancel = node('button', 'Cancel this episode', 'episode-cancel-button'); cancel.type = 'button';
@@ -3917,8 +3910,6 @@ function updateEpisodeMakingView(job, elapsed, totalElapsed = elapsed) {
 function renderEpisodeFailureState(page, job) {
   page.querySelector('.episode-stage-list')?.remove();
   page.querySelector('.episode-progress-note')?.remove();
-  page.querySelector('.episode-ready-check')?.remove();
-  page.querySelector('.episode-notification-note')?.remove();
   let notice = page.querySelector('.episode-job-error');
   if (!notice) {
     notice = node('p', '', 'episode-job-error'); notice.setAttribute('role', 'status');
@@ -3952,7 +3943,6 @@ function appendEpisodeDoneCard(page, job) {
   card.append(node('p', `You chose ${job.minutes} min`, 'episode-done-meta'));
   if (!audioReady) card.append(node('p', 'Audio is not recorded yet. The transcript is ready to read.', 'episode-audio-pending-note'));
   if (job.shorterThanRequested || job.episode?.shortfall_notice) card.append(node('p', 'We found limited coverage; here is a shorter episode.', 'episode-done-notice episode-thin-evidence'));
-  if (job.tellWhenReady) card.append(node('p', 'You asked to be told when it’s ready. Notifications are not available yet.', 'episode-done-notice'));
   const actions = node('div', null, 'episode-done-actions');
   const open = node('button', audioReady ? 'Open episode' : 'Open transcript', 'episode-read-button'); open.type = 'button';
   open.addEventListener('click', () => navigate(`#episode/${encodeURIComponent(job.jobId)}`, { root: 'today', parentHash: '#episode-making', parentScroll: window.scrollY }));
