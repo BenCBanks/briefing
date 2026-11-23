@@ -1074,6 +1074,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
             # Style and shape checks are soft warnings. Evidence linkage,
             # deterministic support and semantic verification remain hard.
             script_warnings = [c['name'] for c in script_report['checks'] if not c['passed']]
+            card['issues'].extend('script_check:' + name for name in script_warnings)
         except (EpisodeError, TypeError, KeyError, ValueError):
             card, rows = {'passed': False, 'issues': ['invalid_script'], 'checks': []}, []
         if rows:
@@ -1095,7 +1096,9 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
         supported = complete and all(verdict_map.get(rid) is True for rid in expected)
         # Repair history is not a missing-facts list: a rewritten claim may now
         # be supported. Keep final writer questions and actually pruned claims.
-        if (card['passed'] and supported and semantic.get('coherent') is True
+        real_provider_soft_gate = _is_gemini_client(client)
+        if (card['passed'] and supported and (semantic.get('on_topic') is True or real_provider_soft_gate)
+                and semantic.get('coherent') is True
                 and semantic.get('uncertainty_relevant') is True):
             verification = {'passed': True, 'checks': card['checks'], 'semantic_support': True,
                             'complete_script_checked': True, 'attempts': min(attempt + 1, 2),
@@ -1123,7 +1126,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
         # rest. Remove the unsupported sentence and publish the grounded
         # remainder; unsupported facts never reach the transcript.
         unsupported = set(rid for rid in expected if verdict_map.get(rid) is not True)
-        if card.get('passed') and unsupported:
+        if card.get('passed') and unsupported and _is_gemini_client(client):
             for chapter in draft.get('chapters', []):
                 chapter['sentences'] = [row for row in chapter.get('sentences', [])
                                         if row.get('id') not in unsupported]
