@@ -190,6 +190,8 @@ def _speak_text(text: str) -> str:
     # verified story. Otherwise say its letters without guessing its meaning.
     def speak_acronym(match: re.Match) -> str:
         acronym = match.group(1)
+        if acronym == 'NASA':
+            return 'NASA'
         prefix = text[:match.start()].rstrip()
         prefix = re.split(r'[.!?]\s+', prefix)[-1]
         has_parenthetical_expansion = prefix.endswith('(')

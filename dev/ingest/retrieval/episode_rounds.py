@@ -16,7 +16,10 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
     reads, attempted, hosts, discovered = {}, set(), {}, set()
     history, queries, grounded, rounds = [], 0, 0, 0
     fetcher = fetcher or fetch_candidate
-    research_deadline = min(deadline, clock() + 135)
+    # Reserve only the final writing/verification window; evidence gathering
+    # may use most of the episode budget so transient feed latency does not
+    # turn ordinary questions into InsufficientEvidence.
+    research_deadline = min(deadline, clock() + 165)
     counts = {'sources_found': 0, 'sources_read': 0, 'sources': 0}
 
     def read_one(candidate, budget):

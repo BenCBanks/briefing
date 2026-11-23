@@ -1055,6 +1055,15 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
         counts['chapters_written'] = len(draft.get('chapters', [])) if isinstance(draft, dict) else 0
         stage('checking')
         try:
+            # Validate the same spoken form that reaches audio. Provider text
+            # may contain digits or conventional acronyms even when the
+            # speech normalizer can safely verbalize them.
+            from ..audio_script import _speak_text
+            if isinstance(draft, dict):
+                for chapter in draft.get('chapters', []):
+                    for sentence in chapter.get('sentences', []):
+                        if isinstance(sentence, dict) and isinstance(sentence.get('text'), str):
+                            sentence['text'] = _speak_text(sentence['text'])
             card = deterministic_check(draft, evidence, sources)
             rows = _rows(draft)
             scored_minutes = length

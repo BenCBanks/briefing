@@ -138,9 +138,14 @@ def run_episode(question: str, minutes: int) -> int:
         profile_id = profile_identifier(fictional_profile())
         before = ledger_snapshot()
         started = time.monotonic()
+        funnel = {}
+        def progress(stage, counts):
+            funnel.update(counts if isinstance(counts, dict) else {})
+            if stage in {'researching', 'reading', 'evidence', 'checking'}:
+                print('Episode funnel: ' + json.dumps({'stage': stage, **funnel}, sort_keys=True), flush=True)
         try:
             episode = generate_episode(question, minutes, 'conversational',
-                                       state_dir=state / 'retrieval')
+                                       state_dir=state / 'retrieval', progress=progress)
             # A real episode check includes the same TTS path readers use.  A
             # failed render leaves the verified script available for review.
             try:
@@ -155,11 +160,25 @@ def run_episode(question: str, minutes: int) -> int:
             _print_result('episode', {'transcript': '', 'audio': {'status': 'not_recorded'},
                                       'timing': {}}, before, started)
             print(f'Generation failed: {type(error).__name__}')
+            print(f'Failure code: {str(error)}')
+            if funnel:
+                print('Episode funnel final: ' + json.dumps(funnel, sort_keys=True))
             code = getattr(error, 'code', None)
             diagnostics = getattr(error, 'diagnostics', None)
             if code:
                 print(f'Failure code: {code}')
             if isinstance(diagnostics, dict) and diagnostics:
+                funnel = {key: diagnostics.get(key) for key in (
+                    'queries', 'sources_found', 'sources_read', 'claims_extracted',
+                    'claims_matched', 'claims_verified', 'claims_kept', 'evidence_sentences',
+                    'discovered', 'retrieval', 'source_selection') if key in diagnostics}
+                if funnel:
+                    print('Evidence funnel: ' + json.dumps(funnel, sort_keys=True))
+                summary = {key: diagnostics.get(key) for key in (
+                    'issues', 'semantic_on_topic', 'semantic_coherent',
+                    'unsupported_ids', 'checks') if key in diagnostics}
+                if summary:
+                    print('Verification summary: ' + json.dumps(summary, sort_keys=True))
                 safe = {key: diagnostics[key] for key in
                         ('stage', 'call_name', 'reason', 'finish_reason', 'attempts')
                         if key in diagnostics}
