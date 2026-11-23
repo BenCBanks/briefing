@@ -217,6 +217,11 @@ def run_daily() -> int:
             return 1
         if job.get('status') != 'complete':
             print('Daily generation failed: ' + str(job.get('error') or job.get('failure_reason')))
+            narration = job.get('daily_narration')
+            if isinstance(narration, dict):
+                print('Daily narration diagnostics: ' + json.dumps({key: narration.get(key)
+                      for key in ('status', 'reason', 'retry_reason', 'stories', 'story_word_counts')
+                      if key in narration}, sort_keys=True))
             return 1
         edition = (job.get('edition_ready') or {}).get('edition')
         if not isinstance(edition, dict):
