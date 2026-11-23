@@ -68,12 +68,10 @@ class GoldenHarnessTests(unittest.TestCase):
             'lowest_sentences': [{'quote': 'Weak one.', 'score': 3, 'issue': 'Flat.'},
                                  {'quote': 'Weak two.', 'score': 3, 'issue': 'Vague.'}],
         }
-        fake_key = SimpleNamespace(is_file=lambda: True)
         selected = ['instant-payments', 'salary-negotiation', 'battery-recycling',
                     'nuclear-solar', 'europa-life', 'daily-ai-chips']
         with tempfile.TemporaryDirectory() as output:
-            with patch.object(golden, 'KEY_FILE', fake_key), \
-                 patch.object(golden, 'ledger_snapshot', return_value={'daily': {'estimated_cost_usd': '0'}}), \
+            with patch.object(golden, 'ledger_snapshot', return_value={'daily': {'estimated_cost_usd': '0'}}), \
                  patch.object(golden, 'ledger_cost_delta', return_value=Decimal('0')), \
                  patch.object(golden, 'judge', return_value=judgment), \
                  patch.object(golden, '_episode', return_value={'transcript': 'A fixture script.'}) as episode, \
@@ -91,10 +89,9 @@ class GoldenHarnessTests(unittest.TestCase):
                   'overall': 7, 'notes': 'Invalid overall'}
         fake_key = SimpleNamespace(is_file=lambda: True,
                                    read_text=lambda **_kwargs: 'fictional-key')
-        with patch.object(golden, 'KEY_FILE', fake_key), \
-             patch.object(golden, 'call_gemini_json', return_value=result):
-            with self.assertRaisesRegex(ValueError, '1–5'):
-                golden.judge('Question?', 'Script.', [])
+        with self.assertRaisesRegex(ValueError, '1–5'):
+            golden.judge('Question?', 'Script.', [], key_file=fake_key,
+                         call_json=lambda *_args, **_kwargs: result)
 
 
 if __name__ == '__main__':

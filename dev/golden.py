@@ -22,11 +22,10 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from dev.interpreter_proxy import KEY_FILE, MODEL_FALLBACK, call_gemini_json
 from dev.try_real import fictional_profile, ledger_cost_delta, ledger_snapshot
 
 REPORT_DIR = ROOT / 'docs' / 'quality'
-JUDGE_MODEL = MODEL_FALLBACK
+JUDGE_MODEL = 'gemini-3.1-flash-lite'
 
 QUESTIONS = (
     ('instant-payments', 'Factual explainer', 'How do instant payment systems move money between banks?'),
@@ -113,7 +112,7 @@ def _profile(label: str, topic_id: str, scope: str) -> dict:
         'include': [label.casefold()], 'exclude': [], 'depth': 'standard',
         'cadence': 'daily', 'mustFollow': True, 'sourcePhrase': label,
     }]
-    profile['minutes'] = 5
+    profile['minutes'] = 12
     return profile
 
 
@@ -129,14 +128,20 @@ def _source_context(result: dict) -> list[dict]:
     return safe
 
 
-def judge(question: str, script: str, sources: list[dict]) -> dict:
-    if not KEY_FILE.is_file():
+def judge(question: str, script: str, sources: list[dict], *, key_file=None, call_json=None) -> dict:
+    # Import only after the per-case temporary state has been installed. The
+    # generation core reads its state paths when imported.
+    if key_file is None or call_json is None:
+        from dev.interpreter_proxy import KEY_FILE, call_gemini_json
+        key_file = key_file or KEY_FILE
+        call_json = call_json or call_gemini_json
+    if not key_file.is_file():
         raise RuntimeError('Gemini key file is unavailable')
     prompt = json.dumps({'question': question, 'script': script, 'sources': sources},
                         ensure_ascii=False)
     try:
-        result = call_gemini_json(
-            JUDGE_PROMPT, prompt, JUDGE_SCHEMA, KEY_FILE.read_text(encoding='utf-8').strip(),
+        result = call_json(
+            JUDGE_PROMPT, prompt, JUDGE_SCHEMA, key_file.read_text(encoding='utf-8').strip(),
             model=JUDGE_MODEL, max_output_tokens=500)
     except Exception as error:
         raise RuntimeError(f'judge call failed: {type(error).__name__}') from None
@@ -155,54 +160,54 @@ def judge(question: str, script: str, sources: list[dict]) -> dict:
     return result
 
 
-def _episode(question: str) -> dict:
+def _episode(question: str, state: Path) -> dict:
     from dev.ingest.episodes.generate import generate_episode
-    with isolated_state() as state:
-        return generate_episode(question, 3, 'conversational', state_dir=state / 'retrieval')
+    return generate_episode(question, 3, 'conversational', state_dir=state / 'retrieval')
 
 
-def _daily(label: str, topic_id: str, scope: str) -> dict:
+def _daily(label: str, topic_id: str, scope: str, state: Path) -> dict:
     from dev.ingest.generation_api import job_response, start_generation
-    with isolated_state() as state:
-        profile = _profile(label, topic_id, scope)
-        (state / 'profile.json').write_text(json.dumps(profile), encoding='utf-8')
-        status, created = start_generation(profile, directory=state, is_default=True,
-                                           publish_default=True)
-        if status != 202 or not created.get('job_id'):
-            raise RuntimeError(f'daily generation did not start (HTTP {status})')
-        deadline = time.monotonic() + 600
-        while time.monotonic() < deadline:
-            status, job = job_response(created['job_id'])
-            if status != 200:
-                raise RuntimeError('daily generation job disappeared')
-            if job.get('status') in {'complete', 'failed'}:
-                if job.get('status') != 'complete':
-                    raise RuntimeError('daily generation failed: ' + str(job.get('failure_reason') or 'unknown'))
-                edition = (job.get('edition_ready') or {}).get('edition')
-                if not isinstance(edition, dict):
-                    raise RuntimeError('daily generation returned no edition')
-                script = ' '.join(str(row.get('text') or '') for row in
-                                  (edition.get('briefing_script') or []) if isinstance(row, dict))
-                return {'transcript': script, 'sources': edition.get('sources', []),
-                        'duration_minutes': edition.get('duration_minutes')}
-            time.sleep(.5)
-        raise TimeoutError('daily generation exceeded ten minutes')
+    profile = _profile(label, topic_id, scope)
+    (state / 'profile.json').write_text(json.dumps(profile), encoding='utf-8')
+    status, created = start_generation(profile, directory=state, is_default=True,
+                                       publish_default=True)
+    if status != 202 or not created.get('job_id'):
+        detail = created.get('error') if isinstance(created, dict) else None
+        raise RuntimeError(f'daily generation did not start (HTTP {status}: {detail or "unknown"})')
+    deadline = time.monotonic() + 600
+    while time.monotonic() < deadline:
+        status, job = job_response(created['job_id'])
+        if status != 200:
+            raise RuntimeError('daily generation job disappeared')
+        if job.get('status') in {'complete', 'failed'}:
+            if job.get('status') != 'complete':
+                raise RuntimeError('daily generation failed: ' + str(job.get('failure_reason') or 'unknown'))
+            edition = (job.get('edition_ready') or {}).get('edition')
+            if not isinstance(edition, dict):
+                raise RuntimeError('daily generation returned no edition')
+            script = ' '.join(str(row.get('text') or '') for row in
+                              (edition.get('briefing_script') or []) if isinstance(row, dict))
+            return {'transcript': script, 'sources': edition.get('sources', []),
+                    'duration_minutes': edition.get('duration_minutes')}
+        time.sleep(.5)
+    raise TimeoutError('daily generation exceeded ten minutes')
 
 
 def _case_record(kind: str, name: str, question: str, generate) -> dict:
     before = ledger_snapshot()
     started = time.monotonic()
     try:
-        result = generate()
-        script = str(result.get('transcript') or '').strip()
-        if not script:
-            raise RuntimeError('generated script is empty')
-        evaluation = judge(question, script, _source_context(result))
-        return {'kind': kind, 'name': name, 'question': question, 'script': script,
-                'words': word_count(script), 'seconds': round(time.monotonic() - started, 2),
-                'cost_usd': str(ledger_cost_delta(before, ledger_snapshot())),
-                'scores': evaluation['scores'], 'overall': evaluation['overall'],
-                'notes': evaluation['notes'], 'lowest_sentences': evaluation['lowest_sentences']}
+        with isolated_state() as state:
+            result = generate(state)
+            script = str(result.get('transcript') or '').strip()
+            if not script:
+                raise RuntimeError('generated script is empty')
+            evaluation = judge(question, script, _source_context(result))
+            return {'kind': kind, 'name': name, 'question': question, 'script': script,
+                    'words': word_count(script), 'seconds': round(time.monotonic() - started, 2),
+                    'cost_usd': str(ledger_cost_delta(before, ledger_snapshot())),
+                    'scores': evaluation['scores'], 'overall': evaluation['overall'],
+                    'notes': evaluation['notes'], 'lowest_sentences': evaluation['lowest_sentences']}
     except Exception as error:
         return {'kind': kind, 'name': name, 'question': question,
                 'seconds': round(time.monotonic() - started, 2),
@@ -238,18 +243,16 @@ def render_report(cases: list[dict], total_cost: Decimal, report_date: str) -> s
 
 def run(report_date: str | None = None, *, report_dir: Path = REPORT_DIR,
         limit: int | None = None, only: list[str] | None = None) -> Path:
-    if not KEY_FILE.is_file():
-        raise RuntimeError('Gemini key file is unavailable')
     if report_date and not re.fullmatch(r'\d{4}-\d{2}-\d{2}(?:-[a-z0-9-]+)?', report_date):
         raise ValueError('report name must start with YYYY-MM-DD')
     date.fromisoformat(report_date[:10]) if report_date else None
     before = ledger_snapshot()
     cases = []
-    plans = [('episode', case_id, label, question, lambda q=question: _episode(q))
+    plans = [('episode', case_id, label, question, lambda state, q=question: _episode(q, state))
              for case_id, label, question in QUESTIONS]
     plans.extend(('daily', f'daily-{label.lower().replace(" ", "-")}', label,
                   f'What useful developments should a reader interested in {label} know today?',
-                  lambda l=label, i=topic_id, s=scope: _daily(l, i, s))
+                  lambda state, l=label, i=topic_id, s=scope: _daily(l, i, s, state))
                  for label, topic_id, scope in DAILY_PROFILES)
     if only:
         selectors = {item.strip().casefold() for item in only if item.strip()}
