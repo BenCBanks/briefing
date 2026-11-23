@@ -1351,8 +1351,9 @@ class EpisodeGenerationTests(unittest.TestCase):
         with patch.object(acceptance_episode.subprocess, 'run', side_effect=run), \
                 patch.object(acceptance_episode, 'report'), patch('sys.stdout', new_callable=io.StringIO):
             self.assertEqual(acceptance_episode.main(['--matrix']), 0)
-        self.assertEqual(len(calls), 4)
-        self.assertEqual([command[command.index('--length') + 1] for command, _ in calls], ['5', '10', '5', '10'])
+        self.assertEqual(len(calls), 6)
+        self.assertEqual([command[command.index('--length') + 1] for command, _ in calls],
+                         ['5', '10', '5', '10', '5', '10'])
         for command, kwargs in calls:
             self.assertFalse(Path(kwargs['env']['BRIEFING_STATE_DIR']).exists())
         with patch.object(acceptance_episode.subprocess, 'run', side_effect=subprocess.TimeoutExpired('fictional', 355)), \
