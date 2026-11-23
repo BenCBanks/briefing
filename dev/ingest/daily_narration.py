@@ -930,10 +930,13 @@ def _apply_narration(edition, profile, stories, evidence_by_story):
             continue
         if row.get('kind') == 'background':
             ids = row.get('source_sentence_ids', [])
-            if ids and ids[0] in used_background_ids:
+            # A one-pass host script owns the edition's narrative. Keep only
+            # background evidence the writer explicitly used; unrelated
+            # fallback explainers become distracting tangents.
+            if not ids or ids[0] not in used_background_ids:
                 continue
-        if (row.get('kind') == 'background_intro' and
-                row.get('segment_id') not in remaining_background_segments):
+            continue
+        if row.get('kind') == 'background_intro':
             continue
         section_id = row.get('section_id')
         if section_id in section_text:
