@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Run one real briefing or episode against isolated temporary state.
 
-This is the short path for editorial checks.  It deliberately does not use the
-release-batch envelope used by the acceptance harness: provider reservations
-still go through the normal global usage ledger, so the configured daily and
+This is the short path for editorial checks. Provider calls use the normal
+global usage ledger, so the configured daily and
 monthly caps remain authoritative.
 """
 

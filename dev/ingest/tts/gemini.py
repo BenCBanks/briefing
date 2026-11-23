@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import base64
 from dataclasses import dataclass
-from decimal import Decimal, InvalidOperation
 from io import BytesIO
 import json
 from pathlib import Path
@@ -25,7 +24,6 @@ API_ROOT = 'https://generativelanguage.googleapis.com/v1beta'
 MODEL_INPUT_TOKEN_LIMIT = 8192
 MODEL_OUTPUT_TOKEN_LIMIT = 16384
 DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT = 4096
-MAX_TTS_BATCH_COST_USD = Decimal('0.06144')
 AUDIO_TOKENS_PER_SECOND = 25
 _VOICE_NAME = re.compile(r'^[A-Za-z][A-Za-z0-9_-]{0,63}$')
 _SAMPLE_RATE = re.compile(r'(?:rate|sample_rate)=(\d+)', re.I)
@@ -158,33 +156,9 @@ class GeminiTtsProvider:
         self.cost_counter = cost_counter or CostCounter()
         self.usage_ledger = usage_ledger or process_ledger(UsageLedger)
 
-    def bounded_batch_cost(self, batch_id: str) -> dict:
-        """Read this render's ledger costs; pending reservations are not actual spend."""
-        if not isinstance(batch_id, str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,120}', batch_id):
-            raise TtsProviderError('Bounded TTS cost identity is invalid.')
-
-        def read(state):
-            pool = state.get('token_pools', {}).get(batch_id)
-            if not isinstance(pool, dict):
-                raise TtsProviderError('Bounded TTS cost accounting is unavailable.')
-            try:
-                settled = Decimal(pool['settled_usd'])
-                reserved = Decimal(pool['reserved_usd'])
-            except (KeyError, InvalidOperation, TypeError, ValueError):
-                raise TtsProviderError('Bounded TTS cost accounting is invalid.') from None
-            if any(not value.is_finite() or value < 0 for value in (settled, reserved)):
-                raise TtsProviderError('Bounded TTS cost accounting is invalid.')
-            return {'estimated_cost_usd': f'{settled + reserved:.8f}',
-                    'settled_cost_usd': f'{settled:.8f}',
-                    'pending_reservation_usd': f'{reserved:.8f}',
-                    'cost_basis': 'settled token cost plus pending reservations; not an invoice'}, False
-
-        return self.usage_ledger._transaction(read)
-
     def synthesize(self, text: str, voice_name: str, *,
                    max_output_tokens: int | None = None, batch_id: str | None = None,
-                   batch_output_token_limit: int = DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT,
-                   batch_limit_usd: Decimal | str | None = None) -> TtsResult:
+                   batch_output_token_limit: int = DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT) -> TtsResult:
         if not isinstance(text, str) or not text.strip():
             raise ValueError('text must be a non-empty string')
         if len(text) > 6000:
@@ -200,30 +174,13 @@ class GeminiTtsProvider:
             if (not isinstance(batch_id, str) or
                     not re.fullmatch(r'[A-Za-z0-9_.:-]{1,120}', batch_id) or
                     type(batch_output_token_limit) is not int or
-                    not 1 <= batch_output_token_limit <= DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT or
-                    max_output_tokens > batch_output_token_limit or batch_limit_usd is None):
-                raise ValueError('bounded TTS needs a batch identity and complete batch limits')
-            try:
-                batch_limit_usd = Decimal(str(batch_limit_usd))
-            except (InvalidOperation, ValueError, TypeError):
-                raise ValueError('batch_limit_usd must be a positive amount') from None
-            if (not batch_limit_usd.is_finite() or batch_limit_usd <= 0 or
-                    batch_limit_usd > MAX_TTS_BATCH_COST_USD):
-                raise ValueError('batch_limit_usd exceeds the bounded TTS batch maximum')
-        elif batch_id is not None or batch_limit_usd is not None:
-            raise ValueError('TTS batch limits require max_output_tokens')
+                    not 1 <= batch_output_token_limit <= 16384 or
+                    max_output_tokens > batch_output_token_limit):
+                raise ValueError('bounded TTS needs a batch identity and valid output limits')
         if not _VOICE_NAME.fullmatch(voice_name or ''):
             raise ValueError('voice_name contains unsupported characters')
         key = _read_key(self.key_path)
-        if max_output_tokens is not None:
-            reserve = getattr(self.usage_ledger, 'reserve_tts_token_call', None)
-            settle = getattr(self.usage_ledger, 'settle_tts_token_call', None)
-            if not callable(reserve) or not callable(settle):
-                raise TtsProviderError('Bounded TTS reservation is unavailable.')
-            reservation = reserve(MODEL_INPUT_TOKEN_LIMIT, max_output_tokens, self.model,
-                                  batch_id=batch_id,
-                                  batch_output_token_limit=batch_output_token_limit,
-                                  batch_limit_usd=batch_limit_usd)
+        self.usage_ledger.preflight_episode()
         request_body = {
             'contents': [{'parts': [{'text': text}]}],
             'generationConfig': {
@@ -258,7 +215,8 @@ class GeminiTtsProvider:
                     type(prompt_tokens) is not int or not 0 <= prompt_tokens <= MODEL_INPUT_TOKEN_LIMIT or
                     type(candidates_tokens) is not int or not 0 <= candidates_tokens <= max_output_tokens):
                 raise TtsProviderError('Gemini API returned ambiguous bounded TTS usage.')
-            settle(reservation, prompt_tokens, candidates_tokens, self.model)
+            self.usage_ledger.record_tts_tokens(len(text), prompt_tokens, candidates_tokens,
+                                                model=self.model)
             if finish_reason == 'MAX_TOKENS':
                 raise TtsOutputLimitError('Gemini TTS reached its output-token limit.',
                                           output_tokens=candidates_tokens)

@@ -417,7 +417,7 @@ class EpisodeJobStore:
             raise UsageError('episode_provider_unavailable')
         ledger = self.ledger or process_ledger()
         estimate = estimate or self._estimate(length)
-        ledger.preflight_episode(estimate['usd'])
+        ledger.preflight_episode()
         return estimate
 
     @staticmethod

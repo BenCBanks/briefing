@@ -265,9 +265,6 @@ def run(state_source: Path = DEFAULT_STATE, timeout_seconds: int = 240,
         base = f'http://127.0.0.1:{port}'
         env = os.environ.copy()
         env['BRIEFING_STATE_DIR'] = str(state_copy)
-        # Until the release envelope is propagated into the worker's context,
-        # positive-cost ledger calls must refuse before provider transport.
-        env['BRIEFING_REQUIRE_USAGE_BATCH'] = '1'
         with (root / 'preview.log').open('wb') as log:
             server = subprocess.Popen([sys.executable, str(ROOT / 'dev/preview_server.py'),
                                        '127.0.0.1', str(port)], cwd=ROOT, env=env,

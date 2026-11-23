@@ -140,8 +140,6 @@ class RealBuildAcceptanceTests(unittest.TestCase):
                     'status': 'complete', 'elapsed_seconds': 2.5}
         fake_server = '''
 import json, os, sys
-if os.environ.get('BRIEFING_REQUIRE_USAGE_BATCH') != '1':
-    raise SystemExit('release batch guard was not enabled in preview process')
 from http.server import BaseHTTPRequestHandler, HTTPServer
 JOB = %r
 PROFILE_WORDS = %r

@@ -37,7 +37,7 @@ if __package__:
     from .ingest.jobs import DEFAULT_STORE as EPISODE_JOBS
     from .ingest.corrections import CorrectionAudioQueue, CorrectionError, CorrectionService, CorrectionStore
     from .ingest.paths import STATE_DIR, profile_identifier
-    from .ingest.usage import ReleaseUsageRef, UsageLedger, UsageError, process_ledger
+    from .ingest.usage import UsageLedger, UsageError, process_ledger
     from .ingest.flags import effective_flags
     from .tools.status_report import build_health_payload
     from .interpreter_proxy import decode_json, interpret_request
@@ -56,7 +56,7 @@ else:
     from ingest.jobs import DEFAULT_STORE as EPISODE_JOBS
     from ingest.corrections import CorrectionAudioQueue, CorrectionError, CorrectionService, CorrectionStore
     from ingest.paths import STATE_DIR, profile_identifier
-    from ingest.usage import ReleaseUsageRef, UsageLedger, UsageError, process_ledger
+    from ingest.usage import UsageLedger, UsageError, process_ledger
     from ingest.flags import effective_flags
     from tools.status_report import build_health_payload
     from interpreter_proxy import decode_json, interpret_request
@@ -95,17 +95,6 @@ _STATIC_ASSET_CACHE = OrderedDict()
 _STATIC_ASSET_CACHE_LOCK = threading.RLock()
 _STATIC_ASSET_CACHE_MAX_ENTRIES = 128
 _STATIC_ASSET_CACHE_MAX_BYTES = 6 * 1024 * 1024
-
-
-def _release_usage_from_environment():
-    """Build a trusted worker reference only from the local launcher environment."""
-    if os.environ.get('BRIEFING_REQUIRE_USAGE_BATCH') != '1':
-        return None
-    batch_id = os.environ.get('BRIEFING_RELEASE_BATCH_ID')
-    ledger_dir = os.environ.get('BRIEFING_RELEASE_LEDGER_DIR')
-    if not batch_id or not ledger_dir:
-        raise UsageError('trusted usage reference is unavailable')
-    return ReleaseUsageRef(Path(ledger_dir), batch_id)
 
 
 def _post_rate_key(path):
@@ -183,7 +172,7 @@ def _health_snapshot():
 def _estimate_corrected_chapter(episode, chapter_id):
     ledger = process_ledger(UsageLedger)
     estimate = episodes_audio.estimate_chapter_audio_cost(episode, chapter_id, ledger)
-    ledger.preflight_episode(estimate['estimated_cost_usd'])
+    ledger.preflight_episode()
     return estimate
 
 
@@ -594,14 +583,8 @@ class Handler(BaseHTTPRequestHandler):
                 status, result = save_profile(payload.get('profile') if isinstance(payload, dict) else None)
         else:
             with privacy.profile_write_guard():
-                try:
-                    release_usage = _release_usage_from_environment()
-                except (OSError, ValueError, UsageError):
-                    status, result = 503, {'error': 'usage_batch_unavailable'}
-                else:
-                    status, result = start_generation(
-                        payload.get('profile') if isinstance(payload, dict) else None,
-                        release_usage=release_usage)
+                status, result = start_generation(
+                    payload.get('profile') if isinstance(payload, dict) else None)
         self._json(status, result)
 
     def _mark_edition_seen(self):

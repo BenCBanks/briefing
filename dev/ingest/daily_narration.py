@@ -358,7 +358,7 @@ def _select_story_evidence(story_payload, call_json):
 
 
 def narration_cost_estimate(edition, evidence_by_story, *, prices_path=None):
-    """Worst-case five-call reservation, including one writer/verifier retry."""
+    """Estimate maximum configured model-call cost, including one retry."""
     path = Path(prices_path) if prices_path else Path(__file__).with_name('usage-prices.json')
     price_data = json.loads(path.read_text(encoding='utf-8'))['prices']
     prices = price_data['gemini_text_by_model']
@@ -390,53 +390,16 @@ def narration_cost_estimate(edition, evidence_by_story, *, prices_path=None):
             'verifier_model': VERIFY_MODEL,
             'estimated_usd': str(total_estimate.quantize(Decimal('0.0001'))),
             'estimated_total_input_tokens': enrich_input_tokens + 2 * script_input_tokens + 2 * verify_input_tokens,
-            'reserved_output_tokens': (MAX_ENRICH_OUTPUT_TOKENS + 2 * MAX_OUTPUT_TOKENS +
-                                       2 * MAX_VERIFY_OUTPUT_TOKENS),
+            'max_output_tokens': (MAX_ENRICH_OUTPUT_TOKENS + 2 * MAX_OUTPUT_TOKENS +
+                                  2 * MAX_VERIFY_OUTPUT_TOKENS),
             'enrichment_input_tokens': enrich_input_tokens,
-            'enrichment_output_token_reservation': MAX_ENRICH_OUTPUT_TOKENS,
-            'writer_input_tokens': script_input_tokens, 'writer_output_token_reservation': MAX_OUTPUT_TOKENS,
+            'enrichment_max_output_tokens': MAX_ENRICH_OUTPUT_TOKENS,
+            'writer_input_tokens': script_input_tokens, 'writer_max_output_tokens': MAX_OUTPUT_TOKENS,
             'verifier_input_tokens': verify_input_tokens,
-            'verifier_output_token_reservation': MAX_VERIFY_OUTPUT_TOKENS,
-            'retry_input_tokens_reserved': retry_input_tokens,
-            'retry_output_tokens_reserved': MAX_OUTPUT_TOKENS + MAX_VERIFY_OUTPUT_TOKENS}
+            'verifier_max_output_tokens': MAX_VERIFY_OUTPUT_TOKENS,
+            'retry_input_tokens': retry_input_tokens}
 
 
-def _narration_budget_preflight(estimated_usd, release_batch_allowance_usd=None, *,
-                                caller='other', ledger=None):
-    """Check the whole narration reservation against ledger headroom and its release allowance."""
-    from .usage import UsageLedger, UsageError, process_ledger
-
-    try:
-        estimate = Decimal(str(estimated_usd))
-        if not estimate.is_finite() or estimate < 0:
-            raise InvalidOperation
-        ledger = ledger or process_ledger(UsageLedger)
-        summary = ledger.summary()
-        daily = summary.get('daily') if isinstance(summary, dict) else None
-        monthly = summary.get('monthly') if isinstance(summary, dict) else None
-        if not isinstance(daily, dict) or not isinstance(monthly, dict):
-            raise UsageError('usage ledger summary unavailable')
-        daily_available = Decimal(str(
-            daily['remaining_usd'] if caller == 'daily' else daily['available_to_other_callers_usd']))
-        monthly_available = Decimal(str(monthly['remaining_usd']))
-        if caller not in {'daily', 'other'}:
-            raise ValueError('invalid narration budget caller')
-        allowance = None
-        available = min(daily_available, monthly_available)
-        if release_batch_allowance_usd is not None:
-            allowance = Decimal(str(release_batch_allowance_usd))
-            if not allowance.is_finite() or allowance < 0:
-                raise InvalidOperation
-            available = min(available, allowance)
-        return {'ok': estimate <= available, 'reason': None if estimate <= available else 'budget_estimate',
-                'caller': caller,
-                'estimated_usd': str(estimate),
-                'release_batch_allowance_usd': str(allowance) if allowance is not None else None,
-                'available_usd': str(available),
-                'daily_available_usd': str(daily_available),
-                'monthly_available_usd': str(monthly_available)}
-    except (InvalidOperation, KeyError, OSError, TypeError, ValueError, UsageError):
-        return {'ok': False, 'reason': 'budget_ledger_unavailable'}
 
 
 def _evidence_for_story(section, runtime_evidence, sources, background_segments):
@@ -1048,9 +1011,7 @@ def _apply_narration(edition, profile, stories, evidence_by_story):
 
 
 def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_json,
-                        release_batch_allowance_usd=None, caller='other', budget_ledger=None,
-                        reserve_model_call=None, input_token_counter=None,
-                        input_token_limit=NARRATION_MODEL_INPUT_TOKEN_LIMIT):
+                        input_token_counter=None, input_token_limit=NARRATION_MODEL_INPUT_TOKEN_LIMIT):
     """Generate and verify one spoken script for an edition using injected calls.
 
     ``input_token_counter`` is supplied by the caller so each provider model
@@ -1074,10 +1035,6 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                 raise RuntimeError('narration_input_token_limit')
             if input_tokens > input_token_limit:
                 raise RuntimeError('narration_input_token_limit')
-        # Opt-in seam for a caller-owned run budget. Reserve before transport;
-        # the default path remains unchanged until a caller supplies it.
-        if reserve_model_call is not None:
-            reserve_model_call(system_prompt, user_text, kwargs)
         return call_json(system_prompt, user_text, response_schema, api_key, **kwargs)
     original = deepcopy(edition)
     debug_files = []
@@ -1111,12 +1068,6 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                 evidence_by_story[story['section_id']] = story['evidence']
         expected_ids = [row['section_id'] for row in story_payload]
         estimate = narration_cost_estimate(edition, evidence_by_story)
-        budget_preflight = _narration_budget_preflight(
-            estimate['estimated_usd'], release_batch_allowance_usd, caller=caller,
-            ledger=budget_ledger)
-        if not budget_preflight['ok']:
-            return {'status': 'fallback', 'reason': budget_preflight['reason'],
-                    **estimate, 'budget_preflight': budget_preflight}
         selected_ids = _select_story_evidence(story_payload, bounded_call_json)
         for story in story_payload:
             story['evidence'] = [row for row in story['evidence']
@@ -1206,7 +1157,6 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
             raise ValueError('narration_assembly')
         return {'status': 'written', **estimate, 'stories': len(accepted),
                 'retry_used': retry_used, 'retry_reason': retry_reason,
-                'budget_preflight': budget_preflight,
                 'debug_files': debug_files,
                 'target_words_per_story': target_words, 'target_daily_words': DAILY_TARGET_WORDS,
                 'story_word_counts': {key: _words(' '.join(row['text'] for row in value))

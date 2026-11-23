@@ -55,13 +55,10 @@ class GeminiGroundingProvider(BaseProvider):
         }
         system_chars = len(payload['systemInstruction']['parts'][0]['text'])
         input_chars = len(payload['contents'][0]['parts'][0]['text'])
-        input_token_limit = len(json.dumps(
-            payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
         try:
-            self.usage_ledger.record_search(self.name)
-            # Refuse only when the recorded ledger is already at its cap;
-            # actual text cost is recorded after the provider response.
-            self.usage_ledger.preflight_episode('0')
+            # Check recorded spend before transport; record query and token
+            # usage after the provider returns.
+            self.usage_ledger.preflight_episode()
         except UsageError:
             raise ProviderUnavailable('cost_cap_reached') from None
         budget.timeout()
@@ -70,6 +67,7 @@ class GeminiGroundingProvider(BaseProvider):
         response = request_json(
             f'https://generativelanguage.googleapis.com/v1beta/models/{self.config.gemini_model}:generateContent',
             budget=budget, payload=payload, headers={'x-goog-api-key': key}, opener=self.opener)
+        self.usage_ledger.record_search(self.name)
         usage = response.get('usageMetadata')
         prompt_tokens = usage.get('promptTokenCount') if isinstance(usage, dict) else None
         candidates_tokens = usage.get('candidatesTokenCount') if isinstance(usage, dict) else None
@@ -87,7 +85,7 @@ class GeminiGroundingProvider(BaseProvider):
                     model=self.config.gemini_model)
         except UsageError:
             raise ProviderUnavailable('cost_cap_reached') from None
-        # Missing usage or failed requests retain the conservative reservation.
+        # Missing token metadata is recorded using the bounded request estimate.
         # Do not access content.parts, segment.text, searchEntryPoint or webSearchQueries.
         # The raw response is function-local and never attached to provider/status/state.
         rows, seen, hints = [], set(), set()

@@ -445,19 +445,14 @@ def call_gemini_json(system_prompt, user_text, response_schema, api_key,
         raise ValueError('BRIEFING_THINKING must be default, low, or off')
     url = f'https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent'
     ledger = process_ledger(UsageLedger)
-    strict_token_reservation = os.environ.get('BRIEFING_REQUIRE_USAGE_BATCH') == '1'
-    input_token_limit = len(json.dumps(
-        payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
     try:
-        reservation = ledger.reserve_text_call(
-            len(system_prompt), len(user_text), max_output_tokens, model=model,
-            input_token_limit=input_token_limit)
+        ledger.preflight_episode()
     except UsageCapReached as error:
         raise ProxyError(429, 'cost_cap_reached', str(error)) from None
     except UsageError:
         raise ProxyError(503, 'usage_ledger_unavailable', 'usage_ledger_unavailable') from None
 
-    def settle_response_usage(response_value, output_chars):
+    def record_response_usage(response_value, output_chars):
         metadata = response_value.get('usageMetadata') if isinstance(response_value, dict) else None
         def token_count(name):
             value = metadata.get(name) if isinstance(metadata, dict) else None
@@ -465,27 +460,16 @@ def call_gemini_json(system_prompt, user_text, response_schema, api_key,
         prompt_tokens = token_count('promptTokenCount')
         candidates_tokens = token_count('candidatesTokenCount')
         thoughts_tokens = token_count('thoughtsTokenCount')
-        if strict_token_reservation:
-            if thoughts_tokens is None:
-                total_tokens = token_count('totalTokenCount')
-                known_tokens = ((prompt_tokens + candidates_tokens)
-                                if prompt_tokens is not None and candidates_tokens is not None else None)
-                # Proto JSON may omit an optional zero-value thoughts count. Only
-                # recover it when the provider's total makes the missing value
-                # exact; otherwise the conservative reservation stays pending.
-                if total_tokens is not None and known_tokens is not None and total_tokens >= known_tokens:
-                    thoughts_tokens = total_tokens - known_tokens
-            if None in (prompt_tokens, candidates_tokens, thoughts_tokens):
-                raise ProxyError(502, 'upstream_unavailable', 'usage_metadata_missing')
-            ledger.settle_token_call(
-                reservation, prompt_tokens, candidates_tokens + thoughts_tokens,
-                model=model, modality='text', prompt_tokens=prompt_tokens,
-                candidates_tokens=candidates_tokens, thoughts_tokens=thoughts_tokens)
-            return
-        ledger.settle_text_call(
-            reservation, len(system_prompt), len(user_text), output_chars, model=model,
-            prompt_tokens=prompt_tokens, candidates_tokens=candidates_tokens,
-            thoughts_tokens=thoughts_tokens)
+        try:
+            if prompt_tokens is not None and candidates_tokens is not None:
+                ledger.record_text_call(prompt_tokens, candidates_tokens, thoughts_tokens or 0,
+                                        model=model)
+            else:
+                chars_per_token = ledger.config['_text_chars_per_token']
+                output_tokens = (max(0, int(output_chars)) + chars_per_token - 1) // chars_per_token
+                ledger.record_text_estimate(len(system_prompt), len(user_text), output_tokens, model=model)
+        except UsageError:
+            raise ProxyError(503, 'usage_ledger_unavailable', 'usage_ledger_unavailable') from None
     try:
         response = post_json(url, payload, timeout, api_key)
     except TimeoutError:
@@ -506,9 +490,7 @@ def call_gemini_json(system_prompt, user_text, response_schema, api_key,
     try:
         result = _extract_model_json(response)
     except ProxyError as error:
-        # Truncated/invalid JSON still has billable usage. Settle its reservation
-        # before a bounded retry reserves a second call, so the ledger records
-        # the first attempt accurately and does not leave a stale pending charge.
+        # Truncated/invalid JSON is billable too; record it before a retry.
         candidate_text = ''
         try:
             candidate_text = ''.join(part.get('text', '') for part in
@@ -517,17 +499,11 @@ def call_gemini_json(system_prompt, user_text, response_schema, api_key,
         except (KeyError, IndexError, TypeError):
             pass
         try:
-            settle_response_usage(response, len(candidate_text))
-        except UsageCapReached as usage_error:
-            if strict_token_reservation:
-                raise ProxyError(429, 'cost_cap_reached', str(usage_error)) from None
-        except UsageError:
-            if strict_token_reservation:
-                raise ProxyError(503, 'usage_ledger_unavailable',
-                                 'usage_ledger_unavailable') from None
-        # Truncated JSON is a recoverable response-size failure. The retry gets
-        # its own reservation through this same call path and stays within the
-        # episode writer's 14k ceiling.
+            record_response_usage(response, len(candidate_text))
+        except ProxyError:
+            raise
+        # Truncated JSON is a recoverable response-size failure. The retry goes
+        # through this call path and is checked against the recorded total.
         retry_cap = min(14000, max(max_output_tokens + 512, int(max_output_tokens * 1.5)))
         if _allow_max_tokens_retry and _is_truncated_json(error) and retry_cap > max_output_tokens:
             try:
@@ -544,20 +520,8 @@ def call_gemini_json(system_prompt, user_text, response_schema, api_key,
                 }
                 raise
         raise
-    try:
-        settle_response_usage(
-            response, len(json.dumps(result, ensure_ascii=False, separators=(',', ':'))))
-    except UsageCapReached as error:
-        if strict_token_reservation:
-            raise ProxyError(429, 'cost_cap_reached', str(error)) from None
-        # The reserved ceiling remains charged if settlement state is unavailable.
-        pass
-    except UsageError:
-        if strict_token_reservation:
-            raise ProxyError(503, 'usage_ledger_unavailable',
-                             'usage_ledger_unavailable') from None
-        # The reserved ceiling remains charged if settlement state is unavailable.
-        pass
+    record_response_usage(
+        response, len(json.dumps(result, ensure_ascii=False, separators=(',', ':'))))
     return result
 
 

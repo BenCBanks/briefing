@@ -1115,8 +1115,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                      extraction_deadline=None,
                      before_model_call=None, max_candidate_attempts=None,
                      story_scorer=None, recent_history=None, on_fill_start=None, writer_workers=None,
-                     retrieval_fill_enabled=None, search_first_enabled=None, daily_word_target=None,
-                     reserve_model_call=None):
+                     retrieval_fill_enabled=None, search_first_enabled=None, daily_word_target=None):
     if core.KILL_SWITCH_PATH.exists():
         raise RuntimeError(f'Edition generation disabled by kill switch: {core.KILL_SWITCH_PATH}')
     now = now or core.utc_now()
@@ -1133,11 +1132,9 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
     article_fetcher = article_fetcher or core.fetch_article_text
     default_model_call = call_json is None
     call_json = call_json or call_gemini_json
-    if deadline is not None or before_model_call is not None or reserve_model_call is not None:
+    if deadline is not None or before_model_call is not None:
         model_call = call_json
         def call_json(*args, **kwargs):
-            if reserve_model_call:
-                reserve_model_call(args[0], args[1], kwargs)
             if before_model_call:
                 before_model_call()
             if deadline is not None:
