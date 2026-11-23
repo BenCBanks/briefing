@@ -1,4 +1,4 @@
-import { shortHeadline, splitSentences, estimateReadTime, listenTime } from './story-model.js';
+import { splitSentences, estimateReadTime, listenTime } from './story-model.js';
 import { audioScriptParagraphs, audioScriptText, withoutCitationNotes } from '../audio-script.js';
 
 const esc = (value = '') => String(value).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
@@ -90,6 +90,7 @@ function topicLabel(row, topicById) {
 const playIcon = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5Z"/></svg>';
 const pauseIcon = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4.5" height="16" rx="1.2"/><rect x="13.5" y="4" width="4.5" height="16" rx="1.2"/></svg>';
 const moreIcon = '<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5"/></svg>';
+const lessIcon = '<svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 14 5-5 5 5"/></svg>';
 export function rowPreview(body, maxLength = 90, headline = '') {
   const cleaned = plainSnippetText(body).split(/\n\s*\n/).filter(paragraph => !/^\s*(?:Limits|Citations)\s*:/i.test(paragraph)).join('\n\n')
     .replace(/(^|\n\s*)(?:What happened|Why it matters|Things to consider)\s*:\s*/gim, '$1')
@@ -223,7 +224,17 @@ export const visibleSections = item => {
 
 // One display adapter for both generated v3 copy and legacy labelled stories.
 function storyCopy(section) {
-  const clean = value => plainSnippetText(value || '').replace(/\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g, '').trim();
+  const plain = value => plainSnippetText(value || '').replace(/\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g, '').trim();
+  const headline = plain(section.headline || section.heading).toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+  const clean = value => {
+    const text = plain(value);
+    if (!headline) return text;
+    return splitSentences(text).filter((sentence, index) => {
+      if (index !== 0) return true;
+      const opening = sentence.toLocaleLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim();
+      return opening !== headline && !headline.startsWith(`${opening} `) && !opening.startsWith(`${headline} `);
+    }).join(' ').trim();
+  };
   const parts = withoutCitationNotes(section.body || '').split(/\n\s*\n/).filter(Boolean);
   const labelled = parts.some(x => /^(What happened|Why it matters|Things to consider):/i.test(x));
   const legacy = (label, index) => labelled ? parts.find(x => x.toLowerCase().startsWith(label.toLowerCase() + ':'))?.replace(/^[^:]+:\s*/, '') : parts[index];
@@ -233,6 +244,8 @@ function storyCopy(section) {
   const explicit = textList(section.lede ?? section.lead_paragraphs ?? section.lead);
   const base = (explicit.length ? explicit : script.length ? script : happened).map(clean).filter(text => text && !/^(?:What happened|Why it matters|Things to consider)[:.]?$/i.test(text) && !/^Source:/i.test(text));
   const all = splitSentences(base.join(' '));
+  // Some editions repeat their headline as the first sentence of the body.
+  // Drop only a close opening match; later context still belongs in the story.
   const lede = all.slice(0, 2).join(' ');
   const why = textList(section.so_what ?? section.why_it_matters ?? blocks.why_it_matters ?? legacy('Why it matters', 1)).map(clean).join(' ');
   const whySentences = splitSentences(why);
@@ -324,7 +337,7 @@ export function renderToday(container, edition, topics, actions = {}) {
   const topStoryLinks = top.map((section, index) => {
     const story = stories.find(item => item.section_id === section.id);
     const label = topicLabel(story, topicById);
-    const title = shortHeadline(plainSnippetText(section.headline || section.heading));
+    const title = plainSnippetText(section.headline || section.heading);
     return `<li><a class="today-top-story-link" href="#story-${esc(section.id)}" data-jump-story="${esc(section.id)}"><span class="today-top-story-number">${index + 1}</span><span class="today-top-story-copy"><small>${esc(label)}</small><strong>${esc(title)}</strong></span></a></li>`;
   }).join('');
   const rows = storySections.map(section => `<li class="today-story-row" id="story-${esc(section.id)}"><header class="v3-story-heading">${(actions.followedTopicCount ?? actions.profile?.topics?.length ?? topics.length) > 1 ? `<p class="story-kicker">${section.kicker === 'Update:' ? 'Update: · ' : ''}${esc(section.kicker_topic || topicLabel(stories.find(x => x.section_id === section.id), topicById))}</p>` : ''}<h2 class="inline-story-heading"><button type="button" class="story-row-link${actions.isRead?.(edition.id, section.id, edition.revision_id) ? ' is-read' : ''}" data-read-section="${esc(section.id)}" aria-label="Open story: ${esc(section.headline || section.heading)}"><span class="story-row-copy"><strong>${esc(plainSnippetText(section.headline || section.heading))}</strong></span></button></h2><button class="story-bookmark" data-bookmark="${esc(section.id)}" aria-label="Save story: ${esc(section.headline || section.heading)}" aria-pressed="${Boolean(actions.isSaved?.(section.id))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h12v17l-6-4.5-6 4.5z"/></svg></button></header><div class="inline-story" data-inline-story="${esc(section.id)}"></div></li>`).join('');
@@ -405,6 +418,12 @@ export function renderEdition(container, edition, topics, actions = {}) {
   const outlet = source => source.publisher || source.outlet || source.name || 'Source';
   const domains = new Set(references.map(source => { try { return new URL(source.url).hostname.replace(/^www\./, ''); } catch { return null; } }).filter(Boolean));
   const quietSource = primary ? `<span>${safeExternalURL(primary.url) ? `<a href="${esc(safeExternalURL(primary.url))}" target="_blank" rel="noopener noreferrer">${esc(outlet(primary))}</a>` : esc(outlet(primary))}${domains.size > 1 ? `, plus ${domains.size - 1} more` : ''}</span>` : '';
+  const sourceRows = references.map(source => {
+    const published = shortDate(source.published_at || source.date || source.updated_at);
+    const label = `${outlet(source)}${published ? ` · ${published}` : ''}`;
+    return `<li>${source.id ? `<button data-source="${esc(source.id)}">${esc(label)}</button>` : `<a href="${esc(safeExternalURL(source.url) || '#')}">${esc(label)}</a>`}</li>`;
+  }).join('');
+  const sourceList = sourceRows ? `<section class="story-sources${inline ? ' inline-story-sources' : ''}" aria-label="Sources"><h2>Sources</h2><ul>${sourceRows}</ul></section>` : '';
   const citations = references.map((source, index) => `<li>${references.length > 1 ? `<span class="citation-number">${index + 1}.</span>` : ''}${source.id ? `<button data-source="${esc(source.id)}">${esc(outlet(source))} · ${esc(source.title || 'Source details')}</button>` : `<a href="${esc(safeExternalURL(source.url) || '#')}">${esc(outlet(source))}</a>`}</li>`).join('');
   const moreId = `more-${section.id}`;
   const open = moreSectionIsOpen(edition, section, !inline || actions.expanded);
@@ -417,8 +436,8 @@ export function renderEdition(container, edition, topics, actions = {}) {
     ${correction ? `<aside class="correction-notice" aria-label="Material correction"><strong>Corrected · ${esc(correctedAt)}</strong><p>Earlier wording: “${esc(correction.what_changed)}”</p><p>Current wording: “${esc(currentWording)}”</p><p>${esc(correction.why_it_matters)} Audio for the whole edition is paused until it is re-recorded.</p><a class="correction-history-link" href="#corrections">See all corrections</a></aside>` : ''}
     ${!inline && (listeningAvailable || corrected) ? `<button type="button" class="story-listen${weekly ? ' weekly-listen' : ''}${corrected ? ' is-disabled' : ''}" data-listen-control="story" data-edition-id="${esc(edition.id)}" data-revision-id="${esc(edition.revision_id)}" data-section-id="${esc(section.id)}" data-listen-estimate="${esc(listenEstimate)}" aria-label="${esc(corrected ? 'Audio paused. One story was corrected. The text is updated.' : `${weekly ? 'Listen' : listenState.label || 'Listen from here'}, ${listenEstimate.replace(/ min$/, ' minutes')}`)}"${corrected ? ' disabled' : ''}><span class="story-listen-icon">${corrected ? pauseIcon : playIcon}</span><span class="story-listen-label">${esc(corrected ? 'Audio paused' : weekly ? 'Listen' : listenState.label || 'Listen from here')}</span><small>${corrected ? 'One story was corrected. The text is updated.' : `· ${esc(listenEstimate)}`}</small></button>` : inline ? '' : '<p class="listening-unavailable">Listening isn’t available in this browser</p>'}
     <section class="edition-section${spokenScript ? ' audio-transcript' : ''}" id="${esc(section.id)}"><div class="story-lead"><p>${esc(copy.lede)}</p></div>${copy.so ? `<p class="story-so-what"><strong>So what.</strong> ${esc(copy.so)}</p>` : ''}${!inline && copy.takeaway ? `<p class="story-takeaway"><strong>Read:</strong> ${esc(copy.takeaway)}</p>` : ''}
-    <div class="story-source-line">${quietSource}<button class="story-more-toggle" aria-expanded="${Boolean(open)}" aria-controls="${esc(moreId)}">${open ? 'Less' : 'More'} ${moreIcon}</button></div>
-    <div class="story-more" id="${esc(moreId)}"${open ? '' : ' hidden'}>${copy.more.map(text => `<p>${esc(text)}</p>`).join('')}${copy.watch ? `<p class="story-watch">Worth watching: ${esc(copy.watch)}</p>` : ''}${backgroundHtml}${citations ? `<section class="story-sources" aria-label="Citations"><ol>${citations}</ol></section>` : ''}</div></section>
+    <div class="story-source-line">${inline ? '' : quietSource}<button class="story-more-toggle" aria-expanded="${Boolean(open)}" aria-controls="${esc(moreId)}">${open ? `Less ${lessIcon}` : `More ${moreIcon}`}</button></div>
+    <div class="story-more" id="${esc(moreId)}"${open ? '' : ' hidden'}>${copy.more.map(text => `<p>${esc(text)}</p>`).join('')}${copy.watch ? `<p class="story-watch">Worth watching: ${esc(copy.watch)}</p>` : ''}${backgroundHtml}${!inline && citations ? `<section class="story-sources" aria-label="Citations"><ol>${citations}</ol></section>` : ''}</div>${inline ? sourceList : ''}</section>
     ${feedbackControls}
     ${!inline && topicQuestion && actions.hasDeepDive?.(topic?.id) ? `<button class="section-explanation" type="button" data-topic="${esc(topic.id)}" data-section="${esc(section.id)}">Explore: ${esc(topicQuestion)} <span aria-hidden="true">→</span></button>` : ''}
     ${inline ? '' : `<footer class="story-next">${index < sections.length - 1 ? `<button type="button" class="next-story" data-next="${esc(sections[index + 1].id)}"><small>Next story</small><strong>${esc(sections[index + 1].heading)}</strong></button>` : `<div class="up-to-date"><h2>You’re up to date</h2><p>That is all for this ${weekly ? 'recap' : 'edition'}.</p><button type="button" data-finish>${actions.isFinished?.(edition.id, edition.revision_id) ? 'Finished' : 'Mark finished'}</button></div>`}<button type="button" class="save-story" data-save-edition>${actions.isSaved?.(edition.id) ? 'Saved' : 'Save'}</button></footer>`}
@@ -435,7 +454,7 @@ export function renderEdition(container, edition, topics, actions = {}) {
   moreButton?.addEventListener('click', () => {
     const expanded = moreButton.getAttribute('aria-expanded') !== 'true';
     moreButton.setAttribute('aria-expanded', String(expanded));
-    moreButton.innerHTML = `${expanded ? 'Less' : 'More'} <span aria-hidden="true">⌄</span>`;
+    moreButton.innerHTML = `${expanded ? `Less ${lessIcon}` : `More ${moreIcon}`}`;
     container.querySelector('.story-more').hidden = !expanded;
     saveMoreSectionPreference(edition, section, expanded);
   });

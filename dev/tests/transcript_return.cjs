@@ -83,7 +83,9 @@ async function run() {
     await page.goto(`${baseURL}/#today`, { waitUntil: 'networkidle' });
     const todayGreeting = await page.locator('.today-page h1').textContent();
     assert.equal(todayGreeting, 'Your daily briefing');
-    assert.deepEqual(await page.locator('.today-top-story-copy strong').allTextContents(), ['A faster checkout', 'Resilience', 'Proof of identity'], 'Top stories point to the current edition');
+    assert.deepEqual(await page.locator('.today-top-story-copy strong').allTextContents(), [
+      'A faster checkout still needs a way back', 'Resilience is practiced before the outage', 'Proof of identity should reveal only what is needed',
+    ], 'Top stories show each complete current headline');
     assert.deepEqual((await page.locator('.story-row-copy strong').allTextContents()).slice(0,3), ['A faster checkout still needs a way back', 'Resilience is practiced before the outage', 'Proof of identity should reveal only what is needed'], 'The current edition keeps its full story headlines');
     await page.evaluate(() => { location.hash = '#edition/daily/daily-sample-001'; });
     await page.locator('[data-edition="daily-sample-001"]').waitFor();
