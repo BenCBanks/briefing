@@ -408,6 +408,14 @@ class EpisodeGenerationTests(unittest.TestCase):
                 self.assertIn(phrase.casefold(), SYSTEM_PROMPT.casefold())
         self.assertIn('answer the exact user question in the first factual sentence',
                       SYSTEM_PROMPT.casefold())
+        normalized_system = ' '.join(SYSTEM_PROMPT.casefold().split())
+        for phrase in ('never repeat the raw question as a template',
+                       'never read a chapter title, section title, or bare research question aloud',
+                       'a connective such as “however” must refer to a contrast',
+                       "takeaway drawn only from the episode's own supported claims",
+                       'state them once in one plain sentence'):
+            with self.subTest(host_pass=phrase):
+                self.assertIn(phrase.casefold(), normalized_system)
         self.assertIn('state the mechanism or conclusion first', SYSTEM_PROMPT.casefold())
         self.assertIn("put the question's direct answer or mechanism first", PLAN_PROMPT.casefold())
         self.assertIn('mechanisms, history, comparison, practical learning', PLAN_PROMPT.casefold())

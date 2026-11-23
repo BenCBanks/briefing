@@ -57,12 +57,14 @@ def fictional_profile() -> dict:
 def isolated_run():
     """Set a fresh state directory without touching live briefing state."""
     previous = {key: os.environ.get(key) for key in
-                ('BRIEFING_STATE_DIR', 'BRIEFING_EPISODES', 'BRIEFING_TESTING')}
+                ('BRIEFING_STATE_DIR', 'BRIEFING_EPISODES', 'BRIEFING_TESTING', 'BRIEFING_DAILY_NARRATION')}
     with tempfile.TemporaryDirectory(prefix='briefing-try-real-') as directory:
         state = Path(directory)
         (state / 'profile.json').write_text(json.dumps(fictional_profile()), encoding='utf-8')
         os.environ['BRIEFING_STATE_DIR'] = str(state)
         os.environ['BRIEFING_EPISODES'] = 'real'
+        # Exercise the same narrated publication path readers use.
+        os.environ['BRIEFING_DAILY_NARRATION'] = 'on'
         os.environ.pop('BRIEFING_TESTING', None)
         try:
             yield state
@@ -121,6 +123,9 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
     if not isinstance(reported_words, int) or reported_words <= 0:
         reported_words = _words(text)
     print(f'Word count: {reported_words}')
+    warnings = result.get('soft_warnings') or result.get('content_soft_warnings')
+    if warnings:
+        print('Soft warnings: ' + json.dumps(warnings, sort_keys=True))
     print('\nScript:\n' + str(text).strip())
     if wall > 355:
         print('\nRuntime diagnosis: this exceeded the six-minute reader budget.')
@@ -136,9 +141,14 @@ def run_episode(question: str, minutes: int) -> int:
         profile_id = profile_identifier(fictional_profile())
         before = ledger_snapshot()
         started = time.monotonic()
+        funnel = {}
+        def progress(stage, counts):
+            funnel.update(counts if isinstance(counts, dict) else {})
+            if stage in {'researching', 'reading', 'evidence', 'checking'}:
+                print('Episode funnel: ' + json.dumps({'stage': stage, **funnel}, sort_keys=True), flush=True)
         try:
             episode = generate_episode(question, minutes, 'conversational',
-                                       state_dir=state / 'retrieval')
+                                       state_dir=state / 'retrieval', progress=progress)
             # A real episode check includes the same TTS path readers use.  A
             # failed render leaves the verified script available for review.
             try:
@@ -153,11 +163,25 @@ def run_episode(question: str, minutes: int) -> int:
             _print_result('episode', {'transcript': '', 'audio': {'status': 'not_recorded'},
                                       'timing': {}}, before, started)
             print(f'Generation failed: {type(error).__name__}')
+            print(f'Failure code: {str(error)}')
+            if funnel:
+                print('Episode funnel final: ' + json.dumps(funnel, sort_keys=True))
             code = getattr(error, 'code', None)
             diagnostics = getattr(error, 'diagnostics', None)
             if code:
                 print(f'Failure code: {code}')
             if isinstance(diagnostics, dict) and diagnostics:
+                funnel = {key: diagnostics.get(key) for key in (
+                    'queries', 'sources_found', 'sources_read', 'claims_extracted',
+                    'claims_matched', 'claims_verified', 'claims_kept', 'evidence_sentences',
+                    'discovered', 'retrieval', 'source_selection') if key in diagnostics}
+                if funnel:
+                    print('Evidence funnel: ' + json.dumps(funnel, sort_keys=True))
+                summary = {key: diagnostics.get(key) for key in (
+                    'issues', 'semantic_on_topic', 'semantic_coherent',
+                    'unsupported_ids', 'checks') if key in diagnostics}
+                if summary:
+                    print('Verification summary: ' + json.dumps(summary, sort_keys=True))
                 safe = {key: diagnostics[key] for key in
                         ('stage', 'call_name', 'reason', 'finish_reason', 'attempts')
                         if key in diagnostics}
@@ -216,6 +240,11 @@ def run_daily() -> int:
             return 1
         if job.get('status') != 'complete':
             print('Daily generation failed: ' + str(job.get('error') or job.get('failure_reason')))
+            narration = job.get('daily_narration')
+            if isinstance(narration, dict):
+                print('Daily narration diagnostics: ' + json.dumps({key: narration.get(key)
+                      for key in ('status', 'reason', 'retry_reason', 'stories', 'story_word_counts')
+                      if key in narration}, sort_keys=True))
             return 1
         edition = (job.get('edition_ready') or {}).get('edition')
         if not isinstance(edition, dict):

@@ -31,14 +31,14 @@ MAX_VERIFY_OUTPUT_TOKENS = 2500
 # character ratios are never treated as a hard limit.
 NARRATION_MODEL_INPUT_TOKEN_LIMIT = 1_048_576
 MAX_STORY_EVIDENCE_CHARS = 6000
-DAILY_TARGET_WORDS = 675
+DAILY_TARGET_WORDS = 700
 DAILY_TARGET_OVERHEAD_WORDS = 30
 DAILY_MIN_USEFUL_WORDS = 550
 STORY_WORDS_FLOOR = 60
 # Three-story editions need roughly 215 words per story to honor the 675-word
 # daily aim. This remains guidance: the writer stays shorter when evidence is
 # thin, and deterministic evidence/style gates still reject padding.
-STORY_WORDS_CEILING = 230
+STORY_WORDS_CEILING = 300
 MAX_GENERAL_CONTEXT_RATIO = 0.40
 MAX_SELECTED_EVIDENCE_PER_STORY = 18
 MIN_UNUSED_EVIDENCE_FOR_DEPTH_REVISION = 3
@@ -853,15 +853,9 @@ def _spoken_topic_label(label):
 
 
 def _opening(edition, story_count, seconds):
-    from .audio_script import _integer_words, _ordinal_words
-    raw = edition.get('local_date')
-    try:
-        parsed = date.fromisoformat(raw) if isinstance(raw, str) else None
-        day = f'{parsed.strftime("%A")}, {parsed.strftime("%B")} {_ordinal_words(parsed.day)}' if parsed else 'today'
-    except ValueError:
-        day = 'today'
+    from .audio_script import _integer_words
     noun = 'story' if story_count == 1 else 'stories'
-    return f'Here is your briefing for {day}: {_integer_words(story_count)} {noun}, about {_format_duration(seconds)}.'
+    return f'Good morning. Today\'s briefing has {_integer_words(story_count)} {noun}.'
 
 
 def _apply_narration(edition, profile, stories, evidence_by_story):
@@ -911,14 +905,11 @@ def _apply_narration(edition, profile, stories, evidence_by_story):
             topic = str(section.get('heading') or 'this story')
         topic_key = str(topic_id or topic).casefold()
         topic_spoken = _spoken_topic_label(topic)
-        if topic_key not in announced_topics:
-            transition = _DAILY_TOPIC_TRANSITIONS[
-                min(len(announced_topics), len(_DAILY_TOPIC_TRANSITIONS) - 1)
-            ]
-            narration = [transition.format(topic_spoken)] if transition else []
-            announced_topics.add(topic_key)
-        else:
-            narration = ['Another point.']
+        # The writer owns the continuous narration. Do not splice section
+        # headings, topic labels, publication dates, or stock transitions into
+        # its sentences after the fact.
+        announced_topics.add(topic_key)
+        narration = []
         final_sentences = [row['text'] for row in sentence_rows]
         narration.extend(final_sentences)
         section_text[section_id] = ' '.join(narration)
@@ -939,10 +930,13 @@ def _apply_narration(edition, profile, stories, evidence_by_story):
             continue
         if row.get('kind') == 'background':
             ids = row.get('source_sentence_ids', [])
-            if ids and ids[0] in used_background_ids:
+            # A one-pass host script owns the edition's narrative. Keep only
+            # background evidence the writer explicitly used; unrelated
+            # fallback explainers become distracting tangents.
+            if not ids or ids[0] not in used_background_ids:
                 continue
-        if (row.get('kind') == 'background_intro' and
-                row.get('segment_id') not in remaining_background_segments):
+            continue
+        if row.get('kind') == 'background_intro':
             continue
         section_id = row.get('section_id')
         if section_id in section_text:

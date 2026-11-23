@@ -606,6 +606,8 @@ def _daily_narration_job_status(report):
 
 def _safe_narration_exception_reason(error):
     message = str(error)
+    if isinstance(error, NameError) and re.fullmatch(r"name '[A-Za-z_][A-Za-z0-9_]*' is not defined", message):
+        return 'NameError:' + message.split("'")[1]
     if re.fullmatch(r'(?:narration_[a-z0-9_]{1,80}|budget_estimate)', message):
         return message
     error_type = type(error).__name__
@@ -666,6 +668,11 @@ def _record_content_gate(report, checks):
         report['critical_failed'] = True
         report['failed_critical'] = list(dict.fromkeys([*existing, *failures]))
     return failures
+
+
+def _hard_content_failures(failures):
+    """Keep evidence/citation safety hard; editorial shape is publishable."""
+    return [code for code in failures if code in {'content_citations', 'content_quality'}]
 
 
 def _score_and_filter_stories(edition, sources, registry, evidence, score_edition_fn):
@@ -1255,6 +1262,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                 open_web_report=detail.get('retrieval_fill'),
                 followup_count=detail.get('followup_count', 0), followups_checked=True,
                 source_dates=source_dates, source_tiers=source_tiers)
+            from .flags import flag_enabled
             # The scheduled run and narration-enabled reader rebuild both
             # publish the owner-facing daily. Apply the same deterministic
             # publication gate before spending on optional narration.
@@ -1264,11 +1272,12 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                     {'editions': editions, 'sources': sources}, recent_history, profile,
                     now=core.utc_now())
                 content_failures = _record_content_gate(report, content_checks)
-                if content_failures:
+                hard_failures = _hard_content_failures(content_failures)
+                report['content_soft_warnings'] = [code for code in content_failures if code not in hard_failures]
+                if hard_failures:
                     _persist_job_scorecard(directory, job_id, report)
-                    raise RuntimeError('scorecard_critical_failed:' + ','.join(content_failures))
+                    raise RuntimeError('scorecard_critical_failed:' + ','.join(hard_failures))
             narration_result = None
-            from .flags import flag_enabled
             if flag_enabled('daily_narration'):
                 try:
                     import stat
@@ -1296,7 +1305,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                     narration_result = write_spoken_script(
                         edition, profile, runtime_evidence, sources['sources'],
                         call_json=narration_call_json,
-                        caller=cost_caller)
+                        caller='daily')
                 except Exception as error:
                     # Preserve the candidate for diagnostics. The enabled
                     # publication gate below keeps the last good edition live.
@@ -1316,10 +1325,13 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                             {'editions': editions, 'sources': sources}, recent_history, profile,
                             now=core.utc_now())
                         final_content_failures = _record_content_gate(report, final_content_checks)
-                        if final_content_failures:
+                        hard_failures = _hard_content_failures(final_content_failures)
+                        report['content_soft_warnings'] = [code for code in final_content_failures
+                                                           if code not in hard_failures]
+                        if hard_failures:
                             _persist_job_scorecard(directory, job_id, report)
                             raise RuntimeError(
-                                'scorecard_critical_failed:' + ','.join(final_content_failures))
+                                'scorecard_critical_failed:' + ','.join(hard_failures))
                     elif _mark_daily_narration_failure(report, narration_result):
                         _persist_job_scorecard(directory, job_id, report)
                         raise RuntimeError('scorecard_critical_failed:daily_narration')

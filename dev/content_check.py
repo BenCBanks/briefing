@@ -485,7 +485,8 @@ def check_content(payload, history, profile, *, now=None):
             if len(intros) < len(rows):
                 reasons['freshness'].append('daily script is missing a dated introduction for one or more stories')
             ai_narration = (isinstance(daily.get('greeting'), str) and
-                            daily['greeting'].startswith('Here is your briefing for') and
+                            (daily['greeting'].startswith('Here is your briefing for') or
+                             daily['greeting'].startswith('Good morning.')) and
                             all(row.get('source_sentence_ids') and row.get('citation_numbers')
                                 for row in intros[:len(rows)]))
             for index, intro in enumerate(intros[:len(rows)], 1):
