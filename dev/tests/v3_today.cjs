@@ -174,6 +174,7 @@ async function checkContrast(page) {
   await page.locator('.today-transcript').evaluateAll(items=>items.forEach(details=>{details.open=true;}));
   const moreIconStyle = await page.locator('.story-more-toggle svg').first().evaluate(icon=>[icon.getBoundingClientRect().width,icon.getBoundingClientRect().height,getComputedStyle(icon).strokeWidth]);
   assert.deepEqual(moreIconStyle,[24,24,'1.8px'],'More disclosure uses the same icon box and stroke');
+  await page.locator('.today-transcript').evaluateAll(items=>items.forEach(details=>{details.open=false;}));
   await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
   for (const row of await page.locator('.today-story-row').all()) {
    assert.ok((await row.boundingBox()).height <= 640,'Collapsed story and its visible source list stay within the fixture content bound');
@@ -189,6 +190,7 @@ async function checkContrast(page) {
    await captureBottomBar(page, `bottom-bar-${theme}`);
    await page.evaluate(()=>scrollTo({top:0,behavior:'instant'})); await capture(page,`today-${theme}`);
    await checkContrast(page);
+   await page.locator('.today-transcript').first().evaluate(details=>{details.open=true;});
    const source = page.locator('.inline-story-sources button').first();
    assert.match(await source.innerText(), /Fictional Settlement Desk/u, 'Today source list names the publisher');
    assert.equal(await source.evaluate(el=>el.getBoundingClientRect().height >= 44), true, 'Today source links remain comfortably tappable');

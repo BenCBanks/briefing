@@ -33,6 +33,7 @@ async function run() {
     const row = page.locator('.today-story-row').first();
     await row.waitFor();
     assert.equal(await page.locator('.story-kicker').count(), 0, 'Single-topic editions omit the repeated kicker');
+    await row.locator('.today-transcript').evaluate(details => { details.open = true; });
     assert.equal(await row.locator('.edition-section p').first().innerText(), 'Rates & savings updated. Read details.', 'Inline text strips tags and decodes ampersands to plain text');
     assert.equal(await row.locator('.edition-section p p,.edition-section p a,.edition-section script').count(), 0, 'Raw paragraph and link markup never creates DOM elements');
     assert.match(await row.locator('.today-chapter-title').getAttribute('aria-label'), /^Play from chapter 1: Charlotte housing/, 'Accessible chapter labels use plain topic words');
