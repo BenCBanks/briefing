@@ -26,7 +26,7 @@ from .paths import STATE_DIR, checked_state_path
 from .state_io import atomic_write_json
 from .audio_fingerprints import _fingerprints as _pure_fingerprints
 from .tts import CostCounter, GeminiTtsProvider, TtsProviderError, TtsResult
-from .tts.gemini import (DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT, DEFAULT_MODEL, MAX_TTS_BATCH_COST_USD,
+from .tts.gemini import (DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT, DEFAULT_MODEL,
                           TtsOutputLimitError)
 from .tts.normalize import NORMALIZER_VERSION, normalize_narration
 from .tts_audition import VOICE_SAMPLES
@@ -483,7 +483,6 @@ def _render_episode_audio_unlocked(episode: dict, profile_id: str, *, provider=N
                                    state_dir: Path | str = STATE_DIR,
                                    max_segment_attempts: int = MAX_SEGMENT_ATTEMPTS,
                                    tts_output_token_limit: int | None = None,
-                                   tts_batch_limit_usd: Decimal | str | None = None,
                                    cancelled=lambda: False, progress=None,
                                    reuse_from_episode: dict | None = None,
                                    changed_chapter_id: str | None = None) -> dict:
@@ -493,18 +492,8 @@ def _render_episode_audio_unlocked(episode: dict, profile_id: str, *, provider=N
     bounded_tts = tts_output_token_limit is not None
     if bounded_tts:
         if (type(tts_output_token_limit) is not int or
-                not 1 <= tts_output_token_limit <= DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT or
-                tts_batch_limit_usd is None):
-            raise ValueError('bounded TTS needs an output pool and a batch cost ceiling.')
-        try:
-            tts_batch_limit_usd = Decimal(str(tts_batch_limit_usd))
-        except (InvalidOperation, ValueError):
-            raise ValueError('bounded TTS batch cost ceiling is invalid.') from None
-        if (not tts_batch_limit_usd.is_finite() or tts_batch_limit_usd <= 0 or
-                tts_batch_limit_usd > MAX_TTS_BATCH_COST_USD):
-            raise ValueError('bounded TTS batch cost ceiling exceeds the approved per-run maximum.')
-    elif tts_batch_limit_usd is not None:
-        raise ValueError('a bounded TTS cost ceiling needs an output token pool.')
+                not 1 <= tts_output_token_limit <= DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT):
+            raise ValueError('bounded TTS output pool is invalid.')
     from .episodes.generate import EpisodeCancelled
     from .usage import UsageError
     def check():
@@ -592,8 +581,6 @@ def _render_episode_audio_unlocked(episode: dict, profile_id: str, *, provider=N
     staging = parent / f'.render-{uuid4().hex}'
     staging.mkdir(mode=0o700)
     cost_counter = CostCounter()
-    bounded_cost_total = Decimal('0')
-    bounded_cost_details = None
     provider_calls = 0
     segment_audio: list[tuple[WavInfo, bytes]] = []
     segment_rows = []
@@ -648,8 +635,7 @@ def _render_episode_audio_unlocked(episode: dict, profile_id: str, *, provider=N
                             result: TtsResult = provider.synthesize(
                                 narration_text[chapter['id']], voice_name,
                                 max_output_tokens=attempt_output_limit, batch_id=batch_id,
-                                batch_output_token_limit=tts_output_token_limit,
-                                batch_limit_usd=tts_batch_limit_usd)
+                                batch_output_token_limit=tts_output_token_limit)
                             actual_output_tokens = result.candidates_tokens
                             if (type(actual_output_tokens) is not int or
                                     not 0 <= actual_output_tokens <= attempt_output_limit):
@@ -690,14 +676,6 @@ def _render_episode_audio_unlocked(episode: dict, profile_id: str, *, provider=N
                     error_kind = type(last_error).__name__ if last_error else 'UnknownError'
                     raise EpisodeAudioError(f'Chapter {chapter["index"] + 1} failed after {attempts} attempts ({error_kind}).') from None
                 info, audio_bytes, character_count = rendered
-                if bounded_tts:
-                    bounded_cost_details = provider.bounded_batch_cost(batch_id)
-                    accounted_cost = Decimal(bounded_cost_details['estimated_cost_usd'])
-                    segment_cost = accounted_cost - bounded_cost_total
-                    if segment_cost < 0:
-                        raise EpisodeAudioError('Bounded TTS cost accounting moved backwards.')
-                    bounded_cost_total = accounted_cost
-
             filename = f'chapter-{chapter["index"] + 1:02d}.wav'
             (staging / filename).write_bytes(audio_bytes)
             os.chmod(staging / filename, 0o600)
@@ -754,8 +732,6 @@ def _render_episode_audio_unlocked(episode: dict, profile_id: str, *, provider=N
             'coverage_status': 'pending_human_listening' if bounded_tts else None,
             'batch_id': batch_id,
         }
-        if bounded_cost_details is not None:
-            manifest.update(bounded_cost_details)
         _atomic_json(staging / 'manifest.json', manifest)
         if bounded_tts:
             review_target = parent / f'.review-{batch_id}'
@@ -789,7 +765,6 @@ def render_episode_audio(episode: dict, profile_id: str, *, provider=None,
                          state_dir: Path | str = STATE_DIR,
                          max_segment_attempts: int = MAX_SEGMENT_ATTEMPTS,
                          tts_output_token_limit: int | None = None,
-                         tts_batch_limit_usd: Decimal | str | None = None,
                          cancelled=lambda: False, progress=None,
                          reuse_from_episode: dict | None = None,
                          changed_chapter_id: str | None = None) -> dict:
@@ -832,7 +807,7 @@ def render_episode_audio(episode: dict, profile_id: str, *, provider=None,
             voice_file=voice_file, state_dir=state_dir,
             max_segment_attempts=max_segment_attempts,
             tts_output_token_limit=tts_output_token_limit,
-            tts_batch_limit_usd=tts_batch_limit_usd, cancelled=cancelled,
+            cancelled=cancelled,
             progress=progress, reuse_from_episode=reuse_from_episode,
             changed_chapter_id=changed_chapter_id)
     finally:

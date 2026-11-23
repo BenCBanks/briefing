@@ -191,10 +191,6 @@ class GenerationApiTests(unittest.TestCase):
                     {'sentence_evidence': {}, 'candidate_attempts': 0,
                                       'candidate_attempt_limit': 0})
 
-        ledger = usage.UsageLedger(ledger_dir=self.root / f'fictional-prefetch-ledger-{label}')
-        batch_id = f'fictional-prefetch-feed-{label}'
-        ledger.reserve_batch_budget(batch_id, general_usd='0.010')
-        ref = usage.ReleaseUsageRef(ledger.state_dir, batch_id)
         flags = self.root / f'flags-{label}.json'
         flags.write_text('{}')
         if timed_out:
@@ -206,9 +202,7 @@ class GenerationApiTests(unittest.TestCase):
             workers.append(worker)
             return worker
 
-        workers_exited = False
-        try:
-            with patch.dict('os.environ', {'BRIEFING_FLAGS_FILE': str(flags), 'BRIEFING_TTS': '0'}), \
+        with patch.dict('os.environ', {'BRIEFING_FLAGS_FILE': str(flags), 'BRIEFING_TTS': '0'}), \
                  patch.object(generation_api.core, 'KILL_SWITCH_PATH', self.root / 'kill-switch'), \
                  patch.object(generation_api.core, 'load_store', side_effect=lambda: list(stored_items)), \
                  patch.object(generation_api.core, 'ingest_enabled', side_effect=ingest), \
@@ -222,7 +216,7 @@ class GenerationApiTests(unittest.TestCase):
                 try:
                     code, started = generation_api.start_generation(
                         PROFILE, self.root / f'prefetch-feed-output-{label}', registry=ready_sources,
-                        shared_context=shared_context, release_usage=ref)
+                        shared_context=shared_context)
                     self.assertEqual(code, 202)
                     job = None
                     for _ in range(500):
@@ -249,11 +243,7 @@ class GenerationApiTests(unittest.TestCase):
                         except BaseException as error:
                             future_errors.append(error)
                     if future_errors:
-                        self.fail('fixture prefetch future raised before ledger closure')
-                    workers_exited = True
-        finally:
-            if workers_exited and ledger.batch_budget(batch_id)['status'] == 'open':
-                ledger.close_batch_budget(batch_id)
+                        self.fail('fixture prefetch future raised before bounded cleanup')
 
         self.assertEqual(job['status'], 'complete', job)
         self.assertEqual(ingest_calls, [(ready_sources, 4)])

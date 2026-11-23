@@ -158,9 +158,7 @@ class LiveEpisodeTests(unittest.TestCase):
     def test_per_job_ledger_attribution_survives_parallel_chapter_calls(self):
         base = Client()
         def client(system, payload, schema, timeout):
-            reservation = self.ledger.reserve_text_call(100, 100, 100, model='fictional')
-            self.ledger.settle_text_call(reservation, model='fictional', prompt_tokens=10,
-                                        candidates_tokens=20, thoughts_tokens=3)
+            self.ledger.record_text_call(10, 20, 3, model='gemini-3.6-flash')
             if 'targeted quality repair' in system:
                 return add_test_signposts(draft(), payload)
             return base(system, payload, schema, timeout)
@@ -176,7 +174,6 @@ class LiveEpisodeTests(unittest.TestCase):
         self.assertEqual(record['text_calls'], 10)  # three evidence-only expansions plus prior writer/check/repair calls
         self.assertEqual(record['prompt_tokens'], 100)
         self.assertEqual(record['thoughts_tokens'], 30)
-        self.assertEqual(record['pending_calls'], 0)
         with episode_usage('cancelled-fixture', lambda: True), self.assertRaises(UsageCancelled):
             self.ledger.record_search('gemini')
         self.assertEqual(self.ledger.episode_record('cancelled-fixture')['text_calls'], 0)

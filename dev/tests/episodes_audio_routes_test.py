@@ -410,8 +410,7 @@ class EpisodeAudioRouteTests(unittest.TestCase):
         identity = {'voice_name': DEFAULT_VOICE, 'state_dir': self.state,
                     'tts_output_token_limit': 4096, 'max_segment_attempts': 1}
         candidate = render_episode_audio(
-            episode, profile_identifier(PROFILE), provider=provider,
-            tts_batch_limit_usd=Decimal('0.06144'), **identity)
+            episode, profile_identifier(PROFILE), provider=provider, **identity)
         pending_episode = json.loads((candidate['candidate_directory'] / 'episode.json').read_text())
         self.assertNotIn('url', pending_episode['audio'])
         pending_candidate_bytes = {

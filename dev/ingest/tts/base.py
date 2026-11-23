@@ -23,8 +23,7 @@ class TtsResult:
 class TtsProvider(Protocol):
     def synthesize(self, text: str, voice_name: str, *,
                    max_output_tokens: int | None = None, batch_id: str | None = None,
-                   batch_output_token_limit: int = 4096,
-                   batch_limit_usd: Decimal | str | None = None) -> TtsResult:
+                   batch_output_token_limit: int = 4096) -> TtsResult:
         """Return audio bytes and measured or estimated TTS usage metadata."""
 
 
