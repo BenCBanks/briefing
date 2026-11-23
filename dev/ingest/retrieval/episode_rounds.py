@@ -86,7 +86,10 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
                 queued.add(candidate.url)
                 candidates.append(candidate)
                 hosts[host] = hosts.get(host, 0) + 1
-        budget = RetrievalBudget(timeout_seconds=max(.01, min(85, research_deadline-clock())), max_queries=0)
+        # Reads are independent network calls. Keep each source bounded so one
+        # stalled host cannot consume the whole research window, while allowing
+        # enough concurrent readers to cover the planned questions quickly.
+        budget = RetrievalBudget(timeout_seconds=max(.01, min(30, research_deadline-clock())), max_queries=0)
         while candidates and len(reads) < policy['max_reads'] and len(attempted) < policy['max_reads'] + 8:
             check()
             if budget.remaining() <= 0:
@@ -94,7 +97,7 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
             selected = candidates[:min(4, policy['max_reads']-len(reads), policy['max_reads']+8-len(attempted))]
             del candidates[:len(selected)]
             attempted.update(c.url for c in selected)
-            pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='episode-read')
+            pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix='episode-read')
             work = [(c, pool.submit(copy_context().run, read_one, c, budget)) for c in selected]
             try:
                 done, _ = wait([f for _, f in work], timeout=budget.remaining())

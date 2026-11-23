@@ -102,7 +102,7 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
     cost = ledger_cost_delta(before, after)
     wall = round(time.monotonic() - started, 2)
     print(f'\n=== {kind} ===')
-    print(f"Word count: {result.get('word_count', result.get('spoken_words', 0))}")
+    reported_words = result.get('word_count', result.get('spoken_words'))
     print(f"Duration: {result.get('duration_minutes', result.get('duration_seconds', 0))} minutes")
     print(f'Ledger cost: ${cost:.5f}')
     print(f'Wall time: {wall:.2f}s')
@@ -118,6 +118,9 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
         text = ' '.join(str(row.get('text') or '') for row in daily.get('briefing_script', [])
                         if isinstance(row, dict))
         print('Audio: not rendered by this editorial script check')
+    if not isinstance(reported_words, int) or reported_words <= 0:
+        reported_words = _words(text)
+    print(f'Word count: {reported_words}')
     print('\nScript:\n' + str(text).strip())
     if wall > 355:
         print('\nRuntime diagnosis: this exceeded the six-minute reader budget.')
