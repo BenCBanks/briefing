@@ -16,7 +16,11 @@ const savedStory = edition.sections[0].id;
 async function capture(page, name) {
   if (!process.env.BRIEFING_SHOT_DIR) return;
   fs.mkdirSync(process.env.BRIEFING_SHOT_DIR, { recursive: true });
-  await page.screenshot({ path: path.join(process.env.BRIEFING_SHOT_DIR, `${name}.png`) });
+  await page.evaluate(() => document.fonts.ready);
+  await page.locator('h1').click();
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.screenshot({ animations: 'disabled', caret: 'hide', path: path.join(process.env.BRIEFING_SHOT_DIR, `${name}.png`) });
 }
 async function expectSavedEmpty(page) {
   const empty = page.locator('.library-empty');
@@ -48,6 +52,11 @@ async function expectSavedEmpty(page) {
     await search.waitFor();
     assert.equal(await search.evaluate(input => getComputedStyle(input).fontSize), '16px', 'search input avoids mobile focus zoom');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'search fits the phone viewport');
+
+    await capture(page, 'earlier-editions-light');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await capture(page, 'earlier-editions-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
 
     await page.getByRole('button', { name: 'Saved', exact: true }).click();
     const savedRow = page.locator('.library-row').filter({ hasText: 'Confirm the payment before it moves' });

@@ -6,9 +6,10 @@ import { renderTopicDetail } from './topics/topic-detail.js';
 // Mica · episode pages and the API-backed request flow.
 import { renderEpisodeDeck, renderEpisodePage, hasCurrentEpisodeRecording } from './episodes/episodes.js';
 import { loadState, saveState, resetState, invalidateAudioProgress } from './storage.js';
-import { createPlayer, NARRATOR_KEY } from './player.js';
+import { NARRATOR_KEY } from './player.js';
+import { createAppPlayer } from './player/integration.js';
 import { audioScriptText } from './audio-script.js';
-import { createPauseIcon, createPlayIcon } from './ui-icons.js';
+import { createPlayIcon } from './ui-icons.js';
 import { interpretProfile } from './interests/provider.js';
 import { defaultProfile } from './interests/profile.js';
 import { deriveInterestBrief } from './interests/brief.js';
@@ -20,6 +21,8 @@ import { clearProfile, getProfile, saveProfile, syncProfile } from './interests/
 import { renderCorrections } from './corrections/corrections.js';
 import { renderTopicsScreen } from './screens/topics.js';
 import { renderOnDemandScreen, episodeTopicSuggestions } from './screens/on-demand.js';
+import { renderTodayScreen } from './screens/today.js';
+import { renderEarlierScreen } from './screens/earlier.js';
 
 const app = document.querySelector('#app');
 const content = document.querySelector('#content');
@@ -181,9 +184,6 @@ let pendingTranscriptPlacement = null;
 let transcriptReturnTo = null;
 let transcriptReturnHash = null;
 let pendingPlayerReturnFocus = false;
-let followAudio = true;
-let autoFollowingAudio = false;
-let followAudioItemId = null;
 let pendingReturnHeadingFocus = false;
 let readingObserver = null;
 let pendingRouteContext = null;
@@ -192,8 +192,6 @@ const rootScroll = new Map();
 let libraryFilter = ['saved', 'episodes'].includes(sessionStorage.getItem('briefing:library-filter')) ? sessionStorage.getItem('briefing:library-filter') : 'editions';
 let librarySearchQuery = '';
 const EDITION_MODE_KEY = 'briefing:v1:edition-mode';
-const PLAY_ICON = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><path d="M7 4.5v15a1 1 0 0 0 1.5.9l12-7.5a1 1 0 0 0 0-1.8l-12-7.5A1 1 0 0 0 7 4.5Z"/></svg>';
-const PAUSE_ICON = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="currentColor"><rect x="6" y="4" width="4.5" height="16" rx="1.2"/><rect x="13.5" y="4" width="4.5" height="16" rx="1.2"/></svg>';
 
 function getEditionMode(id) {
   try {
@@ -210,209 +208,18 @@ function rememberEditionMode(id, mode) {
   } catch { /* The current view still works if local storage is unavailable. */ }
 }
 
-const player = createPlayer(document.querySelector('#player-root'), (id, seconds, revisionId, chapterId = null) => {
-  state.progress[id] = { seconds, revisionId, ...(chapterId ? { chapterId } : {}) };
-  state = saveState(state);
-}, id => ({ ...(state.progress[id] || {}), ...(state.readingProgress[id] || {}) }), () => {
-  const item = player.item;
-  const selection = item ? { id: item.id, revisionId: item.revision_id } : null;
-  if (!showingCachedPack && (state.activeAudio?.id !== selection?.id || state.activeAudio?.revisionId !== selection?.revisionId)) {
-    state.activeAudio = selection;
-    state = saveState(state);
-  }
-  document.querySelectorAll('[data-audio-action]').forEach(button => {
-    if (button.matches('[data-listen-control], [data-story-play]')) return;
-    const active = button.dataset.audioAction === player.item?.id;
-    button.textContent = active ? player.label : button.dataset.audioDefault;
-  });
-  syncListeningControls();
-  document.body.classList.toggle('has-player', Boolean(player.item && player.available && player.status === 'playing'));
-  refreshListenControls();
-  syncAudioVerification();
-}, openTranscript, transcriptLabel, (item, chapterId) => signalForItem('replay', item, chapterId));
-
-function syncAudioVerification() {
-  for (const button of content.querySelectorAll('[data-listen-control], [data-listen-item], [data-audio-action]')) {
-    if (showingCachedPack) {
-      button.dataset.checkingAudio = 'true';
-      button.disabled = true;
-      button.setAttribute('aria-label', 'Checking audio for updates');
-      const label = button.querySelector('.mode-label'); if (label) label.textContent = 'Checking audio';
-    } else if (button.dataset.checkingAudio) {
-      delete button.dataset.checkingAudio;
-      if (!button.hasAttribute('data-listen-control')) button.disabled = false;
-    }
-  }
-}
-
-function listeningAvailable() {
-  return Boolean(window.speechSynthesis && typeof window.speechSynthesis.speak === 'function' && window.SpeechSynthesisUtterance);
-}
-function formatElapsed(seconds) {
-  const value = Math.max(0, Math.floor(Number(seconds) || 0));
-  return `${Math.floor(value / 60)}:${String(value % 60).padStart(2, '0')}`;
-}
-function listenControlLabel(edition) {
-  if (hasMaterialCorrection(edition) || invalidatedEditionAudio.has(edition?.id)) return 'Audio paused';
-  const same = player.item?.id === edition?.id && player.item?.revision_id === edition?.revision_id;
-  if (same && player.status === 'playing') return 'Pause';
-  if (same && player.status === 'complete') return 'Replay';
-  if (same && player.status === 'error') return 'Retry';
-  if (same && player.status === 'paused') return `Resume · ${formatElapsed(state.progress[edition.id]?.seconds)} in`;
-  const progress = state.progress[edition?.id];
-  if (state.activeAudio?.id === edition?.id && progress?.revisionId === edition?.revision_id && progress.seconds > 0) {
-    return `Resume · ${formatElapsed(progress.seconds)} in`;
-  }
-  return 'Listen';
-}
-function syncListeningControls() {
-  if (!pack) return;
-  for (const button of document.querySelectorAll('[data-listen-control]')) {
-    const edition = pack.editions.find(item => item.id === button.dataset.editionId && item.revision_id === button.dataset.revisionId);
-    if (!edition || button.dataset.listenControl === 'edition') {
-      if (edition && button.dataset.listenControl === 'edition') {
-        const label = listenControlLabel(edition);
-        const spokenEstimate = button.dataset.listenEstimate?.replace(/^(\d+)\s+min$/, (_match, minutes) =>
-          `${minutes} ${minutes === '1' ? 'minute' : 'minutes'}`) || '';
-        const audioPaused = label === 'Audio paused';
-        const same = player.item?.id === edition.id && player.item?.revision_id === edition.revision_id;
-        const detail = audioPaused ? 'Audio paused'
-          : same && ['playing', 'paused'].includes(player.status) ? `Resume ${formatElapsed(state.progress[edition.id]?.seconds)}` : button.dataset.listenEstimate;
-        const labelNode = button.querySelector('.mode-label');
-        const detailNode = button.querySelector('small');
-        if (labelNode) labelNode.textContent = button.classList.contains('today-listen-pill') ? same && player.status === 'playing' ? 'Playing · tap to pause' : label === 'Listen' ? `Play${button.dataset.durationLabel || ''}` : label : 'Listen';
-        if (detailNode) detailNode.textContent = detail;
-        const icon = button.querySelector('.mode-icon');
-        if (icon) icon.innerHTML = same && player.status === 'playing' ? PAUSE_ICON : PLAY_ICON;
-        button.disabled = audioPaused;
-        button.classList.toggle('is-disabled', audioPaused);
-        button.setAttribute('aria-label', label === 'Listen' ? `Play today's briefing${spokenEstimate ? `, about ${spokenEstimate}` : ''}` : `${label} today's briefing`);
-      }
-      continue;
-    }
-    const section = edition.sections.find(item => item.id === button.dataset.sectionId);
-    const label = listenControlLabel(edition);
-    const same = player.item?.id === edition.id && player.item?.revision_id === edition.revision_id;
-    const isPlaying = same && player.status === 'playing' && (!player.item.start_section_id || player.item.start_section_id === section?.id);
-    const text = isPlaying ? 'Pause' : label === 'Listen' ? button.classList.contains('weekly-listen') ? 'Listen' : 'Listen from here' : label;
-    const labelNode = button.querySelector('.story-listen-label');
-    const icon = button.querySelector('.story-listen-icon');
-    if (labelNode) labelNode.textContent = text;
-    if (icon) icon.innerHTML = isPlaying ? PAUSE_ICON : PLAY_ICON;
-    const estimate = button.dataset.listenEstimate;
-    const detailNode = button.querySelector('small');
-    if (detailNode) detailNode.textContent = label === 'Audio paused' ? 'One story was corrected. The text is updated.' : isPlaying ? '· Listening now' : `· ${estimate}`;
-    button.disabled = label === 'Audio paused';
-    button.classList.toggle('is-disabled', button.disabled);
-    button.setAttribute('aria-label', `${text}, ${isPlaying ? 'listening now' : estimate.replace(/ min$/, ' minutes')}`);
-  }
-  for (const button of document.querySelectorAll('[data-story-play]')) {
-    const edition = pack.editions.find(item => item.id === button.dataset.editionId && item.revision_id === button.dataset.revisionId);
-    const section = edition?.sections.find(item => item.id === button.dataset.sectionId);
-    if (!edition || !section) continue;
-    const sameEdition = player.item?.id === edition.id && player.item?.revision_id === edition.revision_id;
-    const activeSectionId = player.item?.start_section_id || state.progress[edition.id]?.chapterId;
-    const isPlaying = sameEdition && player.status === 'playing' && activeSectionId === section.id;
-    const audioPaused = invalidatedEditionAudio.has(edition.id) || hasMaterialCorrection(edition);
-    const shape = button.querySelector('.story-row-play-circle');
-    if (shape) shape.innerHTML = isPlaying ? PAUSE_ICON : PLAY_ICON;
-    button.disabled = Boolean(audioPaused);
-    button.classList.toggle('is-disabled', Boolean(audioPaused));
-    button.setAttribute('aria-pressed', String(isPlaying));
-    button.setAttribute('aria-label', audioPaused ? 'Audio paused. One story was corrected. The text is updated.' : `${isPlaying ? 'Pause' : 'Listen to'} ${section.heading}, ${isPlaying ? 'playing' : button.dataset.listenEstimate.replace(/ min$/, ' minutes')}`);
-    const stateNode = document.querySelector(`[data-audio-state-for="${CSS.escape(section.id)}"]`);
-    if (stateNode) stateNode.textContent = isPlaying ? 'Playing' : '';
-  }
-}
-function startEditionListening(edition) {
-  edition = withNarrationTopics(readableEdition(edition));
-  if (player.item?.id === edition.id && player.item?.revision_id === edition.revision_id) player.play(edition);
-  else if (player.listen) player.listen(edition, { fromParagraph: 0 });
-  else player.play(edition);
-}
-function startStoryListening(item, options = {}) {
-  item = withNarrationTopics(readableEdition(item));
-  if (player.item?.id === item.id && player.item?.revision_id === item.revision_id &&
-      player.item?.start_section_id === item.start_section_id && player.status === 'playing') {
-    const toggleItem = { ...item };
-    delete toggleItem.start_section_id;
-    player.play(toggleItem);
-  } else if (player.listen) player.listen(item, options);
-  else player.play(item);
-}
-function startRowListening(edition, sectionId) {
-  const item = { ...withNarrationTopics(readableEdition(edition)), start_section_id: sectionId };
-  const activeSectionId = player.item?.start_section_id || state.progress[edition.id]?.chapterId;
-  if (player.item?.id === edition.id && player.item?.revision_id === edition.revision_id && activeSectionId === sectionId) {
-    player.play(edition);
-  } else if (player.listen) player.listen(item, { fromParagraph: 0 });
-  else player.play(item);
-}
-function withNarrationTopics(item) {
-  if (!item || item.narrationTopics) return item;
-  const ids = new Set((item.sections || []).flatMap(section => section.topic_ids || []));
-  if (item.topic_id) ids.add(item.topic_id);
-  return { ...item, storyCount: item.sections?.length || 0, narrationTopics: [...ids].map(id => pack?.topics.find(topic => topic.id === id)?.label).filter(Boolean) };
-}
-function readableEdition(item) {
-  if (!item) return item;
-  const sections = visibleSections(item).filter(section => section.kind !== 'link');
-  return { ...item, sections, storyCount: sections.length };
-}
-
-player.onPositionChange(place => {
-  if (!place.itemId || !place.storyId) return;
-  if (followAudioItemId !== place.itemId) { followAudioItemId = place.itemId; followAudio = true; }
-  state.readingProgress[place.itemId] = { storyId: place.storyId, paragraphIndex: place.paragraphIndex, mode: place.mode, updatedAt: place.updatedAt, revisionId: place.revisionId };
-  state = saveState(state);
-  // Today stays where the reader left it; Read along explicitly follows audio.
-  if (place.mode !== 'listen' || (location.hash || '#today') === '#today') return;
-  content.querySelectorAll('.spoken-paragraph').forEach(paragraph => paragraph.classList.remove('spoken-paragraph'));
-  const section = content.querySelector(`#${CSS.escape(place.storyId)}`);
-  const paragraph = paragraphAt(section, place.paragraphIndex);
-  if (!paragraph) return;
-  revealStoryMore(paragraph);
-  paragraph.classList.add('spoken-paragraph');
-  let chip = content.querySelector('.back-to-audio');
-  if (!chip) {
-    chip = node('button', 'Back to audio', 'back-to-audio');
-    chip.addEventListener('click', () => { followAudio = true; chip.hidden = true; paragraph.scrollIntoView({ behavior: 'instant', block: 'center' }); });
-    content.prepend(chip);
-  }
-  chip.hidden = followAudio;
-  if (followAudio) {
-    autoFollowingAudio = true;
-    paragraph.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
-    setTimeout(() => { autoFollowingAudio = false; }, 300);
-  }
+const playerIntegration = createAppPlayer({
+  root: document.querySelector('#player-root'), content, node,
+  getState: () => state, setState: value => { state = value; }, saveState,
+  getPack: () => pack, getShowingCachedPack: () => showingCachedPack,
+  openTranscript, transcriptLabel, signalForItem, hasMaterialCorrection,
+  invalidatedEditionAudio, visibleSections, paragraphAt, revealStoryMore,
 });
-window.addEventListener('scroll', () => {
-  if (autoFollowingAudio || player.status !== 'playing') return;
-  followAudio = false;
-  const chip = content.querySelector('.back-to-audio');
-  if (chip) chip.hidden = false;
-}, { passive: true });
-
-// Mica · pass 010: keep Topics, Library, explanation and weekly Listen controls in sync with Tern's player.
-function refreshListenControls() {
-  const current = player.item;
-  for (const button of content.querySelectorAll('[data-listen-item]')) {
-    const active = current?.id === button.dataset.listenItem && current?.revision_id === button.dataset.listenRevision;
-    const playing = active && player.status === 'playing';
-    const paused = active && player.status === 'paused';
-    const title = button.dataset.listenTitle || 'this item';
-    const estimate = button.dataset.listenEstimate || 'about 1';
-    const status = playing ? 'Playing' : paused ? 'Paused' : '';
-    button.setAttribute('aria-pressed', String(Boolean(playing)));
-    button.setAttribute('aria-label', playing ? `Pause ${title}` : paused ? `Resume ${title}` : `Listen to ${title}, ${estimate} minutes`);
-    const oldIcon = button.querySelector('svg.icon-play,svg.icon-pause');
-    if (oldIcon) oldIcon.replaceWith(playing ? createPauseIcon(oldIcon.getAttribute('width') || 14) : createPlayIcon(oldIcon.getAttribute('width') || 14));
-    const copy = button.querySelector('.listen-control-copy');
-    if (copy) copy.textContent = `${playing ? 'Pause' : paused ? 'Resume' : 'Listen'} · ${estimate} min`;
-    const statusText = button.parentElement?.querySelector('.topic-listen-status,.library-listen-status') || button.querySelector('.listen-control-status');
-    if (statusText && statusText.textContent !== status) statusText.textContent = status;
-  }
-}
+const {
+  player, syncAudioVerification, listeningAvailable, formatElapsed, listenControlLabel,
+  syncListeningControls, startEditionListening, startStoryListening, startRowListening,
+  withNarrationTopics, readableEdition, refreshListenControls,
+} = playerIntegration;
 
 function node(tag, text, className) {
   const el = document.createElement(tag);
@@ -1465,185 +1272,6 @@ function startTodayBuildAfterStatusCheck(profile, panel) {
   })();
 }
 
-function renderTodayPage() {
-  const expectedProfile = interestProfile;
-  if (pendingTopicsUpdate()) {
-    const panel = node('section', null, 'today-build-progress');
-    panel.append(node('h1', buildInProgress ? 'Updating… about a minute' : 'Your briefing needs an update'));
-    if (buildInProgress) {
-      panel.append(todayListSkeleton());
-    } else panel.append(link('Update my briefing', '#topics', 'button-link'));
-    content.append(panel); return;
-  }
-  const builtFor = localStorage.getItem('briefing:v1:built-profile-key');
-  const expectedProfileKey = expectedProfile ? profileBuildKey(expectedProfile) : null;
-  const welcomeProfileKey = sessionStorage.getItem(FIRST_EDITION_WELCOME_KEY);
-  const profileMatches = expectedProfile && builtFor === expectedProfileKey;
-  const isGeneralFallback = Boolean(expectedProfile && localStorage.getItem(BUILD_GENERAL_FALLBACK_KEY) === expectedProfileKey);
-  const candidateEdition = currentEdition('daily');
-  let edition = expectedProfile ? (profileMatches && candidateEdition?.generated === true ? candidateEdition : null) : candidateEdition;
-  const firstEditionWelcome = Boolean(welcomeProfileKey && welcomeProfileKey === expectedProfileKey && edition?.generated === true);
-  let showUnfilteredGeneralFallback = false;
-  if (isGeneralFallback && edition?.generated === true) {
-    const matchedEdition = filterGeneralEditionForProfile(edition, expectedProfile);
-    if (matchedEdition.sections.length) edition = matchedEdition;
-    else showUnfilteredGeneralFallback = true;
-  }
-  if (!edition) {
-    if (expectedProfile && !buildNotice) {
-      if (buildInProgress) {
-        const panel = node('section', null, 'today-build-progress');
-        panel.setAttribute('role', 'status');
-        panel.append(node('h1', 'Your first briefing is being written'), node('p', 'It’s usually ready in a few minutes. You can leave this page; it will appear when ready.'));
-        const steps = node('ol', null, 'today-preparing-steps');
-        for (const label of ['Finding stories', 'Reading sources', 'Writing your briefing']) steps.append(node('li', label));
-        panel.append(steps);
-        content.append(panel);
-        return;
-      }
-      const panel = node('section', null, 'today-service-check');
-      panel.setAttribute('role', 'status');
-      panel.append(node('p', 'Checking today’s briefing status…'));
-      content.append(panel);
-      startTodayBuildAfterStatusCheck(expectedProfile, panel);
-      return;
-    }
-    if (buildNotice && expectedProfile) {
-      const panel = node('section', null, 'today-build-error');
-      panel.append(node('h1', 'Today’s stories did not load'));
-      const retry = node('button', 'Retry', 'primary'); retry.type = 'button';
-      retry.addEventListener('click', () => {
-        buildNotice = ''; sessionStorage.removeItem('briefing:build-error');
-        const firstRun = localStorage.getItem('briefing:v1:built-profile-key') !== profileBuildKey(expectedProfile);
-        navigate('#interests/build', { root: 'today', parentHash: '#today', firstRun: true });
-        if (firstRun) writeFirstRunBuild(expectedProfile);
-        void startBuildGeneration(expectedProfile, null, { firstRun });
-      });
-      panel.append(retry); content.append(panel);
-      renderNoStoryExplanations(panel, expectedProfile);
-      return;
-    }
-    if (expectedProfile) {
-      const panel = node('section', null, 'today-no-stories');
-      panel.append(node('h1', 'Nothing new today'), node('p', `Nothing new today on ${profileTopicNames(expectedProfile)}. Your next briefing is tomorrow morning.`));
-      const edit = link('Edit', '#interests', 'button-link'); panel.append(edit);
-      renderNoStoryExplanations(panel, expectedProfile); content.append(panel); return;
-    }
-    return renderMissing();
-  }
-  if (isGeneralFallback && edition && !edition.sections.length) {
-    const empty = node('section', null, 'today-no-stories');
-    empty.append(node('h1', 'Nothing new today'));
-    const note = node('p', BUILD_GENERAL_FALLBACK_NOTE, 'today-general-fallback-note'); note.setAttribute('role', 'status'); empty.append(note);
-    empty.append(node('p', `Nothing new today on ${profileTopicNames(expectedProfile)}. Your next briefing is tomorrow morning.`));
-    const built = node('p', null, 'built-from-words'); built.append(document.createTextNode('Built from your words · '), link('Edit', '#interests', 'built-from-edit')); empty.append(built);
-    renderNoStoryExplanations(empty, expectedProfile); content.append(empty); return;
-  }
-  const weekly = currentEdition('weekly');
-  const weeklyForToday = edition.generated === true ? (weekly?.generated === true ? weekly : null) : (interestProfile ? null : weekly);
-  const nextWeekly = weekly?.week_start ? (() => {
-    const date = new Date(`${weekly.week_start}T12:00:00Z`);
-    date.setUTCDate(date.getUTCDate() + 13);
-    return new Intl.DateTimeFormat('en-US', { weekday: 'long', month: 'long', day: 'numeric', timeZone: 'UTC' }).format(date);
-  })() : 'Sunday';
-  const body = node('div'); content.append(body);
-  const todayTopics = [...pack.topics.map(topic => {
-    const preference = interestProfile?.topics?.find(item => item.id === topic.id);
-    return preference ? { ...topic, label: buildChipLabel(preference), scope: preference.scope } : topic;
-  }), ...(interestProfile?.topics || []).filter(preference => !pack.topics.some(topic => topic.id === preference.id))
-    .map(preference => ({ ...preference, label: buildChipLabel(preference) }))];
-  const feedbackTopicId = section => interestProfile?.topics.find(topic => section.topic_ids?.includes(topic.id))?.id || topicIdFor(edition, section.id);
-  renderToday(body, edition, todayTopics, {
-    timezone: state.timezone,
-    justUpdated: editionJustUpdatedAt > 0 && Date.now() - editionJustUpdatedAt < 60_000,
-    firstEditionWelcome,
-    followedTopicCount: interestProfile?.topics?.length ?? state.selectedIds.length,
-    save: (id, revision) => toggleSave(id, revision, false),
-    isSaved: id => state.savedIds.includes(id),
-    feedback: (id, value) => { state.feedback[id] = value; state = saveState(state); },
-    getFeedback: id => state.feedback[id],
-    interestFeedback: (type, section) => recordSignal(type, section.id, feedbackTopicId(section)),
-    getInterestFeedback: section => signalEvents().filter(event => event.storyId === section.id && event.topicId === feedbackTopicId(section) && ['more', 'less'].includes(event.type)).at(-1)?.type || null,
-    weekly: weeklyForToday,
-    nextWeekly,
-    nextBriefingTime: dailyTimeValue(),
-    sources: pack.sources,
-    openSource,
-    openEpisodeRequest: () => navigate('#ask-episode', { root: 'today', parentHash: '#today', parentScroll: window.scrollY,
-      parentFocus: { type: 'href', id: '#ask-episode' } }),
-    // A generated edition has already been matched to the exact profile key above.
-    // Its sections are the build result, so don't narrow them a second time using
-    // today's topic preferences (which may have come from an older browser save).
-    profile: (edition.generated === true && profileMatches) || showUnfilteredGeneralFallback ? null : interestProfile,
-    lastMode: getEditionMode(edition.id),
-    listeningAvailable: listeningAvailable(),
-    listenEstimate: listenEstimateWithUnit,
-    listenState: item => {
-      const label = listenControlLabel(item);
-      const estimate = listenEstimate(visibleSections(item).filter(section => section.kind !== 'link').map(section => `${section.heading} ${section.body || ''}`).join(' '));
-      const resume = label === 'Pause' ? formatElapsed(state.progress[item.id]?.seconds)
-        : label.startsWith('Resume') ? label.replace(/^Resume\s*[·]?\s*/, '').replace(/\s+in$/, '') : '';
-      const detail = label === 'Audio paused' ? 'Audio paused' : resume ? `Resume ${resume}` : `${estimate} min`;
-      return { label, detail, ariaLabel: `${label} today's briefing${label === 'Listen' ? `, ${estimate} minutes` : ''}` };
-    },
-    rememberMode: rememberEditionMode,
-    todayIsWeekend: /^(Sat|Sun)$/.test(new Intl.DateTimeFormat('en-US', { weekday: 'short', timeZone: state.timezone }).format(new Date())),
-    listenEdition: item => { if (!invalidatedEditionAudio.has(item.id)) startEditionListening(item); },
-    listenStory: sectionId => { if (!invalidatedEditionAudio.has(edition.id)) startRowListening(edition, sectionId); },
-    isRead: (id, sectionId, revision) => {
-      const place = state.readingProgress[id];
-      if (place?.revisionId !== revision) return false;
-      const sections = visibleSections(edition).filter(section => section.kind !== 'link');
-      const currentIndex = sections.findIndex(item => item.id === place.storyId);
-      const rowIndex = sections.findIndex(item => item.id === sectionId);
-      return state.finishedIds.includes(`${id}:${revision}`) || (currentIndex >= 0 && rowIndex >= 0 && rowIndex < currentIndex);
-    },
-    readingPlace: (id, revision) => {
-      const place = state.readingProgress[id];
-      return place?.revisionId === revision ? place.storyId : null;
-    },
-    openReader: sectionId => {
-      const hash = `#edition/daily/${encodeURIComponent(edition.id)}/${encodeURIComponent(sectionId || firstReadableSection(edition)?.id || '')}`;
-      navigate(hash, { root: 'today', parentHash: '#today', parentScroll: window.scrollY, parentFocus: focusToken(), sectionId });
-    },
-    openBriefing: (editionId, sectionId, opener) => {
-      const hash = `#edition/daily/${encodeURIComponent(editionId)}/${encodeURIComponent(sectionId)}`;
-      navigate(hash, { root: 'today', parentHash: '#today', parentScroll: window.scrollY,
-        parentFocus: { type: 'href', id: opener?.getAttribute('href') || hash }, sectionId });
-    },
-    openWeekly: opener => navigate('#weekly', { root: 'today', parentHash: '#today', parentScroll: window.scrollY,
-      parentFocus: focusToken() || { type: 'href', id: opener?.getAttribute('href') || '#weekly' } }),
-  });
-  player.offer(withNarrationTopics(readableEdition(personalized(edition))));
-  if (!showingCachedPack && cachedPackIdentity !== pack) {
-    writeEditionCache(cacheIdentity(), pack);
-    cachedPackIdentity = pack;
-  }
-  const article = body.querySelector('.today-page');
-  if (article) {
-    void refreshTodayRunSummary(edition, article);
-    if (article.querySelector('.today-contents li')) void markDailyEditionSeen(edition);
-    if (isGeneralFallback) {
-      const note = node('p', BUILD_GENERAL_FALLBACK_NOTE, 'today-general-fallback-note'); note.setAttribute('role', 'status');
-      const title = article.querySelector('h1');
-      if (title) title.after(note); else article.prepend(note);
-    } else if (buildNotice) {
-      const notice = node('p', null, 'today-build-error-line'); notice.setAttribute('role', 'status');
-      notice.append(document.createTextNode('Today’s stories did not load · '));
-      const retry = node('button', 'Retry', 'today-build-retry'); retry.type = 'button';
-      retry.addEventListener('click', () => { buildNotice = ''; sessionStorage.removeItem('briefing:build-error'); navigate('#interests/build', { root: 'today', parentHash: '#today', firstRun: true }); void startBuildGeneration(expectedProfile); });
-      notice.append(retry); article.prepend(notice);
-    }
-    if (!article.querySelector('.today-contents li')) {
-      body.replaceChildren();
-      const empty = node('section', null, 'today-no-stories');
-      empty.append(node('h1', 'Nothing new today'), node('p', `Nothing new today on ${profileTopicNames(expectedProfile)}. Your next briefing is tomorrow morning.`));
-      if (isGeneralFallback) { const title = empty.querySelector('h1'); const note = node('p', BUILD_GENERAL_FALLBACK_NOTE, 'today-general-fallback-note'); note.setAttribute('role', 'status'); title?.after(note); }
-      renderNoStoryExplanations(empty, expectedProfile); body.append(empty);
-    }
-  }
-  if (body.querySelector('.today-welcome-note')) sessionStorage.removeItem(FIRST_EDITION_WELCOME_KEY);
-}
 
 function markDailyEditionSeen(edition) {
   if (edition?.kind !== 'daily' || edition.generated !== true ||
@@ -2939,256 +2567,6 @@ function renderPreferences() {
   content.append(node('hr', null, 'rule'), reset, node('p', 'Reset clears local choices, saves and listening progress. It does not affect another device.', 'local-note'));
 }
 
-function renderLibrary() {
-  document.querySelector('[data-page-title]').textContent = '';
-  content.append(node('h1', 'Earlier'));
-  const editions = currentItems(pack.editions).filter(item => !(interestProfile && item.kind === 'weekly' && item.generated !== true));
-  const storySectionsFor = item => visibleSections(item).filter(part => part.kind !== 'link');
-  const storyCountFor = item => storySectionsFor(item).length;
-  const readingMinutesFor = item => Math.max(1, Math.ceil(storySectionsFor(item)
-    .reduce((count, part) => count + String(part.body || '').split(/\s+/).filter(Boolean).length, 0) / 225));
-  const latestRecap = editions.filter(item => item.kind === 'weekly').sort((a, b) => revisionDate(b).localeCompare(revisionDate(a)))[0];
-  let recapCard = null;
-  if (latestRecap) {
-    const recapHash = `#edition/weekly/${encodeURIComponent(latestRecap.id)}`;
-    recapCard = link('', recapHash, 'earlier-weekly-card');
-    const range = editionDateRange(latestRecap).replace('–', '-');
-    recapCard.append(node('strong', 'Weekly recap'));
-    recapCard.append(node('span', `${range} · ${storyCountFor(latestRecap)} stories · ${readingMinutesFor(latestRecap)} min read`, 'library-date-meta'));
-    recapCard.append(node('span', 'Open recap →', 'earlier-weekly-card-action'));
-    if (hasMaterialCorrection(latestRecap)) recapCard.append(node('span', 'Corrected', 'library-status-tag'));
-    recapCard.addEventListener('click', event => {
-      event.preventDefault();
-      navigate(recapHash, { root: 'library', parentHash: '#library', parentScroll: window.scrollY, parentFocus: { type: 'href', id: recapHash } });
-    });
-  }
-  const daily = dailyBriefings();
-
-  const historyStatus = interestProfile && !editionHistoryLoaded ? node('p', 'Loading earlier briefings…', 'library-history-status') : null;
-  if (historyStatus) historyStatus.setAttribute('role', 'status');
-  const briefingSection = node('section', null, 'library-briefings');
-  briefingSection.append(node('h2', 'Past editions'));
-  const briefingList = node('ul', null, 'library-briefing-list');
-  for (const edition of daily) {
-    const first = firstReadableSection(edition);
-    if (!first) continue;
-    const hash = `#edition/daily/${encodeURIComponent(edition.id)}/${encodeURIComponent(first.id)}`;
-    const row = node('li');
-    const itemLink = link(briefingDate(edition.local_date), hash, 'library-briefing-link');
-    itemLink.addEventListener('click', event => {
-      event.preventDefault();
-      navigate(hash, { root: 'library', parentHash: '#library', parentScroll: window.scrollY,
-        parentFocus: { type: 'href', id: hash }, sectionId: first.id, direct: false });
-    });
-    row.append(itemLink, node('p', `${storyCountFor(edition)} stories · ${readingMinutesFor(edition)} min read`, 'library-date-meta'));
-    if (hasMaterialCorrection(edition)) {
-      const corrected = link('Corrected', '#corrections', 'library-status-tag library-updated-link');
-      corrected.setAttribute('aria-label', `Corrected · view ${briefingDate(edition.local_date)} corrections`);
-      row.append(corrected);
-    }
-    briefingList.append(row);
-  }
-  if (!briefingList.children.length) briefingList.append(node('li', 'Nothing here yet. Editions appear after the first morning.', 'library-empty-briefings'));
-  briefingSection.append(briefingList);
-  const filters = node('div', null, 'library-filters');
-  const editionsTab = node('button', 'Editions'); editionsTab.type = 'button'; editionsTab.setAttribute('aria-pressed', String(libraryFilter === 'editions'));
-  const savedTab = node('button', 'Saved'); savedTab.type = 'button'; savedTab.setAttribute('aria-pressed', String(libraryFilter === 'saved'));
-  const episodesTab = node('button', 'Episodes'); episodesTab.type = 'button';
-  filters.setAttribute('role', 'group'); filters.setAttribute('aria-label', 'Earlier');
-  filters.append(editionsTab, episodesTab, savedTab); content.querySelector('h1').after(filters);
-  const search = node('input', null, 'library-search'); search.type = 'search'; search.value = librarySearchQuery;
-  search.setAttribute('aria-label', 'Search earlier briefings, saved items, and topics');
-  search.placeholder = 'Search earlier, saved, and topics';
-  filters.before(search);
-  const searchStatus = node('p', '', 'library-search-status'); searchStatus.setAttribute('role', 'status'); searchStatus.setAttribute('aria-live', 'polite'); searchStatus.hidden = true;
-  filters.after(searchStatus);
-  const section = node('section', null, 'library-results'); content.append(section);
-  const deepDives = currentItems(pack.deepDives);
-  const sectionLookup = new Map(editions.flatMap(edition => edition.sections.map(section => [section.id, { section, edition }])));
-  const addRow = (title, type, detail, hash, labels = [], listenItem = null, progress = '', estimateItem = listenItem, savedId = null) => {
-    const li = node('li', null, 'library-row');
-    li.append(node('span', type, 'library-kind-label'));
-    const mainRow = node('div', null, 'library-row-main');
-    const itemLink = link('', hash, 'library-item-link');
-    itemLink.append(node('span', title, 'library-item-title'));
-    itemLink.addEventListener('click', event => {
-      event.preventDefault();
-      const parent = { root: 'library', parentHash: '#library', parentScroll: window.scrollY,
-        parentFocus: { type: 'href', id: hash }, direct: false };
-      navigate(hash, parent);
-    });
-    mainRow.append(itemLink);
-    if (listenItem && canListen(listenItem)) {
-      const estimate = listenEstimate(estimateItem || listenItem);
-      const listenGroup = node('div', null, 'library-listen-group');
-      const listen = node('button', null, 'library-listen-button'); listen.type = 'button';
-      listen.dataset.listenItem = listenItem.id; listen.dataset.listenRevision = listenItem.revision_id;
-      listen.dataset.listenTitle = title; listen.dataset.listenEstimate = estimate;
-      listen.setAttribute('aria-label', `Listen to ${title}, ${estimate} minutes`); listen.setAttribute('aria-pressed', 'false');
-      listen.addEventListener('click', () => startListening(listenItem));
-      listen.append(createPlayIcon(14));
-      const status = node('span', '', 'library-listen-status'); status.setAttribute('aria-live', 'polite');
-      listenGroup.append(listen, status); mainRow.append(listenGroup);
-    }
-    li.append(mainRow);
-    const meta = node('div', null, 'library-row-meta');
-    meta.append(node('span', detail, 'library-row-detail'));
-    for (const label of labels) {
-      if (label === 'Updated') {
-        const badge = link('Updated', '#corrections', 'library-status-tag library-updated-link');
-        badge.setAttribute('aria-label', 'Updated · view corrections'); meta.append(badge);
-      } else meta.append(node('span', label, 'library-status-tag'));
-    }
-    if (progress) meta.append(node('span', progress, 'library-row-progress'));
-    if (savedId && state.savedIds.includes(savedId)) {
-      const remove = node('button', 'Remove', 'library-remove-saved'); remove.type = 'button';
-      remove.setAttribute('aria-label', `Remove ${title} from saved items`);
-      remove.addEventListener('click', () => { toggleSave(savedId, null, false); renderRows(); });
-      meta.append(remove);
-    }
-    li.append(meta); section.querySelector('.library-list').append(li);
-  };
-  const renderSearchResults = list => {
-    const query = librarySearchQuery.trim().toLocaleLowerCase();
-    const matches = value => String(value || '').toLocaleLowerCase().includes(query);
-    const savedOnly = libraryFilter === 'saved';
-    let count = 0;
-    const searchEditions = [...new Map([...editions, ...daily].map(item => [item.id, item])).values()];
-    for (const edition of searchEditions) {
-      const date = edition.kind === 'weekly' ? editionDateRange(edition) : displayDate(edition.local_date);
-      const editionSaved = state.savedIds.includes(edition.id);
-      if (matches(`${edition.title || ''} ${date} ${edition.kind}`) && (!savedOnly || editionSaved)) {
-        const hash = `#edition/${encodeURIComponent(edition.kind)}/${encodeURIComponent(edition.id)}`;
-        addRow(edition.title || `${edition.kind === 'weekly' ? 'Weekly recap' : 'Daily briefing'} · ${date}`,
-          edition.kind === 'weekly' ? 'Weekly recap' : 'Daily edition', `${date} · ${readingMinutesFor(edition)} min read`, hash,
-          [], null, '', null, editionSaved ? edition.id : null);
-        count++;
-      }
-      for (const part of visibleSections(edition)) {
-        const saved = state.savedIds.includes(part.id);
-        if (!matches(`${part.heading || ''} ${part.headline || ''} ${part.body || ''} ${date} ${edition.title || ''}`) || (savedOnly && !saved)) continue;
-        const hash = `#edition/${encodeURIComponent(edition.kind)}/${encodeURIComponent(edition.id)}/${encodeURIComponent(part.id)}`;
-        const readMinutes = Math.max(1, Math.ceil(String(part.body || '').split(/\s+/).filter(Boolean).length / 225));
-        addRow(part.headline || part.heading, saved ? 'Saved story' : 'Story', `${date} · ${readMinutes} min read`, hash,
-          [], null, '', null, saved ? part.id : null);
-        count++;
-      }
-    }
-    for (const dive of deepDives) {
-      const saved = state.savedIds.includes(dive.id);
-      const topic = pack.topics.find(item => item.id === dive.topic_id);
-      if (!matches(`${dive.title} ${dive.summary || ''} ${topic?.label || ''}`) || (savedOnly && !saved)) continue;
-      addRow(dive.title, `${topic?.label || 'Topic'} explanation`, `${readingMinutesFor(dive)} min read · Reviewed ${displayDate(dive.reviewed_at)}`,
-        `#explanation/${encodeURIComponent(dive.id)}`, [], null, '', null, saved ? dive.id : null);
-      count++;
-    }
-    for (const topic of pack.topics) {
-      if (!matches(`${topic.label} ${topic.scope || ''} ${topic.description || ''}`)) continue;
-      addRow(topic.label, 'Topic', topic.scope || topic.description || 'Follow this topic', `#topic-detail/${encodeURIComponent(topic.id)}`);
-      count++;
-    }
-    searchStatus.textContent = count ? `${count} ${count === 1 ? 'result' : 'results'}` : `No matches for “${librarySearchQuery.trim()}”.`;
-    searchStatus.hidden = false;
-    if (!count) {
-      const empty = node('li', null, 'library-empty-search');
-      empty.append(node('h2', 'No matching briefings'));
-      empty.append(node('p', 'Try another search, or clear it to browse Earlier.'));
-      const clear = node('button', 'Clear search', 'library-empty-search-clear'); clear.type = 'button';
-      clear.addEventListener('click', () => { search.value = ''; librarySearchQuery = ''; renderRows(); search.focus(); });
-      empty.append(clear); list.append(empty);
-    }
-  };
-  const renderRows = () => {
-    const searching = Boolean(librarySearchQuery.trim());
-    section.classList.toggle('is-searching', searching);
-    searchStatus.hidden = !searching;
-    briefingSection.hidden = libraryFilter !== 'editions' || searching;
-    section.replaceChildren();
-    if (searching) {
-      const list = node('ul', null, 'library-list'); section.append(list);
-      renderSearchResults(list);
-      if (!browserCanSpeak()) section.append(node('p', "Listening isn't available in this browser", 'library-device-note'));
-      return;
-    }
-    if (libraryFilter === 'editions') {
-      if (historyStatus) section.append(historyStatus);
-      if (recapCard) section.append(recapCard);
-      section.append(briefingSection);
-    }
-    const list = node('ul', null, 'library-list'); section.append(list);
-    if (libraryFilter === 'episodes') {
-      const cards = node('div', null, 'earlier-episodes'); section.append(cards);
-      void loadEpisodeCards(cards, null, null, { earlier: true });
-    } else if (libraryFilter === 'editions') {
-      const weeklyEditions = editions.filter(item => item.kind === 'weekly' && item.id !== latestRecap?.id).sort((a, b) => revisionDate(b).localeCompare(revisionDate(a)));
-
-      for (const edition of weeklyEditions) {
-        const date = edition.kind === 'weekly' ? editionDateRange(edition) : displayDate(edition.local_date);
-        const corrected = hasMaterialCorrection(edition);
-        const times = `${readingMinutesFor(edition)} min read · ${listenEstimate(edition)} min listen`;
-        addRow(edition.title, edition.kind === 'weekly' ? 'Weekly recap' : 'Daily edition', `${date} · ${times}`, `#edition/${encodeURIComponent(edition.kind)}/${encodeURIComponent(edition.id)}`, corrected ? ['Corrected'] : [], edition, progressFor(edition), edition, state.savedIds.includes(edition.id) ? edition.id : null);
-      }
-    } else {
-      const savedEditions = editions.filter(item => state.savedIds.includes(item.id));
-      const savedDives = deepDives.filter(item => state.savedIds.includes(item.id));
-      const savedSections = state.savedIds.filter(id => sectionLookup.has(id));
-      if (!savedEditions.length && !savedDives.length && !savedSections.length) {
-        const empty = node('div', null, 'library-empty');
-        const browse = node('button', 'Browse editions', 'library-empty-action'); browse.type = 'button';
-        browse.addEventListener('click', () => { libraryFilter = 'editions'; sessionStorage.setItem('briefing:library-filter', libraryFilter); editionsTab.click(); });
-        empty.append(node('h2', 'Nothing saved yet'), node('p', 'Save a story or briefing to find it here.'), browse);
-        section.append(empty);
-      }
-      for (const edition of savedEditions) {
-        const date = edition.kind === 'weekly' ? editionDateRange(edition) : displayDate(edition.local_date);
-        const corrected = hasMaterialCorrection(edition);
-        const savedRevision = state.savedRevisions?.[edition.id];
-        const updated = savedRevision && savedRevision !== edition.revision_id;
-        const tags = [...(corrected ? ['Corrected'] : []), ...(updated ? ['Updated'] : [])];
-        const times = `${readingMinutesFor(edition)} min read · ${listenEstimate(edition)} min listen`;
-        addRow(edition.title, edition.kind === 'weekly' ? 'Weekly recap' : 'Daily edition', `${date} · ${times}`, `#edition/${encodeURIComponent(edition.kind)}/${encodeURIComponent(edition.id)}`, tags, edition, progressFor(edition), edition, edition.id);
-      }
-      for (const dive of savedDives) {
-        const topic = pack.topics.find(item => item.id === dive.topic_id);
-        addRow(dive.title, `${topic?.label || 'Topic'} explanation`, `${readingMinutesFor(dive)} min read · ${listenEstimate(dive)} min listen · Reviewed ${displayDate(dive.reviewed_at)}`, `#explanation/${encodeURIComponent(dive.id)}`, [], dive, progressFor(dive), dive, dive.id);
-      }
-      for (const id of savedSections) {
-        const match = sectionLookup.get(id);
-        const segment = { ...match.edition, sections: [match.section], start_section_id: match.section.id };
-        const playable = { ...match.edition, start_section_id: match.section.id };
-        const readMinutes = Math.max(1, Math.ceil(match.section.body.split(/\s+/).filter(Boolean).length / 225));
-        addRow(match.section.heading, 'Saved section', `${readMinutes} min read · ${listenEstimate(segment)} min listen`, `#edition/${encodeURIComponent(match.edition.kind)}/${encodeURIComponent(match.edition.id)}/${encodeURIComponent(id)}`, [], playable, progressFor(match.edition), segment, id);
-      }
-    }
-    if (libraryFilter === 'saved') section.append(node('p', 'Saved items stay on this device.', 'library-device-note'));
-    if (!browserCanSpeak()) section.append(node('p', "Listening isn't available in this browser", 'library-device-note'));
-  };
-  const progressFor = item => {
-    const listening = state.progress?.[item.id];
-    if (listening?.revisionId === item.revision_id && Number(listening.seconds) > 0) {
-      const seconds = Math.floor(Number(listening.seconds));
-      return `Listened ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
-    }
-    const place = state.readingProgress?.[item.id];
-    if (place?.revisionId === item.revision_id) {
-      const index = visibleSections(item).findIndex(part => part.id === (place.storyId || place.sectionId));
-      if (index >= 0) return `Read to story ${index + 1}`;
-    }
-    return state.finishedIds.includes(`${item.id}:${item.revision_id}`) ? 'Read' : '';
-  };
-  for (const [button, value] of [[editionsTab, 'editions'], [episodesTab, 'episodes'], [savedTab, 'saved']]) {
-    button.setAttribute('aria-pressed', String(libraryFilter === value));
-    button.addEventListener('click', () => { libraryFilter = value; sessionStorage.setItem('briefing:library-filter', value); filters.querySelectorAll('button').forEach(choice => choice.setAttribute('aria-pressed', String(choice === button))); renderRows(); });
-  }
-  search.addEventListener('input', () => { librarySearchQuery = search.value; renderRows(); });
-  search.addEventListener('keydown', event => {
-    if (event.key === 'Escape' && librarySearchQuery.trim()) {
-      event.preventDefault(); search.value = ''; librarySearchQuery = ''; renderRows();
-    }
-  });
-  renderRows();
-  if (historyStatus) void loadEditionHistory(historyStatus);
-}
 
 function revealStoryMore(target) {
   const more = target?.closest('.story-more'); if (!more) return; more.hidden = false;
@@ -3966,7 +3344,23 @@ function route() {
     else item.removeAttribute('aria-current');
   }
   if (episodeRoute) void renderEpisodeRoute(routeName);
-  else if (routeName === 'today' || !routeName) renderTodayPage();
+  else if (routeName === 'today' || !routeName) renderTodayScreen({
+    content, node, link, interestProfile, pendingTopicsUpdate, buildInProgress, todayListSkeleton,
+    getState: () => state, setState: value => { state = value; },
+    FIRST_EDITION_WELCOME_KEY, profileBuildKey, BUILD_GENERAL_FALLBACK_KEY,
+    currentEdition, filterGeneralEditionForProfile, buildNotice, setBuildNotice: value => { buildNotice = value; },
+    startTodayBuildAfterStatusCheck, startBuildGeneration, renderNoStoryExplanations,
+    profileTopicNames, BUILD_GENERAL_FALLBACK_NOTE, navigate, writeFirstRunBuild,
+    renderMissing, pack, localStorage, sessionStorage, editionJustUpdatedAt,
+    buildChipLabel, topicIdFor, toggleSave, saveState, recordSignal, signalEvents,
+    dailyTimeValue, openSource, player, getEditionMode, listeningAvailable, renderToday,
+    listenEstimateWithUnit, listenEstimate, listenControlLabel, formatElapsed,
+    invalidatedEditionAudio, startEditionListening, startRowListening, visibleSections,
+    firstReadableSection, focusToken, withNarrationTopics, personalized, readableEdition, rememberEditionMode,
+    cacheIdentity, writeEditionCache, showingCachedPack, getCachedPackIdentity: () => cachedPackIdentity,
+    setCachedPackIdentity: value => { cachedPackIdentity = value; },
+    refreshTodayRunSummary, markDailyEditionSeen,
+  });
   else if (routeName === 'ask-episode' || routeName === 'ask') renderEpisodeRequestPage();
   else if (routeName === 'episode-making') renderEpisodeMakingPage();
   else if (routeName === 'corrections') void renderCorrectionsPage();
@@ -3994,7 +3388,15 @@ function route() {
   else if (routeName === 'interests/confirm') renderInterestBuild();
   else if (routeName === 'preferences') renderPreferences();
   else if (routeName === 'interests') renderInterestsPage();
-  else if (routeName === 'library' || routeName === 'earlier') renderLibrary();
+  else if (routeName === 'library' || routeName === 'earlier') renderEarlierScreen({
+    content, node, link, currentItems, visibleSections, editionDateRange, hasMaterialCorrection,
+    getState: () => state, interestProfile, editionHistoryLoaded, pack, dailyBriefings, firstReadableSection,
+    revisionDate, briefingDate, displayDate,
+    getLibraryFilter: () => libraryFilter, setLibraryFilter: value => { libraryFilter = value; },
+    getLibrarySearchQuery: () => librarySearchQuery, setLibrarySearchQuery: value => { librarySearchQuery = value; },
+    loadEpisodeCards, canListen, listenEstimate, createPlayIcon, startListening, toggleSave,
+    browserCanSpeak, navigate, loadEditionHistory,
+  });
   else renderMissing();
   if (firstRunPending && firstRunRecoveryAvailable && ['today', 'interests/build'].includes(routeName)) {
     firstRunRecoveryAvailable = false;
