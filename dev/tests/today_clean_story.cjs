@@ -55,8 +55,8 @@ const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8932';
         sourceText: row.querySelector('.inline-story-sources')?.innerText || '',
         sourceLine: row.querySelector('.story-source-line > span')?.innerText.trim() || '',
         toggle: toggleState(row.querySelector('.story-more-toggle')),
-        topHeadline: host.querySelectorAll('.today-top-story-copy strong')[rows.indexOf(row)]?.innerText.trim() || '',
-        topHeadlineFits: (() => { const title = host.querySelectorAll('.today-top-story-copy strong')[rows.indexOf(row)]; return title.scrollHeight <= title.clientHeight + 1; })(),
+        topHeadline: host.querySelectorAll('.today-chapter-title')[rows.indexOf(row)]?.innerText.trim() || '',
+        topHeadlineFits: (() => { const title = host.querySelectorAll('.today-chapter-title')[rows.indexOf(row)]; return title.scrollHeight <= title.clientHeight + 1; })(),
         closedToggle: rows.indexOf(row) === 0 ? closedToggle : null,
       }));
     });

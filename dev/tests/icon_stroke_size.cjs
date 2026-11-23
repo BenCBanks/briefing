@@ -74,7 +74,8 @@ async function run() {
 
     await page.locator('[data-nav="today"]').click();
     await page.locator('.today-page').waitFor();
-    await page.locator('.today-story-row .story-row-link').first().click();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await page.locator('.today-full-story-link').first().click();
     await page.locator('body.is-reader .edition-section').waitFor();
     const storyListenIcon = page.locator('.story-listen-icon svg');
     await storyListenIcon.waitFor();

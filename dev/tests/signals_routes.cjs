@@ -13,13 +13,15 @@ async function run() {
     await page.goto(`${baseURL}/#today`, { waitUntil: 'networkidle' });
     await page.evaluate(() => localStorage.removeItem('briefing:v1:signals'));
     await page.setViewportSize({ width: 390, height: 300 });
-    await page.locator('.today-contents [data-read-section]').first().click();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await page.locator('.today-full-story-link').first().click();
     await page.locator('body.is-reader .edition-section').waitFor();
     await page.locator('.reader-back').click();
     await page.locator('.today-page').waitFor();
     assert.ok(await page.evaluate(() => JSON.parse(localStorage.getItem('briefing:v1:signals') || '[]').some(event => event.type === 'skip')), 'leaving before the second paragraph records skip');
     await page.setViewportSize({ width: 390, height: 844 });
-    await page.locator('.today-contents [data-read-section]').first().click();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await page.locator('.today-full-story-link').first().click();
     await page.locator('body.is-reader .edition-section').waitFor();
     await page.locator('[data-save-edition]').click();
     await page.locator('[data-source]').first().click();
@@ -38,7 +40,8 @@ async function run() {
     assert.ok(events.some(event => event.type === 'sourceOpen' && event.topicId === 'payments'), 'source opening keeps its story topic');
     assert.ok(events.some(event => event.type === 'explainOpen' && event.storyId === 'daily-payments-001'), 'explanation opening points back to its story');
 
-    await page.locator('.today-contents [data-read-section]').first().click();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await page.locator('.today-full-story-link').first().click();
     for (let index = 0; index < 4; index += 1) {
       await page.locator('body.is-reader .edition-section').waitFor();
       if (index < 3) await page.locator('.next-story').click();

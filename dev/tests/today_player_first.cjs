@@ -22,7 +22,7 @@ const shotDir = process.env.BRIEFING_SHOT_DIR;
       const sources = sections.map((section, index) => ({ id: section.source_ids[0], publisher: `Fictional Publisher ${index + 1}`, title: 'Fictional service notice', published_at: '2026-11-17', url: `https://publisher-${index}.example.test/notice` }));
       const edition = { id: 'fictional-player-day', revision_id: 'fictional-r1', kind: 'daily', local_date: '2026-11-18', audio: { duration_seconds: 240 }, sections, coverage: [{ topic_id: 'transit', state: 'covered' }, { topic_id: 'civic', state: 'covered' }] };
       window.__edition = edition; window.__sources = sources;
-      window.__renderToday = (available = true) => renderToday(document.querySelector('main'), edition, [], { sources, listeningAvailable: available, listenEdition: item => { window.__played = item.id; } });
+      window.__renderToday = (available = true) => renderToday(document.querySelector('main'), edition, [], { sources, listeningAvailable: available, listenEdition: item => { window.__played = item.id; }, listenStory: sectionId => { window.__chapterPlayed = sectionId; } });
       window.__renderToday(true);
     });
     await page.locator('.today-page').waitFor();
@@ -30,13 +30,14 @@ const shotDir = process.env.BRIEFING_SHOT_DIR;
     assert.match(await page.locator('.today-listen-pill').innerText(), /^Play/u);
     assert.equal(await page.locator('.today-primary .today-listen-pill').count(), 1);
     assert.equal(await page.locator('.today-transcript[open]').count(), 0, 'transcripts start collapsed per story');
-    assert.equal(await page.locator('.today-top-story-link').count(), 2, 'each story is a chapter');
+    assert.equal(await page.locator('.today-chapter-title').count(), 2, 'each story appears once as a chapter');
     await saveState(page, 'play');
     await page.locator('.today-listen-pill').click();
     assert.equal(await page.evaluate(() => window.__played), 'fictional-player-day', 'Play starts the edition player');
 
-    await page.locator('.today-top-story-link').nth(1).click();
-    assert.equal(await page.evaluate(() => document.activeElement.textContent.trim()), 'Council publishes a new service calendar', 'chapter jump focuses its story');
+    await page.locator('.today-chapter-title').nth(1).click();
+    assert.equal(await page.evaluate(() => window.__chapterPlayed), 'fictional-calendar', 'chapter tap starts playback from that story');
+    assert.equal(await page.evaluate(() => document.activeElement.classList.contains('today-chapter-title')), true, 'chapter tap focuses its title');
     await saveState(page, 'chapter-jump');
 
     await page.locator('.today-transcript').first().locator('summary').click();

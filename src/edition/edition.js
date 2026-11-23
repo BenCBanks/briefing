@@ -9,6 +9,7 @@ const todayDate = value => { const d = new Date(`${value}T12:00:00Z`); return Nu
 const date = value => { const d = new Date(`${value}T12:00:00Z`); return Number.isNaN(d.getTime()) ? value : new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(d); };
 const labels = { covered: 'Covered', update: 'Covered', context: 'Context', quiet: 'Covered', limited: 'Coverage limited' };
 const MORE_SECTIONS_KEY = 'briefing:story-more-open';
+const openTodayTranscripts = new Set();
 function moreSectionKey(edition, section) {
   return `${edition?.id || ''}:${edition?.revision_id || ''}:${section?.id || ''}`;
 }
@@ -276,13 +277,6 @@ export function renderQuickHits(container, approvedItems = []) {
   container.innerHTML = `<h2>Quick hits</h2><ul>${items.map(item => `<li><a href="${esc(safeExternalURL(item.url))}" target="_blank" rel="noopener noreferrer"><span>${esc(item.outlet || item.publisher)}</span><strong>${esc(quickHitHeadline(item.title || item.headline))}</strong></a></li>`).join('')}</ul>`;
 }
 
-function formattedBriefingTime(value) {
-  const match = String(value || '').match(/^([01]\d|2[0-3]):([0-5]\d)$/);
-  const hour = match ? Number(match[1]) : 5;
-  const minute = match ? match[2] : '00';
-  return `${hour % 12 || 12}:${minute} ${hour < 12 ? 'am' : 'pm'}`;
-}
-
 export function renderToday(container, edition, topics, actions = {}) {
   if (!edition?.sections?.length) { container.innerHTML = '<p>Today’s edition is unavailable.</p>'; return; }
   const topicById = new Map(topics.map(topic => [topic.id, topic]));
@@ -334,13 +328,13 @@ export function renderToday(container, edition, topics, actions = {}) {
   const storySections = stories.map(row => sections.find(section => section.id === row.section_id)).filter(section => section && section.kind !== 'link');
   const thin = edition.thin_day === true || storySections.length < 3;
   const audio = listenTime(edition.audio, actions.listeningAvailable === true);
-  const topStoryLinks = storySections.map((section, index) => {
-    const story = stories.find(item => item.section_id === section.id);
-    const label = topicLabel(story, topicById);
-    const title = plainSnippetText(section.headline || section.heading);
-    return `<li><a class="today-top-story-link" href="#story-${esc(section.id)}" data-jump-story="${esc(section.id)}"><span class="today-top-story-number">${index + 1}</span><span class="today-top-story-copy"><small>Chapter ${index + 1} · ${esc(label)}</small><strong>${esc(title)}</strong></span></a></li>`;
+  const rows = storySections.map((section, index) => {
+    const followedCount = actions.followedTopicCount ?? actions.profile?.topics?.length ?? topics.length;
+    const label = section.kicker_topic || topicLabel(stories.find(x => x.section_id === section.id), topicById);
+    const overline = followedCount > 1 ? `${section.kicker === 'Update:' ? 'Update: · ' : ''}${label}` : '';
+    const key = `${edition.id}:${edition.revision_id || ''}:${section.id}`;
+    return `<li class="today-story-row" id="story-${esc(section.id)}"><header class="v3-story-heading"><p class="today-chapter-kicker"><span class="today-chapter-number">${index + 1}</span>${overline ? ` · ${esc(overline)}` : ''}</p><h2 class="inline-story-heading"><button type="button" class="today-chapter-title" data-play-chapter="${esc(section.id)}" aria-label="Play from chapter ${index + 1}: ${esc(section.headline || section.heading)}">${esc(plainSnippetText(section.headline || section.heading))}</button></h2><button class="story-bookmark" data-bookmark="${esc(section.id)}" aria-label="Save story: ${esc(section.headline || section.heading)}" aria-pressed="${Boolean(actions.isSaved?.(section.id))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h12v17l-6-4.5-6 4.5z"/></svg></button></header><details class="today-transcript" data-transcript-story="${esc(section.id)}"${audio.available && !openTodayTranscripts.has(key) ? '' : ' open'}><summary>Transcript and sources</summary><div class="inline-story" data-inline-story="${esc(section.id)}"></div>${actions.openReader ? `<button type="button" class="today-full-story-link${actions.isRead?.(edition.id, section.id, edition.revision_id) ? ' is-read' : ''}" data-read-section="${esc(section.id)}" aria-label="Open story: ${esc(section.headline || section.heading)}">Read as a story</button>` : ''}</details></li>`;
   }).join('');
-  const rows = storySections.map((section, index) => `<li class="today-story-row" id="story-${esc(section.id)}"><header class="v3-story-heading">${(actions.followedTopicCount ?? actions.profile?.topics?.length ?? topics.length) > 1 ? `<p class="story-kicker">Chapter ${index + 1} · ${section.kicker === 'Update:' ? 'Update: · ' : ''}${esc(section.kicker_topic || topicLabel(stories.find(x => x.section_id === section.id), topicById))}</p>` : `<p class="story-kicker">Chapter ${index + 1}</p>`}<h2 class="inline-story-heading" tabindex="-1">${esc(plainSnippetText(section.headline || section.heading))}</h2><button class="story-bookmark" data-bookmark="${esc(section.id)}" aria-label="Save story: ${esc(section.headline || section.heading)}" aria-pressed="${Boolean(actions.isSaved?.(section.id))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h12v17l-6-4.5-6 4.5z"/></svg></button></header><details class="today-transcript" data-transcript-story="${esc(section.id)}"${audio.available ? '' : ' open'}><summary>Transcript and sources</summary><div class="inline-story" data-inline-story="${esc(section.id)}"></div></details></li>`).join('');
   const limitedLabels = [...new Set(limited.map(row => topicLabel(row, topicById)))];
   const countWords = storySections.map(section => [section.headline || section.heading, ...Object.values(storyCopy(section)).flat(), section.background_block?.text || ''].join(' ')).join(' ');
   const rawAudioSeconds = Number(edition.audio?.duration_seconds);
@@ -355,11 +349,10 @@ export function renderToday(container, edition, topics, actions = {}) {
     <h1 class="today-title">Your daily briefing</h1>
     <section class="today-run-summary" aria-label="Daily briefing length"><p class="today-run-meta">${storyCount} ${storyCount === 1 ? 'story' : 'stories'}${spokenMinutes ? ` · about ${spokenMinutes} min` : ''}</p></section>
     <section class="today-primary" aria-label="Briefing player">${audio.available ? `<button class="today-listen-pill primary" data-listen-control="edition" data-edition-id="${esc(edition.id)}" data-revision-id="${esc(edition.revision_id)}" data-listen-estimate="${esc(displayDuration || '')}" data-duration-label="${esc(duration)}" aria-label="Play today's briefing${listenAriaDuration}"><span class="mode-icon">${playIcon}</span><span class="mode-label">Play${duration}</span></button>` : `<p class="today-audio-unavailable" role="status">Audio isn’t ready yet. Read the briefing below.</p>`}</section>
-    ${topStoryLinks ? `<nav class="today-top-stories" aria-label="Chapters"><h2>Chapters</h2><ol>${topStoryLinks}</ol></nav>` : ''}
-    ${rows ? `<section class="today-contents" aria-label="Stories"><ol>${rows}</ol></section>` : ''}
+    ${rows ? `<section class="today-contents" aria-label="Chapters"><ol>${rows}</ol></section>` : ''}
     <section data-quick-hits-slot></section>
     ${actions.weekly && new Date(edition.local_date + 'T12:00:00Z').getUTCDay() === 0 ? '<a class="today-weekly-link" href="#weekly" data-open-weekly>Weekly recap</a>' : ''}
-    <footer class="today-completion"><strong>You're caught up for today.</strong><span>Next briefing tomorrow at ${esc(formattedBriefingTime(actions.nextBriefingTime))}</span>
+    <footer class="today-completion"><strong>You're caught up for today.</strong><span>Next briefing tomorrow morning</span>
       ${thin && limitedLabels.length ? `<p class="today-quiet-line">We'll keep following ${limitedLabels.map(esc).join(', ')}.</p>` : ''}
       <div class="today-end-actions"><a class="today-earlier-briefings-link" href="#library">Earlier editions</a><div role="group" aria-label="Was this edition useful?">Useful? <button data-edition-useful="yes" aria-pressed="${actions.getFeedback?.(edition.id) === 'yes'}">Yes</button><button data-edition-useful="no" aria-pressed="${actions.getFeedback?.(edition.id) === 'no'}">No</button></div></div>
     </footer>
@@ -367,9 +360,16 @@ export function renderToday(container, edition, topics, actions = {}) {
     </article>`;
   renderQuickHits(container.querySelector('[data-quick-hits-slot]'), edition.also_today?.items);
   for (const slot of container.querySelectorAll('[data-inline-story]')) renderEdition(slot, edition, topics, { ...actions, sectionId: slot.dataset.inlineStory, inline: true, expanded: !audio.available });
-  container.querySelectorAll('.today-top-story-link[data-jump-story]').forEach(link => link.addEventListener('click', event => {
-    event.preventDefault(); const target = container.querySelector(`#story-${CSS.escape(link.dataset.jumpStory)}`);
-    target?.scrollIntoView({ block: 'start', behavior: 'instant' }); target?.querySelector('h2')?.focus({ preventScroll: true });
+  container.querySelectorAll('.today-transcript').forEach(details => details.addEventListener('toggle', () => {
+    const key = `${edition.id}:${edition.revision_id || ''}:${details.dataset.transcriptStory}`;
+    if (details.open) openTodayTranscripts.add(key); else openTodayTranscripts.delete(key);
+  }));
+  container.querySelectorAll('[data-play-chapter]').forEach(button => button.addEventListener('click', event => {
+    const row = event.currentTarget.closest('.today-story-row');
+    row?.scrollIntoView({ block: 'start', behavior: 'instant' });
+    event.currentTarget.focus({ preventScroll: true });
+    if (audio.available) actions.listenStory?.(event.currentTarget.dataset.playChapter);
+    else { const transcript = row?.querySelector('.today-transcript'); if (transcript) transcript.open = true; transcript?.querySelector('summary')?.focus({ preventScroll: true }); }
   }));
   container.querySelectorAll('[data-read-section]').forEach(button => button.addEventListener('click', () => { actions.rememberMode?.(edition.id, 'read'); actions.openReader?.(button.dataset.readSection); }));
   container.querySelectorAll('[data-bookmark]').forEach(button => button.addEventListener('click', () => { actions.save?.(button.dataset.bookmark, edition.revision_id); button.setAttribute('aria-pressed', String(Boolean(actions.isSaved?.(button.dataset.bookmark)))); }));

@@ -101,13 +101,13 @@ async function checkContrast(page) {
   assert.equal(await page.locator('.today-title').innerText(), 'Your daily briefing');
   assert.equal(await page.locator('.today-run-meta').innerText(), '3 stories · about 2 min');
   assert.equal(await page.locator('.today-completion strong').innerText(), "You're caught up for today.");
-  assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow at 5:00 am');
+  assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow morning');
   const navIcons = await page.locator('.main-nav-icon').evaluateAll(icons=>icons.map(icon=>[icon.getBoundingClientRect().width,icon.getBoundingClientRect().height,getComputedStyle(icon).strokeWidth]));
   assert.deepEqual(navIcons,Array.from({length:4},()=>[24,24,'1.8px']),'Navigation icons share a 24px box and 1.8px stroke');
   const saveIcon = await page.locator('.story-bookmark svg').first().evaluate(icon=>[icon.getBoundingClientRect().width,icon.getBoundingClientRect().height,getComputedStyle(icon).strokeWidth]);
   assert.deepEqual(saveIcon,[24,24,'1.8px'],'Save icon matches the navigation outline system');
-  assert.equal(await page.locator('.today-top-stories li').count(), 3);
-  assert.deepEqual(await page.locator('.today-top-story-number').allTextContents(), ['1','2','3']);
+  assert.equal(await page.locator('.today-story-row').count(), 3);
+  assert.deepEqual(await page.locator('.today-chapter-number').allTextContents(), ['1','2','3']);
   assert.doesNotMatch(await page.locator('.today-run-summary').innerText(), /sorry|apolog|regret|of 5 minutes/i);
   assert.deepEqual(await page.locator('.main-nav-label').allTextContents(), ['Today','On demand','Earlier','Topics']);
   const initialNav = await page.locator('.main-nav').boundingBox();
@@ -145,15 +145,15 @@ async function checkContrast(page) {
   await page.locator('.today-transcript').first().locator('summary').click();
   assert.match(await page.locator('.story-lead').first().innerText(), /^U\.S\. payment network/);
   assert.equal(await page.locator('.today-page h1').innerText(), 'Your daily briefing');
-  assert.deepEqual(await page.locator('.today-top-story-copy strong').allTextContents(), headlines, 'Top stories keep complete headlines');
+  assert.deepEqual(await page.locator('.today-chapter-title').allTextContents(), headlines, 'chapter rows keep complete headlines');
   assert.equal(await page.locator('.today-page .episode-entry-prompt').count(),1);
   assert.equal(await page.locator('.today-page .episode-entry-prompt').innerText(), 'Brief me on something else\n→');
   assert.equal(await page.locator('.today-page .episode-entry-prompt').getAttribute('href'), '#ask-episode', 'The Today-to-On-demand link opens the On demand tab route');
   assert.doesNotMatch(editionRendererSource, /\b(?:No stories today|nothing today)\b/i, 'The Today renderer contains no rejected quiet-day copy');
   assert.doesNotMatch(await page.locator('body').innerText(), /\b(?:No stories today|nothing today)\b/i, 'The Today experience never suggests that a topic has no stories today');
   assert.equal(await page.locator('.today-completion strong').innerText(), "You're caught up for today.");
-  assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow at 5:00 am');
-  assert.equal(await page.locator('.today-top-story-link').count(),3);
+  assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow morning');
+  assert.equal(await page.locator('.today-chapter-title').count(),3);
   assert.equal(await page.locator('.today-quick-hits').count(),1,'Server-approved quick hits render on Today');
   assert.equal(await page.locator('.today-quick-hits li').count(),4,'Quick hits show three to five approved rows');
   assert.deepEqual(await page.locator('.today-quick-hits li a span').allTextContents(),['Cedar News','Harbor Journal','Northstar Review','River County']);
@@ -165,13 +165,12 @@ async function checkContrast(page) {
   })),true,'Fixture rows show the complete outlet and headline on one line with no summary or clipping');
   assert.doesNotMatch(await page.locator('.today-quick-hits').innerText(),/Unfiltered item|Another unfiltered item/,'Raw quick_hits are withheld');
   assert.equal(await page.locator('.today-page').evaluate(el => /What happened|Why it matters|Things to consider|Helpful\?|Read:/.test(el.innerText)),false);
-  assert.deepEqual(await page.locator('.today-page').evaluate(el => [...el.children].map(x=>x.className).slice(0,6)), ['today-date','today-title','today-run-summary','today-primary','today-top-stories','today-contents']);
-  const topStoryStyle = await page.locator('.today-top-story-link').evaluateAll(links=>links.map(link=>{const s=getComputedStyle(link);return {decoration:s.textDecorationLine,color:s.color,titleColor:getComputedStyle(document.querySelector('.today-title')).color,height:link.getBoundingClientRect().height};}));
-  assert.ok(topStoryStyle.every(item=>item.decoration==='none' && item.color===item.titleColor && item.height>=48),`Numbered story links use ink text without underlines and have 48px targets: ${JSON.stringify(topStoryStyle)}`);
+  assert.deepEqual(await page.locator('.today-page').evaluate(el => [...el.children].map(x=>x.className).slice(0,5)), ['today-date','today-title','today-run-summary','today-primary','today-contents']);
+  const chapterStyle = await page.locator('.today-chapter-title').evaluateAll(buttons=>buttons.map(button=>{const s=getComputedStyle(button);return {color:s.color,titleColor:getComputedStyle(document.querySelector('.today-title')).color,height:button.getBoundingClientRect().height};}));
+  assert.ok(chapterStyle.every(item=>item.color===item.titleColor && item.height>=44),`Chapter titles use normal body colour and accessible targets: ${JSON.stringify(chapterStyle)}`);
   assert.match(await page.locator('.today-run-meta').innerText(), /^3 stories · about 2 min$/);
   assert.equal(await page.locator('.today-greeting').count(), 0, 'Today has no greeting paragraph or story-link wall');
-  await page.locator('.today-top-story-link').first().click();
-  assert.equal(await page.locator('.today-story-row').first().evaluate(el=>el.contains(document.activeElement)), true, 'Top-story links move focus to the story');
+  assert.equal(await page.locator('.today-chapter-title').first().getAttribute('aria-label'), `Play from chapter 1: ${headlines[0]}`);
   await page.locator('.today-transcript').evaluateAll(items=>items.forEach(details=>{details.open=true;}));
   const moreIconStyle = await page.locator('.story-more-toggle svg').first().evaluate(icon=>[icon.getBoundingClientRect().width,icon.getBoundingClientRect().height,getComputedStyle(icon).strokeWidth]);
   assert.deepEqual(moreIconStyle,[24,24,'1.8px'],'More disclosure uses the same icon box and stroke');
@@ -311,11 +310,11 @@ async function checkContrast(page) {
   await page.evaluate(() => localStorage.setItem('briefing:v1:daily-time', '06:30'));
   await page.locator('[data-nav="on-demand"]').click(); await page.locator('.episode-request-page').waitFor();
   await page.locator('[data-nav="today"]').click(); await page.locator('.today-page').waitFor();
-  assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow at 6:30 am', 'Today reflects the saved ET briefing time');
+  assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow morning', 'Today never exposes the internal build time');
   await page.evaluate(() => localStorage.setItem('briefing:v1:daily-time', '05:00'));
   await page.locator('[data-nav="on-demand"]').click(); await page.locator('.episode-request-page').waitFor();
   await page.locator('[data-nav="today"]').click(); await page.locator('.today-page').waitFor();
-  assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow at 5:00 am');
+  assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow morning');
   // Known duration, available narration with unknown duration, and no playback.
   for (const [available,duration,label] of [[true,180,'Listen · about 3 min'],[true,undefined,'Listen · about 1 min'],[false,180,null]]) {
    await page.evaluate(async ({edition,sources,available,duration})=>{const {renderToday}=await import('/src/edition/edition.js');renderToday(document.querySelector('main'),{...edition,audio:{duration_seconds:duration}},[],{sources,listeningAvailable:available});},{edition,sources,available,duration});
@@ -328,7 +327,7 @@ async function checkContrast(page) {
   // Thin days open the one story without a separate banner.
   await page.evaluate(()=>localStorage.removeItem('briefing:story-more-open'));
   await page.evaluate(async ({edition,sources})=>{ const {renderToday}=await import('/src/edition/edition.js'); renderToday(document.querySelector('main'),{...edition,sections:edition.sections.slice(0,1),thin_day:true,sources},[],{sources}); },{edition,sources});
-  assert.equal(await page.locator('.today-top-stories li').count(),1); assert.equal(await page.locator('.story-more-toggle').getAttribute('aria-expanded'),'true');
+  assert.equal(await page.locator('.today-story-row').count(),1); assert.equal(await page.locator('.story-more-toggle').getAttribute('aria-expanded'),'true');
   // The component caps long approved lists at five and suppresses lists below three.
   await page.evaluate(async () => { const {renderQuickHits}=await import('/src/edition/edition.js'); const host=document.createElement('section');host.dataset.testQuickHits='';document.querySelector('main').append(host);renderQuickHits(host,Array.from({length:6},(_,i)=>({title:`Cedar publishes update ${i}`,outlet:'Cedar News',url:`https://cedar.example.test/${i}`}))); });
   assert.equal(await page.locator('[data-test-quick-hits] li').count(),5,'Quick hits are capped at five rows');

@@ -88,7 +88,8 @@ async function run() {
     await page.route('**/api/generate', route => route.fulfill({ status: 503, json: { error: 'offline' } }));
 
     await page.goto(`${baseURL}/#today`, { waitUntil: 'networkidle' });
-    await page.locator('.story-row-link').first().click();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await page.locator('.today-full-story-link').first().click();
     await page.locator('.why-story-trigger').first().click();
     await page.locator('.why-story-dialog').waitFor();
     assert.match(await page.locator('.why-story-sheet').innerText(), /because you wrote/i);
