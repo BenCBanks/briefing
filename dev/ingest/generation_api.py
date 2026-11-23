@@ -5,7 +5,6 @@ from threading import Lock, Thread
 from uuid import uuid4
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 from datetime import datetime, timedelta, timezone
-from contextlib import ExitStack
 import fcntl
 import copy
 import json
@@ -19,7 +18,7 @@ from . import core, feed_health
 from .paths import (STATE_DIR, checked_state_path, configured_state_file,
                     migrate_legacy_generated_files, profile_identifier)
 from .state_io import atomic_write_json
-from .usage import reset_usage_caller, usage_caller, trusted_usage_batch
+from .usage import reset_usage_caller, usage_caller
 from .daily_monitor import project_daily_monitor
 
 PROFILE_PATH = STATE_DIR / 'profile.json'
@@ -1010,13 +1009,11 @@ def mark_edition_seen(profile_id, edition_id, revision_id, *, now=None):
 
 
 def _run_job(job_id, profile, directory, generate=None, registry=None, is_default=False,
-             publish_default=False, shared_context=None, *, release_usage=None):
+             publish_default=False, shared_context=None):
     # This coordinator only creates daily editions. Reader-triggered rebuilds
     # use the same protected daily budget as the scheduled run; on-demand
     # episodes have a separate job path and remain ordinary callers.
-    cost_caller = 'other' if release_usage is not None else 'daily'
-    usage_token = usage_caller(cost_caller)
-    usage_context = ExitStack()
+    usage_token = usage_caller('daily')
     started = time.monotonic()
     lock_stream = None
     counts = {}
@@ -1032,8 +1029,6 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
     article_deadline = min(writer_deadline,
                            started + FEED_FETCH_BUDGET_SECONDS + ARTICLE_EXTRACTION_BUDGET_SECONDS)
     try:
-        if release_usage is not None:
-            usage_context.enter_context(trusted_usage_batch(release_usage))
         from .flags import setting
         budget['limit'] = setting('gemini_calls_per_run')
         GENERATION_LOCK_PATH.parent.mkdir(parents=True, exist_ok=True)
@@ -1420,36 +1415,32 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                  elapsed_seconds=round(time.monotonic() - started, 2), gemini_calls=budget['calls'],
                  run_status=status_value, daily_narration=_daily_narration_job_status(locals().get('report')))
     finally:
-        # Reset this worker only. Copied writer contexts can outlive it, so the
-        # release coordinator must establish quiescence before closing a batch.
+        # Reset this worker's caller context.
         try:
-            usage_context.close()
+            reset_usage_caller(usage_token)
         finally:
             try:
-                reset_usage_caller(usage_token)
+                if early_articles is not None:
+                    early_articles.close()
             finally:
                 try:
-                    if early_articles is not None:
-                        early_articles.close()
+                    if lock_stream is not None:
+                        try:
+                            fcntl.flock(lock_stream.fileno(), fcntl.LOCK_UN)
+                        finally:
+                            lock_stream.close()
                 finally:
-                    try:
-                        if lock_stream is not None:
-                            try:
-                                fcntl.flock(lock_stream.fileno(), fcntl.LOCK_UN)
-                            finally:
-                                lock_stream.close()
-                    finally:
-                        global _active_job, _active_daily_run
-                        with _jobs_lock:
-                            if _active_job == job_id:
-                                _active_job = None
-                            if (isinstance(_active_daily_run, dict) and
-                                    _active_daily_run.get('job_id') == job_id):
-                                _active_daily_run = None
+                    global _active_job, _active_daily_run
+                    with _jobs_lock:
+                        if _active_job == job_id:
+                            _active_job = None
+                        if (isinstance(_active_daily_run, dict) and
+                                _active_daily_run.get('job_id') == job_id):
+                            _active_daily_run = None
 
 
 def start_generation(profile, directory=None, generate=None, registry=None, is_default=False,
-                    publish_default=None, shared_context=None, *, release_usage=None):
+                    publish_default=None, shared_context=None):
     if directory is not None:
         directory = checked_state_path(directory)
     global _active_job, _active_daily_run
@@ -1474,7 +1465,6 @@ def start_generation(profile, directory=None, generate=None, registry=None, is_d
                                  'started_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')}
     thread = Thread(target=_run_job, args=(job_id, profile, output_directory, generate, registry, is_default,
                                            publish_default, shared_context),
-                    kwargs={'release_usage': release_usage},
                     name='briefing-generation', daemon=True)
     try:
         thread.start()

@@ -55,17 +55,13 @@ def fictional_profile() -> dict:
 def isolated_run():
     """Set a fresh state directory without touching live briefing state."""
     previous = {key: os.environ.get(key) for key in
-                ('BRIEFING_STATE_DIR', 'BRIEFING_EPISODES', 'BRIEFING_TESTING',
-                 'BRIEFING_REQUIRE_USAGE_BATCH')}
+                ('BRIEFING_STATE_DIR', 'BRIEFING_EPISODES', 'BRIEFING_TESTING')}
     with tempfile.TemporaryDirectory(prefix='briefing-try-real-') as directory:
         state = Path(directory)
         (state / 'profile.json').write_text(json.dumps(fictional_profile()), encoding='utf-8')
         os.environ['BRIEFING_STATE_DIR'] = str(state)
         os.environ['BRIEFING_EPISODES'] = 'real'
         os.environ.pop('BRIEFING_TESTING', None)
-        # The trusted release envelope belongs to the acceptance harness.  Do
-        # not inherit it into this one-command editorial check.
-        os.environ.pop('BRIEFING_REQUIRE_USAGE_BATCH', None)
         try:
             yield state
         finally:
