@@ -1,6 +1,6 @@
-import { audioScriptParagraphs, audioScriptText, withoutCitationNotes } from './audio-script.js';
-
-const CHUNK_LIMIT = 180;
+import { chapterText, chapterParagraphs, cleanSpeechText, preferredEnglishVoice, splitSpeechText, estimateListenMinutes } from './player/speech.js';
+import { audioScriptText } from './audio-script.js';
+export { cleanSpeechText, preferredEnglishVoice, splitSpeechText, estimateListenMinutes } from './player/speech.js';
 const VOICE_KEY = 'briefing:voice-uri';
 const SPEED_KEY = 'briefing:playback-speed';
 const SPEED_OPTIONS = [0.75, 1, 1.25, 1.5, 2];
@@ -94,38 +94,6 @@ export function isCurrentRecordingEvent(activeRecording, eventRecording, recordi
 }
 
 // Reed · generated citation markers are clickable in text and silent in narration.
-function chapterText(chapter) {
-  const script = audioScriptText(chapter.section);
-  if (script) return script;
-  return withoutCitationNotes(chapter.section?.body)
-    .replace(/\[\s*\d+(?:\s*,\s*\d+)*\s*\]/g, '')
-    .replace(/(^|\n\s*)(?:What happened|Why it matters|Things to consider)\s*:\s*/gim, '$1');
-}
-
-function chapterParagraphs(chapter) {
-  return audioScriptText(chapter.section)
-    ? audioScriptParagraphs(chapter.section)
-    : chapterText(chapter).split(/\n\s*\n/).map(value => value.trim()).filter(Boolean);
-}
-
-export function cleanSpeechText(text) {
-  return withoutCitationNotes(text)
-    .replace(/\[\s*(?:\d+(?:\s*,\s*\d+)*|[A-Z]{1,4}\d*)\s*\]/g, '')
-    .replace(/\b(?:read details? at|read|visit|see|source|more details? at)\s*:?\s+https?:\/\/\S+/gi, '')
-    .replace(/https?:\/\/\S+/gi, '')
-    .replace(/\bWhat happened\s*:\s*/gi, '')
-    .replace(/\bWhy it matters\s*:\s*/gi, 'Why it matters. ')
-    .replace(/\bThings to consider\s*:\s*/gi, 'Things to consider. ')
-    .replace(/\s+([,.;!?])/g, '$1').replace(/\s{2,}/g, ' ').trim();
-}
-
-export function preferredEnglishVoice(voices) {
-  const rejected = /novelty|robot|whisper|singing|alien|monster|zombie|funny|comic|fred|trinoid|bells|boing|bubbles|cellos|good news|bad news|junior|superstar|wobble|zarvox/i;
-  const preferred = /neural|premium|enhanced|google|siri|natural|microsoft|aria|jenny|ava|samantha/i;
-  return (voices || []).filter(voice => /^en(?:[-_]|$)/i.test(voice.lang || '') && !rejected.test(voice.name || ''))
-    .sort((a, b) => Number(preferred.test(b.name)) - Number(preferred.test(a.name)) || Number(b.default) - Number(a.default))[0] || null;
-}
-
 export function narrationUnits(item) {
   const sections = chaptersFor(item);
   const date = item?.local_date ? new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(new Date(`${item.local_date}T12:00:00Z`)) : '';
@@ -146,35 +114,7 @@ export function narrationUnits(item) {
 const playGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M8 5.8c0-.8.9-1.3 1.6-.9l9.1 6.2a1.1 1.1 0 0 1 0 1.8l-9.1 6.2c-.7.5-1.6 0-1.6-.9V5.8Z" fill="currentColor" stroke="none"/></svg>';
 const pauseGlyph = '<svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M7 5.5h3.6v13H7zM13.4 5.5H17v13h-3.6z" fill="currentColor" stroke="none"/></svg>';
 
-export function splitSpeechText(text, maxLength = CHUNK_LIMIT) {
-  const sentences = String(text || '').match(/[^.!?]+[.!?]+(?:[”’"']+)?|[^.!?]+$/g) || [];
-  const chunks = [];
-  let chunk = '';
-  for (const raw of sentences) {
-    const sentence = raw.trim();
-    if (!sentence) continue;
-    if (sentence.length > maxLength) {
-      if (chunk) chunks.push(chunk), chunk = '';
-      let rest = sentence;
-      while (rest.length > maxLength) {
-        let cut = rest.lastIndexOf(' ', maxLength);
-        if (cut < maxLength * 0.55) cut = maxLength;
-        chunks.push(rest.slice(0, cut).trim());
-        rest = rest.slice(cut).trim();
-      }
-      chunk = rest;
-    } else if (!chunk) chunk = sentence;
-    else if (chunk.length + sentence.length + 1 <= maxLength) chunk += ` ${sentence}`;
-    else { chunks.push(chunk); chunk = sentence; }
-  }
-  if (chunk) chunks.push(chunk);
-  return chunks;
-}
 
-export function estimateListenMinutes(text) {
-  const words = String(text || '').trim().split(/\s+/).filter(Boolean).length;
-  return `about ${Math.max(1, Math.round(words / 155))}`;
-}
 
 export function createPlayer(root, onProgress, getProgress, onChange = () => {}, onTranscript = () => ({ available: false }), transcriptLabel = () => 'Read along', onReplay = () => {}) {
   const synth = window.speechSynthesis;
