@@ -1,5 +1,6 @@
 import { readEditionCache, writeEditionCache, clearEditionCache } from './edition/cache.js';
 import { renderEdition, renderToday, renderWeeklyRecap, editionDateRange, visibleSections, hasMaterialCorrection } from './edition/edition.js';
+import { revisionNumber, revisionDate, revisionGroup, compareRevision, currentRevision, currentItems, latestGeneratedDaily, newerEdition, includeNewerCachedEdition, displayDate, plainDate, briefingDate, firstReadableSection, dailyBriefings } from './edition/selectors.js';
 // Reed · generated editions: only corrections tied to the current revision affect playback and Corrected labels.
 import { renderTopics, renderDeepDive } from './topics/topics.js';
 import { renderTopicDetail } from './topics/topic-detail.js';
@@ -713,46 +714,6 @@ function setFeedback(id, category) {
   if (type) signalCurrent(type, id);
   route();
 }
-function revisionNumber(item) {
-  const matches = [...String(item.revision_id || '').matchAll(/(?:^|[-._])r(\d+)/gi)];
-  return matches.length ? Number(matches[matches.length - 1][1]) : 0;
-}
-
-function revisionDate(item) {
-  return String(item.published_at || item.reviewed_at || item.local_date || item.week_start || item.created_at || '');
-}
-function displayDate(value) {
-  const date = new Date(`${String(value || '').slice(0, 10)}T12:00:00Z`);
-  return Number.isNaN(date.getTime()) ? String(value || '') : new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
-}
-function plainDate(value) {
-  const date = new Date(`${String(value || '').slice(0, 10)}T12:00:00Z`);
-  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date);
-}
-function briefingDate(value) {
-  const date = new Date(`${String(value || '').slice(0, 10)}T12:00:00Z`);
-  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(date);
-}
-
-function firstReadableSection(edition) {
-  return visibleSections(edition).find(section => section.kind !== 'link') || null;
-}
-
-function dailyBriefings() {
-  const rows = currentItems(pack?.editions || [], edition => edition.kind === 'daily');
-  const generated = rows.filter(edition => edition.generated === true);
-  const available = generated.length ? generated : rows;
-  // Live generation can publish more than one ID for the same local date.
-  // Earlier briefings are date-based, so keep only the newest edition per day.
-  const newestByDate = new Map();
-  for (const edition of available) {
-    const date = String(edition.local_date || revisionDate(edition)).slice(0, 10);
-    const previous = newestByDate.get(date);
-    if (!previous || compareRevision(edition, previous) > 0) newestByDate.set(date, edition);
-  }
-  return [...newestByDate.values()].sort((a, b) => revisionDate(b).localeCompare(revisionDate(a)));
-}
-
 // Mica · pass 010: shared read/listen estimates for Mica-owned surfaces.
 function listenText(item) {
   if (typeof item === 'string') return item;
@@ -787,80 +748,11 @@ function startListening(item) {
   }
 }
 
-function revisionGroup(items, id, predicate = () => true) {
-  const candidates = items.filter(item => item.id === id && predicate(item));
-  if (!candidates.length) return { candidates: [], current: [] };
-  const superseded = new Set(candidates.flatMap(item => (item.corrections || []).map(correction => correction.previous_revision_id).filter(Boolean)));
-  const current = candidates.filter(item => !superseded.has(item.revision_id) &&
-    !['superseded', 'withdrawn'].includes(item.status) && item.superseded !== true && item.withdrawn !== true &&
-    !item.superseded_by && !item.withdrawn_at);
-  return { candidates, current };
-}
-
-function compareRevision(a, b) {
-  return revisionDate(a).localeCompare(revisionDate(b)) ||
-    String(a.generated_at || a.updated_at || a.created_at || '').localeCompare(String(b.generated_at || b.updated_at || b.created_at || '')) ||
-    revisionNumber(a) - revisionNumber(b) || String(a.revision_id).localeCompare(String(b.revision_id));
-}
-
-function currentRevision(items, id, predicate = () => true) {
-  const group = revisionGroup(items, id, predicate);
-  if (group.current.length === 1) return group.current[0];
-  const sameGeneratedEdition = group.current.length > 1 && group.current.every(item =>
-    item.generated === true && ['daily', 'weekly'].includes(item.kind)
-  );
-  return sameGeneratedEdition ? group.current.sort(compareRevision).at(-1) : null;
-}
-
-function currentItems(items, predicate = () => true) {
-  const groups = new Map();
-  for (const item of items.filter(predicate)) {
-    const type = item.kind || (item.topic_id ? 'deep-dive' : 'item');
-    groups.set(`${type}\u0000${item.id}`, { id: item.id, type });
-  }
-  return [...groups.values()].map(({ id, type }) => currentRevision(items, id, item =>
-    predicate(item) && (item.kind || (item.topic_id ? 'deep-dive' : 'item')) === type
-  )).filter(Boolean);
-}
-
 function currentEdition(kind) {
   const ids = [...new Set(pack.editions.filter(item => item.kind === kind).map(item => item.id))];
   const editions = ids.map(id => currentRevision(pack.editions, id, item => item.kind === kind)).filter(Boolean);
   const latest = editions.sort(compareRevision).at(-1);
   return latest ? personalized(latest) : null;
-}
-
-function latestGeneratedDaily(editions = []) {
-  return editions.filter(item => item?.kind === 'daily' && item.generated === true)
-    .sort(compareRevision).at(-1) || null;
-}
-
-function newerEdition(candidate, previous) {
-  if (!candidate) return false;
-  if (!previous) return true;
-  const candidateDate = String(candidate.local_date || '').slice(0, 10);
-  const previousDate = String(previous.local_date || '').slice(0, 10);
-  if (candidateDate && previousDate && candidateDate !== previousDate) return candidateDate > previousDate;
-  const candidateTime = Date.parse(candidate.generated_at || candidate.updated_at || '');
-  const previousTime = Date.parse(previous.generated_at || previous.updated_at || '');
-  if (Number.isFinite(candidateTime) && Number.isFinite(previousTime) && candidateTime !== previousTime) return candidateTime > previousTime;
-  return candidate.id !== previous.id || candidate.revision_id !== previous.revision_id;
-}
-
-function includeNewerCachedEdition(data, previousPack, serverProfileChanged) {
-  if (!previousPack || serverProfileChanged) return data;
-  const cached = latestGeneratedDaily(previousPack.editions);
-  const server = latestGeneratedDaily(data.editions);
-  if (!cached || !server) return data;
-  const cachedDate = String(cached.local_date || '').slice(0, 10);
-  const serverDate = String(server.local_date || '').slice(0, 10);
-  const cachedTime = Date.parse(cached.generated_at || cached.updated_at || '');
-  const serverTime = Date.parse(server.generated_at || server.updated_at || '');
-  const cacheIsAhead = cachedDate && serverDate && cachedDate > serverDate ||
-    cachedDate === serverDate && Number.isFinite(cachedTime) && Number.isFinite(serverTime) && cachedTime > serverTime;
-  if (!cacheIsAhead || data.editions.some(item => item.id === cached.id && item.revision_id === cached.revision_id)) return data;
-  const sources = [...new Map([...data.sources, ...previousPack.sources].map(source => [source.id, source])).values()];
-  return { ...data, sources, editions: [...data.editions, cached] };
 }
 
 function stopCorrectedEditionAudio(id) {
@@ -1181,7 +1073,7 @@ function renderWeeklyRecapPage(edition) {
       if (!topicIds.size) return null;
       const weekStart = String(edition.week_start || '').slice(0, 10);
       const weekEnd = String(edition.week_end || '').slice(0, 10);
-      const candidates = dailyBriefings();
+      const candidates = dailyBriefings(pack?.editions || []);
       const inWeek = candidates.filter(item => {
         const date = String(item.local_date || '').slice(0, 10);
         return date && (!weekStart || date >= weekStart) && (!weekEnd || date <= weekEnd);
@@ -3390,7 +3282,7 @@ function route() {
   else if (routeName === 'interests') renderInterestsPage();
   else if (routeName === 'library' || routeName === 'earlier') renderEarlierScreen({
     content, node, link, currentItems, visibleSections, editionDateRange, hasMaterialCorrection,
-    getState: () => state, interestProfile, editionHistoryLoaded, pack, dailyBriefings, firstReadableSection,
+    getState: () => state, interestProfile, editionHistoryLoaded, pack, dailyBriefings: () => dailyBriefings(pack?.editions || []), firstReadableSection,
     revisionDate, briefingDate, displayDate,
     getLibraryFilter: () => libraryFilter, setLibraryFilter: value => { libraryFilter = value; },
     getLibrarySearchQuery: () => librarySearchQuery, setLibrarySearchQuery: value => { librarySearchQuery = value; },
