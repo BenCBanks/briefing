@@ -251,6 +251,24 @@ def run_daily() -> int:
             print('Daily generation failed: edition missing')
             return 1
         _print_result('daily', edition, before, started)
+        scorecard_path = state / 'jobs' / f"{created['job_id']}.scorecard.json"
+        try:
+            scorecard = json.loads(scorecard_path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            scorecard = {}
+        diagnostics = scorecard.get('candidate_pool_diagnostics', {})
+        reasons = scorecard.get('funnel_drop_reasons', {})
+        selected = job.get('topic_story_counts', {})
+        if diagnostics:
+            print('\nPer-topic supply funnel:')
+            print('| Topic | Fetched | Topic-matched | Relevance-passed | Unseen | Selected | Drop reasons |')
+            print('|---|---:|---:|---:|---:|---:|---|')
+            for topic_id, row in diagnostics.items():
+                drops = reasons.get(topic_id, {})
+                drop_text = ', '.join(f'{key}: {value}' for key, value in sorted(drops.items())) or 'none'
+                print(f"| {topic_id} | {row.get('fetched', 0)} | {row.get('topic_matched', 0)} | "
+                      f"{row.get('relevance_passed', 0)} | {row.get('unseen', 0)} | "
+                      f"{selected.get(topic_id, 0)} | {drop_text} |")
         return 0
 
 

@@ -1222,6 +1222,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
             report['candidate_attempt_limit'] = detail.get('candidate_attempt_limit', 0)
             report['candidate_results'] = detail.get('candidate_results', [])
             report['candidate_pool_diagnostics'] = detail.get('candidate_pool_diagnostics', {})
+            report['funnel_drop_reasons'] = detail.get('funnel_drop_reasons', {})
             report['source_quality_rejections'] = detail.get('source_quality_rejections', [])
             report['source_selection'] = detail.get('source_selection', {})
             report['also_today_source_selection'] = detail.get('also_today_source_selection', {})
@@ -1256,6 +1257,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                             for number, row in enumerate(sources['sources'], 1)
                             if isinstance(row, dict) and row.get('id')}
             source_tiers = daily_briefing.source_tier_map(sources['sources'])
+            _persist_job_scorecard(directory, job_id, report)
             daily_briefing.assemble(
                 edition, profile, background_fill=daily_provider,
                 background_history=daily_briefing.background_history(recent_history),

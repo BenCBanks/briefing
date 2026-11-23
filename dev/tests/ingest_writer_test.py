@@ -1115,6 +1115,12 @@ class WriterTests(unittest.TestCase):
         self.assertIn(sources['sources'][0]['evidence_depth'], {'full-text', 'feed-full'})
         self.assertGreaterEqual(sources['sources'][0]['source_sentence_count'], 3)
         self.assertEqual(result['candidate_pool_diagnostics']['ai']['candidate_clusters'], 2)
+        for topic_id in ('ai', 'payments'):
+            funnel = result['candidate_pool_diagnostics'][topic_id]
+            self.assertGreaterEqual(funnel['fetched'], funnel['topic_matched'])
+            self.assertGreaterEqual(funnel['topic_matched'], funnel['relevance_passed'])
+            self.assertIn('unseen', funnel)
+        self.assertIn('funnel_drop_reasons', result)
         self.assertTrue(any(row.get('reason') == 'insufficient_full_text_evidence'
                             for row in result['candidate_results']),
                         'the thin AI-only control still fails the unchanged depth gate')
