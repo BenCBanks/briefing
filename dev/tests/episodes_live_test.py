@@ -82,8 +82,8 @@ class LiveEpisodeTests(unittest.TestCase):
                 self.assertEqual(episode['quality_metrics'], metrics)
                 self.assertIn('writing', metrics['stage_seconds'])
                 self.assertGreaterEqual(metrics['spoken_minutes'], 0)
-                self.assertIn('shorter than requested', episode['transcript'])
-                self.assertIn("couldn't confirm", episode['transcript'])
+                self.assertIn('episode is shorter', episode['transcript'])
+                self.assertIn("couldn't find solid evidence", episode['transcript'])
                 self.assertEqual('\n\n'.join(text for text, voice in provider.calls), episode['transcript'])
                 self.assertTrue(all(voice == DEFAULT_VOICE for _, voice in provider.calls))
                 self.assertEqual(episode['audio']['script_hash'], episode['script_hash'])
@@ -93,7 +93,8 @@ class LiveEpisodeTests(unittest.TestCase):
                 self.assertEqual(state, 'ready')
                 self.assertEqual(result['counts']['audio_seconds'], manifest['duration_seconds'])
                 self.assertTrue(audio.is_file())
-                self.assertEqual([c['audio_start_seconds'] for c in episode['chapters']], [0, .1, .2, .3])
+                self.assertEqual([c['audio_start_seconds'] for c in episode['chapters']],
+                                 [round(index * .1, 1) for index in range(len(episode['chapters']))])
                 self.assertEqual(episode['cost_record']['text_calls'], 0)  # injected calls do not fabricate spend
 
     def test_default_real_missing_key_and_fake_test_only(self):

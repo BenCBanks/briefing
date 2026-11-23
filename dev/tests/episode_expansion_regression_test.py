@@ -49,12 +49,15 @@ class LengthFixtureClient:
             target_words = int(payload['target_words'] * fraction)
             rows, word_count = [], 0
             if assignment.get('is_first_chapter'):
-                rows.append({'text': f"Here is your {payload['spoken_length']}-minute briefing on the fictional Alder Bay parcel locker trial.",
+                rows.append({'text': 'Let us start with the part that answers your question.',
                              'kind': 'opening', 'evidence_ids': []})
             else:
-                bridge = {2: 'Turning to', 3: "Let's turn to", 4: "Now, let's look at",
-                          5: 'From there, we can consider'}.get(assignment.get('index'), 'Turning to')
-                rows.append({'text': f"{bridge} {angle['title']}.",
+                bridge = {2: 'That leaves another part of the process to explain.',
+                          3: 'A different detail helps connect those pieces.',
+                          4: 'There is also a question about what happens next.',
+                          5: 'The final detail is what changes after the trial.'}.get(
+                              assignment.get('index'), 'Another part of the story still needs explaining.')
+                rows.append({'text': bridge,
                              'kind': 'navigation', 'evidence_ids': []})
             available = sorted(payload['evidence'].items(), key=lambda item: int(item[0].rsplit('-', 1)[1]))
             for evidence_id, evidence in available:

@@ -339,7 +339,7 @@ class EpisodeScriptChecksTests(unittest.TestCase):
         self.assertEqual(report["word_count"], sum(row["word_count"] for row in report["chapters"]))
         self.assertIn("shorter_than_requested", report["warnings"][0])
         self.assertEqual(episode["chapters"][0]["sentences"][0]["text"],
-                         "Here is your three-minute briefing on Alder Bay's parcel locker trial.")
+                         "Let's start with how residents get their packages.")
         checks = {row["name"]: row["passed"] for row in report["checks"]}
         self.assertTrue({"average_sentence_length", "max_sentence_length", "number_density",
                          "no_citation_markers", "no_reader_references", "no_urls",
@@ -379,9 +379,10 @@ class EpisodeScriptChecksTests(unittest.TestCase):
 
     def test_segment_bridges_must_vary(self):
         episode = fixture("episode-script-checks-good.json")
+        episode["chapters"][1]["sentences"][0]["text"] = "Turning to the library review."
         extra = deepcopy(episode["chapters"][1])
         extra["title"] = "Another library review"
-        extra["sentences"][0]["text"] = "Next, another library review."
+        extra["sentences"][0]["text"] = "Turning to another library review."
         episode["chapters"].append(extra)
         report = score_episode_script(episode)
         check = next(row for row in report["checks"] if row["name"] == "host_formula_variety")
@@ -397,24 +398,29 @@ class EpisodeScriptChecksTests(unittest.TestCase):
         self.assertFalse(check["passed"], report)
         self.assertFalse(report["passed"], report)
 
-    def test_curly_apostrophe_transition_keeps_natural_podcast_flow(self):
+    def test_natural_transition_keeps_podcast_flow(self):
         episode = fixture("episode-script-checks-good.json")
-        episode["chapters"][1]["sentences"][0]["text"] = "Let’s turn to the library review."
+        episode["chapters"][1]["sentences"][0]["text"] = (
+            "That review matters because it determines whether the town keeps the lockers.")
         report = score_episode_script(episode)
         self.assertTrue(report["passed"], report)
         self.assertTrue(next(row for row in report["checks"]
                              if row["name"] == "story_transitions")["passed"], report)
 
-    def test_listening_signposts_require_a_length_opening_transitions_and_recap(self):
+    def test_listening_signposts_require_natural_opening_transitions_and_recap(self):
         baseline = fixture("episode-script-checks-good.json")
         cases = []
         missing_opening = deepcopy(baseline)
         missing_opening["chapters"][0]["sentences"].pop(0)
         cases.append((missing_opening, "opening_signpost"))
-        wrong_length = deepcopy(baseline)
-        wrong_length["chapters"][0]["sentences"][0]["text"] = (
+        duration_template = deepcopy(baseline)
+        duration_template["chapters"][0]["sentences"][0]["text"] = (
             "Here is your five-minute briefing on Alder Bay's parcel locker trial.")
-        cases.append((wrong_length, "opening_signpost"))
+        cases.append((duration_template, "opening_signpost"))
+        bare_question = deepcopy(baseline)
+        bare_question["chapters"][0]["sentences"][0]["text"] = (
+            "How do parcel lockers work for residents?")
+        cases.append((bare_question, "opening_signpost"))
         missing_transition = deepcopy(baseline)
         missing_transition["chapters"][1]["sentences"].pop(0)
         cases.append((missing_transition, "story_transitions"))
