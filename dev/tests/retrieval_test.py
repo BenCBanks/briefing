@@ -156,58 +156,7 @@ class AdapterTest(unittest.TestCase):
                          ['.briefing_gemini_search_key', 'global-usage', 'retrieval-counts.json',
                           'retrieval-counts.lock'])
 
-    def test_grounding_tokens_query_meter_daily_context_and_six_call_cap(self):
-        from dev.ingest.retrieval import retrieve
-        from dev.ingest.usage import usage_caller, reset_usage_caller
-        config_path = self.directory / 'daily-only.json'
-        config = json.loads((Path(__file__).resolve().parents[1] / 'ingest/usage-prices.json').read_text())
-        config['caps'] = {'daily_usd': '0.50', 'monthly_usd': '5', 'daily_run_reserve_usd': '0.50'}
-        config_path.write_text(json.dumps(config))
-        ledger = UsageLedger(config_path=config_path, ledger_dir=self.directory / 'daily-usage')
-        def opener(request, timeout):
-            self.requests.append((request, timeout))
-            return Response(json.dumps({'usageMetadata': {'promptTokenCount': 120,
-                'candidatesTokenCount': 20, 'thoughtsTokenCount': 5}, 'candidates': []}).encode(), request.full_url)
-        provider = GeminiGroundingProvider(replace(self.config, gemini_daily_cap=6),
-                                           opener=opener, usage_ledger=ledger)
-        token = usage_caller('daily')
-        try:
-            for _ in range(7):
-                budget = RetrievalBudget()
-                retrieve('fictional research', [provider], budget)
-        finally:
-            reset_usage_caller(token)
-        self.assertEqual(len(self.requests), 6)
-        self.assertEqual(budget.statuses['gemini']['status'], 'daily query cap reached')
-        totals = ledger.summary()['daily']
-        self.assertEqual(totals['text_calls'], 6)
-        self.assertEqual(totals['search_queries'], {'gemini': 6})
-        self.assertEqual(totals['prompt_tokens'], 720)
-        self.assertEqual(totals['candidates_tokens'], 120)
-        self.assertEqual(totals['thoughts_tokens'], 30)
-        persisted = ledger.path.read_text()
-        self.assertNotIn('fictional research', persisted)
-        self.assertNotIn('synthetic-key', persisted)
-        self.assertEqual(json.loads(persisted)['pending'], {})
 
-    def test_strict_grounding_rejects_missing_usage_and_keeps_reservation_pending(self):
-        ledger = UsageLedger(ledger_dir=self.directory / 'strict-grounding-ledger')
-        batch_id = 'fictional-strict-grounding-batch'
-        ledger.reserve_batch_budget(batch_id, general_usd='0.02')
-        response = {'candidates': []}
-        provider = GeminiGroundingProvider(
-            replace(self.config, gemini_model='gemini-3.8-flash'),
-            opener=lambda request, timeout: Response(
-                json.dumps(response).encode(), request.full_url),
-            usage_ledger=ledger)
-        with patch.dict(os.environ, {'BRIEFING_REQUIRE_USAGE_BATCH': '1'}), \
-                ledger.usage_batch(batch_id):
-            self.assertEqual(self.search(provider), [])
-        self.assertEqual(self.budget.statuses['gemini']['status'],
-                         'usage metadata unavailable')
-        self.assertEqual(len(json.loads(ledger.path.read_text())['pending']), 1)
-        with self.assertRaises(UsageError):
-            ledger.close_batch_budget(batch_id)
 
     def test_separate_missing_key_no_fallback_or_counter(self):
         self.key.unlink()

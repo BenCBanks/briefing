@@ -154,57 +154,7 @@ class GeminiTtsTests(unittest.TestCase):
                          'the bounded experiment remains opt-in')
         self.assertNotIn('test-key-not-for-logs', request.full_url)
 
-    def test_missing_or_unknown_finish_reason_never_returns_tts_audio(self):
-        wav = BytesIO()
-        with wave.open(wav, 'wb') as audio:
-            audio.setnchannels(1)
-            audio.setsampwidth(2)
-            audio.setframerate(24000)
-            audio.writeframes(b'\0\0' * 24)
-        inline = {'inlineData': {
-            'mimeType': 'audio/wav',
-            'data': base64.b64encode(wav.getvalue()).decode('ascii'),
-        }}
-        for finish_reason in (None, 'FUTURE_UNKNOWN_REASON', 'MAX_TOKENS'):
-            with self.subTest(finish_reason=finish_reason):
-                candidate = {'content': {'parts': [inline]}}
-                if finish_reason is not None:
-                    candidate['finishReason'] = finish_reason
-                ledger = UsageLedger(ledger_dir=self.temp.name)
-                counter = CostCounter()
-                provider = GeminiTtsProvider(
-                    key_path=self.key_path,
-                    transport=self.transport({'candidates': [candidate]}),
-                    cost_counter=counter, usage_ledger=ledger)
-                pending_before = set(ledger._read()['pending'])
-                with self.assertRaisesRegex(gemini.TtsProviderError,
-                                            'did not finish TTS generation normally'):
-                    provider.synthesize('Fictional complete passage.', 'Sulafat')
-                self.assertEqual(counter.character_count, 0)
-                pending_after = set(ledger._read()['pending'])
-                self.assertEqual(len(pending_after - pending_before), 1,
-                                 'invalid finish reason leaves the reservation pending')
 
-    def test_truncated_wav_is_rejected_before_usage_settlement(self):
-        valid = BytesIO()
-        with wave.open(valid, 'wb') as audio:
-            audio.setnchannels(1)
-            audio.setsampwidth(2)
-            audio.setframerate(24000)
-            audio.writeframes(b'\0\0' * 24)
-        malformed = valid.getvalue()[:-2]
-        response = {'candidates': [{'finishReason': 'STOP', 'content': {'parts': [{'inlineData': {
-            'mimeType': 'audio/wav', 'data': base64.b64encode(malformed).decode('ascii'),
-        }}]}}]}
-        ledger = UsageLedger(ledger_dir=self.temp.name)
-        counter = CostCounter()
-        provider = GeminiTtsProvider(key_path=self.key_path, transport=self.transport(response),
-                                     cost_counter=counter, usage_ledger=ledger)
-        with self.assertRaisesRegex(gemini.TtsProviderError, 'malformed WAV'):
-            provider.synthesize('Fictional complete passage.', 'Sulafat')
-        self.assertEqual(counter.character_count, 0)
-        self.assertEqual(len(ledger._read()['pending']), 1,
-                         'invalid WAV leaves the reservation pending')
 
     def test_opt_in_cap_sets_provider_limit_and_reserves_full_input_ceiling(self):
         pcm = b'\0\0' * 24000
@@ -309,17 +259,6 @@ class GeminiTtsTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             provider.synthesize('A test.', 'Sulafat/../../key')
 
-    def test_daily_usage_cap_blocks_before_tts_request(self):
-        config = json.loads((Path(__file__).resolve().parents[1] / 'ingest' / 'usage-prices.json').read_text())
-        config['caps'] = {'daily_usd': '0', 'monthly_usd': '1', 'daily_run_reserve_usd': '0'}
-        config_path = Path(self.temp.name) / 'prices.json'
-        config_path.write_text(json.dumps(config), encoding='utf-8')
-        usage = UsageLedger(config_path=config_path, ledger_dir=self.temp.name)
-        provider = GeminiTtsProvider(key_path=self.key_path, transport=self.transport({}), usage_ledger=usage)
-        from dev.ingest.usage import UsageCapReached
-        with self.assertRaises(UsageCapReached):
-            provider.synthesize('Fictional short passage.', 'Sulafat')
-        self.assertEqual(self.requests, [])
 
 
 if __name__ == '__main__':

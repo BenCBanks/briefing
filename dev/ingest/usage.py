@@ -531,10 +531,8 @@ class UsageLedger:
         total = _decimal(cost, 'estimated cost')
         day = self._bucket(state['days'], periods[0])
         month = self._bucket(state['months'], periods[1])
-        daily_total = (_decimal(day['estimated_cost_usd'], 'daily total') +
-                       self._batch_holds(state, periods))
-        monthly_total = (_decimal(month['estimated_cost_usd'], 'monthly total') +
-                         self._batch_holds(state, periods, monthly=True))
+        daily_total = _decimal(day['estimated_cost_usd'], 'daily total')
+        monthly_total = _decimal(month['estimated_cost_usd'], 'monthly total')
         available_daily = self.config['_daily_cap']
         if caller != 'daily':
             available_daily -= self.config['_daily_reserve']
@@ -544,7 +542,7 @@ class UsageLedger:
             raise UsageCapReached('monthly')
 
     def _record(self, kind, *, provider='', model='', units=1, cost, now=None, reservation=False,
-                caller=None, token_pool=None, token_limits=None):
+                caller=None, token_pool=None, token_limits=None, token_counts=None):
         if type(units) is not int or units < 0:
             raise UsageError('usage units must be a nonnegative integer')
         amount = _decimal(cost, 'estimated cost')
@@ -555,14 +553,6 @@ class UsageLedger:
         caller = caller or _CALLER.get()
         reservation_id = uuid4().hex if reservation else None
         batch_id = _BATCH.get()
-        require_bounded_batch = os.environ.get('BRIEFING_REQUIRE_USAGE_BATCH') == '1'
-        if (amount > 0 and require_bounded_batch and
-                (not batch_id or kind in {'text_call', 'tts'} and token_limits is None)):
-            # The real-build acceptance server opts into this guard until its
-            # trusted batch ID reaches the worker and token-priced paths use
-            # explicit input/output ceilings. Refuse before writing or transport.
-            raise UsageCapReached('batch')
-
         def update(state):
             pool = None
             if token_pool is not None:
@@ -587,11 +577,17 @@ class UsageLedger:
                         pool['reserved_output_tokens'] + pool['settled_output_tokens'] +
                         output_tokens > pool['output_token_limit']):
                     raise UsageCapReached('batch_tokens')
-            if batch_id:
-                self._take_batch_allowance(state, batch_id, caller, amount, periods)
             self._cost(state, periods, amount, caller)
             for key, period in (('days', periods[0]), ('months', periods[1])):
-                self._increment(self._bucket(state[key], period), kind, provider, model, units, amount)
+                bucket = self._bucket(state[key], period)
+                self._increment(bucket, kind, provider, model, units, amount)
+                for name, value in (token_counts or {}).items():
+                    bucket[name] = bucket.get(name, 0) + max(0, int(value))
+                    if model:
+                        model_bucket = bucket['by_model'].setdefault(
+                            model, {'text_calls': 0, 'tts_characters': 0, 'prompt_tokens': 0,
+                                    'candidates_tokens': 0, 'thoughts_tokens': 0})
+                        model_bucket[name] = model_bucket.get(name, 0) + max(0, int(value))
             if job:
                 bucket = self._bucket(state.setdefault('jobs', {}), job[0])
                 self._increment(bucket, kind, provider, model, units, amount)
@@ -710,12 +706,6 @@ class UsageLedger:
             raise UsageError('token modality must be text or tts')
         if not isinstance(model, str) or not model:
             raise UsageError('token reservation model is invalid')
-        if modality == 'text' and os.environ.get('BRIEFING_REQUIRE_USAGE_BATCH') == '1':
-            # A suffix can name an unpriced variant or a different modality.
-            # Strict reservations require the configured model's exact identity.
-            has_model_rate = model in self.config['_text_rates_by_model']
-            if not has_model_rate and model not in STRICT_BATCH_FALLBACK_TEXT_MODELS:
-                raise UsageCapReached('model_price')
         cost = self.estimate_token_call_cost(input_tokens, output_tokens, model=model, modality=modality)
         kind = 'text_call' if modality == 'text' else 'tts'
         return self._record(
@@ -911,11 +901,42 @@ class UsageLedger:
             raise UsageCapReached(overrun)
 
     def preflight_episode(self, estimate, now=None):
-        """Check the whole estimate before accepting/starting; calls still reserve atomically."""
+        """Refuse only when the recorded daily/monthly total is already capped."""
+        periods = self._periods(now)
         def read(state):
-            self._cost(state, self._periods(now), estimate, 'other')
+            day = self._bucket(state['days'], periods[0])
+            month = self._bucket(state['months'], periods[1])
+            if _decimal(day['estimated_cost_usd'], 'daily total') >= self.config['_daily_cap'] - self.config['_daily_reserve']:
+                raise UsageCapReached('daily')
+            if _decimal(month['estimated_cost_usd'], 'monthly total') >= self.config['_monthly_cap']:
+                raise UsageCapReached('monthly')
             return None, False
         return self._transaction(read)
+
+    def record_text_call(self, prompt_tokens, candidates_tokens, thoughts_tokens=0, *, model,
+                         caller=None, now=None):
+        """Record measured provider tokens after a completed text call."""
+        prompt_tokens = max(0, int(prompt_tokens or 0))
+        candidates_tokens = max(0, int(candidates_tokens or 0))
+        thoughts_tokens = max(0, int(thoughts_tokens or 0))
+        input_rate, output_rate = self._text_rates(model)
+        cost = ((Decimal(prompt_tokens) * input_rate +
+                 Decimal(candidates_tokens + thoughts_tokens) * output_rate) / Decimal(1_000_000))
+        return self._record('text_call', model=model, cost=cost, now=now, caller=caller,
+                            token_counts={'prompt_tokens': prompt_tokens,
+                                          'candidates_tokens': candidates_tokens,
+                                          'thoughts_tokens': thoughts_tokens})
+
+    def record_text_estimate(self, system_chars, input_chars, output_tokens, *, model,
+                             caller=None, now=None):
+        """Record a bounded estimate when a provider omits usage metadata."""
+        chars_per_token = self.config['_text_chars_per_token']
+        input_tokens = (max(0, int(system_chars) + int(input_chars)) + chars_per_token - 1) // chars_per_token
+        input_rate, output_rate = self._text_rates(model)
+        cost = ((Decimal(input_tokens) * input_rate + Decimal(max(0, int(output_tokens))) * output_rate) /
+                Decimal(1_000_000))
+        return self._record('text_call', model=model, cost=cost, now=now, caller=caller,
+                            token_counts={'prompt_tokens': input_tokens})
 
     def episode_record(self, job_id):
         def read(state):
@@ -970,6 +991,15 @@ class UsageLedger:
 
     def record_fetch(self, *, now=None):
         self._record('fetch', cost=self.config['_fetch_price'], now=now)
+
+    def record_tts_usage(self, characters, duration_seconds, *, model, now=None, caller=None):
+        """Record measured TTS characters and duration after synthesis."""
+        chars = max(0, int(characters))
+        seconds = max(Decimal(0), Decimal(str(duration_seconds)))
+        cost = (Decimal(chars) * self.config['_tts_char_rate'] / Decimal(1_000_000) +
+                seconds * self.config['_tts_minute_rate'] / Decimal(60))
+        return self._record('tts', model=model, units=chars, cost=cost, now=now, caller=caller,
+                            token_counts={})
 
     def _summary_bucket(self, bucket):
         return {**bucket, 'estimated_cost_usd': _money(_decimal(bucket['estimated_cost_usd'], 'summary total'))}

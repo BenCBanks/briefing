@@ -215,9 +215,7 @@ class GeminiTtsProvider:
         if not _VOICE_NAME.fullmatch(voice_name or ''):
             raise ValueError('voice_name contains unsupported characters')
         key = _read_key(self.key_path)
-        if max_output_tokens is None:
-            reservation = self.usage_ledger.reserve_tts_call(len(text), model=self.model)
-        else:
+        if max_output_tokens is not None:
             reserve = getattr(self.usage_ledger, 'reserve_tts_token_call', None)
             settle = getattr(self.usage_ledger, 'settle_tts_token_call', None)
             if not callable(reserve) or not callable(settle):
@@ -293,7 +291,7 @@ class GeminiTtsProvider:
         characters = len(text)
         cost = self.cost_counter.record(characters, duration)
         if max_output_tokens is None:
-            self.usage_ledger.settle_tts_call(reservation, characters, duration)
+            self.usage_ledger.record_tts_usage(characters, duration, model=self.model)
         return TtsResult(wav_bytes, 'audio/wav', duration, characters, cost, self.model, voice_name,
                          prompt_tokens, candidates_tokens, finish_reason,
                          'pending_human_listening' if max_output_tokens is not None else None)
