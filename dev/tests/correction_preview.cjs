@@ -73,7 +73,8 @@ async function run() {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: 'America/New_York' });
     await installPack(page, () => revision);
     await page.goto(`${baseURL}/#today`, { waitUntil: 'networkidle' });
-    await page.locator('.story-row-link').first().click();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await page.locator('.today-full-story-link').first().click();
     await page.getByRole('button', { name: 'Save' }).click();
 
     revision = 'r2';
@@ -89,6 +90,7 @@ async function run() {
     await page.emulateMedia({ colorScheme: 'light' });
     await page.locator('.reader-back').click();
     await page.locator('.today-page').waitFor();
+    await page.locator('[data-transcript-story="correction-checkout-pilot"]').evaluate(details => { details.open = true; });
     await page.locator('[data-read-section="correction-checkout-pilot"]').click();
     await page.locator('#correction-checkout-pilot').waitFor();
     assert.match(await page.locator('.reader-sticky .story-progress').getAttribute('aria-label'), /Story 1 of 1/);
@@ -144,7 +146,8 @@ async function run() {
     await installPack(active, () => revision, { recordedR1: true });
     await active.goto(`${baseURL}/#today`, { waitUntil: 'networkidle' });
     await active.locator('.today-listen-pill').click();
-    await active.locator('.today-story-row .story-row-link').first().click();
+    await active.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await active.locator('.today-full-story-link').first().click();
     await active.locator('.story-listen').click();
     await active.waitForFunction(() => window.__speech.spoken.length > 0 && document.querySelector('.mini-player-toggle')?.getAttribute('aria-label')?.startsWith('Pause'));
     const miniOpen = active.locator('.mini-player-open');
@@ -194,7 +197,8 @@ async function run() {
     await stale.goto(`${baseURL}/#today`, { waitUntil: 'networkidle' });
     assert.equal(await stale.locator('.today-listen-pill').isDisabled(), true, 'Revision/hash mismatch never exposes active Listen');
     assert.equal(await stale.locator('.mini-player-toggle:not(:disabled)').count(), 0, 'Revision/hash mismatch cannot restore a player');
-    await stale.locator('.story-row-link').first().click();
+    await stale.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await stale.locator('.today-full-story-link').first().click();
     assert.match(await stale.locator('#correction-checkout-pilot').innerText(), /12 participants/);
     await stale.close();
     await page.close();

@@ -61,10 +61,10 @@ const baseURL = process.env.BRIEFING_URL;
         coverage: sections.map((s, i) => ({ topic_id: `topic-${i}`, state: 'covered' })),
         quick_hits: [{ title: 'Fictional service notice', outlet: 'Fictional Transit', url: 'https://fictional.example/notice', summary: 'A full summary. '.repeat(20) }] }, [], {});
       const quick = host.querySelector('.today-quick-hits');
-      return { greeting: host.querySelector('h1').textContent, top: host.querySelectorAll('[data-jump-story]').length,
+      return { greeting: host.querySelector('h1').textContent, top: host.querySelectorAll('.today-chapter-title').length,
         meta: host.querySelector('.today-run-meta').textContent,
         thin: host.querySelector('.today-thin-day'), quick,
-        headlines: [...host.querySelectorAll('.story-row-copy strong')].every(p => getComputedStyle(p).webkitLineClamp === 'none' && p.scrollHeight <= p.clientHeight + 1),
+        headlines: [...host.querySelectorAll('.today-chapter-title')].every(p => getComputedStyle(p).webkitLineClamp === 'none' && p.scrollHeight <= p.clientHeight + 1),
         summary: null };
     });
     assert.equal(today.greeting, 'Your daily briefing');

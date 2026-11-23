@@ -63,7 +63,8 @@ async function run() {
 
     await page.goto(`${baseURL}/#today`, { waitUntil: 'networkidle' });
     await page.locator('.today-page').waitFor();
-    const storyOpener = page.locator('.today-story-row .story-row-link').first();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    const storyOpener = page.locator('.today-full-story-link').first();
     const sectionId = await storyOpener.getAttribute('data-read-section');
     await storyOpener.click();
     await page.locator('body.is-reader .edition-section').waitFor();
@@ -115,7 +116,8 @@ async function run() {
     await page.waitForFunction(id => document.activeElement?.dataset.readSection === id, sectionId);
     assert.equal(await page.locator('.today-story-row').count(), 4, 'Back restores Today’s list');
 
-    await page.locator('.today-story-row .story-row-link').first().click();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await page.locator('.today-full-story-link').first().click();
     await page.locator('body.is-reader .edition-section').waitFor();
     await page.locator('.story-listen').click();
     await page.waitForFunction(() => window.__spoken.length > 0);

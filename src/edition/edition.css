@@ -81,7 +81,20 @@
 .listening-unavailable{grid-column:2;align-self:center;margin:0;color:var(--muted);font-size:13px}
 .today-story-row{display:grid;grid-template-columns:minmax(0,1fr) 44px;gap:4px;align-items:center;border-top:1px solid var(--line)}
 .today-contents li.today-story-row{border-top:0}
-.today-story-row .story-row-link{display:block;min-width:0;width:100%;padding:12px 0;background:transparent;border:0;border-radius:0;text-align:left;min-height:0}
+.today-story-row .inline-story-heading{grid-column:1;min-width:0;margin:0;padding:0;color:var(--ink)}
+.today-story-row .today-chapter-kicker{grid-column:1/-1;margin:8px 0 0;color:var(--accent);font-size:12px;letter-spacing:.045em;text-transform:uppercase}
+.today-chapter-number{font-variant-numeric:tabular-nums}
+.today-chapter-title{display:block;width:100%;min-height:44px;padding:4px 0 12px;border:0;border-radius:0;background:transparent;color:var(--ink);text-align:left;font:600 19px/1.3 var(--ui);overflow-wrap:anywhere}
+.today-chapter-title:hover{background:transparent}
+.today-story-row .v3-story-heading{display:grid;grid-template-columns:minmax(0,1fr) 44px;align-items:center;gap:4px}
+.today-story-row .story-bookmark{grid-column:2;grid-row:1/3}
+.today-primary .today-listen-pill{display:flex;align-items:center;justify-content:center;gap:10px;width:100%;min-height:58px;font-size:18px}
+.today-primary .today-listen-pill svg{width:21px;height:21px}
+.today-audio-unavailable{margin:0 0 18px;padding:12px 0;border-bottom:1px solid var(--line);font-size:15px;color:var(--ink)}
+.today-transcript{grid-column:1/-1;border-top:1px solid var(--line);margin:0 0 12px}
+.today-transcript summary{min-height:44px;display:flex;align-items:center;color:var(--accent);font-size:14px;font-weight:600;cursor:pointer}
+.today-transcript .inline-story{padding:4px 0 12px}
+.today-full-story-link{min-height:44px;padding:0;border:0;background:transparent;color:var(--accent);font:600 14px/20px var(--ui);text-align:left}
 .story-row-copy{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:baseline;row-gap:3px;min-width:0}
 .story-row-overline{grid-column:1/-1;display:flex;flex-wrap:wrap;align-items:baseline;gap:3px 6px;min-width:0}
 .story-row-overline small{display:inline;font-size:12px;letter-spacing:.045em;text-transform:uppercase;color:var(--accent);line-height:1.2}

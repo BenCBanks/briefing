@@ -138,6 +138,7 @@ async function run() {
     await page.emulateMedia({ colorScheme: 'dark' }); await capture(page, 'episode-page-dark');
     await page.emulateMedia({ colorScheme: 'light' });
 
+    await page.locator('.episode-chapter-disclosure').first().evaluate(details => { details.open = true; });
     const marker = page.locator('.episode-citation').first();
     assert.equal(await marker.locator('summary').innerText(), '1');
     await marker.locator('summary').click();
@@ -146,6 +147,7 @@ async function run() {
     assert.equal(await marker.getByRole('link', { name: 'Open source' }).getAttribute('href'), 'https://journal.example.test/instant-network');
     await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
     const lateCitation = page.locator('.episode-citation').last();
+    await lateCitation.evaluate(details => { details.closest('.episode-chapter-disclosure').open = true; });
     const lateSummary = lateCitation.locator('summary');
     const lateSource = lateCitation.getByRole('link', { name: 'Open source' });
     await lateSummary.focus();

@@ -251,7 +251,7 @@ async function run() {
     const freshRoutes = await installBaseRoutes(fresh, { activeProfile: profile, activeEdition: existing });
     await fresh.goto(`${baseURL}/#today`, { waitUntil: 'domcontentloaded' });
     await fresh.locator('.today-page').waitFor();
-    await fresh.locator('.story-row-link strong').filter({ hasText: existing.sections[0].heading }).waitFor();
+    await fresh.locator('.today-chapter-title').filter({ hasText: existing.sections[0].heading }).waitFor();
     assert.equal(freshRoutes.generatedCalls, 0, 'existing active-profile edition does not start a build in a new browser');
 
     const missing = await newPage(browser);

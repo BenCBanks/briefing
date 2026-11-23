@@ -278,13 +278,13 @@ function syncListeningControls() {
           : same && ['playing', 'paused'].includes(player.status) ? `Resume ${formatElapsed(state.progress[edition.id]?.seconds)}` : button.dataset.listenEstimate;
         const labelNode = button.querySelector('.mode-label');
         const detailNode = button.querySelector('small');
-        if (labelNode) labelNode.textContent = button.classList.contains('today-listen-pill') ? same && player.status === 'playing' ? 'Playing · tap to pause' : label === 'Listen' ? `Listen${button.dataset.durationLabel || ''}` : label : 'Listen';
+        if (labelNode) labelNode.textContent = button.classList.contains('today-listen-pill') ? same && player.status === 'playing' ? 'Playing · tap to pause' : label === 'Listen' ? `Play${button.dataset.durationLabel || ''}` : label : 'Listen';
         if (detailNode) detailNode.textContent = detail;
         const icon = button.querySelector('.mode-icon');
         if (icon) icon.innerHTML = same && player.status === 'playing' ? PAUSE_ICON : PLAY_ICON;
         button.disabled = audioPaused;
         button.classList.toggle('is-disabled', audioPaused);
-        button.setAttribute('aria-label', label === 'Listen' ? `Listen to today's briefing${spokenEstimate ? `, about ${spokenEstimate}` : ''}` : `${label} today's briefing`);
+        button.setAttribute('aria-label', label === 'Listen' ? `Play today's briefing${spokenEstimate ? `, about ${spokenEstimate}` : ''}` : `${label} today's briefing`);
       }
       continue;
     }
@@ -2692,8 +2692,8 @@ async function refreshTodayRunSummary(edition, article) {
       listen.dataset.listenEstimate = `${minutes} min`;
       listen.dataset.durationLabel = durationLabel;
       const label = listen.querySelector('.mode-label');
-      if (label && (label.textContent === 'Listen' || label.textContent.startsWith('Listen ·'))) label.textContent = `Listen${durationLabel}`;
-      listen.setAttribute('aria-label', `Listen to today's briefing, about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`);
+      if (label && (label.textContent === 'Play' || label.textContent.startsWith('Play ·') || label.textContent.startsWith('Play about'))) label.textContent = `Play${durationLabel}`;
+      listen.setAttribute('aria-label', `Play today's briefing, about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`);
     }
   } catch {
     // The edition remains useful if the optional run summary is unavailable.

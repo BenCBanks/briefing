@@ -52,7 +52,8 @@ async function run() {
     });
 
     await page.goto(`${baseURL}/#today`, { waitUntil: 'networkidle' });
-    await page.locator('.today-contents [data-read-section]').first().click();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await page.locator('.today-full-story-link').first().click();
     await page.locator('body.is-reader .edition-section').waitFor();
     assert.equal(await page.locator('.edition-section').count(), 1, 'Each reader route displays one story');
     assert.match(await page.locator('.reader-sticky .story-progress').getAttribute('aria-label'), /Story 1 of 4/);

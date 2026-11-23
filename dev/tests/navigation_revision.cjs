@@ -55,9 +55,9 @@ async function run() {
     assert.equal(await page.locator('.today-page .edition-section').count(), 4, 'Today includes every readable story');
     assert.equal(await page.locator('.today-mode-read').count(), 0, 'Reading needs no separate mode');
     assert.match(await page.locator('.today-date').innerText(), /^Sunday 15 November$/);
-    assert.equal(await page.locator('.today-listen-pill').count(), 1, 'Today exposes the equal Listen action');
-    assert.match(await page.locator('.today-listen-pill .mode-label').innerText(), /^Listen(?: · about \d+ min)?$/);
-    assert.match(await page.locator('.today-listen-pill').getAttribute('aria-label'), /^Listen to today's briefing(?:, about \d+ minutes?)?$/);
+    assert.equal(await page.locator('.today-listen-pill').count(), 1, 'Today exposes the primary Play action');
+    assert.match(await page.locator('.today-listen-pill .mode-label').innerText(), /^Play(?: · about \d+ min)?$/);
+    assert.match(await page.locator('.today-listen-pill').getAttribute('aria-label'), /^Play today's briefing(?:, about \d+ minutes?)?$/);
     assert.match(await page.locator('.today-run-meta').innerText(), /^\d+ stories(?: · about \d+ min)?$/);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await capture(page, 'today-390-light.png');
@@ -65,7 +65,8 @@ async function run() {
     await capture(page, 'today-390-dark.png');
     await page.emulateMedia({ colorScheme: 'light' });
 
-    await page.locator('.story-row-link').first().click();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await page.locator('.today-full-story-link').first().click();
     await page.locator('body.is-reader .edition-section').first().waitFor();
     assert.equal(await page.locator('.main-nav').isVisible(), true, 'V3 icon and label tabs remain available in readers');
     assert.equal(await page.locator('.reader-sticky').isVisible(), true);
@@ -198,7 +199,8 @@ async function run() {
     await page.locator('.today-page').waitFor();
     await capture(page, 'today-desktop-light.png');
     await page.emulateMedia({ colorScheme: 'dark' }); await capture(page, 'today-desktop-dark.png'); await page.emulateMedia({ colorScheme: 'light' });
-    await page.locator('.story-row-link').first().click();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await page.locator('.today-full-story-link').first().click();
     await page.locator('body.is-reader .edition-section').first().waitFor();
     await capture(page, 'reader-desktop-light.png');
     await page.emulateMedia({ colorScheme: 'dark' }); await capture(page, 'reader-desktop-dark.png'); await page.emulateMedia({ colorScheme: 'light' });
