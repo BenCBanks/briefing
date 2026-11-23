@@ -60,8 +60,12 @@ def run_one(test, temp):
                                    cwd=ROOT, env=env, stdout=log, stderr=subprocess.STDOUT)
         try:
             wait_ready(base + '/', preview)
-            return subprocess.run(['node', str(test)], cwd=ROOT, env=env, capture_output=True,
-                                  text=True, timeout=300)
+            result = subprocess.run(['node', str(test)], cwd=ROOT, env=env, capture_output=True,
+                                    text=True, timeout=300)
+            if result.returncode != 0:
+                log.flush()
+                result.stderr += '\n--- preview log (tail) ---\n' + (temp / 'preview.log').read_text(errors='replace')[-2500:]
+            return result
         finally:
             preview.terminate()
             preview.wait(timeout=10)
