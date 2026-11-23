@@ -25,7 +25,7 @@ from dev.ingest.daily_narration import (ENRICH_PROMPT, ENRICH_SCHEMA, NARRATION_
                                         _evidence_for_story,
                                         _narration_budget_preflight,
                                         _select_story_evidence,
-                                        _spoken_text_key, _spoken_topic_label,
+                                        _spoken_text_key,
                                         _story_word_range, _target_story_words,
                                         lint_spoken_text, lint_story_set,
                                         narration_cost_estimate, write_spoken_script)
@@ -486,8 +486,8 @@ class DailyNarrationTests(unittest.TestCase):
                          'the correction date remains inspectable in source metadata')
         self.assertIn('standard home permits', spoken)
         self.assertIn('Commercial permits remain at thirty business days.', spoken)
-        self.assertEqual(spoken.count("That's today's briefing."), 1)
-        self.assertTrue(spoken.endswith("That's today's briefing."))
+        self.assertNotIn("That's today's briefing.", spoken)
+        self.assertEqual(edition['daily_briefing']['briefing_script'][-1]['kind'], 'story_intro')
         self.assertEqual(permit_row['source_sentence_ids'], ['permits-1'])
         self.assertEqual(permit_row['citation_numbers'], [1])
         self.assertEqual(edition['sections'][-1]['claim_links'][0]['citation_numbers'], [1])
@@ -611,9 +611,9 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertEqual(result['retry_reason'], 'narration_repeated_read_takeaway', result)
         self.assertIn('"code":"narration_repeated_read_takeaway"', writer_prompts[1])
         self.assertIn(read_takeaway, writer_prompts[0])
-        self.assertIn('Choose a natural opening for the story:', SCRIPT_PROMPT)
-        self.assertIn('start with brief orienting context when it helps, or with the', SCRIPT_PROMPT)
-        self.assertIn('specific development when that is clearer.', SCRIPT_PROMPT)
+        self.assertIn('listener-sized question', SCRIPT_PROMPT)
+        self.assertIn('short plain-language bridge', SCRIPT_PROMPT)
+        self.assertIn('Style-only example', SCRIPT_PROMPT)
         self.assertIn('Connect the development to the reader\'s selected domain only when the supplied evidence supports that link.',
                       SCRIPT_PROMPT)
         self.assertIn('Specific programs, affected groups and jurisdictional effects require source support.',
@@ -624,7 +624,7 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertEqual(result['story_word_counts'], {'harbor': 100, 'library': 100,
                                                        'school': 100, 'market': 95})
         # This proves retry behavior only: the concise 424-word draft is not padded.
-        self.assertEqual(edition['daily_briefing']['spoken_words'], 405)
+        self.assertEqual(edition['daily_briefing']['spoken_words'], 395)
         self.assertLess(edition['daily_briefing']['spoken_words'],
                         edition['daily_briefing']['target_spoken_words'])
         final_spoken = ' '.join(row.get('text', '') for row in edition['daily_briefing']['briefing_script'])
@@ -635,9 +635,8 @@ class DailyNarrationTests(unittest.TestCase):
                          if row.get('kind') == 'story_intro']
         self.assertTrue(all(introductions))
         self.assertFalse(any(text.startswith(('First,', 'Turning to', 'Finally.')) for text in introductions))
-        self.assertTrue(edition['daily_briefing']['briefing_script'][0]['text'].startswith('Good morning.'))
-        self.assertEqual(edition['daily_briefing']['briefing_script'][-1]['text'],
-                         "That's today's briefing.")
+        self.assertEqual(edition['daily_briefing']['briefing_script'][0]['kind'], 'story_intro')
+        self.assertNotIn("That's today's briefing.", final_spoken)
 
         rich_evidence = deepcopy(evidence)
         source_details = {
@@ -696,7 +695,7 @@ class DailyNarrationTests(unittest.TestCase):
                                for story in corrected['stories'])
         opening_and_transition_words = edition['daily_briefing']['spoken_words'] - story_body_words
         first_draft_words = story_body_words + opening_and_transition_words
-        self.assertEqual(first_draft_words, 405)
+        self.assertEqual(first_draft_words, 395)
         short_edition = deepcopy(original_edition)
         rich_result = self.narrate(short_edition, profile, rich_evidence, sources,
                                           call_json=call_json)
@@ -718,8 +717,8 @@ class DailyNarrationTests(unittest.TestCase):
             self.assertNotIn(story['read_takeaway'], ' '.join(attempted_sentences))
         attempted_words = sum(_word_count(' '.join(row['text'] for row in story['sentences']))
                               for story in expanded['stories']) + opening_and_transition_words
-        self.assertEqual(attempted_words, 474)
-        self.assertEqual(rich_result['spoken_words'], 474)
+        self.assertEqual(attempted_words, 464)
+        self.assertEqual(rich_result['spoken_words'], 464)
         self.assertEqual(short_edition['daily_briefing']['spoken_words'],
                          _word_count(' '.join(row['text'] for row in
                                               short_edition['daily_briefing']['briefing_script'])))
@@ -768,7 +767,8 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertEqual(len(intros), 3)
         self.assertTrue(all(row['text'] for row in intros))
         self.assertFalse(any(row.get('kind') == 'heading' for row in script_rows))
-        self.assertEqual(script_rows[-1]['text'], "That's today's briefing.")
+        self.assertEqual(script_rows[-1]['kind'], 'story_intro')
+        self.assertNotIn("That's today's briefing.", ' '.join(row['text'] for row in script_rows))
 
         spoken = ' '.join(row['text'] for row in script_rows)
         self.assertNotIn('Here is your briefing for', spoken)
@@ -786,7 +786,7 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertEqual(edition['daily_briefing']['spoken_words'], _word_count(spoken))
         self.assertLess(_word_count(spoken), edition['daily_briefing']['target_spoken_words'],
                         'the short, informative script is not padded to the five-minute aim')
-        self.assertIn("Don't read the headline aloud", SCRIPT_PROMPT)
+        self.assertIn("Don't read a headline aloud", SCRIPT_PROMPT)
         self.assertIn('publication-date-and-organization formula', SCRIPT_PROMPT)
         self.assertIn('one distinct, supported reason it matters', SCRIPT_PROMPT)
         self.assertEqual([story['sentences'][0]['text'] for story in writer_response['stories']], [
@@ -995,13 +995,12 @@ class DailyNarrationTests(unittest.TestCase):
                 result = self.narrate(edition, fixture['profile'], fixture['runtime_evidence'],
                                       fixture['sources'], call_json=call_json)
                 self.assertEqual(result['status'], 'written', result)
-                closing = "That's today's briefing."
                 transcript_text = ' '.join(
                     row['text'] for row in edition['daily_briefing']['briefing_script'])
                 exported = daily_episode_from_edition(edition)
                 exported_text = ' '.join(chapter['spoken_text'] for chapter in exported['chapters'])
-                self.assertEqual(transcript_text.count(closing), 1)
-                self.assertEqual(exported_text.count(closing), 1)
+                self.assertNotIn("That's today's briefing.", transcript_text)
+                self.assertNotIn("That's today's briefing.", exported_text)
                 self.assertEqual(exported_text, transcript_text)
                 expected_hash = hashlib.sha256(transcript_text.encode('utf-8')).hexdigest()
                 self.assertEqual(edition['script_hash'], expected_hash)
@@ -1256,10 +1255,7 @@ class DailyNarrationTests(unittest.TestCase):
         card_copy = lint_spoken_text('The rule changed. The agency set a deadline.')
         self.assertFalse(card_copy['host_flow'])
 
-    def test_topic_labels_are_pronounceable_and_each_topic_is_introduced_once(self):
-        self.assertEqual(_spoken_topic_label('ai in finance'), 'A I in finance')
-        self.assertEqual(_spoken_topic_label('nc health insurance'),
-                         'North Carolina health insurance')
+    def test_writer_transitions_do_not_inject_topic_labels_or_spell_acronyms(self):
         sections = [
             {'cluster_id': 'ai-1', 'topic_ids': ['ai'], 'heading': 'First AI update'},
             {'cluster_id': 'nc', 'topic_ids': ['nc'], 'heading': 'Health update'},
@@ -1340,7 +1336,7 @@ class DailyNarrationTests(unittest.TestCase):
         transcript = ' '.join(row['text'] for row in edition['daily_briefing']['briefing_script'])
         rendered_audio = ' '.join(chapter['spoken_text'] for chapter in episode['chapters'])
         self.assertEqual(rendered_audio, transcript)
-        self.assertEqual(rendered_audio.count("That's today's briefing."), 1)
+        self.assertNotIn("That's today's briefing.", rendered_audio)
 
     def test_model_error_keeps_written_text_and_audio_chapters_unchanged(self):
         before = deepcopy(self.edition)
@@ -1633,8 +1629,7 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertIn('ten point one million', story_texts[1])
         self.assertNotRegex(' '.join(story_texts),
                             r'(?i)(?:notice|source) (?:does not|doesn.t) say|we should not guess|details remain open')
-        self.assertNotIn('November twentieth', edition['daily_briefing']['greeting'])
-        self.assertIn('two stories', edition['daily_briefing']['greeting'])
+        self.assertEqual(edition['daily_briefing']['greeting'], '')
         spoken = ' '.join(row['text'] for row in edition['daily_briefing']['briefing_script'])
         self.assertEqual(edition['daily_briefing']['spoken_words'], _word_count(spoken))
         self.assertLess(edition['daily_briefing']['spoken_words'],
