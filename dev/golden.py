@@ -223,26 +223,24 @@ def run(report_date: str | None = None, *, report_dir: Path = REPORT_DIR) -> Pat
     date.fromisoformat(report_date) if report_date else None
     before = ledger_snapshot()
     cases = []
-    for label, question in QUESTIONS:
+    plans = [('episode', label, question, lambda q=question: _episode(q))
+             for label, question in QUESTIONS]
+    plans.extend(('daily', label, f'What useful developments should a reader interested in {label} know today?',
+                  lambda l=label, i=topic_id, s=scope: _daily(l, i, s))
+                 for label, topic_id, scope in DAILY_PROFILES)
+    for index, (kind, label, question, generate) in enumerate(plans):
         current = ledger_cost_delta(before, ledger_snapshot())
         if current >= RUN_BUDGET_USD:
-            cases.append({'kind': 'episode', 'name': label, 'question': question,
-                          'seconds': 0, 'cost_usd': '0',
-                          'error': f'run budget reached at ${current:.5f}; remaining cases skipped'})
+            for skipped_kind, skipped_label, skipped_question, _ in plans[index:]:
+                cases.append({'kind': skipped_kind, 'name': skipped_label,
+                              'question': skipped_question, 'seconds': 0, 'cost_usd': '0',
+                              'error': f'run budget reached at ${current:.5f}; case skipped'})
             break
-        cases.append(_case_record('episode', label, question,
-                                  lambda q=question: _episode(q)))
-    if not any(Decimal(case.get('cost_usd', '0')) >= RUN_BUDGET_USD for case in cases):
-        for label, topic_id, scope in DAILY_PROFILES:
-            current = ledger_cost_delta(before, ledger_snapshot())
-            if current >= RUN_BUDGET_USD:
-                cases.append({'kind': 'daily', 'name': label, 'question': f'Daily briefing for {label}',
-                              'seconds': 0, 'cost_usd': '0',
-                              'error': f'run budget reached at ${current:.5f}; remaining cases skipped'})
-                break
-            question = f'What useful developments should a reader interested in {label} know today?'
-            cases.append(_case_record('daily', label, question,
-                                      lambda l=label, i=topic_id, s=scope: _daily(l, i, s)))
+        case = _case_record(kind, label, question, generate)
+        cases.append(case)
+        status = f"failed: {case['error']}" if case.get('error') else f"{case['words']} words, score {case['overall']}/5"
+        print(f"[{len(cases)}/{len(plans)}] {kind} {label}: {status}; "
+              f"${Decimal(case['cost_usd']):.5f} ledger cost; {case['seconds']}s", flush=True)
     total = ledger_cost_delta(before, ledger_snapshot())
     stamp = report_date or date.today().isoformat()
     report_dir.mkdir(parents=True, exist_ok=True)
