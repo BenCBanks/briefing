@@ -68,7 +68,7 @@ async function capture(page, name) {
     await page.locator('.network-banner').waitFor({ timeout: 7000 });
     assert.match(await page.locator('.network-banner').innerText(), /taking longer than usual.*saved briefing is still here/i, 'A slow refresh explains that cached reading remains available');
     if (await page.locator('.story-more-toggle').first().getAttribute('aria-expanded') === 'false') await page.locator('.story-more-toggle').first().click();
-    await page.locator('.story-more [data-source]').first().evaluate(button => button.focus({ preventScroll: true }));
+    await page.locator('.inline-story-sources [data-source]').first().evaluate(button => button.focus({ preventScroll: true }));
     await page.evaluate(() => window.scrollTo({ top: 300, behavior: 'instant' }));
     await page.evaluate(() => { window.__article = document.querySelector('.today-page'); window.__focus = document.activeElement; window.__y = scrollY; });
     await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(() => { window.__y = scrollY; resolve(); }))));

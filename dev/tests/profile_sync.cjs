@@ -58,7 +58,7 @@ async function run() {
     assert.equal(generatePosts.length, 0, 'the matching active-profile edition avoids a duplicate build after syncing a legacy browser profile');
     assert.equal(await page.locator('.today-page h1').innerText(), 'Your daily briefing');
     assert.equal(await page.locator('[data-jump-story]').first().getAttribute('data-jump-story'), generatedEdition.sections[0].id, 'Top stories point to the edition generated for the synced profile');
-    assert.equal(await page.locator('.today-top-story-copy strong').first().innerText(), 'A faster checkout', 'Top story uses a short headline-derived subject');
+    assert.equal(await page.locator('.today-top-story-copy strong').first().innerText(), generatedEdition.sections[0].headline || generatedEdition.sections[0].heading, 'Top story shows its complete headline');
     assert.deepEqual(await page.locator('.today-contents .story-row-copy strong').allTextContents(), generatedEdition.sections.map(section => section.heading), 'Today shows every story for the synced profile instead of filtering with old local topics');
     assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('briefing:v1:interest-profile')).words), serverProfile.words, 'saved server profile replaces the legacy browser profile');
     assert.equal(await page.evaluate(() => localStorage.getItem('briefing:v1:built-profile-key')), profileKey(serverProfile), 'completed edition is keyed to the synced profile');

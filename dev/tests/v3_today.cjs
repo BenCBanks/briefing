@@ -144,7 +144,7 @@ async function checkContrast(page) {
   await page.reload({waitUntil:'domcontentloaded'}); await page.locator('.today-story-row').first().waitFor();
   assert.match(await page.locator('.story-lead').first().innerText(), /^U\.S\. payment network/);
   assert.equal(await page.locator('.today-page h1').innerText(), 'Your daily briefing');
-  assert.deepEqual(await page.locator('.today-top-story-copy strong').allTextContents(), ['Cedar Bank opens instant transfers','Harbor extends health enrollment','Northstar tests an AI review team']);
+  assert.deepEqual(await page.locator('.today-top-story-copy strong').allTextContents(), headlines, 'Top stories keep complete headlines');
   assert.equal(await page.locator('.today-page .episode-entry-prompt').count(),1);
   assert.equal(await page.locator('.today-page .episode-entry-prompt').innerText(), 'Brief me on something else\n→');
   assert.equal(await page.locator('.today-page .episode-entry-prompt').getAttribute('href'), '#ask-episode', 'The Today-to-On-demand link opens the On demand tab route');
@@ -175,7 +175,7 @@ async function checkContrast(page) {
   assert.deepEqual(moreIconStyle,[24,24,'1.8px'],'More disclosure uses the same icon box and stroke');
   await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
   for (const row of await page.locator('.today-story-row').all()) {
-   assert.ok((await row.boundingBox()).height <= 520,'Collapsed story stays within the fixture content bound with representative editorial copy');
+   assert.ok((await row.boundingBox()).height <= 640,'Collapsed story and its visible source list stay within the fixture content bound');
    const headline = row.locator('.story-row-link strong');
    assert.equal(await headline.evaluate(el=>getComputedStyle(el).textOverflow),'clip');
    assert.equal(await headline.evaluate(el=>el.scrollHeight <= el.clientHeight),true);
@@ -188,9 +188,9 @@ async function checkContrast(page) {
    await captureBottomBar(page, `bottom-bar-${theme}`);
    await page.evaluate(()=>scrollTo({top:0,behavior:'instant'})); await capture(page,`today-${theme}`);
    await checkContrast(page);
-   const source = page.locator('.story-source-line a').first();
-   assert.deepEqual(await source.evaluate(el=>{const s=getComputedStyle(el);return [s.fontSize,s.textDecorationLine,s.color===getComputedStyle(el.closest('.story-source-line').querySelector('button')).color];}), ['14px','underline',true]);
-   await source.focus(); assert.equal(await source.evaluate(el=>getComputedStyle(el).textDecorationLine),'underline'); await source.evaluate(el=>el.blur());
+   const source = page.locator('.inline-story-sources button').first();
+   assert.match(await source.innerText(), /Fictional Settlement Desk/u, 'Today source list names the publisher');
+   assert.equal(await source.evaluate(el=>el.getBoundingClientRect().height >= 44), true, 'Today source links remain comfortably tappable');
    await page.locator('.today-story-row').nth(1).evaluate(el=>el.scrollIntoView({block:'start',behavior:'instant'})); await capture(page,`today-${theme}-2mid`);
    await page.evaluate(()=>scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}));
    const bottomGap = await page.evaluate(() => {
@@ -226,8 +226,8 @@ async function checkContrast(page) {
   await page.emulateMedia({colorScheme:'light'});
   await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
   const more=page.locator('.story-more-toggle').first(); await more.focus(); await page.keyboard.press('Enter'); assert.equal(await more.getAttribute('aria-expanded'),'true');
-  assert.equal(await page.locator('.story-more').first().isVisible(),true); assert.equal(await page.locator('.story-more').first().locator('.citation-number').count(),2);
-  await page.locator('.story-more-toggle').nth(1).click(); assert.equal(await page.locator('.story-more').nth(1).locator('.citation-number').count(),0);
+  assert.equal(await page.locator('.story-more').first().isVisible(),true); assert.equal(await page.locator('.inline-story-sources').first().locator('li').count(),2);
+  await page.locator('.story-more-toggle').nth(1).click(); assert.equal(await page.locator('.inline-story-sources').nth(1).locator('li').count(),1);
   await page.emulateMedia({colorScheme:'dark'}); await checkContrast(page); await capture(page,'today-dark-expanded'); await page.emulateMedia({colorScheme:'light'});
   await more.click();
   await page.reload({waitUntil:'domcontentloaded'});

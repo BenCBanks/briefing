@@ -52,7 +52,7 @@ async function capture(page, name) {
     await page.emulateMedia({ colorScheme: 'light' });
     const summary = page.locator('.story-more-toggle').first();
     if (await summary.getAttribute('aria-expanded') === 'false') await summary.click();
-    const source = page.locator('.story-more [data-source]').first();
+    const source = page.locator('.inline-story-sources [data-source]').first();
     await source.click();
     await page.locator('.source-title').waitFor();
     await page.locator('.reader-back').click();
