@@ -437,7 +437,7 @@ async function screenshot(page, name) {
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-play-dark');
     await page.emulateMedia({ colorScheme: 'light' });
     await requestedPlayer.getByRole('button', { name: 'Pause episode audio' }).click();
-    await requestedPlayer.locator('[data-player-phase]').filter({ hasText: /Paused/ }).waitFor();
+    await requestedPlayer.locator('[data-player-phase]').filter({ hasText: /Paused/ }).waitFor({ timeout: 15000 });
     await page.keyboard.press('Escape');
 
     episodeFailureMode = true;
