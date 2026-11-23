@@ -881,7 +881,7 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(uncovered['candidate_count'], 0)
         self.assertIn('No recent items matched this topic', uncovered['reason'])
         self.assertTrue(thin_edition['thin_day'])
-        self.assertIn('2 stories met our checks', thin_edition['availability_note'])
+        self.assertNotIn('availability_note', thin_edition)
         self.assertFalse(any('Coverage limited' in row.get('heading', '') or
                              row.get('id') == 'generated-ai-limited'
                              for row in thin_edition['sections']))

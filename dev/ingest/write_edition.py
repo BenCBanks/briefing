@@ -1811,11 +1811,10 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         'verified_drop_count': dropped_claims
     }
     if 0 < selected_count < min(3, target_passing_stories):
-        noun = 'story' if selected_count == 1 else 'stories'
         edition['thin_day'] = True
-        edition['availability_note'] = f'A shorter edition today: {selected_count} {noun} met our checks.'
     else:
         edition['thin_day'] = False
+    edition.pop('availability_note', None)
     edition = _revisioned_edition(edition, previous, generated_at)
     for row in candidate_results:
         topic_id = row.get('topic_id')

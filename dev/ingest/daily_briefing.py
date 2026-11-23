@@ -1010,21 +1010,13 @@ def assemble(edition, profile, target=None, *, retrieval_fill=None, followup_fil
     edition['daily_briefing']['search_summary'] = search_summary
     if words < acceptance_words and all_rungs_exhausted:
         edition['thin_day'] = True
-        edition['availability_note'] = 'A shorter edition today: all news and background supply checks were exhausted.'
     elif words >= acceptance_words:
         edition['thin_day'] = False
-        edition.pop('availability_note', None)
     else:
         # The writer's preliminary short-story marker is not enough: every
         # supply rung must explicitly exhaust before thin_day is honest.
         edition['thin_day'] = False
-        edition.pop('availability_note', None)
-    topic_gaps = [row['gap_note'] for row in edition['daily_briefing']['topic_allocation']['coverage']
-                  if row.get('gap_note')]
-    if topic_gaps:
-        gap_note = 'Supply note: ' + ' '.join(topic_gaps)
-        existing_note = str(edition.get('availability_note') or '').strip()
-        edition['availability_note'] = f'{existing_note} {gap_note}'.strip()
+    edition.pop('availability_note', None)
 
     quick_hits = edition.get('quick_hits')
     if isinstance(quick_hits, list):

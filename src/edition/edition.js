@@ -286,12 +286,8 @@ export function renderToday(container, edition, topics, actions = {}) {
   sections.forEach((section, index) => (section.topic_ids || []).forEach(id => { if (!sectionForTopic.has(id)) sectionForTopic.set(id, { section, index }); }));
   const coverage = edition.coverage || [];
   let stories;
-  let quiet;
-  let limited;
   if (actions.profile) {
     const eligiblePreferences = [];
-    quiet = [];
-    limited = [];
     const mutedLabels = new Set((actions.profile.muted || []).map(item => String(item.label || '').toLocaleLowerCase()));
     const coverageById = new Map(coverage.map(row => [row.topic_id, row]));
     for (const preference of actions.profile.topics || []) {
@@ -303,14 +299,9 @@ export function renderToday(container, edition, topics, actions = {}) {
       const cadenceQuiet = !mustFollow && (preference.cadence === 'weekly' || (preference.cadence === 'weekends' && actions.todayIsWeekend !== true));
       const row = coverageById.get(topicId);
       const found = sectionForTopic.get(topicId);
-      if (cadenceQuiet || !row || row.state === 'quiet') {
-        const reason = cadenceQuiet ? (preference.cadence === 'weekly' ? 'On the weekly recap' : 'Returns on weekends') : row?.reason || 'No matching story in this sample edition';
-        quiet.push({ topic_id: topicId, label: preference.label, state: 'quiet', reason });
-      } else if (row.state === 'limited') {
-        limited.push({ ...row, label: preference.label || row.label });
-      } else if (!found) {
-        quiet.push({ topic_id: topicId, label: preference.label, state: 'quiet', reason: row.reason || 'No matching story in this sample edition' });
-      } else eligiblePreferences.push({ topicId, preference, row });
+      if (!cadenceQuiet && row && row.state !== 'quiet' && row.state !== 'limited' && found) {
+        eligiblePreferences.push({ topicId, preference, row });
+      }
     }
     stories = sections.flatMap(section => {
       const matched = eligiblePreferences.find(item => (section.topic_ids || []).includes(item.topicId));
@@ -322,11 +313,8 @@ export function renderToday(container, edition, topics, actions = {}) {
       const matched = eligibleCoverage.find(row => (section.topic_ids || []).includes(row.topic_id));
       return matched ? [{ ...matched, section_id: section.id }] : [];
     });
-    quiet = coverage.filter(row => row.state === 'quiet');
-    limited = coverage.filter(row => row.state === 'limited');
   }
   const storySections = stories.map(row => sections.find(section => section.id === row.section_id)).filter(section => section && section.kind !== 'link');
-  const thin = edition.thin_day === true || storySections.length < 3;
   const audio = listenTime(edition.audio, actions.listeningAvailable === true);
   const rows = storySections.map((section, index) => {
     const followedCount = actions.followedTopicCount ?? actions.profile?.topics?.length ?? topics.length;
@@ -335,7 +323,6 @@ export function renderToday(container, edition, topics, actions = {}) {
     const key = `${edition.id}:${edition.revision_id || ''}:${section.id}`;
     return `<li class="today-story-row" id="story-${esc(section.id)}"><header class="v3-story-heading"><p class="today-chapter-kicker"><span class="today-chapter-number">${index + 1}</span>${overline ? ` · ${esc(overline)}` : ''}</p><h2 class="inline-story-heading"><button type="button" class="today-chapter-title" data-play-chapter="${esc(section.id)}" aria-label="Play from chapter ${index + 1}: ${esc(section.headline || section.heading)}">${esc(plainSnippetText(section.headline || section.heading))}</button></h2><button class="story-bookmark" data-bookmark="${esc(section.id)}" aria-label="Save story: ${esc(section.headline || section.heading)}" aria-pressed="${Boolean(actions.isSaved?.(section.id))}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 3.5h12v17l-6-4.5-6 4.5z"/></svg></button></header><details class="today-transcript" data-transcript-story="${esc(section.id)}"${audio.available && !openTodayTranscripts.has(key) ? '' : ' open'}><summary>Transcript and sources</summary><div class="inline-story" data-inline-story="${esc(section.id)}"></div>${actions.openReader ? `<button type="button" class="today-full-story-link${actions.isRead?.(edition.id, section.id, edition.revision_id) ? ' is-read' : ''}" data-read-section="${esc(section.id)}" aria-label="Open story: ${esc(section.headline || section.heading)}">Read as a story</button>` : ''}</details></li>`;
   }).join('');
-  const limitedLabels = [...new Set(limited.map(row => topicLabel(row, topicById)))];
   const countWords = storySections.map(section => [section.headline || section.heading, ...Object.values(storyCopy(section)).flat(), section.background_block?.text || ''].join(' ')).join(' ');
   const rawAudioSeconds = Number(edition.audio?.duration_seconds);
   const actualAudioMinutes = Number.isFinite(rawAudioSeconds) && rawAudioSeconds > 0 ? Math.max(1, Math.round(rawAudioSeconds / 60)) : null;
@@ -344,17 +331,15 @@ export function renderToday(container, edition, topics, actions = {}) {
   const duration = displayDuration ? ` · about ${displayDuration}` : '';
   const listenAriaDuration = displayDuration ? `, about ${esc(displayDuration)}` : '';
   const storyCount = storySections.length;
-  const availabilityNote = typeof edition.availability_note === 'string' ? edition.availability_note.trim() : '';
   container.innerHTML = `<article class="today-page">
     <p class="today-date">${esc(todayDate(edition.local_date))}</p>
     <h1 class="today-title">Your daily briefing</h1>
-    <section class="today-run-summary" aria-label="Daily briefing length"><p class="today-run-meta">${storyCount} ${storyCount === 1 ? 'story' : 'stories'}${spokenMinutes ? ` · about ${spokenMinutes} min` : ''}</p>${availabilityNote ? `<p class="today-availability-note" role="status">${esc(availabilityNote)}</p>` : ''}</section>
+    <section class="today-run-summary" aria-label="Daily briefing length"><p class="today-run-meta">${storyCount} ${storyCount === 1 ? 'story' : 'stories'}${spokenMinutes ? ` · about ${spokenMinutes} min` : ''}</p></section>
     <section class="today-primary" aria-label="Briefing player">${audio.available ? `<button class="today-listen-pill primary" data-listen-control="edition" data-edition-id="${esc(edition.id)}" data-revision-id="${esc(edition.revision_id)}" data-listen-estimate="${esc(displayDuration || '')}" data-duration-label="${esc(duration)}" aria-label="Play today's briefing${listenAriaDuration}"><span class="mode-icon">${playIcon}</span><span class="mode-label">Play${duration}</span></button>` : `<p class="today-audio-unavailable" role="status">Audio isn’t ready yet. Read the briefing below.</p>`}</section>
     ${rows ? `<section class="today-contents" aria-label="Chapters"><ol>${rows}</ol></section>` : ''}
     <section data-quick-hits-slot></section>
     ${actions.weekly && new Date(edition.local_date + 'T12:00:00Z').getUTCDay() === 0 ? '<a class="today-weekly-link" href="#weekly" data-open-weekly>Weekly recap</a>' : ''}
     <footer class="today-completion"><strong>You're caught up for today.</strong><span>Next briefing tomorrow morning</span>
-      ${thin && limitedLabels.length ? `<p class="today-quiet-line">We'll keep following ${limitedLabels.map(esc).join(', ')}.</p>` : ''}
       <div class="today-end-actions"><a class="today-earlier-briefings-link" href="#library">Earlier editions</a><div role="group" aria-label="Was this edition useful?">Useful? <button data-edition-useful="yes" aria-pressed="${actions.getFeedback?.(edition.id) === 'yes'}">Yes</button><button data-edition-useful="no" aria-pressed="${actions.getFeedback?.(edition.id) === 'no'}">No</button></div></div>
     </footer>
     <a class="episode-entry-prompt" href="#ask-episode" data-open-episode><span>Brief me on something else</span><span class="episode-entry-arrow" aria-hidden="true">→</span></a>

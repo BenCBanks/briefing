@@ -158,8 +158,10 @@ async function run() {
     });
     await seedInterestProfile(page, profile);
     await page.goto(`${baseURL}/#today`, { waitUntil: 'domcontentloaded' });
-    assert.equal(await page.locator('.today-availability-note').innerText(),
-      'Supply note: Payments: 1 verified story available.', 'an honest per-topic short-supply note is visible on Today');
+    assert.equal(await page.locator('.today-availability-note').count(), 0,
+      'Today never exposes internal topic supply diagnostics');
+    assert.equal(await page.getByText(/Supply note:|verified story available|Worth knowing references exhausted/i).count(), 0,
+      'Today does not show supply diagnostics or apology copy');
     if (shots) {
       fs.mkdirSync(shots, { recursive: true });
       await page.emulateMedia({ colorScheme: 'light' });
@@ -181,8 +183,8 @@ async function run() {
     assert.doesNotMatch(await page.locator('.today-quick-hits').innerText(), /Weekend settlement window announced|revised settlement window/, 'Raw quick hits and summaries stay hidden');
     assert.equal(await page.locator('.today-completion strong').innerText(), "You're caught up for today.");
     assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow morning');
-    assert.equal(await page.locator('.today-quiet-line').innerText(), "We'll keep following AI in finance.",
-      'A topic with no story gets a calm forward-looking note');
+    assert.equal(await page.locator('.today-quiet-line').count(), 0,
+      'Today does not expose a topic gap note');
     await captureLargeText(page, 'today');
     assert.doesNotMatch(await page.locator('.today-page').innerText(), /Nothing happened today|No stories today|could not be loaded|coverage was limited/i,
       'Today ends with calm, plain copy instead of negative or source-limit language');
