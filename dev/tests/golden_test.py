@@ -57,6 +57,7 @@ class GoldenHarnessTests(unittest.TestCase):
         report = golden.render_report([case], Decimal('0.01234'), '2026-11-23')
         self.assertIn('2026-11-23', report)
         self.assertIn('$0.01234', report)
+        self.assertIn('Accepted scripts scored: **1/1**', report)
         self.assertIn('answers question: 4', report)
         self.assertIn('Two weakest sentences', report)
         self.assertIn('One plain paragraph.', report)
