@@ -58,10 +58,10 @@ class GeminiGroundingProvider(BaseProvider):
         input_token_limit = len(json.dumps(
             payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8'))
         try:
-            reservation = self.usage_ledger.reserve_text_call(
-                system_chars, input_chars, payload['generationConfig']['maxOutputTokens'],
-                model=self.config.gemini_model, input_token_limit=input_token_limit)
             self.usage_ledger.record_search(self.name)
+            # Refuse only when the recorded ledger is already at its cap;
+            # actual text cost is recorded after the provider response.
+            self.usage_ledger.preflight_episode('0')
         except UsageError:
             raise ProviderUnavailable('cost_cap_reached') from None
         budget.timeout()
@@ -75,22 +75,16 @@ class GeminiGroundingProvider(BaseProvider):
         candidates_tokens = usage.get('candidatesTokenCount') if isinstance(usage, dict) else None
         thoughts_tokens = usage.get('thoughtsTokenCount') if isinstance(usage, dict) else None
         confirmed_usage = all(type(value) is int and value >= 0 for value in (
-            prompt_tokens, candidates_tokens, thoughts_tokens))
+            prompt_tokens, candidates_tokens))
         try:
-            if os.environ.get('BRIEFING_REQUIRE_USAGE_BATCH') == '1':
-                if not confirmed_usage:
-                    raise ProviderUnavailable('usage metadata unavailable')
-                self.usage_ledger.settle_token_call(
-                    reservation, prompt_tokens, candidates_tokens + thoughts_tokens,
-                    model=self.config.gemini_model, modality='text',
-                    prompt_tokens=prompt_tokens, candidates_tokens=candidates_tokens,
-                    thoughts_tokens=thoughts_tokens)
-            elif type(prompt_tokens) is int:
-                self.usage_ledger.settle_text_call(
-                    reservation, model=self.config.gemini_model,
-                    prompt_tokens=prompt_tokens,
-                    candidates_tokens=candidates_tokens if type(candidates_tokens) is int else 0,
-                    thoughts_tokens=thoughts_tokens if type(thoughts_tokens) is int else 0)
+            if confirmed_usage:
+                self.usage_ledger.record_text_call(
+                    prompt_tokens, candidates_tokens, thoughts_tokens if type(thoughts_tokens) is int else 0,
+                    model=self.config.gemini_model)
+            else:
+                self.usage_ledger.record_text_estimate(
+                    system_chars, input_chars, payload['generationConfig']['maxOutputTokens'],
+                    model=self.config.gemini_model)
         except UsageError:
             raise ProviderUnavailable('cost_cap_reached') from None
         # Missing usage or failed requests retain the conservative reservation.

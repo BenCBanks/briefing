@@ -38,6 +38,7 @@ _NUMBER = re.compile(
     r'(?<![\w])(?P<sign>[+-])?(?P<money>[$£€])?\s*(?P<value>\d[\d,]*(?:\.\d+)?)'
     r'(?P<scale>\s*(?:thousand|million|billion|trillion))?'
     r'(?:\s*(?P<unit>%|percent(?:age points?)?|basis points?|bps|dollars?|euros?|pounds?))?', re.I)
+_SCIENTIFIC = re.compile(r'(?<![\w])(?P<mantissa>[+-]?\d[\d,]*(?:\.\d+)?)\s*[eE]\s*(?P<exponent>[+-]?\d+)(?!\w)')
 
 
 def _under_thousand(value: int) -> str:
@@ -129,6 +130,13 @@ def _spoken_number(match: re.Match) -> str:
     return f'{sign == "-" and "minus " or sign == "+" and "plus " or ""}{value_words} {scale}'.strip()
 
 
+def _spoken_scientific(match: re.Match) -> str:
+    mantissa = _say_number(match.group('mantissa'))
+    exponent = int(match.group('exponent'))
+    sign = 'negative ' if exponent < 0 else ''
+    return f'{mantissa} times ten to the {sign}{_integer_words(abs(exponent))}'
+
+
 def _without_editorial_notes(text: str) -> str:
     """Drop labeled coverage/editorial lines before turning verified text into speech."""
     kept = []
@@ -175,6 +183,7 @@ def _speak_text(text: str) -> str:
     text = _NUMBER_RANGE.sub(
         lambda match: f"{_say_number(match.group('left'))} to {_say_number(match.group('right'))}"
                       f"{' percent' if match.group('unit') == '%' else match.group('unit')}", text)
+    text = _SCIENTIFIC.sub(_spoken_scientific, text)
     # If a conventional initialism and its spelled-out name are both present,
     # make that relationship audible while staying within the supplied words.
     # Expand an acronym only when its full name is already written in this

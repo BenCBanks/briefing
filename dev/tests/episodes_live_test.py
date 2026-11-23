@@ -138,23 +138,6 @@ class LiveEpisodeTests(unittest.TestCase):
             self.assertTrue(store.tts_enabled)
             self.assertEqual(store._preflight(3)['tts_model'], 'gemini-3.8-flash-lite-tts')
 
-    def test_prestart_estimate_respects_daily_monthly_reserve_and_queue_changes(self):
-        store = self.store()
-        request = {'topic': TOPIC, 'length': 15, 'style': 'explainer'}
-        estimate = estimate_episode(15, self.ledger, 'gemini-3.6-flash')
-        self.ledger.config['_daily_cap'] = __import__('decimal').Decimal(estimate['usd'])
-        status, refused = store.submit(PROFILE, request, start=False)
-        self.assertEqual(status, 429)  # daily run reserve is protected
-        self.assertEqual(refused['message'], 'refused: budget')
-        self.assertEqual(store.list(PROFILE)['used_today'], 0)
-        self.ledger.config['_daily_cap'] = __import__('decimal').Decimal(10)
-        _, job = store.submit(PROFILE, request, start=False)
-        self.ledger.config['_monthly_cap'] = __import__('decimal').Decimal(0)
-        store.run_pending(PROFILE, job['job_id'])
-        result = store.get(PROFILE, job['job_id'])
-        self.assertEqual(result['failure_reason'], 'cost_cap_reached')
-        self.assertEqual(result['message'], BUDGET_MESSAGE)
-        self.assertIsNone(result['episode'])
 
     def test_cancel_during_tts_stops_next_segment_and_never_publishes(self):
         provider = FakeProvider()

@@ -143,6 +143,12 @@ class AudioScriptTests(unittest.TestCase):
         self.assertEqual(_speak_text('The company raised $90 billion over five years.'),
                          'The company raised ninety billion dollars over five years.')
 
+    def test_spoken_numeric_formats_are_normalized_before_rejection(self):
+        self.assertEqual(_speak_text('$1.2 billion rose 78%.'),
+                         'one point two billion dollars rose seventy-eight percent.')
+        self.assertEqual(_speak_text('The index reached 1.2e3.'),
+                         'The index reached one point two times ten to the three.')
+
     def test_spoken_clock_time_drops_colon_and_zero_minutes(self):
         self.assertEqual(_speak_text('The notice is scheduled for 11:00 a.m. Eastern.'),
                          'The notice is scheduled for eleven a.m. Eastern.')
