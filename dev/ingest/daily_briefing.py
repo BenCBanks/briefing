@@ -1046,8 +1046,8 @@ def maybe_render_audio(edition, profile_id, renderer=None, enabled=None):
               if enabled is None else enabled is True)
     if not active or not callable(renderer):
         return edition
-    # The renderer owns reservation and settlement through the shared usage
-    # ledger. caller='daily' uses the protected daily reserve.
+    # The renderer records actual usage through the shared ledger. caller='daily'
+    # can use the protected daily reserve.
     audio = renderer(edition, profile_id, caller='daily')
     if isinstance(audio, dict):
         edition['audio'] = audio

@@ -31,7 +31,7 @@ from dev.ingest.episodes_audio import (
 from dev.ingest import episodes_audio
 from dev.ingest.daily_audio import daily_episode_from_edition
 from dev.ingest.tts.gemini import (
-    DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT, DEFAULT_MODEL, MAX_TTS_BATCH_COST_USD,
+    DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT, DEFAULT_MODEL,
     MODEL_INPUT_TOKEN_LIMIT, MODEL_OUTPUT_TOKEN_LIMIT, TtsOutputLimitError, TtsProviderError,
 )
 from dev.ingest.tts.base import TtsResult
@@ -81,81 +81,6 @@ class CorrectionDurationProvider(FakeProvider):
                          len(text), Decimal('0.0001'), DEFAULT_MODEL, voice_name)
 
 
-class PooledAttemptProvider:
-    """Fictional transport wired through an isolated real token ledger."""
-    provider_name = 'gemini'
-    model = DEFAULT_MODEL
-    bounded_batch_cost = GeminiTtsProvider.bounded_batch_cost
-
-    def __init__(self, ledger, chapter_texts, chapter_baselines, output_token_pool=4096,
-                 cost_limit=Decimal('0.06144')):
-        prices = json.loads((ROOT / 'ingest' / 'usage-prices.json').read_text(encoding='utf-8'))
-        rates = prices['prices']['gemini_tts_lite']
-        self.input_rate = Decimal(rates['text_usd_per_million_tokens'])
-        self.output_rate = Decimal(rates['audio_usd_per_million_tokens'])
-        self.ledger = ledger
-        self.usage_ledger = ledger
-        self.chapter_baselines = list(chapter_baselines)
-        self.chapter_indices = {text: index for index, text in enumerate(chapter_texts)}
-        self.output_token_pool = output_token_pool
-        self.cost_limit = cost_limit
-        self.calls = []
-        self.reservations = []
-        self.pending = set()
-        self.settlements = []
-        self.events = []
-        self.future_baseline_checks = []
-
-    def synthesize(self, text, voice_name, *, max_output_tokens, batch_id,
-                   batch_output_token_limit, batch_limit_usd):
-        input_limit = 8192
-        cost = (Decimal(input_limit) * self.input_rate +
-                Decimal(max_output_tokens) * self.output_rate) / Decimal(1_000_000)
-        if (max_output_tokens < 1 or batch_output_token_limit != self.output_token_pool or
-                Decimal(str(batch_limit_usd)) > self.cost_limit):
-            raise AssertionError('fictional pooled ledger refused before transport')
-        reservation = self.ledger.reserve_tts_token_call(
-            input_limit, max_output_tokens, self.model, batch_id=batch_id,
-            batch_output_token_limit=batch_output_token_limit,
-            batch_limit_usd=batch_limit_usd)
-        ledger_snapshot = json.loads(self.ledger.path.read_text(encoding='utf-8'))
-        if reservation not in ledger_snapshot['pending']:
-            raise AssertionError('attempt was not durably reserved before fictional transport')
-        pool = ledger_snapshot['token_pools'][batch_id]
-        output_used = pool['reserved_output_tokens'] + pool['settled_output_tokens']
-        chapter_index = self.chapter_indices[text]
-        future_baseline = sum(self.chapter_baselines[chapter_index + 1:])
-        if batch_output_token_limit - output_used < future_baseline:
-            raise AssertionError('retry consumed output reserved for a later chapter baseline')
-        self.future_baseline_checks.append((chapter_index, future_baseline,
-                                            batch_output_token_limit - output_used))
-        self.reservations.append({
-            'id': reservation, 'input_token_limit': input_limit,
-            'output_token_limit': max_output_tokens, 'batch_id': batch_id,
-            'batch_output_token_limit': batch_output_token_limit,
-            'batch_limit_usd': Decimal(str(batch_limit_usd)), 'reserved_cost': cost,
-        })
-        self.pending.add(reservation)
-        self.events.append(('reserve', reservation))
-        self.calls.append((text, voice_name, max_output_tokens, batch_id))
-        self.events.append(('transport', reservation))
-
-        call_index = len(self.calls) - 1
-        if call_index % 3 == 0:
-            raise TtsProviderError('fictional response usage is ambiguous')
-        if call_index % 3 == 1:
-            self.settle_tts_token_call(reservation, 64, max_output_tokens, self.model)
-            raise TtsOutputLimitError('fictional response reached its output limit')
-        self.settle_tts_token_call(reservation, 64, min(10, max_output_tokens), self.model)
-        return TtsResult(wav_bytes(), 'audio/wav', 0.1, len(text), Decimal('0.0001'),
-                         self.model, voice_name, 64, min(10, max_output_tokens), 'STOP',
-                         'pending_human_listening')
-
-    def settle_tts_token_call(self, reservation, input_tokens, output_tokens, model):
-        self.settlements.append((reservation, input_tokens, output_tokens, model))
-        self.ledger.settle_tts_token_call(reservation, input_tokens, output_tokens, model)
-        self.pending.discard(reservation)
-        self.events.append(('settle', reservation))
 
 
 class EpisodeAudioRenderTests(unittest.TestCase):
@@ -255,56 +180,6 @@ class EpisodeAudioRenderTests(unittest.TestCase):
             check=False, capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
 
-    def test_fictional_max_daily_shape_exceeds_one_bounded_batch_before_transport(self):
-        edition = {
-            'id': 'fictional-daily-envelope', 'revision_id': 'fictional-r1',
-            'duration_minutes': 5,
-            'sections': [
-                {'id': f'fictional-story-{index}', 'cluster_id': f'cluster-{index}',
-                 'heading': f'Fictional story {index}',
-                 'audio_script': {'spoken_text': f'Fictional story {index} has a short sourced update.',
-                                  'includes_title': True}}
-                for index in range(1, 7)
-            ],
-            'daily_briefing': {'background_segments': [
-                {'segment_id': f'fictional-background-{index}', 'topic_id': f'topic-{index}',
-                 'audio_script': {'spoken_text': f'Fictional topic {index} has useful background.',
-                                  'includes_title': True}}
-                for index in range(1, 13)
-            ]},
-        }
-        episode = daily_episode_from_edition(edition)
-        self.assertEqual(len(episode['chapters']), 18)
-        self.assertEqual(len(episode['chapters']) * MAX_SEGMENT_ATTEMPTS, 54)
-
-        prices = json.loads((ROOT / 'ingest' / 'usage-prices.json').read_text(encoding='utf-8'))
-        rates = prices['prices']['gemini_tts_lite']
-        input_rate = Decimal(rates['text_usd_per_million_tokens'])
-        output_rate = Decimal(rates['audio_usd_per_million_tokens'])
-        million = Decimal(1_000_000)
-        full_attempt_cost = (
-            Decimal(MODEL_INPUT_TOKEN_LIMIT) * input_rate +
-            Decimal(MODEL_OUTPUT_TOKEN_LIMIT) * output_rate
-        ) / million
-        self.assertEqual(full_attempt_cost, Decimal('0.1024'))
-        self.assertEqual(full_attempt_cost * 54, Decimal('5.5296'))
-
-        shared_pool_cost = (
-            Decimal(54 * MODEL_INPUT_TOKEN_LIMIT) * input_rate +
-            Decimal(DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT) * output_rate
-        ) / million
-        self.assertEqual(shared_pool_cost, Decimal('0.24576'))
-        self.assertGreater(shared_pool_cost, Decimal('0.15'))
-        self.assertEqual(MAX_TTS_BATCH_COST_USD, Decimal('0.06144'))
-
-        provider = FakeProvider()
-        with self.assertRaisesRegex(ValueError, 'at most nine chapter attempts'):
-            render_episode_audio(
-                episode, read_fixture()['profile_id'], provider=provider,
-                state_dir=self.state_dir, max_segment_attempts=MAX_SEGMENT_ATTEMPTS,
-                tts_output_token_limit=DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT,
-                tts_batch_limit_usd=MAX_TTS_BATCH_COST_USD)
-        self.assertEqual(provider.calls, [], 'the unsupported full daily batch fails before transport')
 
 
     def test_voice_file_defaults_to_an_audition_voice_and_accepts_selection(self):
@@ -481,7 +356,7 @@ class EpisodeAudioRenderTests(unittest.TestCase):
             render_episode_audio(
                 corrected, corrected['profile_id'], provider=provider,
                 state_dir=self.state_dir, max_segment_attempts=1,
-                tts_output_token_limit=4096, tts_batch_limit_usd=Decimal('0.06144'))
+                tts_output_token_limit=4096,)
 
         self.assertEqual(len(provider.calls), 1,
                          'MAX_TOKENS fails before another chapter is staged')
@@ -563,8 +438,7 @@ class EpisodeAudioRenderTests(unittest.TestCase):
         truncated_provider = MaxTokensProvider()
         with self.assertRaisesRegex(EpisodeAudioError, 'Chapter 1 failed after 3 attempts'):
             render_episode_audio(corrected, corrected['profile_id'], provider=truncated_provider,
-                                 state_dir=self.state_dir, tts_output_token_limit=4096,
-                                 tts_batch_limit_usd=Decimal('0.06144'))
+                                 state_dir=self.state_dir, tts_output_token_limit=4096,)
 
         self.assertEqual(len(truncated_provider.calls), 3)
         self.assertTrue(all('exact current revision identity' in text
@@ -583,174 +457,6 @@ class EpisodeAudioRenderTests(unittest.TestCase):
         self.assertFalse(any(row.is_dir() and row.name.startswith('.render-')
                              for row in asset_root.iterdir()))
 
-    def test_bounded_batch_shares_output_pool_across_chapters_and_retries(self):
-        episode = read_fixture()
-        episode['chapters'][0].update(
-            id='fictional-library-story', title='Alder Bay delivery lockers',
-            spoken_text=' '.join((
-                'Alder Bay will test shared parcel lockers beside its fictional library this spring.',
-                'Residents can collect packages in one trip downtown instead of making separate visits to the post office.',
-                'The pilot includes households that have trouble receiving parcels at home.',
-                'The library will track missed collections, operating costs, and resident feedback.',
-                'The key question is whether convenient pickup cuts failed deliveries without adding too much staff work.',
-                'A council review after May will decide whether the service continues.'
-            )))
-        episode['chapters'][1].update(
-            id='fictional-transit-story', title='Northbridge bus lanes',
-            spoken_text=' '.join((
-                'Fictional Northbridge approved a six-month bus-lane trial on its busiest downtown route.',
-                'Buses will get priority at two intersections that often delay the morning commute.',
-                'Planners say the aim is more predictable arrivals, not simply faster trips.',
-                'Shops asked to preserve loading access, so the plan marks delivery periods.',
-                'The city will compare travel times and missed connections before extending the lanes.',
-                'Watch whether buses arrive consistently during the busiest hour.'
-            )))
-        third = deepcopy(episode['chapters'][-1])
-        third.update(
-            id='fictional-flood-story', title='Rivermere flood map',
-            spoken_text=' '.join((
-                'Rivermere’s updated fictional flood map adds several neighborhoods along the eastern creek to its annual review.',
-                'New elevation readings were gathered after last year’s heavy rain.',
-                'The map does not predict that homes will flood, but it changes which streets the town inspects first.',
-                'Residents can request a property review through the planning office.',
-                'Drainage work will weigh both risk and homes affected.',
-                'At the next public meeting, the council will explain those priorities.'
-            )))
-        episode['chapters'].append(third)
-        normalized_chapters = [normalize_narration(chapter['spoken_text'])
-                               for chapter in episode['chapters']]
-        self.assertIn(
-            'The map does not predict that homes will flood, but it changes which streets the town inspects first.',
-            normalized_chapters[2],
-            'spoken normalization retains the supported caveat and its negation')
-        chapter_baselines = [_chapter_output_token_estimate(text) for text in normalized_chapters]
-        expected_output_tokens = sum(chapter_baselines)
-        self.assertLessEqual(expected_output_tokens, 4096,
-                             'all three full chapters fit with the pacing margin')
-        expected_script_hash, _asset_key = _fingerprints(
-            episode, _chapter_scripts(episode), DEFAULT_VOICE, 'gemini', DEFAULT_MODEL)
-        ledger = UsageLedger(ledger_dir=Path(self.temp.name) / 'usage-ledger')
-        provider = PooledAttemptProvider(ledger, normalized_chapters, chapter_baselines)
-        candidate = render_episode_audio(
-            episode, episode['profile_id'], provider=provider, state_dir=self.state_dir,
-            max_segment_attempts=3, tts_output_token_limit=4096,
-            tts_batch_limit_usd=Decimal('0.06144'))
-
-        self.assertEqual(len(episode['chapters']), 3)
-        self.assertEqual(len(provider.calls), 9)
-        self.assertEqual([row[0] for row in provider.calls], [
-            text for text in normalized_chapters for _attempt in range(3)])
-        self.assertEqual([provider.calls[index][2] for index in (0, 3, 6)], [
-            _chapter_output_token_estimate(text) for text in normalized_chapters],
-            'first chapter caps follow normalized script length and paced output with a margin')
-        self.assertEqual([row['input_token_limit'] for row in provider.reservations],
-                         [8192] * 9)
-        self.assertTrue(all(0 < row['output_token_limit'] <= 4096
-                            for row in provider.reservations))
-        self.assertEqual({row['batch_id'] for row in provider.reservations},
-                         {provider.calls[0][3]})
-        self.assertEqual({row['batch_output_token_limit'] for row in provider.reservations}, {4096})
-        self.assertEqual({row['batch_limit_usd'] for row in provider.reservations},
-                         {Decimal('0.06144')})
-        self.assertEqual(len(provider.future_baseline_checks), 9)
-        for index, event in enumerate(provider.events):
-            if event[0] == 'transport':
-                self.assertEqual(provider.events[index - 1], ('reserve', event[1]))
-        self.assertEqual(len(provider.pending), 3,
-                         'ambiguous first responses retain their full attempt reservations')
-        ledger_state = json.loads(ledger.path.read_text(encoding='utf-8'))
-        batch_id = provider.reservations[0]['batch_id']
-        pool = ledger_state['token_pools'][batch_id]
-        self.assertEqual(pool['output_token_limit'], 4096)
-        self.assertLessEqual(pool['reserved_output_tokens'] + pool['settled_output_tokens'], 4096)
-        input_worst_case = ledger.estimate_token_call_cost(
-            8192, 0, model=DEFAULT_MODEL, modality='tts') * 9
-        output_worst_case = ledger.estimate_token_call_cost(
-            0, 4096, model=DEFAULT_MODEL, modality='tts')
-        self.assertEqual(input_worst_case + output_worst_case, Decimal('0.06144'))
-        self.assertEqual({row['id'] for row in provider.reservations if row['id'] in provider.pending},
-                         provider.pending)
-
-        asset_root = audio_directory(self.state_dir, episode['profile_id'], episode['id'])
-        self.assertEqual(candidate['status'], 'pending_human_listening')
-        self.assertEqual(candidate['candidate_manifest']['status'], 'pending_human_listening')
-        self.assertEqual(candidate['candidate_manifest']['coverage_status'], 'pending_human_listening')
-        self.assertEqual(candidate['script_hash'], expected_script_hash)
-        self.assertEqual(candidate['revision_id'], episode['revision_id'])
-        review_dir = candidate['candidate_directory']
-        self.assertEqual(review_dir.stat().st_mode & 0o777, 0o700)
-        candidate_episode = json.loads((review_dir / 'episode.json').read_text(encoding='utf-8'))
-        self.assertEqual(candidate_episode['audio']['status'], 'pending')
-        self.assertNotIn('url', candidate_episode['audio'])
-        with self.assertRaisesRegex(ValueError, 'bounded audio is not approved'):
-            persisted_audio_selector(candidate_episode)
-        self.assertEqual([row for row in asset_root.iterdir() if row.is_dir() and not row.name.startswith('.')], [],
-                         'the private review candidate is not a current playable asset')
-        self.assertFalse(any(row.is_dir() and row.name.startswith('.render-')
-                             for row in asset_root.iterdir()))
-        state, manifest, path = current_audio_asset(
-            episode, episode['profile_id'], voice_name=DEFAULT_VOICE, state_dir=self.state_dir,
-            tts_output_token_limit=4096, max_segment_attempts=3)
-        self.assertEqual((state, manifest, path), ('stale', None, None),
-                         'private review candidates never resolve to a playable current asset')
-        default_state, _default_manifest, _default_path = current_audio_asset(
-            episode, episode['profile_id'], voice_name=DEFAULT_VOICE, state_dir=self.state_dir)
-        self.assertEqual(default_state, 'stale',
-                         'the default player lookup also refuses pending review audio')
-        with self.assertRaisesRegex(EpisodeAudioError, 'Human listening approval is required'):
-            approve_bounded_audio_candidate(
-                episode, episode['profile_id'], voice_name=DEFAULT_VOICE,
-                batch_id=candidate['batch_id'], approved_revision_id=episode['revision_id'],
-                approved_script_hash=expected_script_hash, human_approved=False,
-                tts_output_token_limit=4096, max_segment_attempts=3, state_dir=self.state_dir)
-
-        corrected = deepcopy(episode)
-        corrected['revision_id'] = 'fictional-r2'
-        corrected['chapters'][0]['spoken_text'] = 'A corrected fictional script cannot approve old audio.'
-        with self.assertRaisesRegex(EpisodeAudioError, 'does not match the current revision'):
-            approve_bounded_audio_candidate(
-                corrected, episode['profile_id'], voice_name=DEFAULT_VOICE,
-                batch_id=candidate['batch_id'], approved_revision_id=episode['revision_id'],
-                approved_script_hash=candidate['script_hash'], human_approved=True,
-                tts_output_token_limit=4096, max_segment_attempts=3, state_dir=self.state_dir)
-        self.assertTrue(review_dir.is_dir(), 'a stale candidate remains private and is not promoted')
-
-        approved = approve_bounded_audio_candidate(
-            episode, episode['profile_id'], voice_name=DEFAULT_VOICE,
-            batch_id=candidate['batch_id'], approved_revision_id=episode['revision_id'],
-            approved_script_hash=expected_script_hash, human_approved=True,
-            tts_output_token_limit=4096, max_segment_attempts=3, state_dir=self.state_dir)
-        self.assertEqual(approved['status'], 'ready')
-        self.assertEqual(approved['manifest']['coverage_status'], 'human_listening_approved')
-        self.assertEqual(approved['manifest']['human_listening_approval'], {
-            'revision_id': episode['revision_id'], 'script_hash': expected_script_hash})
-        approved_episode = approved['episode']
-        self.assertEqual(approved_episode['audio']['asset_key'], approved['manifest']['asset_key'])
-        self.assertEqual(approved_episode['audio']['episode_id'], episode['id'])
-        self.assertEqual(approved_episode['audio']['batch_id'], candidate['batch_id'])
-        self.assertEqual(approved_episode['audio']['tts_output_token_limit'], 4096)
-        self.assertEqual(approved_episode['audio']['max_segment_attempts'], 3)
-        self.assertEqual(approved_episode['audio']['coverage_status'], 'human_listening_approved')
-        self.assertEqual(approved_episode['audio']['human_listening_approval'], {
-            'revision_id': episode['revision_id'], 'script_hash': expected_script_hash})
-        selector = persisted_audio_selector(approved_episode)
-        self.assertEqual(selector, {'tts_output_token_limit': 4096, 'max_segment_attempts': 3})
-        self.assertTrue(persisted_audio_matches_manifest(approved_episode['audio'], approved['manifest']))
-        partial_approval = deepcopy(approved_episode)
-        partial_approval['audio'].pop('max_segment_attempts')
-        with self.assertRaisesRegex(ValueError, 'selector identity is incomplete or stale'):
-            persisted_audio_selector(partial_approval)
-        state, manifest, path = current_audio_asset(
-            episode, episode['profile_id'], voice_name=DEFAULT_VOICE, state_dir=self.state_dir,
-            **selector)
-        self.assertEqual(state, 'ready')
-        self.assertEqual(manifest['script_hash'], expected_script_hash)
-        self.assertEqual(path.read_bytes(), (approved['directory'] / 'episode.wav').read_bytes())
-
-        corrected = deepcopy(approved_episode)
-        corrected['revision_id'] = 'fictional-r2'
-        with self.assertRaisesRegex(ValueError, 'selector identity is incomplete or stale'):
-            persisted_audio_selector(corrected)
 
     def test_approval_cannot_substitute_an_existing_target_from_another_candidate_batch(self):
         episode = read_fixture()
@@ -770,12 +476,10 @@ class EpisodeAudioRenderTests(unittest.TestCase):
         identity = {'voice_name': DEFAULT_VOICE, 'state_dir': self.state_dir,
                     'tts_output_token_limit': 4096, 'max_segment_attempts': 1}
         first = render_episode_audio(
-            episode, episode['profile_id'], provider=provider,
-            tts_batch_limit_usd=Decimal('0.06144'), **identity)
+            episode, episode['profile_id'], provider=provider, **identity)
         recording['frames'] = 200
         second = render_episode_audio(
-            episode, episode['profile_id'], provider=provider,
-            tts_batch_limit_usd=Decimal('0.06144'), **identity)
+            episode, episode['profile_id'], provider=provider, **identity)
         self.assertNotEqual(first['batch_id'], second['batch_id'])
         for field in ('revision_id', 'script_hash', 'asset_key'):
             self.assertEqual(first['candidate_manifest'][field], second['candidate_manifest'][field])
@@ -826,8 +530,7 @@ class EpisodeAudioRenderTests(unittest.TestCase):
                                      usage_ledger=ledger)
         candidate = render_episode_audio(
             episode, episode['profile_id'], provider=provider, state_dir=self.state_dir,
-            tts_output_token_limit=output_limit, max_segment_attempts=attempts,
-            tts_batch_limit_usd=MAX_TTS_BATCH_COST_USD)
+            tts_output_token_limit=output_limit, max_segment_attempts=attempts,)
         self.assertEqual(candidate['status'], 'pending_human_listening')
         review_dir = candidate['candidate_directory']
         original_manifest = (review_dir / 'manifest.json').read_bytes()
@@ -1308,8 +1011,7 @@ class EpisodeAudioRenderTests(unittest.TestCase):
                                      usage_ledger=ledger)
         candidate = render_episode_audio(
             episode, profile_id, provider=provider, state_dir=self.state_dir,
-            tts_output_token_limit=output_limit, max_segment_attempts=1,
-            tts_batch_limit_usd=MAX_TTS_BATCH_COST_USD)
+            tts_output_token_limit=output_limit, max_segment_attempts=1,)
         self.assertEqual(candidate['status'], 'pending_human_listening')
         batch_id, asset_key = candidate['batch_id'], candidate['candidate_manifest']['asset_key']
         candidate_dir = candidate['candidate_directory']
@@ -1433,133 +1135,6 @@ class EpisodeAudioRenderTests(unittest.TestCase):
         self.assertEqual((candidate_dir / 'episode.json').read_bytes(), original_episode)
         self.assertEqual((candidate_dir / 'episode.wav').read_bytes(), original_wav)
 
-    def test_production_gemini_requests_share_full_render_pool_before_fake_transport(self):
-        episode = read_fixture()
-        episode['chapters'][0].update(
-            id='fictional-library-story', title='Alder Bay delivery lockers',
-            spoken_text=('Alder Bay will test shared parcel lockers beside its fictional library this spring. '
-                         'Residents can collect packages in one trip downtown. The library will track missed '
-                         'collections and resident feedback before the council decides whether to continue.'))
-        episode['chapters'][1].update(
-            id='fictional-transit-story', title='Northbridge bus lanes',
-            spoken_text=('Fictional Northbridge approved a six-month bus-lane trial on its busiest route. '
-                         'Planners want more predictable arrivals, while shops asked to preserve loading access. '
-                         'The city will compare travel times before extending the trial.'))
-        third = deepcopy(episode['chapters'][-1])
-        third.update(
-            id='fictional-flood-story', title='Rivermere flood map',
-            spoken_text=('Rivermere’s updated fictional flood map changes which streets the town inspects first. '
-                         'New elevation readings followed last year’s heavy rain. The map does not predict that '
-                         'homes will flood, and residents can request a property review.'))
-        episode['chapters'].append(third)
-
-        normalized_chapters = [normalize_narration(chapter['spoken_text'])
-                               for chapter in episode['chapters']]
-        chapter_baselines = [_chapter_output_token_estimate(text) for text in normalized_chapters]
-        self.assertEqual(len(episode['chapters']), 3)
-        self.assertLessEqual(sum(chapter_baselines), 4096)
-        key_file = Path(self.temp.name) / 'fictional-gemini-key'
-        key_file.write_text('fictional-fixture-key', encoding='utf-8')
-        ledger = UsageLedger(ledger_dir=Path(self.temp.name) / 'production-provider-ledger')
-        requests = []
-        transport_reservations = []
-        seen_reservations = set()
-
-        class FixtureResponse:
-            def __init__(self, payload):
-                self.payload = payload
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *_args):
-                return False
-
-            def read(self, _amount=-1):
-                return json.dumps(self.payload).encode('utf-8')
-
-        def fake_transport(request, timeout):
-            body = json.loads(request.data)
-            state = json.loads(ledger.path.read_text(encoding='utf-8'))
-            newly_reserved = [(reservation_id, row) for reservation_id, row in state['pending'].items()
-                              if reservation_id not in seen_reservations]
-            transport_reservations.append(newly_reserved)
-            seen_reservations.update(reservation_id for reservation_id, _row in newly_reserved)
-            requests.append(body)
-            attempt = len(requests) % 3
-            candidate = {'content': {'parts': [{'inlineData': {
-                'mimeType': 'audio/wav',
-                'data': base64.b64encode(wav_bytes()).decode('ascii'),
-            }}]}}
-            if attempt == 1:
-                candidate['finishReason'] = 'STOP'
-                return FixtureResponse({'candidates': [candidate]})
-            if attempt == 2:
-                candidate['finishReason'] = 'MAX_TOKENS'
-                output_tokens = body['generationConfig']['maxOutputTokens']
-            else:
-                candidate['finishReason'] = 'STOP'
-                output_tokens = min(20, body['generationConfig']['maxOutputTokens'])
-            return FixtureResponse({'candidates': [candidate], 'usageMetadata': {
-                'promptTokenCount': 64, 'candidatesTokenCount': output_tokens,
-            }})
-
-        provider = GeminiTtsProvider(key_path=key_file, transport=fake_transport,
-                                     usage_ledger=ledger)
-        candidate = render_episode_audio(
-            episode, episode['profile_id'], provider=provider, state_dir=self.state_dir,
-            max_segment_attempts=3, tts_output_token_limit=4096,
-            tts_batch_limit_usd=Decimal('0.06144'))
-
-        self.assertEqual(len(requests), 9)
-        self.assertEqual([body['contents'][0]['parts'][0]['text'] for body in requests],
-                         [text for text in normalized_chapters for _attempt in range(3)],
-                         'the production provider serializes every complete chapter on every retry')
-        self.assertTrue(all(body['generationConfig']['candidateCount'] == 1 for body in requests))
-        self.assertTrue(all(type(body['generationConfig']['maxOutputTokens']) is int and
-                            body['generationConfig']['maxOutputTokens'] > 0 for body in requests))
-        self.assertTrue(all(len(reservations) == 1 for reservations in transport_reservations),
-                        'a fresh ledger reservation exists before each fake transport call')
-        reserved_rows = [reservations[0][1] for reservations in transport_reservations]
-        self.assertEqual([row['token_input_limit'] for row in reserved_rows], [8192] * 9)
-        self.assertEqual([row['token_output_limit'] for row in reserved_rows],
-                         [body['generationConfig']['maxOutputTokens'] for body in requests])
-        batch_ids = {row['token_pool_id'] for row in reserved_rows}
-        self.assertEqual(len(batch_ids), 1)
-        batch_id = next(iter(batch_ids))
-        state = json.loads(ledger.path.read_text(encoding='utf-8'))
-        pool = state['token_pools'][batch_id]
-        self.assertEqual(pool['output_token_limit'], 4096)
-        self.assertLessEqual(pool['reserved_output_tokens'] + pool['settled_output_tokens'], 4096)
-        accounted_cost = Decimal(pool['settled_usd']) + Decimal(pool['reserved_usd'])
-        self.assertGreater(Decimal(pool['reserved_usd']), 0,
-                           'ambiguous failed attempts still hold money after successful retries')
-        self.assertEqual(Decimal(candidate['estimated_cost_usd']), accounted_cost)
-        self.assertEqual(Decimal(candidate['candidate_manifest']['estimated_cost_usd']), accounted_cost)
-        self.assertEqual(candidate['candidate_manifest']['settled_cost_usd'], pool['settled_usd'])
-        self.assertEqual(candidate['candidate_manifest']['pending_reservation_usd'], pool['reserved_usd'])
-        self.assertEqual(candidate['candidate_manifest']['cost_basis'],
-                         'settled token cost plus pending reservations; not an invoice')
-        self.assertNotIn('settled_cost_usd', candidate, 'cost breakdown stays in the private manifest')
-        self.assertNotIn('pending_reservation_usd', candidate)
-        self.assertEqual(sum(Decimal(row['estimated_cost_usd'])
-                             for row in candidate['candidate_manifest']['chapters']), accounted_cost)
-        self.assertEqual(candidate['status'], 'pending_human_listening')
-        self.assertEqual(candidate['revision_id'], episode['revision_id'])
-        candidate_episode = json.loads((candidate['candidate_directory'] / 'episode.json').read_text(encoding='utf-8'))
-        self.assertEqual(candidate_episode['audio']['script_hash'], candidate['script_hash'])
-        self.assertEqual(candidate_episode['audio']['coverage_status'], 'pending_human_listening')
-        self.assertNotIn('url', candidate_episode['audio'])
-        current_state, current_manifest, current_path = current_audio_asset(
-            episode, episode['profile_id'], voice_name=DEFAULT_VOICE, state_dir=self.state_dir,
-            tts_output_token_limit=4096, max_segment_attempts=3)
-        self.assertEqual((current_state, current_manifest, current_path), ('stale', None, None))
-        with self.assertRaisesRegex(EpisodeAudioError, 'Human listening approval is required'):
-            approve_bounded_audio_candidate(
-                episode, episode['profile_id'], voice_name=DEFAULT_VOICE,
-                batch_id=candidate['batch_id'], approved_revision_id=episode['revision_id'],
-                approved_script_hash=candidate['script_hash'], human_approved=False,
-                tts_output_token_limit=4096, max_segment_attempts=3, state_dir=self.state_dir)
     def test_bounded_model_drift_is_rejected_at_provider_and_renderer_boundaries(self):
         episode = read_fixture()
         requests = []
@@ -1573,7 +1148,6 @@ class EpisodeAudioRenderTests(unittest.TestCase):
             'max_output_tokens': 455,
             'batch_id': 'fictional-model-drift',
             'batch_output_token_limit': 4096,
-            'batch_limit_usd': Decimal('0.06144'),
         }
 
         with self.assertRaisesRegex(ValueError, 'verified Gemini default Lite model'):
@@ -1584,8 +1158,7 @@ class EpisodeAudioRenderTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'verified Gemini default Lite model'):
                 render_episode_audio(
                     episode, episode['profile_id'], provider=provider,
-                    state_dir=self.state_dir, tts_output_token_limit=4096,
-                    tts_batch_limit_usd=Decimal('0.06144'))
+                    state_dir=self.state_dir, tts_output_token_limit=4096,)
             synthesize.assert_not_called()
 
         self.assertEqual(requests, [], 'the renderer refuses the same drifted provider before transport')
@@ -1613,8 +1186,7 @@ class EpisodeAudioRenderTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, 'verified Gemini default Lite model'):
                     render_episode_audio(
                         episode, episode['profile_id'], provider=provider,
-                        state_dir=self.state_dir, tts_output_token_limit=4096,
-                        tts_batch_limit_usd=Decimal('0.06144'))
+                        state_dir=self.state_dir, tts_output_token_limit=4096,)
                 self.assertEqual(provider.calls, [],
                                  'unpriced bounded identities are rejected before transport')
 
@@ -1632,8 +1204,7 @@ class EpisodeAudioRenderTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'verified Gemini default Lite model'):
             render_episode_audio(
                 episode, episode['profile_id'], provider=missing_model,
-                state_dir=self.state_dir, tts_output_token_limit=4096,
-                tts_batch_limit_usd=Decimal('0.06144'))
+                state_dir=self.state_dir, tts_output_token_limit=4096,)
         self.assertEqual(missing_model.calls, [],
                          'missing model identity is rejected before transport')
 
@@ -1671,131 +1242,6 @@ class EpisodeAudioRenderTests(unittest.TestCase):
         self.assertEqual(untagged_result['manifest']['model'], DEFAULT_MODEL,
                          'unbounded provider fallback metadata remains unchanged')
 
-    def test_output_pool_exhaustion_is_typed_and_keeps_prior_audio(self):
-        original = read_fixture()
-        original['revision_id'] = 'fictional-r1'
-        original['chapters'][0]['spoken_text'] = 'Fictional edition one remains ready.'
-        old = render_episode_audio(original, original['profile_id'], provider=FakeProvider(),
-                                   state_dir=self.state_dir)
-        prior_files = {path.name: path.read_bytes() for path in old['directory'].iterdir()}
-        self.assertEqual([row['start_seconds'] for row in old['manifest']['chapters']], [0.0, 0.1])
-        self.assertEqual([row['duration_seconds'] for row in old['manifest']['chapters']], [0.1, 0.1])
-        asset_root = old['directory'].parent
-
-        # Seed stale r1 playback metadata so stripping it from the r2 response is observable.
-        corrected = deepcopy(old['episode'])
-        corrected['revision_id'] = 'fictional-r2'
-        corrected['chapters'][0]['spoken_text'] = 'A corrected fictional chapter reaches its output cap.'
-        self.assertIn('url', corrected['audio'])
-        self.assertEqual(corrected['chapters'][1]['audio_start_seconds'], 0.1)
-        original_corrected = deepcopy(corrected)
-        expected_text_only = deepcopy(corrected)
-        expected_text_only.pop('audio')
-        for chapter in expected_text_only['chapters']:
-            chapter.pop('audio_start_seconds')
-            chapter.pop('audio_duration_seconds')
-        normalized_chapters = [normalize_narration(chapter['spoken_text'])
-                               for chapter in corrected['chapters']]
-        chapter_baselines = [_chapter_output_token_estimate(text) for text in normalized_chapters]
-        output_pool = sum(chapter_baselines)
-        self.assertLessEqual(output_pool, 4096)
-        key_file = Path(self.temp.name) / 'fictional-exhaustion-key'
-        key_file.write_text('fictional-fixture-key', encoding='utf-8')
-
-        for case, failing_chapter in (('first-ambiguous', 1), ('later-ambiguous', 2),
-                                      ('later-max-tokens', 2)):
-            with self.subTest(case=case):
-                ledger = UsageLedger(ledger_dir=Path(self.temp.name) / f'ledger-{case}')
-                requests = []
-                transport_pending = []
-                staged_at_transport = []
-
-                def fake_transport(request, timeout):
-                    body = json.loads(request.data)
-                    requests.append(body)
-                    state = json.loads(ledger.path.read_text(encoding='utf-8'))
-                    transport_pending.append(list(state['pending'].values()))
-                    staged_at_transport.append([
-                        sorted(path.name for path in directory.iterdir())
-                        for directory in asset_root.iterdir()
-                        if directory.is_dir() and directory.name.startswith('.render-')])
-                    candidate = {'finishReason': 'STOP', 'content': {'parts': [{'inlineData': {
-                        'mimeType': 'audio/wav',
-                        'data': base64.b64encode(wav_bytes()).decode('ascii'),
-                    }}]}}
-                    payload = {'candidates': [candidate]}
-                    if len(requests) == failing_chapter and case.endswith('ambiguous'):
-                        return BytesIO(json.dumps(payload).encode('utf-8'))
-                    if len(requests) == failing_chapter:
-                        candidate['finishReason'] = 'MAX_TOKENS'
-                    payload['usageMetadata'] = {
-                        'promptTokenCount': 64,
-                        'candidatesTokenCount': body['generationConfig']['maxOutputTokens'],
-                    }
-                    return BytesIO(json.dumps(payload).encode('utf-8'))
-
-                provider = GeminiTtsProvider(key_path=key_file, transport=fake_transport,
-                                             usage_ledger=ledger)
-                with self.assertRaisesRegex(
-                        EpisodeAudioError,
-                        rf'Chapter {failing_chapter} failed after 2 attempts \(TtsOutputLimitError\)'):
-                    render_episode_audio(
-                        corrected, corrected['profile_id'], provider=provider,
-                        state_dir=self.state_dir, max_segment_attempts=3,
-                        tts_output_token_limit=output_pool, tts_batch_limit_usd=Decimal('0.06144'))
-
-                self.assertEqual(len(requests), failing_chapter,
-                                 'no retry may spend reserved tokens or a later chapter baseline')
-                self.assertEqual([body['contents'][0]['parts'][0]['text'] for body in requests],
-                                 normalized_chapters[:failing_chapter])
-                self.assertEqual([body['generationConfig']['maxOutputTokens'] for body in requests],
-                                 chapter_baselines[:failing_chapter])
-                self.assertTrue(all(len(rows) == 1 for rows in transport_pending))
-                self.assertEqual([rows[0]['token_input_limit'] for rows in transport_pending],
-                                 [8192] * failing_chapter,
-                                 'each attempt reserves its full input ceiling before transport')
-                self.assertEqual([rows[0]['token_output_limit'] for rows in transport_pending],
-                                 chapter_baselines[:failing_chapter])
-                self.assertEqual(staged_at_transport[0], [[]])
-                if failing_chapter == 2:
-                    self.assertEqual(staged_at_transport[1], [['chapter-01.wav']],
-                                     'the failure happens after a complete first chapter is staged')
-
-                state = json.loads(ledger.path.read_text(encoding='utf-8'))
-                batch_ids = {rows[0]['token_pool_id'] for rows in transport_pending}
-                self.assertEqual(len(batch_ids), 1)
-                pool = state['token_pools'][next(iter(batch_ids))]
-                reserved = chapter_baselines[failing_chapter - 1] if case.endswith('ambiguous') else 0
-                spent = sum(chapter_baselines[:failing_chapter])
-                self.assertEqual(pool['reserved_output_tokens'], reserved)
-                self.assertEqual(pool['settled_output_tokens'], spent - reserved)
-                self.assertEqual(len(state['pending']), int(case.endswith('ambiguous')))
-                if failing_chapter == 2:
-                    self.assertEqual(spent, output_pool, 'the entire shared output pool is consumed')
-                else:
-                    self.assertEqual(output_pool - spent, chapter_baselines[1],
-                                     'the early failure preserves the later chapter baseline')
-
-                old_state, old_manifest, old_path = current_audio_asset(
-                    original, original['profile_id'], voice_name=DEFAULT_VOICE, state_dir=self.state_dir)
-                self.assertEqual(old_state, 'ready')
-                self.assertEqual(old_manifest, old['manifest'])
-                self.assertEqual({path.name: path.read_bytes() for path in old_path.parent.iterdir()},
-                                 prior_files, 'prior WAVs, measured offsets and text are byte-for-byte intact')
-                current_state, current_manifest, current_path = current_audio_asset(
-                    corrected, corrected['profile_id'], voice_name=DEFAULT_VOICE,
-                    state_dir=self.state_dir, tts_output_token_limit=output_pool, max_segment_attempts=3)
-                self.assertEqual((current_state, current_manifest, current_path), ('stale', None, None))
-                self.assertEqual(corrected, original_corrected, 'failed rendering must not mutate current text')
-                stamped = add_chapter_timestamps(
-                    {'episode': corrected}, corrected['profile_id'], voice_name=DEFAULT_VOICE,
-                    state_dir=self.state_dir)
-                self.assertEqual(stamped['audio_state'], 'stale')
-                self.assertEqual(stamped['episode'], expected_text_only,
-                                 'the reader keeps exact r2 text without the r1 URL or chapter timings')
-                self.assertEqual(sorted(path.name for path in asset_root.iterdir() if path.is_dir()),
-                                 [old_manifest['asset_key']],
-                                 'no partial render, private candidate or new playable asset survives exhaustion')
 
     def test_failed_bounded_correction_preserves_approved_bounded_recording(self):
         original = read_fixture()
@@ -1807,7 +1253,7 @@ class EpisodeAudioRenderTests(unittest.TestCase):
         self.assertLessEqual(output_pool, DEFAULT_BATCH_OUTPUT_TOKEN_LIMIT)
         identity = {'voice_name': DEFAULT_VOICE, 'state_dir': self.state_dir,
                     'tts_output_token_limit': output_pool, 'max_segment_attempts': 3}
-        render_options = {**identity, 'tts_batch_limit_usd': MAX_TTS_BATCH_COST_USD}
+        render_options = {**identity}
         key_file = Path(self.temp.name) / 'fictional-bounded-preservation-key'
         key_file.write_text('fictional-fixture-key', encoding='utf-8')
         ledger = UsageLedger(ledger_dir=Path(self.temp.name) / 'bounded-preservation-ledger')

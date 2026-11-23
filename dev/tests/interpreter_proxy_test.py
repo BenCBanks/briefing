@@ -6,10 +6,8 @@ _enforce_test_environment()
 
 import json
 import os
-import subprocess
 import tempfile
 import unittest
-from decimal import Decimal
 from unittest.mock import patch
 from pathlib import Path
 from urllib.error import URLError
@@ -20,62 +18,6 @@ import sys
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import interpreter_proxy as proxy
 UsageLedger = proxy.UsageLedger
-
-
-PENDING_BATCH_RESTART_PROBE = r'''
-import json
-import socket
-import sys
-from unittest.mock import Mock
-
-def forbidden_network(*args, **kwargs):
-    raise AssertionError('network is forbidden in the pending batch fixture')
-
-socket.socket.connect = forbidden_network
-socket.socket.connect_ex = forbidden_network
-socket.getaddrinfo = forbidden_network
-
-from dev.test_guard import enforce_test_environment
-enforce_test_environment()
-from dev import interpreter_proxy as proxy
-from dev.ingest.usage import process_ledger, UsageError
-
-ledger = process_ledger()
-batch_id = sys.argv[1]
-before = ledger.path.read_bytes()
-state = json.loads(before)
-reservation_id = next(iter(state['pending']))
-incomplete_usage = (
-    {},
-    {'candidates_tokens': 1, 'thoughts_tokens': 0},
-    {'prompt_tokens': 0, 'thoughts_tokens': 0},
-    {'prompt_tokens': 0, 'candidates_tokens': 1},
-)
-settlement_unchanged = []
-for metadata in incomplete_usage:
-    ledger.settle_text_call(reservation_id, model='gemini-3.5-flash', **metadata)
-    settlement_unchanged.append(ledger.path.read_bytes() == before)
-close_error = retry_code = None
-try:
-    ledger.close_batch_budget(batch_id)
-except UsageError as error:
-    close_error = str(error)
-transport = Mock(side_effect=AssertionError('retry reached transport after restart'))
-with ledger.usage_batch(batch_id):
-    try:
-        # This attempt fits the original $0.001 envelope, but not the balance
-        # remaining while the first ambiguous attempt retains its hold.
-        proxy.call_gemini_json('fictional system', 'fictional input', {}, 'stub-key',
-                              model='gemini-3.5-flash', max_output_tokens=300,
-                              post_json=transport)
-    except proxy.ProxyError as error:
-        retry_code = error.code
-print(json.dumps({'pending': state['pending'], 'batch': ledger.batch_budget(batch_id),
-                  'settlement_unchanged': settlement_unchanged,
-                  'close_error': close_error, 'retry_code': retry_code,
-                  'transports': transport.call_count,
-                  'unchanged': ledger.path.read_bytes() == before}))
-'''
 
 
 def response_for(words):
@@ -210,7 +152,9 @@ class InterpreterProxyTests(unittest.TestCase):
         self.assertEqual(summary['text_calls'], 1)
         self.assertEqual((summary['prompt_tokens'], summary['candidates_tokens'], summary['thoughts_tokens']),
                          (28000, 878, 6000))
-        self.assertEqual(json.loads(self.usage.path.read_text())['pending'], {})
+        state = json.loads(self.usage.path.read_text())
+        self.assertNotIn('pending', state)
+        self.assertGreater(float(summary['estimated_cost_usd']), 0)
 
 
 
@@ -233,7 +177,8 @@ class InterpreterProxyTests(unittest.TestCase):
         caps = [call[1]['generationConfig']['maxOutputTokens'] for call in self.calls]
         self.assertEqual(caps, [100, 612])
         self.assertEqual(self.usage.summary()['daily']['text_calls'], 2)
-        self.assertEqual(json.loads(self.usage.path.read_text())['pending'], {})
+        state = json.loads(self.usage.path.read_text())
+        self.assertNotIn('pending', state)
 
     def test_four_outer_logical_calls_can_make_eight_proxy_transports(self):
         truncated = {'candidates': [{'finishReason': 'MAX_TOKENS',
@@ -271,7 +216,8 @@ class InterpreterProxyTests(unittest.TestCase):
                          [1024, 1536] * 4)
         self.assertEqual(self.usage.summary()['daily']['text_calls'], 8,
                          'the ledger sees and prices every transport attempt')
-        self.assertEqual(json.loads(self.usage.path.read_text())['pending'], {})
+        state = json.loads(self.usage.path.read_text())
+        self.assertNotIn('pending', state)
 
     def test_truncation_retry_never_exceeds_writer_cap(self):
         truncated = {'candidates': [{'finishReason': 'MAX_TOKENS',

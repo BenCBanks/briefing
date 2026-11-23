@@ -35,42 +35,16 @@ class FakeResponse:
         return self.body if amount < 0 else self.body[:amount]
 
 
-class TokenReservationLedger:
+class FakeUsageLedger:
     def __init__(self):
-        self.reservations = []
-        self.settlements = []
+        self.calls = []
         self.events = []
-        prices = json.loads((Path(__file__).resolve().parents[1] / 'ingest' /
-                             'usage-prices.json').read_text(encoding='utf-8'))['prices']['gemini_tts_lite']
-        self.input_rate = Decimal(prices['text_usd_per_million_tokens'])
-        self.output_rate = Decimal(prices['audio_usd_per_million_tokens'])
-        self.reserved_costs = []
-        self.batch_output_reserved = {}
-        self.pending = set()
 
-    def reserve_tts_token_call(self, input_token_limit, output_token_limit, model, *,
-                               batch_id, batch_output_token_limit=4096,
-                               batch_limit_usd, now=None, caller=None):
-        self.events.append('reserve')
-        values = {'input_token_limit': input_token_limit, 'output_token_limit': output_token_limit,
-                  'model': model, 'batch_id': batch_id,
-                  'batch_output_token_limit': batch_output_token_limit,
-                  'batch_limit_usd': batch_limit_usd}
-        batch_reserved = self.batch_output_reserved.get(batch_id, 0) + output_token_limit
-        if batch_reserved > batch_output_token_limit:
-            raise AssertionError('fictional ledger rejected output pool over-reservation')
-        self.batch_output_reserved[batch_id] = batch_reserved
-        self.reservations.append(values)
-        cost = (Decimal(values['input_token_limit']) * self.input_rate +
-                Decimal(values['output_token_limit']) * self.output_rate) / Decimal(1_000_000)
-        self.reserved_costs.append(cost)
-        reservation = f'reservation-{len(self.reservations)}'
-        self.pending.add(reservation)
-        return reservation
+    def preflight_episode(self):
+        return None
 
-    def settle_tts_token_call(self, reservation, input_tokens, output_tokens, model):
-        self.settlements.append((reservation, input_tokens, output_tokens, model))
-        self.pending.discard(reservation)
+    def record_tts_tokens(self, characters, prompt_tokens, output_tokens, *, model):
+        self.calls.append((characters, prompt_tokens, output_tokens, model))
 
 
 class GeminiTtsTests(unittest.TestCase):
@@ -162,7 +136,7 @@ class GeminiTtsTests(unittest.TestCase):
             'mimeType': 'audio/L16;codec=pcm;rate=24000',
             'data': base64.b64encode(pcm).decode('ascii'),
         }}]}}], 'usageMetadata': {'promptTokenCount': 28, 'candidatesTokenCount': 250}}
-        ledger = TokenReservationLedger()
+        ledger = FakeUsageLedger()
         def bounded_transport(request, timeout):
             ledger.events.append('transport')
             self.requests.append((request, timeout))
@@ -171,28 +145,18 @@ class GeminiTtsTests(unittest.TestCase):
                                      usage_ledger=ledger)
         result = provider.synthesize(
             'Fictional two-minute sample.', 'Sulafat', max_output_tokens=455,
-            batch_id='fictional-two-minute-run', batch_output_token_limit=4096,
-            batch_limit_usd=Decimal('0.06144'))
+            batch_id='fictional-two-minute-run', batch_output_token_limit=4096)
 
         request, _timeout = self.requests[0]
         generation = json.loads(request.data)['generationConfig']
         self.assertEqual(generation['maxOutputTokens'], 455)
         self.assertEqual(generation['candidateCount'], 1)
-        self.assertEqual(ledger.reservations, [{
-            'input_token_limit': 8192, 'output_token_limit': 455,
-            'model': gemini.DEFAULT_MODEL, 'batch_id': 'fictional-two-minute-run',
-            'batch_output_token_limit': 4096, 'batch_limit_usd': Decimal('0.06144'),
-        }])
-        self.assertEqual(ledger.reserved_costs, [Decimal('0.006826')])
-        self.assertEqual(ledger.events, ['reserve', 'transport'],
-                         'the complete worst-case reservation precedes provider transport')
-        self.assertEqual(ledger.settlements, [('reservation-1', 28, 250, gemini.DEFAULT_MODEL)])
-        self.assertFalse(ledger.pending)
+        self.assertEqual(ledger.calls, [(len('Fictional two-minute sample.'), 28, 250, gemini.DEFAULT_MODEL)])
         self.assertEqual(result.coverage_status, 'pending_human_listening',
                          'STOP and a decodable WAV do not prove full-script coverage')
 
     def test_bounded_direct_provider_rejects_non_default_model_before_key_or_reservation(self):
-        ledger = TokenReservationLedger()
+        ledger = FakeUsageLedger()
         requests = []
 
         def transport(request, timeout):
@@ -206,11 +170,9 @@ class GeminiTtsTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, 'verified Gemini default Lite model'):
             provider.synthesize(
                 'Fictional sample.', 'Sulafat', max_output_tokens=455,
-                batch_id='fictional-wrong-model', batch_output_token_limit=4096,
-                batch_limit_usd=Decimal('0.06144'))
+                batch_id='fictional-wrong-model', batch_output_token_limit=4096)
         self.assertEqual(requests, [], 'unsupported model never reaches transport')
-        self.assertEqual(ledger.reservations, [], 'unsupported model is refused before reservation')
-        self.assertEqual(ledger.events, [])
+        self.assertEqual(ledger.calls, [])
 
     def test_opt_in_cap_rejects_max_tokens_without_returning_audio(self):
         pcm = b'\0\0' * 24000
@@ -218,31 +180,25 @@ class GeminiTtsTests(unittest.TestCase):
             'mimeType': 'audio/L16;codec=pcm;rate=24000',
             'data': base64.b64encode(pcm).decode('ascii'),
         }}]}}], 'usageMetadata': {'promptTokenCount': 28, 'candidatesTokenCount': 455}}
-        ledger = TokenReservationLedger()
+        ledger = FakeUsageLedger()
         provider = GeminiTtsProvider(key_path=self.key_path, transport=self.transport(response),
                                      usage_ledger=ledger)
         with self.assertRaisesRegex(gemini.TtsOutputLimitError, 'output-token limit'):
             provider.synthesize('Fictional two-minute sample.', 'Sulafat',
                                 max_output_tokens=455, batch_id='fictional-max-token-run',
-                                batch_output_token_limit=4096,
-                                batch_limit_usd=Decimal('0.06144'))
-        self.assertEqual(len(ledger.reservations), 1)
-        self.assertEqual(ledger.settlements[0][2], 455)
-        self.assertFalse(ledger.pending)
+                                batch_output_token_limit=4096)
+        self.assertEqual(ledger.calls[0][2], 455)
 
     def test_opt_in_cap_rejects_missing_usage_and_keeps_worst_case_reservation_pending(self):
         response = {'candidates': [{'finishReason': 'STOP', 'content': {'parts': []}}]}
-        ledger = TokenReservationLedger()
+        ledger = FakeUsageLedger()
         provider = GeminiTtsProvider(key_path=self.key_path, transport=self.transport(response),
                                      usage_ledger=ledger)
         with self.assertRaisesRegex(gemini.TtsProviderError, 'ambiguous bounded TTS usage'):
             provider.synthesize('Fictional two-minute sample.', 'Sulafat',
                                 max_output_tokens=455, batch_id='fictional-ambiguous-run',
-                                batch_output_token_limit=4096,
-                                batch_limit_usd=Decimal('0.06144'))
-        self.assertEqual(len(ledger.reservations), 1)
-        self.assertEqual(ledger.settlements, [], 'unknown usage cannot release the reservation')
-        self.assertEqual(ledger.pending, {'reservation-1'})
+                                batch_output_token_limit=4096)
+        self.assertEqual(ledger.calls, [], 'provider usage was absent and cannot be recorded')
 
     def test_cost_counter_uses_character_and_audio_token_estimates(self):
         counter = CostCounter()
