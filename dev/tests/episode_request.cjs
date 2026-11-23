@@ -16,7 +16,8 @@ const jobId = 'deedbeef1234567890abcdef12345678';
 async function screenshot(page, name) {
   if (!process.env.BRIEFING_SHOT_DIR) return;
   fs.mkdirSync(process.env.BRIEFING_SHOT_DIR, { recursive: true });
-  await page.screenshot({ path: path.join(process.env.BRIEFING_SHOT_DIR, `${name}.png`) });
+  await page.evaluate(() => document.fonts.ready);
+  await page.screenshot({ animations: 'disabled', caret: 'hide', path: path.join(process.env.BRIEFING_SHOT_DIR, `${name}.png`) });
 }
 
 (async () => {

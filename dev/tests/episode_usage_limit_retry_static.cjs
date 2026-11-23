@@ -32,6 +32,8 @@ class Element {
 }
 
 const source = fs.readFileSync(process.argv[2] || path.join(__dirname, '../../src/app.js'), 'utf8');
+const screenSource = fs.readFileSync(path.join(__dirname, '../../src/screens/on-demand.js'), 'utf8')
+  .replace(/^export /gm, '');
 function productionFunction(start, end) {
   const begin = source.indexOf(start); const finish = source.indexOf(end, begin);
   assert.ok(begin >= 0 && finish > begin, 'production function boundaries exist');
@@ -74,7 +76,7 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
             : { error, left_today: 0 } };
     },
   });
-  vm.runInContext(`${renderer}\n${submit}\n
+  vm.runInContext(`${screenSource}\n${renderer}\n${submit}\n
     function rememberEpisodeLength(minutes) { episodeDraft.minutes = minutes; }
     function navigate(hash) { location.hash = hash; }
     function route() { content.replaceChildren(); renderEpisodeRequestPage(); }
