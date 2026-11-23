@@ -596,6 +596,28 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(coverage['candidate_count'], 1)
         self.assertTrue(coverage['few_results'])
 
+    def test_per_topic_funnel_uses_recorded_feed_candidates_without_provider_calls(self):
+        fixture = json.loads((Path(__file__).parent / 'fixtures/source-selection.json').read_text())
+        registry = [{**row, 'enabled': True, 'robots_ok': True, 'ai_bots_disallowed': False}
+                    for row in fixture['registry']]
+        sources = {row['id']: row for row in registry}
+        items = [{**row, 'topics': sources[row['source_id']]['topics'], 'snippet': row['title']}
+                 for row in fixture['items']]
+        profile = {'minutes': 5, 'muted': [], 'topics': [{**fixture['topic'], 'include': ['payments', 'banking'],
+                   'exclude': [], 'mustFollow': False}]}
+        with patch('ingest.write_edition.core.load_registry', return_value=registry):
+            _editions, _sources, result = generate_edition(
+                profile, items, registry, NOW, article_fetcher=lambda *_args, **_kwargs: None,
+                call_json=lambda *_args, **_kwargs: self.fail('recorded funnel needs no model calls'),
+                max_candidate_attempts=0, retrieval_fill_enabled=False, search_first_enabled=False)
+        funnel = result['candidate_pool_diagnostics']['payments']
+        self.assertEqual(funnel['fetched'], len(items))
+        self.assertGreater(funnel['topic_matched'], 0)
+        self.assertGreaterEqual(funnel['topic_matched'], funnel['relevance_passed'])
+        self.assertGreaterEqual(funnel['relevance_passed'], funnel['unseen'])
+        self.assertEqual(funnel['selected'], 0)
+        self.assertIn('funnel_drop_reasons', result)
+
     def test_topic_only_fallback_finds_relevant_items_from_mistagged_feeds(self):
         from ingest.write_edition import _canonical_profile, _rank_profile_topic_items
         profile = {'minutes': 12, 'topics': [{'id': 'custom-payments-banking',
