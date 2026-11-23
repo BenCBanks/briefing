@@ -13,6 +13,14 @@ async function run() {
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: 'America/New_York' });
     await page.route('**/audition-audio/manifest.json', route => route.fulfill({ json: auditionManifest }));
+    let savedVoice = null;
+    await page.route('**/api/voice', route => {
+      if (route.request().method() === 'POST') {
+        savedVoice = route.request().postDataJSON().voice_name;
+        return route.fulfill({ json: { saved: true } });
+      }
+      return route.fulfill({ json: savedVoice ? { letter: 'A' } : {} });
+    });
     await page.goto(`${baseURL}/#today`, { waitUntil: 'networkidle' });
     await page.evaluate(() => {
       const state = { spoken: [], voices: [], paused: false, speaking: false, actions: {}, media: {} };
@@ -152,9 +160,13 @@ async function run() {
     await page.getByRole('button', { name: 'Minimize' }).click();
     assert.equal(await page.locator('#voice-player-root .mini-player-open').evaluate(element => element.matches(':focus-visible')), false, 'mouse tap does not leave a focus ring on the mini-player title');
     await page.evaluate(() => { location.hash = '#preferences'; window.dispatchEvent(new HashChangeEvent('hashchange')); });
-    await page.getByRole('heading', { name: 'Narrator' }).waitFor();
+    await page.getByRole('heading', { name: 'Choose your voice' }).waitFor();
     await page.locator('.narrator-sample').first().waitFor();
     assert.equal(await page.locator('.narrator-sample').count(), 6, 'Settings lists six audition samples');
+    await page.locator('.narrator-sample').first().getByRole('button', { name: 'Use this voice' }).click();
+    await page.getByRole('heading', { name: 'Narrator' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'Sample A selected.' }).waitFor();
+    assert.equal(savedVoice, 'FixtureVoiceA', 'first-run selection saves the chosen audition voice');
     await page.locator('#voice-speed').selectOption('1.25');
     assert.equal(await page.evaluate(() => localStorage.getItem('briefing:playback-speed')), '1.25', 'Settings saves the selected listening speed');
     await page.emulateMedia({ colorScheme: 'dark' });
