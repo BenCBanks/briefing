@@ -5,6 +5,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
+const auditionManifest = require('./fixtures/audition_manifest.json');
 
 const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8932';
 const sourceEdition = JSON.parse(fs.readFileSync(path.join(__dirname, '../../content/editions.json'), 'utf8')).editions.find(item => item.kind === 'daily');
@@ -21,6 +22,8 @@ async function run() {
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
   try {
     const page = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: 'America/New_York' });
+    await page.route('**/audition-audio/manifest.json', route => route.fulfill({ json: auditionManifest }));
+    await page.route('**/api/voice', route => route.fulfill({ json: {} }));
     await page.route('**/api/profile', route => route.fulfill({ json: { saved: true } }));
     let generateRequests = 0;
     await page.route('**/api/generate', route => { generateRequests += 1; return route.fulfill({ status: 404, json: { error: 'offline' } }); });
@@ -28,7 +31,9 @@ async function run() {
     page.on('pageerror', error => errors.push(error.message));
     await page.addInitScript(({ profileValue, key }) => { localStorage.setItem('briefing:v1:interest-profile', JSON.stringify(profileValue)); localStorage.setItem('briefing:v1:built-profile-key', key); }, { profileValue: seededProfile, key: buildKey(seededProfile) });
     await page.route('**/api/edition**', route => route.fulfill({ json: { generated: true, edition: generatedEdition, sources } }));
-    await page.goto(`${baseURL}/#preferences`, { waitUntil: 'networkidle' });
+    await page.goto(`${baseURL}/#preferences`, { waitUntil: 'domcontentloaded' });
+    await page.getByRole('heading', { name: 'Choose your voice' }).waitFor();
+    await page.locator('.narrator-sample').first().waitFor();
     await page.getByRole('link', { name: /Edit in my own words/ }).click();
     await page.locator('.interests-page').waitFor();
     await page.getByRole('heading', { name: 'Here is what I heard' }).waitFor();
