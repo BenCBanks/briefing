@@ -251,7 +251,7 @@ class DailyBriefingTests(unittest.TestCase):
                               background_fill=background, background_history=[recycled],
                               today=NOW.date())
         self.assertEqual(thin['daily_briefing']['briefing_script'][0]['text'],
-                         'Good morning. Your briefing has one story.')
+                         'Good morning. One story today: Fictional topic.')
         self.assertEqual([row['cluster_id'] for row in thin['sections']], ['fictional-story-1'])
         self.assertEqual(thin['daily_briefing']['background_segments'], [])
         spoken_ids = {sentence_id for row in thin['daily_briefing']['briefing_script']
