@@ -63,7 +63,9 @@ def isolated_run():
         (state / 'profile.json').write_text(json.dumps(fictional_profile()), encoding='utf-8')
         os.environ['BRIEFING_STATE_DIR'] = str(state)
         os.environ['BRIEFING_EPISODES'] = 'real'
-        os.environ['BRIEFING_DAILY_NARRATION'] = 'on'
+        # Keep the quality check on the publication path; narration is opt-in
+        # until its provider response shape has passed the real-run gate.
+        os.environ.pop('BRIEFING_DAILY_NARRATION', None)
         os.environ.pop('BRIEFING_TESTING', None)
         try:
             yield state
