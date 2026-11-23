@@ -57,12 +57,13 @@ def fictional_profile() -> dict:
 def isolated_run():
     """Set a fresh state directory without touching live briefing state."""
     previous = {key: os.environ.get(key) for key in
-                ('BRIEFING_STATE_DIR', 'BRIEFING_EPISODES', 'BRIEFING_TESTING')}
+                ('BRIEFING_STATE_DIR', 'BRIEFING_EPISODES', 'BRIEFING_TESTING', 'BRIEFING_DAILY_NARRATION')}
     with tempfile.TemporaryDirectory(prefix='briefing-try-real-') as directory:
         state = Path(directory)
         (state / 'profile.json').write_text(json.dumps(fictional_profile()), encoding='utf-8')
         os.environ['BRIEFING_STATE_DIR'] = str(state)
         os.environ['BRIEFING_EPISODES'] = 'real'
+        os.environ['BRIEFING_DAILY_NARRATION'] = 'on'
         os.environ.pop('BRIEFING_TESTING', None)
         try:
             yield state
