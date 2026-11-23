@@ -36,6 +36,7 @@ async function screenshot(page, name) {
     let malformedCreateMode = false;
     let createInternalErrorMode = false;
     let creativeResponseMode = false;
+    let episodeFailureMode = false;
     let genericCreateStatus = null;
     let episodeListStatus = 200;
     let episodeListJobs = [];
@@ -72,6 +73,10 @@ async function screenshot(page, name) {
     await page.route('**/api/episodes/**', route => {
       const requestPath = new URL(route.request().url()).pathname;
       if (requestPath.endsWith('/cancel')) { cancelCount += 1; return route.fulfill({ json: { status: 'cancelled' } }); }
+      if (episodeFailureMode) return route.fulfill({ json: {
+        job_id: jobId, topic: createPayload.topic, length: createPayload.length,
+        status: 'failed', stage: 'failed', failure_reason: 'insufficient_evidence', counts: {}, episode: null,
+      } });
       const stages = [
         ['researching', { chapters: 0, sentences: 0, sources: 1 }],
         ['reading', { chapters: 1, sentences: 2, sources: 8, sources_found: 8, sources_read: 6 }],
@@ -84,7 +89,10 @@ async function screenshot(page, name) {
       const episode = done ? {
         id: jobId, topic: createPayload.topic, topic_label: createPayload.topic, asked: createPayload.topic,
         title: `Fictional briefing on ${createPayload.topic}`, style: createPayload.style,
-        duration_minutes: createPayload.length, made_date: '2026-11-18', audio_recorded: false,
+        duration_minutes: createPayload.length, made_date: '2026-11-18', audio_recorded: true, audio_status: 'recorded',
+        revision_id: 'fixture-request-created-r1', script_hash: 'fixture-request-created-script-r1',
+        audio: { state: 'recorded', status: 'recorded', revision_id: 'fixture-request-created-r1',
+          script_hash: 'fixture-request-created-script-r1', url: '/dev/tests/fixtures/audio/episode-tone.wav', duration_seconds: 4 },
         shorter_than_requested: true, shortfall_notice: 'The verified script is shorter than requested.',
         sources: [
           { id: 'fiction-source-1', outlet: 'Civic Ledger · fictional', date: '18 Nov', url: 'https://civic.example.test/story' },
@@ -402,9 +410,10 @@ async function screenshot(page, name) {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     assert.equal(await page.locator('.episode-stage-ring').first().evaluate(el => getComputedStyle(el).animationName), 'none');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'No horizontal overflow at 390 px');
-    await page.getByRole('button', { name: 'Open transcript' }).click();
+    await page.getByRole('button', { name: 'Open episode' }).click();
     await page.locator('.episode-page h1').waitFor();
     assert.match(await page.locator('.episode-page h1').innerText(), /Fictional briefing on Why do contactless payments settle in batches/);
+    assert.equal(await page.locator('.episode-page .episode-listen').isEnabled(), true, 'the ready episode offers its recorded player');
     const citations = page.locator('.episode-citation summary');
     assert.equal(await citations.count(), 3, 'each of the three fictional chapters has a citation');
     assert.deepEqual(await citations.evaluateAll(items => items.map(item => item.getAttribute('aria-label'))), [
@@ -412,7 +421,37 @@ async function screenshot(page, name) {
       'Source 1, Civic Ledger · fictional',
       'Source 1, Civic Ledger · fictional',
     ]);
+    await page.locator('.episode-citation').first().locator('summary').click();
+    assert.equal(await page.locator('.episode-citation-detail strong').first().innerText(), 'Civic Ledger · fictional', 'the ready transcript opens its cited source');
+    await screenshot(page, 'episode-ready-light');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-ready-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    assert.equal(await page.getByRole('button', { name: `Listen to Fictional briefing on Why do contactless payments settle in batches?` }).isEnabled(), true,
+      'the requested episode is playable when its recording matches the ready transcript');
+    await page.getByRole('button', { name: `Listen to Fictional briefing on Why do contactless payments settle in batches?` }).click();
+    const requestedPlayer = page.getByRole('dialog', { name: 'Fictional briefing on Why do contactless payments settle in batches?' });
+    await requestedPlayer.locator('[data-player-phase]').filter({ hasText: /Playing/ }).waitFor();
+    assert.ok(['The short answer', 'What sources show', 'What to remember'].includes(await requestedPlayer.locator('[data-player-now-title]').innerText()),
+      'the player starts a chapter from the newly requested episode');
+    await screenshot(page, 'episode-play-light');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-play-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await requestedPlayer.getByRole('button', { name: 'Pause episode audio' }).click();
+    await requestedPlayer.locator('[data-player-phase]').filter({ hasText: /Paused/ }).waitFor();
+    await page.keyboard.press('Escape');
+
+    episodeFailureMode = true;
+    await page.evaluate(() => { location.hash = '#ask-episode'; });
+    await page.locator('.episode-request-page').waitFor();
+    await page.locator('#episode-request-prompt').fill('A fictional question that cannot be verified');
+    await page.getByRole('button', { name: 'Create episode' }).click();
+    await page.locator('.episode-making-page').waitFor();
+    await page.getByText('We could not find enough verified information to finish this episode. Try a narrower question.', { exact: true }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Try again' }).count(), 1, 'An evidence failure offers a clear retry');
+    await screenshot(page, 'episode-failed-light');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-failed-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
     assert.deepEqual(errors, []);
-    console.log('Episode request: API create/poll/route, four lengths, cost estimates, stages, live counts, announcements, cancellation, reduced motion and 390px light/dark screenshots passed.');
+    console.log('Episode request: ask-to-play flow, evidence failure recovery, four lengths, costs, progress, citations, and 390px light/dark screenshots passed.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });
