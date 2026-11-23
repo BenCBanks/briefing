@@ -25,7 +25,8 @@ const editionResponse = { generated: true, edition, sources };
 async function screenshot(page, name) {
   if (!outputDir) return;
   fs.mkdirSync(outputDir, { recursive: true });
-  await page.screenshot({ path: path.join(outputDir, name), fullPage: false });
+  await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+  await page.screenshot({ path: path.join(outputDir, name), fullPage: false, animations: 'disabled' });
 }
 
 async function newPhone(browser, theme = 'light') {
