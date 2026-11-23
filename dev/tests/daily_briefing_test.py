@@ -343,6 +343,20 @@ class DailyBriefingTests(unittest.TestCase):
                          'the first item pass covers every topic before any second item')
         self.assertEqual(selected[3]['cluster_id'], 'p2', 'the extra slot follows the behavior weight')
 
+    def test_available_supply_fills_two_stories_per_topic_before_weighted_extras(self):
+        topics = [{'id': topic_id} for topic_id in ('payments', 'health-policy', 'construction')]
+        candidates = [
+            {'cluster_id': f'{topic_id}-{index}', 'topic_ids': [topic_id],
+             'relevance_score': .8, 'credibility_score': .8}
+            for topic_id in ('payments', 'health-policy', 'construction')
+            for index in (1, 2)
+        ]
+        selected = daily._select_topic_sections(
+            candidates, topics, topic_weighting.normalize_weights(topics, {}), 6)
+        counts = {topic_id: sum(topic_id in row['topic_ids'] for row in selected)
+                  for topic_id in ('payments', 'health-policy', 'construction')}
+        self.assertEqual(counts, {'payments': 2, 'health-policy': 2, 'construction': 2})
+
     def test_daily_report_explains_behavior_share_and_topic_coverage(self):
         profile = json.loads(json.dumps(self.data['profile']))
         profile['behavior_weights'] = {'payments': 1.4, 'health-policy': 0.7, 'construction': 0.9}
@@ -352,6 +366,9 @@ class DailyBriefingTests(unittest.TestCase):
         self.assertEqual([row['topic_id'] for row in allocation['coverage']],
                          ['payments', 'health-policy', 'construction'])
         self.assertTrue(all(row['has_item'] for row in allocation['coverage']))
+        self.assertTrue(all(row['item_floor'] == 2 for row in allocation['coverage']))
+        self.assertTrue(all(row['gap_note'] for row in allocation['coverage']),
+                        'one story per topic is labeled as a supply gap')
         self.assertIn('raised', allocation['topics'][0]['reason'])
         self.assertLessEqual(max(row['share'] for row in allocation['topics']), 0.5)
         self.assertLessEqual(max(row['actual_share'] for row in allocation['topics']), 0.5)

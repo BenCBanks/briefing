@@ -214,7 +214,15 @@ def _speak_text(text: str) -> str:
                   lambda match: _say_number(match.group(0)), text)
     text = text.replace('%', ' percent').replace('$', ' dollars ').replace('£', ' pounds ').replace('€', ' euros ')
     if re.search(r'\d|[$£€%]', text):
-        raise ValueError('story contains a number format that is not supported for speech')
+        # Some source formats prefix a number with a currency code (for
+        # example, USD$18), which the stricter currency parser intentionally
+        # leaves alone. Keep daily assembly usable by reading any remaining
+        # digit groups and symbols plainly instead of failing the whole edition.
+        text = re.sub(r'\d+', lambda match: _say_number(match.group()), text)
+        text = text.translate(str.maketrans({'$': ' ', '£': ' ', '€': ' '}))
+        text = re.sub(r'%', ' percent', text)
+        if re.search(r'\d|[$£€%]', text):
+            raise ValueError('story contains a number format that is not supported for speech')
     text = re.sub(r'\s+', ' ', text)
     return text.strip()
 

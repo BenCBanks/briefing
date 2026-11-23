@@ -308,11 +308,29 @@ def _public_daily_run(value):
                 'topic_count': count_brief(row.get('topic_count'), 12),
                 'reused_from_profile_id': reused,
             })
+    topic_supply = []
+    raw_topic_supply = value.get('topic_supply')
+    if isinstance(raw_topic_supply, list):
+        for row in raw_topic_supply[:12]:
+            if not isinstance(row, dict):
+                continue
+            topic_id = row.get('topic_id')
+            if not isinstance(topic_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', topic_id):
+                continue
+            gap = row.get('gap')
+            topic_supply.append({
+                'topic_id': topic_id,
+                'stories': count_brief(row.get('stories'), 100),
+                'candidates': count_brief(row.get('candidates'), 1000),
+                'state': row.get('state') if row.get('state') in {'covered', 'limited', 'quiet'} else None,
+                'gap': gap[:240] if isinstance(gap, str) else None,
+            })
     return {
         'local_date': local_date,
         'status': value.get('status') if isinstance(value.get('status'), str) and value.get('status') in {'complete', 'failed', 'timeout'} else None,
         'stories': count('stories', 1000),
         'thin_day': value.get('thin_day') if type(value.get('thin_day')) is bool else None,
+        'topic_supply': topic_supply,
         'daily_briefing': {
             'target_minutes': count_brief(brief.get('target_minutes'), 60),
             'spoken_words': count_brief(brief.get('spoken_words'), 10000),
@@ -686,12 +704,14 @@ def _score_and_filter_stories(edition, sources, registry, evidence, score_editio
         failed = report.get('failed_critical', []) if report.get('critical_failed') else []
         if failed:
             outcomes.append({'story': index, 'status': 'dropped', 'failed_critical': failed,
+                             'topic_ids': list(story.get('topic_ids', [])),
                              'checks': [{'number': check.get('number'), 'status': check.get('status'),
                                          'detail': check.get('detail')}
                                         for check in report.get('checks', []) if check.get('critical') and check.get('status') != 'PASS']})
         else:
             passed.append(story)
-            outcomes.append({'story': index, 'status': 'passed', 'failed_critical': [], 'checks': []})
+            outcomes.append({'story': index, 'status': 'passed', 'failed_critical': [], 'checks': [],
+                             'topic_ids': list(story.get('topic_ids', []))})
 
     keep_clusters = {row.get('cluster_id') for row in passed}
     kept_sections = [row for row in edition.get('sections', [])
@@ -1222,6 +1242,23 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
             report['candidate_attempt_limit'] = detail.get('candidate_attempt_limit', 0)
             report['candidate_results'] = detail.get('candidate_results', [])
             report['candidate_pool_diagnostics'] = detail.get('candidate_pool_diagnostics', {})
+            report['funnel_drop_reasons'] = detail.get('funnel_drop_reasons', {})
+            selected_by_topic = {}
+            for story in edition.get('sections', []):
+                if not story.get('cluster_id'):
+                    continue
+                for topic_id in story.get('topic_ids', []):
+                    selected_by_topic[topic_id] = selected_by_topic.get(topic_id, 0) + 1
+            for topic_id, diagnostics in report['candidate_pool_diagnostics'].items():
+                diagnostics['selected'] = selected_by_topic.get(topic_id, 0)
+            for outcome in story_results:
+                if outcome.get('status') != 'dropped':
+                    continue
+                for topic_id in outcome.get('topic_ids', []):
+                    topic_reasons = report['funnel_drop_reasons'].setdefault(topic_id, {})
+                    for check in outcome.get('failed_critical', []):
+                        reason = f'scorecard:{check}'
+                        topic_reasons[reason] = topic_reasons.get(reason, 0) + 1
             report['source_quality_rejections'] = detail.get('source_quality_rejections', [])
             report['source_selection'] = detail.get('source_selection', {})
             report['also_today_source_selection'] = detail.get('also_today_source_selection', {})
@@ -1241,11 +1278,10 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                                   if source.get('id') in section.get('source_ids', []))}
                 for section in edition.get('sections', []) if section.get('cluster_id')]
             if 0 < stories < 3:
-                noun = 'story' if stories == 1 else 'stories'
                 edition['thin_day'] = True
-                edition['availability_note'] = f'A shorter edition today: {stories} {noun} met our checks.'
             else:
                 edition['thin_day'] = False
+            edition.pop('availability_note', None)
             from . import daily_briefing
             daily_provider = daily_briefing.curated_background_provider(
                 sources['sources'], registry=registry)
@@ -1256,6 +1292,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                             for number, row in enumerate(sources['sources'], 1)
                             if isinstance(row, dict) and row.get('id')}
             source_tiers = daily_briefing.source_tier_map(sources['sources'])
+            _persist_job_scorecard(directory, job_id, report)
             daily_briefing.assemble(
                 edition, profile, background_fill=daily_provider,
                 background_history=daily_briefing.background_history(recent_history),

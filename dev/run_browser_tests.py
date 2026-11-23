@@ -53,7 +53,8 @@ def run_one(test, temp):
     env.setdefault('PLAYWRIGHT_BROWSERS_PATH', str(Path.home() / '.cache/ms-playwright'))
     env.update({'HOME': str(home), 'BRIEFING_STATE_DIR': str(state), 'BRIEFING_TESTING': '1',
                 'BRIEFING_EPISODES': 'fake', 'BRIEFING_TEST_LEDGER_DIR': str(ledger),
-                'BRIEFING_SHOT_DIR': str(temp / 'shots'), 'BRIEFING_CAPTURE_DIR': str(temp / 'captures'),
+                'BRIEFING_SHOT_DIR': os.environ.get('BRIEFING_SHOT_DIR', str(temp / 'shots')),
+                'BRIEFING_CAPTURE_DIR': str(temp / 'captures'),
                 'PYTHONPATH': str(ROOT), 'BRIEFING_URL': base})
     with (temp / 'preview.log').open('wb') as log:
         preview = subprocess.Popen([sys.executable, str(ROOT / 'dev/preview_server.py'), '127.0.0.1', str(port)],

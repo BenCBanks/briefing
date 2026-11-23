@@ -1033,6 +1033,10 @@ class GenerationApiTests(unittest.TestCase):
         payload['daily_run']['failure_reason'] = 'private provider failure'
         payload['daily_run']['profiles_attempted'] = 2
         payload['daily_run']['profiles_completed'] = 1
+        payload['daily_run']['topic_supply'] = [
+            {'topic_id': 'payments', 'stories': 1, 'candidates': 4, 'state': 'limited',
+             'gap': 'Payments: one story after open web search.'},
+            {'topic_id': 'bad topic id', 'gap': 'must not leak'}]
         payload['daily_run']['profile_runs'] = [
             {'profile_id': 'a' * 24, 'status': 'complete', 'edition_id': 'fictional-edition',
              'stories': 3, 'topic_count': 2, 'reused_from_profile_id': None,
@@ -1045,6 +1049,9 @@ class GenerationApiTests(unittest.TestCase):
         _, public = generation_api.status_response(path)
         report = public['daily_run']
         self.assertEqual(report['local_date'], '2026-11-15')
+        self.assertEqual(report['topic_supply'], [
+            {'topic_id': 'payments', 'stories': 1, 'candidates': 4, 'state': 'limited',
+             'gap': 'Payments: one story after open web search.'}])
         self.assertEqual(report['daily_briefing'], {
             'target_minutes': 5, 'spoken_words': 720, 'duration_seconds': 288,
             'supply_ladder': [
@@ -1144,6 +1151,8 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual([row['id'] for row in edition['sections']], ['s1', 's3', 's4'])
         self.assertEqual([row['id'] for row in kept_sources], ['src1', 'src3', 'src4'])
         self.assertEqual(outcomes[1]['status'], 'dropped')
+        self.assertEqual(outcomes[1]['topic_ids'], ['payments'],
+                         'story rejection stays attributable to the topic supply funnel')
         self.assertEqual(edition['coverage'][0]['candidate_count'], 2)
         self.assertTrue(edition['coverage'][0]['few_results'])
         self.assertIn('2 fresh candidate(s)', edition['coverage'][0]['reason'])

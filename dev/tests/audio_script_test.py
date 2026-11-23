@@ -75,6 +75,8 @@ class AudioScriptTests(unittest.TestCase):
                          'A fictional score rose from one to two percent.')
         self.assertEqual(_speak_text('A fictional score fell to -3 percent.'),
                          'A fictional score fell to minus three percent.')
+        self.assertEqual(_speak_text('A fictional fee was USD$18.'),
+                         'A fictional fee was U-S-D dollars eighteen.')
 
     def test_corrected_story_chapters_keep_order_opening_and_cited_display_separate(self):
         corrected_claim = (

@@ -596,6 +596,28 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(coverage['candidate_count'], 1)
         self.assertTrue(coverage['few_results'])
 
+    def test_per_topic_funnel_uses_recorded_feed_candidates_without_provider_calls(self):
+        fixture = json.loads((Path(__file__).parent / 'fixtures/source-selection.json').read_text())
+        registry = [{**row, 'enabled': True, 'robots_ok': True, 'ai_bots_disallowed': False}
+                    for row in fixture['registry']]
+        sources = {row['id']: row for row in registry}
+        items = [{**row, 'topics': sources[row['source_id']]['topics'], 'snippet': row['title']}
+                 for row in fixture['items']]
+        profile = {'minutes': 5, 'muted': [], 'topics': [{**fixture['topic'], 'include': ['payments', 'banking'],
+                   'exclude': [], 'mustFollow': False}]}
+        with patch('ingest.write_edition.core.load_registry', return_value=registry):
+            _editions, _sources, result = generate_edition(
+                profile, items, registry, NOW, article_fetcher=lambda *_args, **_kwargs: None,
+                call_json=lambda *_args, **_kwargs: self.fail('recorded funnel needs no model calls'),
+                max_candidate_attempts=0, retrieval_fill_enabled=False, search_first_enabled=False)
+        funnel = result['candidate_pool_diagnostics']['payments']
+        self.assertEqual(funnel['fetched'], len(items))
+        self.assertGreater(funnel['topic_matched'], 0)
+        self.assertGreaterEqual(funnel['topic_matched'], funnel['relevance_passed'])
+        self.assertGreaterEqual(funnel['relevance_passed'], funnel['unseen'])
+        self.assertEqual(funnel['selected'], 0)
+        self.assertIn('funnel_drop_reasons', result)
+
     def test_topic_only_fallback_finds_relevant_items_from_mistagged_feeds(self):
         from ingest.write_edition import _canonical_profile, _rank_profile_topic_items
         profile = {'minutes': 12, 'topics': [{'id': 'custom-payments-banking',
@@ -859,7 +881,7 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(uncovered['candidate_count'], 0)
         self.assertIn('No recent items matched this topic', uncovered['reason'])
         self.assertTrue(thin_edition['thin_day'])
-        self.assertIn('2 stories met our checks', thin_edition['availability_note'])
+        self.assertNotIn('availability_note', thin_edition)
         self.assertFalse(any('Coverage limited' in row.get('heading', '') or
                              row.get('id') == 'generated-ai-limited'
                              for row in thin_edition['sections']))
@@ -1115,6 +1137,12 @@ class WriterTests(unittest.TestCase):
         self.assertIn(sources['sources'][0]['evidence_depth'], {'full-text', 'feed-full'})
         self.assertGreaterEqual(sources['sources'][0]['source_sentence_count'], 3)
         self.assertEqual(result['candidate_pool_diagnostics']['ai']['candidate_clusters'], 2)
+        for topic_id in ('ai', 'payments'):
+            funnel = result['candidate_pool_diagnostics'][topic_id]
+            self.assertGreaterEqual(funnel['fetched'], funnel['topic_matched'])
+            self.assertGreaterEqual(funnel['topic_matched'], funnel['relevance_passed'])
+            self.assertIn('unseen', funnel)
+        self.assertIn('funnel_drop_reasons', result)
         self.assertTrue(any(row.get('reason') == 'insufficient_full_text_evidence'
                             for row in result['candidate_results']),
                         'the thin AI-only control still fails the unchanged depth gate')

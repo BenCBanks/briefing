@@ -198,7 +198,12 @@ class DailyTests(unittest.TestCase):
                                    'methods': {'jsonld_article_body': 1, 'readability': 1}}}},
                 'edition_ready': {
                     'edition': {'local_date': '2026-11-18', 'thin_day': True,
-                                'daily_briefing': {'spoken_words': 488, 'duration_seconds': 195}, 'sections': [
+                                'daily_briefing': {'spoken_words': 488, 'duration_seconds': 195,
+                                                   'topic_allocation': {'coverage': [
+                                                       {'topic_id': 'payments', 'story_count': 1,
+                                                        'candidate_count': 3,
+                                                        'gap_note': 'Payments: one story after open web search.'}]}},
+                                'sections': [
                         {'cluster_id': 'fictional-cluster', 'source_ids': ['fictional-source']}]},
                     'sources': [{'id': 'fictional-source', 'evidence_depth': 'full-text',
                                  'url': 'https://private.example.test/story'}]},
@@ -209,6 +214,9 @@ class DailyTests(unittest.TestCase):
             text_report = (Path(temp) / 'morning-report.txt').read_text(encoding='utf-8')
         self.assertEqual(report['stories'], 1)
         self.assertTrue(report['thin_day'])
+        self.assertEqual(report['topic_supply'], [{'topic_id': 'payments', 'stories': 1,
+                                                   'candidates': 3, 'state': None,
+                                                   'gap': 'Payments: one story after open web search.'}])
         self.assertEqual(report['repeat_suppressed'], 3)
         self.assertEqual(report['stale_suppressed'], 2)
         self.assertEqual(report['evidence_depth'], {'full-text': 1})

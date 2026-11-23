@@ -1164,6 +1164,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
     candidate_results = []
     candidate_attempts = 0
     candidate_pool_diagnostics = {}
+    funnel_drop_reasons = {}
     source_selection_reports = {}
     budget_exhausted = False
     story_by_cluster = {}
@@ -1198,22 +1199,29 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
     for topic in topic_profiles:
         topic_id = topic['id']
         eligible = []
+        dropped = {}
+        def drop(reason):
+            dropped[reason] = dropped.get(reason, 0) + 1
         fresh_source_item_count = 0
         ranked = _rank_profile_topic_items(items, profile, topic)
         for rank, item in enumerate(ranked):
             current_source = registry_by_id.get(item.get('source_id'))
             if (not current_source or current_source.get('enabled') is not True or
                     current_source.get('ai_bots_disallowed') or current_source.get('robots_ok') is not True):
+                drop('source_disabled_or_unavailable')
                 continue
             if not quality_allowed(item, current_source, topic):
+                drop(quality_rejected.get((topic_id, item.get('url')), 'source_quality'))
                 continue
             date = core.parse_date(item.get('published') or item.get('published_at'))
             if date and date <= now + timedelta(days=1) and date >= now - timedelta(days=freshness_days()):
                 fresh_source_item_count += 1
             if not _date_eligible_for_news(item, current_source, now):
+                drop('date_ineligible')
                 continue
             item_text = f"{item.get('title', '')} {item.get('snippet', '')}"
             if not _matches_topic_scope(topic, item_text, current_source):
+                drop('topic_scope_mismatch')
                 continue
             if topic_id == 'sports' and 'premier league' in topic.get('label', '').lower():
                 title_tokens = _tokens(item.get('title', ''))
@@ -1225,6 +1233,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                                           {'premier', 'league'} <= title_tokens or
                                           bool(title_tokens & named_clubs))
                 if placeholder or not premier_league_context:
+                    drop('topic_context_mismatch')
                     continue
             eligible.append(item)
             ranked_positions[(topic_id, item.get('url'))] = rank
@@ -1236,18 +1245,23 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                 current_source = registry_by_id.get(item.get('source_id'))
                 if (not current_source or current_source.get('enabled') is not True or
                         current_source.get('ai_bots_disallowed') or current_source.get('robots_ok') is not True):
+                    drop('source_disabled_or_unavailable')
                     continue
                 if not quality_allowed(item, current_source, topic):
+                    drop(quality_rejected.get((topic_id, item.get('url')), 'source_quality'))
                     continue
                 date = core.parse_date(item.get('published') or item.get('published_at'))
                 if date and date <= now + timedelta(days=1) and date >= now - timedelta(days=freshness_days()):
                     fresh_source_item_count += 1
                 if not _date_eligible_for_news(item, current_source, now):
+                    drop('date_ineligible')
                     continue
                 item_text = f"{item.get('title', '')} {item.get('snippet', '')}"
                 if _matches_topic_scope(topic, item_text, current_source):
                     eligible.append(item)
                     ranked_positions[(topic_id, item.get('url'))] = rank
+                else:
+                    drop('topic_scope_mismatch')
             topic_only_fallback = bool(eligible)
         clusters = cluster_items(eligible, by_host)
         # rank_items already sorts by profile token relevance, topic match and
@@ -1282,7 +1296,13 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         from .source_selection import select_daily_clusters
         topic_candidates[topic_id], source_selection_reports[topic_id] = select_daily_clusters(
             clusters, registry_by_id, topic, limit=MAX_TOPIC_ITEMS, now=now)
+        topic_fetched = sum(1 for item in items
+                            if (source := registry_by_id.get(item.get('source_id'))) and
+                            source.get('enabled') is True and
+                            set(source.get('topics') or []) & set(topic.get('feed_topic_ids') or []))
         candidate_pool_diagnostics[topic_id] = {
+            'fetched': topic_fetched,
+            'topic_matched': len(ranked), 'relevance_passed': len(eligible),
             'ranked_items': len(ranked), 'fresh_items': fresh_source_item_count,
             'eligible_items': len(eligible),
             'fresh_source_items': fresh_source_item_count,
@@ -1290,11 +1310,18 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
             'feed_topic_ids': topic.get('feed_topic_ids', [topic_id]),
             'topic_only_fallback': topic_only_fallback
         }
+        if topic_fetched > len(ranked):
+            dropped['topic_not_matched'] = topic_fetched - len(ranked)
+        funnel_drop_reasons[topic_id] = dropped
 
     topic_candidates, repeat_counts, followup_clusters = repeats.filter_candidates(
         topic_candidates, (recent_history or [])[:14], now)
     for topic_id, clusters in topic_candidates.items():
         candidate_pool_diagnostics[topic_id]['after_repeat_suppression'] = len(clusters)
+        candidate_pool_diagnostics[topic_id]['unseen'] = sum(len(cluster.get('rows', [])) for cluster in clusters)
+        removed = candidate_pool_diagnostics[topic_id].get('candidate_clusters', 0) - len(clusters)
+        if removed > 0:
+            funnel_drop_reasons.setdefault(topic_id, {})['repeat_suppressed_cluster'] = removed
 
     fill_enabled = (flag_enabled('retrieval_fill') if retrieval_fill_enabled is None
                     else retrieval_fill_enabled is True)
@@ -1784,12 +1811,31 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         'verified_drop_count': dropped_claims
     }
     if 0 < selected_count < min(3, target_passing_stories):
-        noun = 'story' if selected_count == 1 else 'stories'
         edition['thin_day'] = True
-        edition['availability_note'] = f'A shorter edition today: {selected_count} {noun} met our checks.'
     else:
         edition['thin_day'] = False
+    edition.pop('availability_note', None)
     edition = _revisioned_edition(edition, previous, generated_at)
+    for row in candidate_results:
+        topic_id = row.get('topic_id')
+        reason = row.get('reason') or row.get('status')
+        if topic_id in funnel_drop_reasons and reason and row.get('status') not in {'generated', 'skipped_after_target'}:
+            key = f"writer:{reason}"
+            funnel_drop_reasons[topic_id][key] = funnel_drop_reasons[topic_id].get(key, 0) + 1
+    for topic_id, report in source_selection_reports.items():
+        for row in report.get('items', []):
+            if row.get('action') != 'dropped':
+                continue
+            reason = str(row.get('reason') or 'selection_rejected')
+            key = f'selection:{reason}'
+            funnel_drop_reasons.setdefault(topic_id, {})[key] = (
+                funnel_drop_reasons.setdefault(topic_id, {}).get(key, 0) + 1)
+    selected_by_topic = {}
+    for section in sections:
+        for topic_id in section.get('topic_ids', []):
+            selected_by_topic[topic_id] = selected_by_topic.get(topic_id, 0) + 1
+    for topic_id, diagnostics in candidate_pool_diagnostics.items():
+        diagnostics['selected'] = selected_by_topic.get(topic_id, 0)
     detail = {
         'dropped_claims': dropped_claims, 'sentence_evidence': sentence_evidence,
         'generation_errors': generation_errors,
@@ -1797,6 +1843,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         'candidate_attempt_limit': candidate_attempt_limit,
         'candidate_results': candidate_results,
         'candidate_pool_diagnostics': candidate_pool_diagnostics,
+        'funnel_drop_reasons': funnel_drop_reasons,
         'source_quality_rejections': quality_rejected_items,
         'source_selection': source_selection_reports,
         'also_today_source_selection': quick_hit_selection,

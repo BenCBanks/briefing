@@ -63,6 +63,24 @@ def _daily_run_report(result):
         edition_sections = []
     sections = [row for row in edition_sections if isinstance(row, dict) and row.get('cluster_id')]
     source_rows = edition_ready.get('sources') if isinstance(edition_ready.get('sources'), list) else []
+    daily_briefing = edition.get('daily_briefing') if isinstance(edition.get('daily_briefing'), dict) else {}
+    allocation = daily_briefing.get('topic_allocation') if isinstance(daily_briefing.get('topic_allocation'), dict) else {}
+    coverage = allocation.get('coverage')
+    if not isinstance(coverage, list):
+        coverage = edition.get('coverage') if isinstance(edition.get('coverage'), list) else []
+    topic_supply = []
+    for row in coverage:
+        if not isinstance(row, dict):
+            continue
+        topic_id = row.get('topic_id')
+        if not isinstance(topic_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,80}', topic_id):
+            continue
+        gap = row.get('gap_note') or row.get('reason')
+        topic_supply.append({'topic_id': topic_id,
+                             'stories': _integer(row.get('story_count', row.get('selected'))),
+                             'candidates': _integer(row.get('candidate_count')),
+                             'state': row.get('state') if row.get('state') in {'covered', 'limited', 'quiet'} else None,
+                             'gap': gap[:240] if isinstance(gap, str) and gap else None})
     linked = set()
     for row in sections:
         source_ids = row.get('source_ids')
@@ -109,6 +127,7 @@ def _daily_run_report(result):
         'status': status,
         'stories': len(sections),
         'thin_day': edition.get('thin_day') is True,
+        'topic_supply': topic_supply[:12],
         'daily_narration': _daily_narration_report(result.get('daily_narration')),
         'daily_briefing': _daily_brief_report(edition.get('daily_briefing')),
         'retrieval_fill': safe_report(run_status.get('retrieval_fill')),

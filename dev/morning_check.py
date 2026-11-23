@@ -150,6 +150,10 @@ def summarize(base_url, smoke_runner=run_checks, json_fetch=get_json, today=None
         status = {}
         smoke_failures.append(f'status unavailable: {error}')
     daily_run = status.get('daily_run') if isinstance(status.get('daily_run'), dict) else {}
+    topic_supply = daily_run.get('topic_supply') if isinstance(daily_run.get('topic_supply'), list) else []
+    topic_gaps = [row for row in topic_supply if isinstance(row, dict) and row.get('gap')]
+    supply_line = ('Topic supply gaps: ' + '; '.join(
+        str(row['gap'])[:240] for row in topic_gaps[:12])) if topic_gaps else 'Topic supply gaps: none'
     narration = daily_run.get('daily_narration') if isinstance(daily_run.get('daily_narration'), dict) else {}
     if narration.get('status') == 'fallback':
         smoke_failures.append('daily narration fallback')
@@ -223,7 +227,7 @@ def summarize(base_url, smoke_runner=run_checks, json_fetch=get_json, today=None
         flags_line = flag_summary_line(flags_reader())
     except (OSError, ValueError, TypeError):
         flags_line = 'Non-default flags: unavailable'
-    return [story_line, depth_line, status_line, date_line, backup_age_reader(), flags_line, disabled_line,
+    return [story_line, depth_line, status_line, date_line, backup_age_reader(), flags_line, disabled_line, supply_line,
             *health_lines, *local_feed_lines, *content_lines], (0 if passed else 1)
 
 

@@ -71,7 +71,9 @@ class MorningCheckTests(unittest.TestCase):
                                   'month': {'estimated_cost_usd': '1', 'cap_usd': '5', 'remaining_usd': '4'}},
                         'audio': {'daily_status': audio_status,
                                   'daily_duration_seconds': 300, 'episodes_by_status': {}}}
-            return {'ok': True, 'feeds_disabled': [{'source_id': 'one'}, {'source_id': 'two'}]}
+            return {'ok': True, 'feeds_disabled': [{'source_id': 'one'}, {'source_id': 'two'}],
+                    'daily_run': {'topic_supply': [{'topic_id': 'payments',
+                                                    'gap': 'Payments: one story remains.'}]}}
         checks = lambda _base: [('daily edition', True, '3 stories')]
         health = {
             'alpha': {'consecutive_failures': 5},
@@ -86,8 +88,8 @@ class MorningCheckTests(unittest.TestCase):
                                 health_reader=lambda: health,
                                 backup_age_reader=lambda: 'Last backup age: 2d 3h')
         self.assertEqual(code, 0)
-        self.assertEqual(len(lines), 21)
-        self.assertTrue(all(line.startswith("Content: PASS") for line in lines[14:]))
+        self.assertEqual(len(lines), 22)
+        self.assertTrue(all(line.startswith("Content: PASS") for line in lines[15:]))
         self.assertIn('Content: PASS quality: no issue found', lines)
         self.assertEqual(lines[0], 'Stories: 3 substantive / 3 required')
         self.assertEqual(lines[1], 'Depth: feed-full 1, full-text 1')
@@ -98,20 +100,21 @@ class MorningCheckTests(unittest.TestCase):
         # morning_check should report that effective non-default setting.
         self.assertEqual(lines[5], 'Non-default flags: episodes=fake (env)')
         self.assertEqual(lines[6], 'Feeds disabled: 2')
-        self.assertEqual(lines[7], 'Daily run: OK · 2m ago')
-        self.assertEqual(lines[8], 'Feeds: 5 enabled · 0 backing off')
-        self.assertIn('2 done', lines[9])
-        self.assertIn('today $0.100000 / $0.500000 cap ($0.400000 left)', lines[10])
-        self.assertEqual(lines[11], 'Audio: daily ready · 5m 0s')
-        self.assertEqual(lines[12], 'Feed health: 5 enabled / 0 backing_off / 2 disabled_permanent (7 tracked)')
-        self.assertEqual(lines[13], 'Top failing sources: alpha (5), bravo (4), charlie (3), delta (2), echo (1)')
+        self.assertEqual(lines[7], 'Topic supply gaps: Payments: one story remains.')
+        self.assertEqual(lines[8], 'Daily run: OK · 2m ago')
+        self.assertEqual(lines[9], 'Feeds: 5 enabled · 0 backing off')
+        self.assertIn('2 done', lines[10])
+        self.assertIn('today $0.100000 / $0.500000 cap ($0.400000 left)', lines[11])
+        self.assertEqual(lines[12], 'Audio: daily ready · 5m 0s')
+        self.assertEqual(lines[13], 'Feed health: 5 enabled / 0 backing_off / 2 disabled_permanent (7 tracked)')
+        self.assertEqual(lines[14], 'Top failing sources: alpha (5), bravo (4), charlie (3), delta (2), echo (1)')
 
         for audio_status in ('pending', 'failed'):
             payload['edition']['audio']['audio_status'] = audio_status
             lines, _code = summarize('https://briefing.example.test', checks, fetch, today=TODAY,
                                     health_reader=lambda: health,
                                     backup_age_reader=lambda: 'Last backup age: unavailable')
-            self.assertEqual(lines[11], f'Audio: daily {audio_status} · 5m 0s')
+            self.assertEqual(lines[12], f'Audio: daily {audio_status} · 5m 0s')
 
     def test_morning_story_count_uses_short_two_fact_assessor(self):
         payload = sample_payload()

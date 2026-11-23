@@ -10,7 +10,6 @@
 .today-page h1{font-size:34px;max-width:22ch;margin:18px 0 8px}
 .today-page h1.today-greeting{max-width:38ch;margin:10px 0 12px;font-size:25px;font-weight:550;line-height:1.38;letter-spacing:-.018em}
 .edition-summary-dek{margin:0 0 14px;color:var(--muted);font:400 16px/1.45 var(--ui);max-width:58ch}
-.today-availability-note{margin:8px 0 0;padding:9px 12px;border-left:3px solid var(--accent);background:var(--soft);color:var(--ink);font-size:14px;line-height:1.4}
 .today-page .today-meta{font-size:15px;color:var(--muted);margin:0 0 18px}
 .today-run-summary{margin:0 0 16px;color:var(--muted);font-size:13px;line-height:1.45}
 .today-run-summary p{margin:0}
