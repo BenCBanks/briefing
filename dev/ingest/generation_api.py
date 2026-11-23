@@ -606,6 +606,8 @@ def _daily_narration_job_status(report):
 
 def _safe_narration_exception_reason(error):
     message = str(error)
+    if isinstance(error, NameError) and re.fullmatch(r"name '[A-Za-z_][A-Za-z0-9_]*' is not defined", message):
+        return 'NameError:' + message.split("'")[1]
     if re.fullmatch(r'(?:narration_[a-z0-9_]{1,80}|budget_estimate)', message):
         return message
     error_type = type(error).__name__
