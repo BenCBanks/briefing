@@ -48,16 +48,17 @@ async function run() {
       sectionId: section.id, inline: true, expanded: true,
       sources: registry, listeningAvailable: false,
     });
-    const citations = [...container.innerHTML.matchAll(/<button data-source="([^"]+)">([^<]+)<\/button>/gu)];
+    const sources = [...container.innerHTML.matchAll(/<button data-source="([^"]+)">([^<]+)<\/button>/gu)];
     const eligibleIds = story.source_ids.filter(id => currentSources.some(source => source.id === id));
-    assert.deepEqual(citations.map(match => match[1]), eligibleIds,
-      `${story.id} Today citations follow current source_ids and exclude withdrawn history`);
+    assert.deepEqual(sources.map(match => match[1]), eligibleIds,
+      `${story.id} Today source rows follow current source_ids and exclude withdrawn history`);
     const expectedRows = eligibleIds.map(id => currentSources.find(source => source.id === id));
-    assert.deepEqual(citations.map(match => match[2]),
-      expectedRows.map(source => `${source.publisher} · ${source.title}`),
-      `${story.id} Today citation labels use current publisher and title`);
-    assert.ok(container.innerHTML.includes(`href="${expectedRows[0].url}"`),
-      `${story.id} primary source action uses the current HTTPS URL`);
+    const sourceDate = source => { const date = new Date(`${source.published_at}T12:00:00Z`); return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date); };
+    assert.deepEqual(sources.map(match => match[2]),
+      expectedRows.map(source => `${source.publisher} · ${sourceDate(source)}`),
+      `${story.id} Today source rows use the current publisher and date`);
+    assert.ok(container.innerHTML.includes(`data-source="${expectedRows[0].id}"`),
+      `${story.id} primary source action resolves the current registry row`);
     assert.doesNotMatch(container.innerHTML, /Superseded|today-source-withdrawn|fictional\.example\.test\/(?:old-|withdrawn)/u,
       `${story.id} hides stale embedded metadata and withdrawn sources`);
 
@@ -109,8 +110,8 @@ async function run() {
   });
   assert.match(legacyContainer.innerHTML, /data-source="legacy-embedded-source"/u,
     'standalone legacy renders keep an embedded source when no current registry is supplied');
-  assert.match(legacyContainer.innerHTML, /Fictional Legacy Desk · Legacy embedded source title/u);
-  assert.match(legacyContainer.innerHTML, /href="https:\/\/fictional\.example\.test\/legacy"/u);
+  assert.match(legacyContainer.innerHTML, /<button data-source="legacy-embedded-source">Fictional Legacy Desk<\/button>/u,
+    'Today lists the publisher while the source action resolves its full details');
   assert.doesNotMatch(legacyContainer.innerHTML, /legacy-embedded-withdrawn|Legacy withdrawn source title|legacy-withdrawn/u,
     'legacy embedded-source fallback still excludes withdrawn source history');
 
@@ -120,7 +121,7 @@ async function run() {
   });
   assert.doesNotMatch(emptyRegistryContainer.innerHTML, /legacy-embedded-source|Legacy embedded source title/u,
     'an explicitly supplied current registry remains authoritative when it lacks the current source ID');
-  console.log('Today source parity: three current citations match Topic/export identities; stale and withdrawn actions stay hidden.');
+  console.log('Today source parity: current source rows match Topic/export identities; stale and withdrawn actions stay hidden.');
 }
 
 run().catch(error => { console.error(error); process.exitCode = 1; });
