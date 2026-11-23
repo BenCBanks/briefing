@@ -1257,6 +1257,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                 open_web_report=detail.get('retrieval_fill'),
                 followup_count=detail.get('followup_count', 0), followups_checked=True,
                 source_dates=source_dates, source_tiers=source_tiers)
+            from .flags import flag_enabled
             # The scheduled run and narration-enabled reader rebuild both
             # publish the owner-facing daily. Apply the same deterministic
             # publication gate before spending on optional narration.
@@ -1270,7 +1271,6 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                     _persist_job_scorecard(directory, job_id, report)
                     raise RuntimeError('scorecard_critical_failed:' + ','.join(content_failures))
             narration_result = None
-            from .flags import flag_enabled
             if flag_enabled('daily_narration'):
                 try:
                     import stat
@@ -1298,7 +1298,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                     narration_result = write_spoken_script(
                         edition, profile, runtime_evidence, sources['sources'],
                         call_json=narration_call_json,
-                        caller=cost_caller)
+                        caller='daily')
                 except Exception as error:
                     # Preserve the candidate for diagnostics. The enabled
                     # publication gate below keeps the last good edition live.

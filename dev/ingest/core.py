@@ -1057,7 +1057,8 @@ def _check_deadline(deadline):
         raise TimeoutError('Feed fetch budget expired.')
 
 
-def _robots_policy(url, opener=None, cache_path=ROBOTS_CACHE_PATH, now=None, deadline=None, approved_hosts=None):
+def _robots_policy(url, opener=None, cache_path=ROBOTS_CACHE_PATH, now=None, deadline=None,
+                   approved_hosts=None, skip_rate_limit=False):
     """Check robots; cache_path=None keeps rules in a separate memory-only cache."""
     parts = urlsplit(url)
     host = parts.hostname.lower()
@@ -1092,7 +1093,8 @@ def _robots_policy(url, opener=None, cache_path=ROBOTS_CACHE_PATH, now=None, dea
     parser = robotparser.RobotFileParser(robots_url)
     rules = []
     try:
-        _wait_for_host(host, max(1, 5 if host.endswith('gdeltproject.org') else 1), deadline)
+        if not skip_rate_limit:
+            _wait_for_host(host, max(1, 5 if host.endswith('gdeltproject.org') else 1), deadline)
         response = opener(Request(robots_url, headers={'User-Agent': USER_AGENT}), timeout=_timeout_for_deadline(deadline))
         with response:
             final = urlsplit(response.geturl())
@@ -1157,13 +1159,14 @@ def _save_robots_cache(path):
         temporary.replace(path)
 
 
-def fetch_source(source, opener=None, now=None, robots_cache_path=ROBOTS_CACHE_PATH, deadline=None):
+def fetch_source(source, opener=None, now=None, robots_cache_path=ROBOTS_CACHE_PATH, deadline=None,
+                 skip_rate_limit=False):
     host = (urlsplit(source.get('url', '')).hostname or '').lower()
     with _host_request_lock(host):
-        return _fetch_source_unlocked(source, opener, now, robots_cache_path, deadline)
+        return _fetch_source_unlocked(source, opener, now, robots_cache_path, deadline, skip_rate_limit)
 
 
-def _fetch_source_unlocked(source, opener, now, robots_cache_path, deadline):
+def _fetch_source_unlocked(source, opener, now, robots_cache_path, deadline, skip_rate_limit=False):
     url = source['url']
     parts = urlsplit(url)
     if parts.scheme != 'https' or not _domain_allowed(source, parts.hostname or ''):
@@ -1171,7 +1174,8 @@ def _fetch_source_unlocked(source, opener, now, robots_cache_path, deadline):
     host = parts.hostname.lower()
     opener = _source_opener(source, opener)
     approved_hosts = _approved_hosts(source)
-    allowed, crawl_delay = _robots_policy(url, opener, robots_cache_path, now, deadline, approved_hosts)
+    allowed, crawl_delay = _robots_policy(url, opener, robots_cache_path, now, deadline, approved_hosts,
+                                           skip_rate_limit=skip_rate_limit)
     _check_deadline(deadline)
     if not allowed:
         raise PermissionError('Source is disallowed by robots.txt.')
@@ -1179,7 +1183,8 @@ def _fetch_source_unlocked(source, opener, now, robots_cache_path, deadline):
         raise TimeoutError('Source requires a crawl delay longer than the interactive fetch limit.')
     minimum_interval = max(source.get('minimum_interval_seconds', 1), 5 if host.endswith('gdeltproject.org') else 1)
     interval = max(minimum_interval, int(crawl_delay or 0))
-    _wait_for_host(host, interval, deadline)
+    if not skip_rate_limit:
+        _wait_for_host(host, interval, deadline)
     headers = {'User-Agent': USER_AGENT, 'Accept': 'application/rss+xml, application/atom+xml, text/html;q=0.8, */*;q=0.1'}
     if source.get('etag'):
         headers['If-None-Match'] = source['etag']
@@ -1294,8 +1299,13 @@ def _fetch_host_group(host_sources, source_cache, robots_path, opener, now, dead
             request_source.pop('etag', None)
             request_source.pop('last_modified', None)
         try:
+            # Sources sharing one host are already serialized by this worker.
+            # Apply the host politeness interval before the first request, but
+            # do not spend the entire fetch window sleeping between feeds in
+            # the same run.
             items, metadata = fetch_source(request_source, opener=opener, now=now,
-                                          robots_cache_path=robots_path, deadline=deadline)
+                                          robots_cache_path=robots_path, deadline=deadline,
+                                          skip_rate_limit=(index > 0))
             results.append((source['id'], items, metadata, None))
         except TimeoutError:
             results.append((source['id'], [], {}, 'timeout'))
