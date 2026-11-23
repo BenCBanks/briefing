@@ -367,9 +367,18 @@ def _one_profile(profile, wait_seconds, poll_seconds, start, get_job, sleep,
                     audio = daily_audio_renderer(edition, profile=profile)
                     job['daily_audio'] = daily_audio_persister(profile, edition, audio)
                 except Exception as error:
-                    job['daily_audio'] = {'audio_status': 'pending', 'audio_url': None,
-                                          'duration_seconds': None, 'chapter_offsets': [],
-                                          'reason': type(error).__name__}
+                    # Keep the published text edition usable when a renderer
+                    # fails outside its normal error boundary. Persist the
+                    # explicit text-only state so the Today player can show
+                    # that audio is unavailable instead of exposing a broken
+                    # player or silently dropping the audio field.
+                    fallback = {'audio_status': 'pending', 'audio_url': None,
+                                'duration_seconds': None, 'chapter_offsets': [],
+                                'reason': type(error).__name__}
+                    try:
+                        job['daily_audio'] = daily_audio_persister(profile, edition, fallback)
+                    except Exception:
+                        job['daily_audio'] = fallback
             return 0, job
         if job.get('status') == 'failed':
             return 1, job
