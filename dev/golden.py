@@ -216,9 +216,11 @@ def _case_record(kind: str, name: str, question: str, generate) -> dict:
 
 
 def render_report(cases: list[dict], total_cost: Decimal, report_date: str) -> str:
+    scored = sum('scores' in case for case in cases)
     lines = [f'# Golden quality run — {report_date}', '',
              f'Actual ledger spend for this run: **${total_cost:.5f}**.',
              f'Judge: `{JUDGE_MODEL}`. Cases run sequentially; failed cases are reported explicitly.', '',
+             f'Accepted scripts scored: **{scored}/{len(cases)}**. The judge only scores scripts returned by the generator.', '',
              'Scores are 1–5. The judge checks whether each script answers its question, sounds spoken,',
              'stays grounded, avoids filler and repetition, uses one plain point per paragraph, has no',
              'citation markers, and is honest when the evidence is thin.', '']
