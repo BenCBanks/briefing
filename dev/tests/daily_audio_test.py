@@ -883,6 +883,29 @@ class DailyAudioTests(unittest.TestCase):
         for private in ('fictional TTS failure', 'First fictional story', 'Kore'):
             self.assertNotIn(private, logged)
 
+    def test_renderer_exception_persists_text_only_audio_state(self):
+        from dev.ingest import daily
+        states = iter([(200, {'status': 'complete', 'job_id': 'fixture-job',
+                              'edition_ready': {'edition': dict(EDITION), 'sources': []}})])
+        persisted = {}
+
+        def persist(_profile, _edition, audio):
+            persisted.update(audio)
+            return audio
+
+        code, result = daily.run_daily(
+            profile_loader=lambda: PROFILE,
+            start=lambda _profile: (202, {'job_id': 'fixture-job'}),
+            get_job=lambda _job: next(states), sleep=lambda _delay: None,
+            report_writer=lambda _value: None,
+            daily_audio_renderer=lambda _edition, **_kwargs: (_ for _ in ()).throw(
+                RuntimeError('fictional renderer failure')),
+            daily_audio_persister=persist)
+        self.assertEqual(code, 0)
+        self.assertEqual(result['daily_audio']['audio_status'], 'pending')
+        self.assertEqual(result['daily_audio']['reason'], 'RuntimeError')
+        self.assertEqual(persisted['audio_status'], 'pending')
+
     def test_failed_corrected_synthesis_stays_pending_without_exposing_stale_audio(self):
         previous_edition = deepcopy(EDITION)
         state_dir = Path(self.temp.name) / 'failed-correction-audio'

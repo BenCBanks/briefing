@@ -88,6 +88,7 @@ async function run() {
       { id: 'digital', label: 'Digital payments', scope: 'Digital payment systems', include: ['digital payments'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'digital payments' },
     ] };
     await installSpeechStub(page);
+    await page.route('**/*', route => new URL(route.request().url()).origin === baseURL ? route.continue() : route.abort());
     await page.route('**/api/edition**', async route => {
       const base = await route.fetch({ url: `${baseURL}/content/editions.json` });
       const editions = await base.json();
@@ -185,7 +186,8 @@ async function run() {
     await page.locator('body.is-reader .edition-section').waitFor();
     assert.equal(await page.locator('.reader-story-header h1').innerText(), 'Medicare Administrative Contractors Announce a Nationwide Moratorium on Enrollment of New Hospice Providers', 'Earlier briefing dates open their own story');
     assert.equal(await page.locator('.reader-back').innerText(), '‹ Earlier', 'Library briefing returns to Library');
-    await page.goto(`${baseURL}/#today`, { waitUntil: 'networkidle' });
+    await page.goto(`${baseURL}/#today`, { waitUntil: 'domcontentloaded' });
+    await page.locator('.today-story-row').first().waitFor();
 
     assert.equal(await row.locator('.story-interest-feedback').count(), 0, 'Today uses edition feedback only');
     await row.locator('.story-row-link').click();
@@ -231,7 +233,8 @@ async function run() {
     interestSignals = await page.evaluate(() => JSON.parse(localStorage.getItem('briefing:v1:signals')));
     assert.deepEqual(interestSignals.filter(item => ['more', 'less'].includes(item.type) && item.storyId === storySectionId).map(item => item.type), ['more', 'less'], 'Switching to Less records a newer explicit signal that supersedes More');
     assert.equal(await feedback.getByRole('button', { name: 'Less like this', includeHidden: true }).getAttribute('aria-pressed'), 'true');
-    await page.reload({ waitUntil: 'networkidle' });
+    await page.reload({ waitUntil: 'domcontentloaded' });
+    await page.locator('body.is-reader .edition-section').waitFor();
     const persistedFeedback = page.locator('.story-interest-feedback');
     assert.equal(await persistedFeedback.getByRole('button', { name: 'Less like this', includeHidden: true }).getAttribute('aria-pressed'), 'true', 'The selected preference survives a reload');
     await persistedFeedback.getByRole('button', { name: 'More like this' }).click();
