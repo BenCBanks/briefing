@@ -33,7 +33,7 @@ GENERATION_LOCK_PATH = STATE_DIR / 'generation.lock'
 MAX_PROFILE_BYTES = 64_000
 MAX_GENERATION_SECONDS = 180
 GENERATION_FINALIZE_RESERVE_SECONDS = 10
-FEED_FETCH_BUDGET_SECONDS = 20
+FEED_FETCH_BUDGET_SECONDS = 60
 ARTICLE_EXTRACTION_BUDGET_SECONDS = 45
 MAX_GEMINI_CALLS_PER_RUN = 40
 MAX_GEMINI_CALLS_WITH_FILL = 40
@@ -1074,7 +1074,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
             stage = 'feed_fetch'
             counts = core.ingest_enabled(ready, core.STORE_PATH, budget_seconds=FEED_FETCH_BUDGET_SECONDS,
                                          progress=feed_progress, include_transient=True,
-                                         max_workers=4)
+                                         max_workers=8)
             transient_feed_bodies = counts.pop('transient_feed_bodies', {})
             transient_feed_methods = counts.pop('transient_feed_methods', {})
             if counts.get('disabled_by_kill_switch'):
@@ -1423,20 +1423,18 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                 if early_articles is not None:
                     early_articles.close()
             finally:
-                try:
-                    if lock_stream is not None:
-                        try:
-                            fcntl.flock(lock_stream.fileno(), fcntl.LOCK_UN)
-                        finally:
-                            lock_stream.close()
-                finally:
-                    global _active_job, _active_daily_run
-                    with _jobs_lock:
-                        if _active_job == job_id:
-                            _active_job = None
-                        if (isinstance(_active_daily_run, dict) and
-                                _active_daily_run.get('job_id') == job_id):
-                            _active_daily_run = None
+                if lock_stream is not None:
+                    try:
+                        fcntl.flock(lock_stream.fileno(), fcntl.LOCK_UN)
+                    finally:
+                        lock_stream.close()
+                global _active_job, _active_daily_run
+                with _jobs_lock:
+                    if _active_job == job_id:
+                        _active_job = None
+                    if (isinstance(_active_daily_run, dict) and
+                            _active_daily_run.get('job_id') == job_id):
+                        _active_daily_run = None
 
 
 def start_generation(profile, directory=None, generate=None, registry=None, is_default=False,

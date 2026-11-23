@@ -1525,7 +1525,7 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(generation_api.MAX_GEMINI_CALLS_PER_RUN, 40)
         self.assertEqual(generation_api.MAX_GENERATION_SECONDS, 180)
         self.assertEqual(generation_api.GENERATION_FINALIZE_RESERVE_SECONDS, 10)
-        self.assertEqual(generation_api.FEED_FETCH_BUDGET_SECONDS, 20)
+        self.assertEqual(generation_api.FEED_FETCH_BUDGET_SECONDS, 60)
         self.assertEqual(generation_api.ARTICLE_EXTRACTION_BUDGET_SECONDS, 45)
         self.assertEqual(generation_api.MAX_ARTICLE_FETCHES_PER_RUN, 24)
         from ingest import write_edition

@@ -33,8 +33,10 @@ def fictional_profile() -> dict:
         # IDs use the small public catalog so the run has feed candidates;
         # labels remain fictional editorial interests for easy identification.
         ('digital', 'AI chips', 'AI accelerators, chip design and computing hardware'),
-        ('energy', 'Climate policy', 'Climate regulation, emissions and energy policy'),
-        ('local-news', 'Space launches', 'Orbital launches, launch providers and missions'),
+        # Map the fictional labels to populated public catalog topic IDs.  The
+        # labels remain the reader-facing profile; IDs only select candidates.
+        ('finance', 'Climate policy', 'Climate regulation, emissions and energy policy'),
+        ('science', 'Space launches', 'Orbital launches, launch providers and missions'),
     ]
     return {
         'version': 1,
@@ -176,7 +178,26 @@ def _poll_daily(job_id: str) -> dict:
 
 def run_daily() -> int:
     with isolated_run() as state:
+        from dev.ingest import core
         from dev.ingest.generation_api import start_generation
+        original_ingest = core.ingest_enabled
+
+        def diagnostic_ingest(*args, **kwargs):
+            counts = original_ingest(*args, **kwargs)
+            results = counts.get('source_results', {})
+            errors = counts.get('source_error_types', {})
+            print('\nFeed results:')
+            for source in args[0] if args else []:
+                source_id = source.get('id')
+                outcome = results.get(source_id, 'missing')
+                detail = errors.get(source_id)
+                print(f"  {source_id}: {outcome}" + (f" ({detail})" if detail else ''))
+            print('Feed totals: ' + json.dumps({key: counts.get(key) for key in
+                                                  ('enabled_sources', 'fetched_sources', 'errors',
+                                                   'timed_out_sources', 'elapsed_seconds')}, sort_keys=True))
+            return counts
+
+        core.ingest_enabled = diagnostic_ingest
         before = ledger_snapshot()
         started = time.monotonic()
         profile = fictional_profile()
