@@ -52,6 +52,10 @@ class NarrationNormalizerTests(unittest.TestCase):
         self.assertEqual(normalize_narration('A scale near 10^6 is useful.'),
                          'A scale near ten to the power of six is useful.')
 
+    def test_common_pronounceable_names_and_acronyms_reach_tts_as_words(self):
+        self.assertEqual(normalize_narration('NASA tested FedNow and ACH.'),
+                         'NASA tested FedNow and ACH.')
+
     def test_parenthesized_citation_links_leave_money_and_date_punctuation_clean(self):
         cited = (
             'The fictional agency approved $2.5 billion ([1](https://example.test/amount)). '

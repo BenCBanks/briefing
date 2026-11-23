@@ -151,6 +151,10 @@ class AudioScriptTests(unittest.TestCase):
         self.assertEqual(_speak_text('The index reached 1.2e3.'),
                          'The index reached one point two times ten to the three.')
 
+    def test_common_pronounceable_names_and_acronyms_are_not_spelled_as_letters(self):
+        spoken = _speak_text('NASA tested FedNow and ACH in a fictional exercise.')
+        self.assertEqual(spoken, 'NASA tested FedNow and ACH in a fictional exercise.')
+
     def test_spoken_clock_time_drops_colon_and_zero_minutes(self):
         self.assertEqual(_speak_text('The notice is scheduled for 11:00 a.m. Eastern.'),
                          'The notice is scheduled for eleven a.m. Eastern.')

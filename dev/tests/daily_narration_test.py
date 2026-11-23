@@ -106,6 +106,26 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertEqual([row['id'] for row in rows], ['bridge-sentence'])
         self.assertEqual(rows[0]['source_id'], 'bridge-source')
 
+    def test_background_evidence_stays_with_its_exact_topic(self):
+        section = {'topic_ids': ['ai-chips'], 'source_ids': [], 'claim_links': []}
+        backgrounds = [
+            {'topic_id': 'ai-chips', 'sentences': [{'text': 'Fictional chip makers compare memory bandwidth.',
+                                                    'source_sentence_ids': ['chips-bg'],
+                                                    'citation_numbers': [1]}]},
+            {'topic_id': 'payments', 'sentences': [{'text': 'A fictional bank explains password resets.',
+                                                   'source_sentence_ids': ['password-bg'],
+                                                   'citation_numbers': [2]}]},
+        ]
+
+        rows = _evidence_for_story(section, {}, [], backgrounds)
+
+        self.assertEqual([row['id'] for row in rows], ['chips-bg'])
+        self.assertNotIn('password-bg', {row['id'] for row in rows})
+
+    def test_context_prompt_requires_topic_relevance(self):
+        self.assertIn("directly explain this story's topic", SCRIPT_PROMPT)
+        self.assertIn('password explainer in a story about', VERIFY_PROMPT)
+
     def test_depth_revision_requires_distinct_unused_evidence_and_rejects_second_thin_draft(self):
         stories, verdicts, evidence = {}, {}, {}
         context_openers = ('More broadly', 'At a high level', 'Think of it this way')
