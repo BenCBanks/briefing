@@ -122,13 +122,13 @@ async function screenshot(page, name) {
     assert.equal(await page.locator('#episode-request-prompt').getAttribute('placeholder'), 'e.g. U.S. payments regulation this month');
     assert.deepEqual(await page.locator('.on-demand-length-group .episode-request-chip').allTextContents(), ['3 min', '5 min', '10 min', '15 min']);
     assert.equal(await page.locator('.on-demand-length-group [aria-pressed="true"]').innerText(), '5 min');
-    assert.match(await page.locator('.on-demand-cost-line').innerText(), /Cost is checked/);
+    assert.equal(await page.locator('.on-demand-cost-line').count(), 0, 'the request page hides internal cost wording');
     assert.equal(await page.getByRole('button', { name: 'Create episode' }).isDisabled(), true, 'Start is disabled until the prompt has text');
     assert.equal(await page.getByRole('button', { name: 'Create episode' }).evaluate(button => getComputedStyle(button).borderTopWidth), '1px', 'disabled Start has a distinct quiet outline');
     const prompt = page.locator('#episode-request-prompt');
     const promptLimit = page.locator('.episode-request-character-count');
-    assert.equal(await prompt.getAttribute('aria-describedby'), 'episode-request-character-count', 'the prompt announces its character limit');
-    assert.equal(await promptLimit.innerText(), 'Up to 500 characters', 'the prompt limit is visible before typing');
+    assert.equal(await prompt.getAttribute('aria-describedby'), null, 'the prompt does not announce a hidden character limit');
+    assert.equal(await promptLimit.isVisible(), false, 'the prompt limit stays hidden below the limit');
     assert.equal(await page.getByText('No on-demand briefings yet. Your first one will appear here.', { exact: true }).count(), 1);
     assert.equal(await page.locator('.episode-request-example').evaluateAll(items => items.every(item => getComputedStyle(item).textAlign === 'left' && item.getBoundingClientRect().width === items[0].getBoundingClientRect().width)), true, 'Examples share an aligned full-width style');
     await screenshot(page, 'on-demand-light');
@@ -138,7 +138,7 @@ async function screenshot(page, name) {
     await page.locator('.episode-request-example').first().click();
     assert.equal(await prompt.inputValue(), 'How do contactless payments settle?', 'an example replaces the draft and fills the prompt');
     assert.equal(await page.getByRole('button', { name: 'Create episode' }).isDisabled(), false, 'choosing an example enables Start');
-    assert.equal(await promptLimit.innerText(), `${'How do contactless payments settle?'.length} / 500 characters`, 'the counter follows an example selection');
+    assert.equal(await promptLimit.isVisible(), false, 'examples below the cap do not show a counter');
     const longQuestion = 'What practical changes follow if fictional harbor towns adopt a shared payment network, and how would businesses, customers, and local services notice the difference?';
     await prompt.fill(longQuestion);
     const longQuestionLayout = await prompt.evaluate(el => ({
@@ -222,8 +222,9 @@ async function screenshot(page, name) {
     assert.equal(await page.locator('.episode-style-dialog').count(), 0, 'Single send uses the default narrative style');
     await page.locator('.episode-making-page').waitFor();
     assert.equal(await page.locator('.episode-making-quote').innerText(), '“Why do contactless payments settle in batches?”');
-    assert.equal(await page.locator('.episode-making-meta').innerText(), 'About 10 min to listen · Brief');
-    assert.match(await page.locator('.episode-live-panel').innerText(), /Cost estimate: about 12 cents/);
+    assert.equal(await page.locator('.episode-making-meta').innerText(), 'You chose 10 min');
+    assert.equal(await page.locator('.episode-progress-note').count(), 1, 'making shows one plain progress note');
+    assert.doesNotMatch(await page.locator('.episode-making-page').innerText(), /Work so far|Cost estimate/);
     assert.equal(await page.locator('.episode-stage-row').count(), 5);
     assert.equal(await page.locator('.episode-stage-row[data-state="active"]').count(), 1);
     assert.ok(await page.locator('[role="status"]').count() >= 1);
@@ -283,7 +284,7 @@ async function screenshot(page, name) {
       await page.getByRole('button', { name: 'Create episode' }).click();
       await page.locator('.episode-making-page').waitFor();
       assert.equal(createPayload.length, minutes);
-      assert.equal(await page.locator('.episode-making-meta').innerText(), `About ${minutes} min to listen · Brief`);
+      assert.equal(await page.locator('.episode-making-meta').innerText(), `You chose ${minutes} min`);
       await page.getByRole('button', { name: 'Cancel this episode' }).click();
       await page.locator('.episode-request-page').waitFor();
     }
@@ -381,12 +382,13 @@ async function screenshot(page, name) {
     await screenshot(page, 'episode-making-active-light');
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-making-active-dark');
     await page.emulateMedia({ colorScheme: 'light' });
-    assert.equal(await page.locator('.episode-making-meta').innerText(), 'About 10 min to listen · Brief');
+    assert.equal(await page.locator('.episode-making-meta').innerText(), 'You chose 10 min');
     await page.getByLabel('Tell me when it’s ready').check();
-    await page.getByText('Claims checked 6', { exact: true }).waitFor();
+    await page.locator('.episode-progress-note').waitFor();
     await page.locator('.episode-done-card').waitFor({ timeout: 15000 });
     assert.equal(await page.locator('.episode-cancel-button').count(), 0, 'A finished job no longer offers cancellation');
     assert.equal(await page.locator('.episode-making-kicker').innerText(), 'Episode ready', 'The making screen updates its status label when done');
+    assert.equal(await page.locator('.episode-done-meta').innerText(), 'You chose 10 min');
     assert.equal(await page.locator('.episode-stage-row[data-state="done"]').count(), 5);
     assert.equal(await page.locator('.episode-stage-ring[data-check="✓"]').count(), 5);
     const announcements = await page.evaluate(() => window.stageAnnouncements);
@@ -395,10 +397,7 @@ async function screenshot(page, name) {
     }
     assert.equal(announcements.filter(message => message === 'Your episode is ready.').length, 1, 'Ready is announced once');
     assert.equal(await page.getByText('We found limited coverage; here is a shorter episode.', { exact: true }).count(), 1, 'Thin evidence is disclosed plainly without padding language');
-    assert.match(await page.locator('.episode-live-panel').innerText(), /Claims checked 6/);
-    assert.match(await page.locator('.episode-work-sources').innerText(), /Civic Ledger · fictional/);
-    assert.equal(await page.locator('.episode-work-chapters li').count(), 3);
-    assert.equal(await page.locator('.episode-waveform').count(), 1);
+    assert.equal(await page.locator('.episode-progress-note').count(), 1);
     assert.match(await page.locator('.episode-done-card').innerText(), /You asked to be told when it’s ready/);
     await page.getByText('We found limited coverage; here is a shorter episode.', { exact: true }).scrollIntoViewIfNeeded();
     await screenshot(page, 'episode-thin-evidence-light');
@@ -415,17 +414,22 @@ async function screenshot(page, name) {
     assert.match(await page.locator('.episode-page h1').innerText(), /Fictional briefing on Why do contactless payments settle in batches/);
     assert.equal(await page.locator('.episode-page .episode-listen').isEnabled(), true, 'the ready episode offers its recorded player');
     const citations = page.locator('.episode-citation summary');
-    assert.equal(await citations.count(), 3, 'each of the three fictional chapters has a citation');
+    assert.equal(await citations.count(), 3, 'each chapter lists its source once');
+    assert.equal(await page.locator('.episode-inline-source-marker').count(), 3, 'each chapter paragraph has at most one small source marker');
+    assert.equal(await page.locator('.episode-page-compact-transcript .episode-sentence').count(), 3, 'on-demand transcript groups prose by chapter');
+    assert.equal(await page.locator('.episode-chapter-sources').count(), 3, 'sources are listed once under each chapter');
     assert.deepEqual(await citations.evaluateAll(items => items.map(item => item.getAttribute('aria-label'))), [
       'Source 1, Civic Ledger · fictional',
       'Source 1, Civic Ledger · fictional',
       'Source 1, Civic Ledger · fictional',
     ]);
-    await page.locator('.episode-citation').first().locator('summary').click();
-    assert.equal(await page.locator('.episode-citation-detail strong').first().innerText(), 'Civic Ledger · fictional', 'the ready transcript opens its cited source');
+    await page.locator('.episode-transcript').scrollIntoViewIfNeeded();
     await screenshot(page, 'episode-ready-light');
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-ready-dark');
     await page.emulateMedia({ colorScheme: 'light' });
+    await page.locator('.episode-citation').first().locator('summary').click();
+    assert.equal(await page.locator('.episode-citation-detail strong').first().innerText(), 'Civic Ledger · fictional', 'the ready transcript source list opens its details');
+    await page.locator('.episode-citation[open]').first().locator('summary').click();
     assert.equal(await page.getByRole('button', { name: `Listen to Fictional briefing on Why do contactless payments settle in batches?` }).isEnabled(), true,
       'the requested episode is playable when its recording matches the ready transcript');
     await page.getByRole('button', { name: `Listen to Fictional briefing on Why do contactless payments settle in batches?` }).click();
@@ -447,11 +451,12 @@ async function screenshot(page, name) {
     await page.getByRole('button', { name: 'Create episode' }).click();
     await page.locator('.episode-making-page').waitFor();
     await page.getByText('We could not find enough verified information to finish this episode. Try a narrower question.', { exact: true }).waitFor();
+    assert.equal(await page.locator('.episode-job-error').evaluate(el => getComputedStyle(el).borderLeftWidth), '0px', 'failure copy is plain text');
     assert.equal(await page.getByRole('button', { name: 'Try again' }).count(), 1, 'An evidence failure offers a clear retry');
     await screenshot(page, 'episode-failed-light');
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-failed-dark');
     await page.emulateMedia({ colorScheme: 'light' });
     assert.deepEqual(errors, []);
-    console.log('Episode request: ask-to-play flow, evidence failure recovery, four lengths, costs, progress, citations, and 390px light/dark screenshots passed.');
+    console.log('Episode request: ask-to-play flow, evidence failure recovery, four lengths, plain progress, source lists, and 390px light/dark screenshots passed.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

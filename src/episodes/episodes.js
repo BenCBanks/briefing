@@ -124,7 +124,7 @@ function renderSentence(sentence, sourceNumbers, sourcesById) {
   return paragraph;
 }
 
-export function renderEpisodePage(container, episode, { onListen = null, inDailyBriefing = false, onDailyBriefingChange = null } = {}) {
+export function renderEpisodePage(container, episode, { onListen = null, inDailyBriefing = false, onDailyBriefingChange = null, compactSources = false } = {}) {
   const page = element('article', 'episode-page');
   const withdrawnEpisode = withdrawn(episode);
   const currentChapters = (episode.chapters || []).filter(chapter => withdrawn(chapter) || !inactive(chapter));
@@ -190,7 +190,7 @@ export function renderEpisodePage(container, episode, { onListen = null, inDaily
   const sourcesById = new Map(currentSources.map(source => [source.id, source]));
   const transcript = element('section', 'episode-transcript');
   transcript.append(element('h2', '', 'Transcript'));
-  transcript.append(element('p', 'episode-transcript-note', 'Tap a source number to see its publisher and date.'));
+  if (!compactSources) transcript.append(element('p', 'episode-transcript-note', 'Tap a source number to see its publisher and date.'));
   if (withdrawnEpisode) {
     const section = element('section', 'episode-chapter');
     const chapterHeading = element('h3', '', 'Story withdrawn'); chapterHeading.tabIndex = -1;
@@ -202,9 +202,31 @@ export function renderEpisodePage(container, episode, { onListen = null, inDaily
     const chapterHeading = element('h3', '', withdrawn(chapter) ? 'Story withdrawn' : chapter.title); chapterHeading.tabIndex = -1;
     section.append(chapterHeading);
     if (!withdrawn(chapter)) {
-      for (const sentence of chapter.sentences || []) {
-        const paragraph = renderSentence(sentence, sourceNumbers, sourcesById);
-        if (paragraph) section.append(paragraph);
+      if (compactSources) {
+        const sentences = (chapter.sentences || []).filter(sentence => !inactive(sentence));
+        const text = sentences.map(sentence => String(sentence.text || '').trim()).filter(Boolean).join(' ');
+        if (text) {
+          const paragraph = element('p', 'episode-sentence', text);
+          const chapterSources = new Set(sentences.flatMap(sentence => sentence.source_ids || []).filter(id => sourcesById.has(id)));
+          const first = [...chapterSources][0];
+          if (first) paragraph.append(element('sup', 'episode-inline-source-marker', String(sourceNumbers.get(first))));
+          section.append(paragraph);
+          if (chapterSources.size) {
+            const sourceList = element('ul', 'episode-chapter-sources');
+            for (const id of chapterSources) {
+              const source = sourcesById.get(id); const item = element('li');
+              item.append(sourceMarker(source, sourceNumbers.get(id)));
+              item.append(element('span', '', `${source.outlet || source.publisher || 'Source'}${source.title ? ` · ${source.title}` : ''}`));
+              sourceList.append(item);
+            }
+            section.append(sourceList);
+          }
+        }
+      } else {
+        for (const sentence of chapter.sentences || []) {
+          const paragraph = renderSentence(sentence, sourceNumbers, sourcesById);
+          if (paragraph) section.append(paragraph);
+        }
       }
     }
     transcript.append(section);
@@ -221,6 +243,7 @@ export function renderEpisodePage(container, episode, { onListen = null, inDaily
   const report = element('details', 'episode-report');
   report.append(element('summary', '', 'Report a mistake'), element('p', '', 'In this fixture preview, reports are not sent. Note the episode title and the passage that needs a correction.'));
   page.append(report);
+  if (compactSources) page.classList.add('episode-page-compact-transcript');
   container.replaceChildren(page);
   title.focus({ preventScroll: true });
 }
