@@ -372,3 +372,22 @@ body.keyboard-open .app-toast{bottom:calc(12px + var(--virtual-keyboard-inset,0p
 .unavailable-page h1{max-width:14ch;margin:0 0 14px;color:var(--ink);font:600 32px/1.16 var(--read);letter-spacing:-.025em}
 .unavailable-copy{max-width:38ch;margin:0 0 22px;color:var(--muted);font:400 16px/24px var(--ui)}
 .unavailable-action{box-sizing:border-box;width:min(100%,240px)!important;min-height:48px;text-align:center}
+
+/* On demand cleanup: examples and progress stay plain and reader-facing. */
+.episode-request-examples .episode-request-example{box-sizing:border-box;display:block;width:100%;min-height:44px;margin:0;padding:8px 0;border:0;border-radius:0;background:transparent;color:var(--accent);font:500 15px/22px var(--ui);text-align:left}
+.episode-request-examples .episode-request-example:hover{background:transparent;text-decoration:underline}
+.episode-empty-copy,.episode-list-error{margin:12px 0;color:var(--ink);font:400 15px/22px var(--ui)}
+.episode-list-error p{margin:0 0 8px;color:var(--ink)}
+.episode-list-retry{min-height:44px;padding:0;border:0;background:transparent;color:var(--accent);font:600 14px/20px var(--ui)}
+.episode-making-page .episode-stage-row[data-state="active"]{margin:0;padding-inline:8px;border:0;border-bottom:1px solid var(--line);border-radius:0;background:transparent}
+.episode-making-page .episode-stage-row[data-state="active"] .episode-stage-copy strong{font-weight:700}
+.episode-making-page .episode-stage-row[data-state="upcoming"]{opacity:1}
+.episode-making-page .episode-progress-note{margin:10px 0;color:var(--muted);font:400 13px/19px var(--ui)}
+.episode-job-error{margin:16px 0;padding:0;border:0;background:transparent;color:var(--ink);font:400 16px/24px var(--ui)}
+.episode-page-compact-transcript .episode-sentence{font:400 16px/1.55 var(--ui,system-ui,sans-serif);color:var(--ink)}
+.episode-page-compact-transcript .episode-citation{vertical-align:super;margin-left:2px;font-size:10px}
+.episode-page-compact-transcript .episode-citation summary{min-width:0;min-height:0;padding:0 2px;border:0;border-radius:0;background:transparent;color:var(--accent);font-size:10px}
+.episode-page-compact-transcript .episode-chapter-sources{list-style:none;margin:8px 0 20px;padding:8px 0 0;border-top:1px solid var(--line);color:var(--muted);font:400 12px/18px var(--ui)}
+.episode-page-compact-transcript .episode-chapter-sources li{margin:4px 0}
+.episode-page-compact-transcript .episode-chapter-sources .episode-citation{vertical-align:baseline}
+.episode-page-compact-transcript .episode-chapter-sources .episode-citation summary{min-width:44px;min-height:44px}
