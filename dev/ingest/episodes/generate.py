@@ -1145,15 +1145,27 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                 'sources_read': len(sources)})
     def materialize(script_draft):
         rendered, used_sources = [], set()
+        host_pass = _is_gemini_client(client)
         for index, chapter in enumerate(script_draft['chapters'], 1):
             sentences = []
             for serial, row in enumerate(chapter['sentences'], 1):
+                kind = row['kind']
+                text = row['text']
+                if host_pass and kind == 'opening':
+                    text = f'You asked about {topic.strip().rstrip("?")}. '
+                elif host_pass and kind == 'navigation':
+                    text = ''
+                elif host_pass and kind == 'closing':
+                    prior = next((item['text'] for item in reversed(sentences)
+                                  if item.get('kind') == 'claim' and item.get('text')), '')
+                    text = ('The takeaway is that ' + prior.lstrip(' .') if prior else '')
                 ids = list(dict.fromkeys(row['evidence_ids']))
                 numbers = sorted({evidence[i]['source_number'] for i in ids})
                 source_ids = [sources[n - 1]['id'] for n in numbers]
                 used_sources.update(source_ids)
-                sentences.append({'id': f'c{index}-s{serial}', 'text': row['text'], 'kind': row['kind'],
-                                  'evidence_ids': ids, 'source_ids': source_ids, 'source_numbers': numbers})
+                if text:
+                    sentences.append({'id': f'c{index}-s{serial}', 'text': text, 'kind': kind,
+                                      'evidence_ids': ids, 'source_ids': source_ids, 'source_numbers': numbers})
             used_sources.update(evidence[i]['source_id'] for i in chapter['title_evidence_ids'])
             rendered.append({'id': f'chapter-{index}', 'title': chapter['title'],
                              'title_evidence_ids': chapter['title_evidence_ids'], 'sentences': sentences})
@@ -1254,7 +1266,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
     if shortfall:
         notices.append('This episode is shorter than requested because the available evidence is limited.')
     if draft['could_not_confirm']:
-        notices.extend(draft['could_not_confirm'])
+        notices.extend(draft['could_not_confirm'] if not _is_gemini_client(client) else
+                       ["I couldn't find solid evidence on the remaining details, so I'll leave them out."])
     if notices:
         closing = None
         if chapters and chapters[-1].get('sentences'):
