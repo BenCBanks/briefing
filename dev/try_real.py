@@ -18,8 +18,6 @@ from pathlib import Path
 import tempfile
 import time
 import sys
-from collections import Counter, defaultdict
-from urllib.parse import urlsplit
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -202,17 +200,6 @@ def run_daily() -> int:
             print('Feed totals: ' + json.dumps({key: counts.get(key) for key in
                                                   ('enabled_sources', 'fetched_sources', 'errors',
                                                    'timed_out_sources', 'elapsed_seconds')}, sort_keys=True))
-            by_host = defaultdict(Counter)
-            for source in args[0] if args else []:
-                source_id = source.get('id')
-                host = (urlsplit(source.get('url', '')).hostname or '').lower()
-                by_host[host][results.get(source_id, 'missing')] += 1
-            print('Top feed hosts by failure:')
-            ranked = sorted(by_host.items(), key=lambda row: (-sum(row[1].values()), row[0]))
-            for host, reasons in ranked[:20]:
-                failures = sum(count for reason, count in reasons.items() if reason not in {'ok', 'not_modified'})
-                if failures:
-                    print(f'  {host}: ' + ', '.join(f'{reason}={count}' for reason, count in reasons.most_common()))
             return counts
 
         core.ingest_enabled = diagnostic_ingest
