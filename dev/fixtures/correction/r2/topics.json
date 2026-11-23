@@ -1,0 +1,12 @@
+{
+  "topics": [
+    {"id":"payments","label":"Payments","scope":"How money moves between people, businesses and banks","description":"Payment rails, settlement, cards and cash."},
+    {"id":"banking","label":"Banking","scope":"How banks take deposits, make loans and manage risk","description":"Deposits, lending and financial stability."},
+    {"id":"digital","label":"Digital life","scope":"How identity, data and security shape online services","description":"Privacy, identity and practical cybersecurity."},
+    {"id":"insurance","label":"Insurance","scope":"How risk is shared and claims are evaluated","description":"Coverage, exclusions, pricing and claims."},
+    {"id":"sports","label":"Sports","scope":"Rules, tactics and the institutions behind competition","description":"Competition formats, rules and sporting context."},
+    {"id":"energy","label":"Energy","scope":"Electricity systems, supply and policy","description":"Grid reliability, power supply, utility decisions and energy policy."},
+    {"id":"local-news","label":"Local news","scope":"Decisions and services in a reader’s community","description":"Local government, public services and community developments."},
+    {"id":"sports-business","label":"Sports business","scope":"The business of teams, leagues, venues and sports media","description":"Financing, ownership, venues, media rights and the economics of sport."}
+  ]
+}

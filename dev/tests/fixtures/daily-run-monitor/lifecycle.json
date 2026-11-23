@@ -1,0 +1,57 @@
+{
+  "timezone": "America/New_York",
+  "scheduled_local_time": "06:00",
+  "stale_after_local_time": "06:30",
+  "cases": {
+    "started": {
+      "now": "2026-03-08T06:10:00-04:00",
+      "started_at": "2026-03-08T10:08:00Z",
+      "last_good_edition_date": "2026-03-07",
+      "status": {"ok": true, "last_run_at": "2026-03-07", "daily_run": {"status": "complete", "local_date": "2026-03-07"}},
+      "expected": {"status": "started", "last_good_edition_date": "2026-03-07", "overdue": false}
+    },
+    "completed": {
+      "now": "2026-11-01T06:10:00-05:00",
+      "last_good_edition_date": "2026-11-01",
+      "status": {"ok": true, "last_run_at": "2026-11-01", "daily_run": {"status": "complete", "local_date": "2026-11-01"}},
+      "expected": {"status": "completed", "last_good_edition_date": "2026-11-01", "overdue": false}
+    },
+    "stale": {
+      "now": "2026-11-01T06:31:00-05:00",
+      "last_good_edition_date": "2026-10-31",
+      "status": {"ok": true, "last_run_at": "2026-10-31", "daily_run": {"status": "complete", "local_date": "2026-10-31"}},
+      "expected": {"status": "stale", "last_good_edition_date": "2026-10-31", "overdue": true}
+    },
+    "before_stale_threshold": {
+      "now": "2026-11-01T06:29:00-05:00",
+      "last_good_edition_date": "2026-10-31",
+      "status": {"ok": true, "last_run_at": "2026-10-31", "daily_run": {"status": "complete", "local_date": "2026-10-31"}},
+      "expected": {"status": "scheduled", "last_good_edition_date": "2026-10-31", "overdue": false}
+    },
+    "at_stale_threshold": {
+      "now": "2026-11-01T06:30:00-05:00",
+      "last_good_edition_date": "2026-10-31",
+      "status": {"ok": true, "last_run_at": "2026-10-31", "daily_run": {"status": "complete", "local_date": "2026-10-31"}},
+      "expected": {"status": "stale", "last_good_edition_date": "2026-10-31", "overdue": true}
+    },
+    "active_retry_over_failed_attempt": {
+      "now": "2026-03-08T06:31:00-04:00",
+      "started_at": "2026-03-08T10:30:00Z",
+      "last_good_edition_date": "2026-03-07",
+      "status": {"ok": false, "last_run_at": "2026-03-08", "daily_run": {"status": "failed", "local_date": "2026-03-08"}},
+      "expected": {"status": "started", "last_good_edition_date": "2026-03-07", "overdue": true}
+    },
+    "failed": {
+      "now": "2026-03-08T06:31:00-04:00",
+      "last_good_edition_date": "2026-03-07",
+      "status": {"ok": false, "last_run_at": "2026-03-08", "daily_run": {"status": "failed", "local_date": "2026-03-08"}},
+      "expected": {"status": "failed", "last_good_edition_date": "2026-03-07", "overdue": true}
+    },
+    "malformed_daily_status": {
+      "now": "2026-03-08T06:31:00-04:00",
+      "last_good_edition_date": "2026-03-07",
+      "status": {"ok": true, "last_run_at": "2026-03-07", "daily_run": {"status": [], "local_date": "2026-03-07"}},
+      "expected": {"status": "stale", "last_good_edition_date": "2026-03-07", "overdue": true}
+    }
+  }
+}

@@ -1,0 +1,86 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "fictional-primary",
+      "name": "Fictional Housing Data Office",
+      "url": "https://primary.example.test/data/feed",
+      "format": "rss",
+      "topics": [
+        "housing-market"
+      ],
+      "enabled": true,
+      "robots_ok": true,
+      "article_access": "full-text",
+      "content_depth": "full-text-safe",
+      "reuse_terms": "OBSERVED: fictional public data use note."
+    },
+    {
+      "id": "fictional-trade",
+      "name": "Fictional Builder Journal",
+      "url": "https://trade.example.test/news/feed",
+      "format": "rss",
+      "topics": [
+        "housing-market"
+      ],
+      "enabled": true,
+      "robots_ok": true,
+      "article_access": "transient-read",
+      "content_depth": "snippet",
+      "reuse_terms": "UNVERIFIED: fictional note."
+    },
+    {
+      "id": "fictional-wire",
+      "name": "Reuters",
+      "url": "https://www.reuters.com/world/us/",
+      "publisher_group": "reuters.com",
+      "format": "rss",
+      "topics": [
+        "housing-market"
+      ],
+      "enabled": true,
+      "robots_ok": true,
+      "article_access": "headline",
+      "content_depth": "headline",
+      "reuse_terms": "UNVERIFIED: fictional note."
+    },
+    {
+      "id": "fictional-charlotte-tv",
+      "name": "Fictional local feed",
+      "url": "https://local.example.test/feed",
+      "format": "rss",
+      "topics": [
+        "housing-market"
+      ],
+      "enabled": true,
+      "robots_ok": true,
+      "article_access": "headline",
+      "content_depth": "headline",
+      "reuse_terms": "UNVERIFIED: fictional note."
+    },
+    {
+      "id": "fictional-upstate-tv",
+      "name": "Disabled fictional source",
+      "url": "https://disabled.example.test/feed",
+      "format": "rss",
+      "topics": [
+        "housing-market",
+        "thin-topic"
+      ],
+      "enabled": false,
+      "robots_ok": true,
+      "article_access": "headline",
+      "content_depth": "headline",
+      "reuse_terms": "UNVERIFIED: fictional note."
+    }
+  ],
+  "watched_pages": [
+    {
+      "id": "fictional-watch",
+      "topics": [
+        "watched-only"
+      ],
+      "enabled": false
+    }
+  ]
+}

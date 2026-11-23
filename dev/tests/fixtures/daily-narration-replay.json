@@ -1,0 +1,123 @@
+{
+  "fixture_only": true,
+  "note": "Synthetic replay content for voice and pipeline checks; not a factual account of a live story.",
+  "edition": {
+    "id": "daily-narration-fixture",
+    "local_date": "2026-11-19",
+    "duration_minutes": 5,
+    "sections": [
+      {
+        "id": "story-fed-snb",
+        "cluster_id": "story-fed-snb",
+        "heading": "Federal Reserve terminates an action involving SNB Bancshares",
+        "topic_ids": ["banking"],
+        "source_ids": ["source-fed"],
+        "body": "Federal Reserve terminates an action involving SNB Bancshares. [1]",
+        "claim_links": [
+          {"text": "The Federal Reserve terminated an enforcement action involving SNB Bancshares.", "section": "what_happened", "source_sentence_ids": ["fed-1"], "citation_numbers": [1], "verified": true},
+          {"text": "The short notice does not list the corrective steps SNB completed.", "section": "things_to_consider", "source_sentence_ids": ["fed-2"], "citation_numbers": [1], "verified": true}
+        ],
+        "scorecard_passed": true
+      },
+      {
+        "id": "story-cms",
+        "cluster_id": "story-cms",
+        "heading": "CMS delays Medicaid work requirements",
+        "topic_ids": ["health-policy"],
+        "source_ids": ["source-cms"],
+        "body": "CMS delayed Medicaid work requirements until November 30, 2026. [1]",
+        "claim_links": [
+          {"text": "The Centers for Medicare and Medicaid Services delayed Medicaid work requirements until November 30, 2026.", "section": "what_happened", "source_sentence_ids": ["cms-1"], "citation_numbers": [1], "verified": true},
+          {"text": "The notice does not name a state or describe individual eligibility decisions.", "section": "things_to_consider", "source_sentence_ids": ["cms-2"], "citation_numbers": [1], "verified": true}
+        ],
+        "scorecard_passed": true
+      }
+    ],
+    "daily_briefing": {
+      "version": 1,
+      "target_minutes": 5,
+      "target_spoken_words": 675,
+      "maximum_spoken_words": 825,
+      "narrator_words_per_minute": 150,
+      "greeting": "Good morning. Here is your daily briefing.",
+      "briefing_script": [
+        {"kind": "greeting", "text": "Good morning. Here is your daily briefing.", "source_sentence_ids": [], "citation_numbers": []},
+        {"kind": "story_intro", "text": "First up.", "section_id": "story-fed-snb", "source_sentence_ids": [], "citation_numbers": []},
+        {"kind": "heading", "text": "Federal Reserve terminates an action involving SNB Bancshares.", "section_id": "story-fed-snb", "source_sentence_ids": [], "citation_numbers": []},
+        {"kind": "claim", "text": "The Federal Reserve terminated an enforcement action involving SNB Bancshares.", "section_id": "story-fed-snb", "source_sentence_ids": ["fed-1"], "citation_numbers": [1]},
+        {"kind": "claim", "text": "The short notice does not list the corrective steps SNB completed.", "section_id": "story-fed-snb", "source_sentence_ids": ["fed-2"], "citation_numbers": [1]},
+        {"kind": "story_intro", "text": "Next.", "section_id": "story-cms", "source_sentence_ids": [], "citation_numbers": []},
+        {"kind": "heading", "text": "CMS delays Medicaid work requirements.", "section_id": "story-cms", "source_sentence_ids": [], "citation_numbers": []},
+        {"kind": "claim", "text": "The Centers for Medicare and Medicaid Services delayed Medicaid work requirements until November 30, 2026.", "section_id": "story-cms", "source_sentence_ids": ["cms-1"], "citation_numbers": [1]},
+        {"kind": "claim", "text": "The notice does not name a state or describe individual eligibility decisions.", "section_id": "story-cms", "source_sentence_ids": ["cms-2"], "citation_numbers": [1]},
+        {"kind": "closing", "text": "That's today's briefing.", "source_sentence_ids": [], "citation_numbers": []}
+      ],
+      "background_segments": [
+        {"segment_id": "background-fed", "topic_id": "banking", "sentences": [
+          {"text": "A formal enforcement action documents corrective steps under a bank regulator's supervision.", "source_sentence_ids": ["fed-bg-1"], "citation_numbers": [2]},
+          {"text": "Terminating an order closes that specific action; it does not describe every part of continuing supervision.", "source_sentence_ids": ["fed-bg-2"], "citation_numbers": [2]}
+        ]},
+        {"segment_id": "background-cms", "topic_id": "health-policy", "sentences": [
+          {"text": "Medicaid eligibility rules describe household categories, income measures and renewal steps, while state agencies administer many operational details.", "source_sentence_ids": ["cms-bg-1"], "citation_numbers": [2]},
+          {"text": "State implementation documents can clarify local deadlines after a federal rule establishes the general policy framework.", "source_sentence_ids": ["cms-bg-2"], "citation_numbers": [2]}
+        ]}
+      ]
+    }
+  },
+  "profile": {"topics": [
+    {"id": "banking", "label": "Banking oversight"},
+    {"id": "health-policy", "label": "Health coverage policy"}
+  ]},
+  "sources": [
+    {"id": "source-fed", "publisher": "Fictional Federal Reserve Desk", "title": "Synthetic enforcement notice"},
+    {"id": "source-cms", "publisher": "Fictional Health Policy Desk", "title": "Synthetic Medicaid timetable notice"}
+  ],
+  "runtime_evidence": {
+    "fed-1": {"text": "The Federal Reserve terminated an enforcement action involving SNB Bancshares.", "source_number": 1},
+    "fed-2": {"text": "The short notice does not list the corrective steps SNB completed.", "source_number": 1},
+    "cms-1": {"text": "The Centers for Medicare and Medicaid Services (CMS) delayed Medicaid work requirements until November 30, 2026.", "source_number": 1},
+    "cms-2": {"text": "The notice does not name a state or describe individual eligibility decisions.", "source_number": 1}
+  },
+  "writer_response": {"stories": [
+    {"section_id": "story-fed-snb", "sentences": [
+      {"text": "The Federal Reserve has ended an enforcement action involving SNB Bancshares.", "evidence_ids": ["fed-1"], "general_context": false},
+      {"text": "A formal enforcement action sets corrective work under a bank regulator's supervision.", "evidence_ids": ["fed-bg-1"], "general_context": false},
+      {"text": "Ending one order closes that specific action, while other supervision may continue.", "evidence_ids": ["fed-bg-2"], "general_context": false},
+      {"text": "Generally, a public order documents a defined corrective process for a bank.", "evidence_ids": [], "general_context": true},
+      {"text": "That distinction helps banking readers track a specific enforcement outcome.", "evidence_ids": ["fed-1", "fed-bg-2"], "general_context": false},
+      {"text": "For banking readers, the completed order shows the Federal Reserve has closed this action involving SNB Bancshares.", "evidence_ids": ["fed-1"], "general_context": false}
+    ]},
+    {"section_id": "story-cms", "sentences": [
+      {"text": "The Centers for Medicare and Medicaid Services, or CMS, delayed Medicaid work requirements until November 30, 2026.", "evidence_ids": ["cms-1"], "general_context": false},
+      {"text": "States now have six more months before Medicaid work requirements take effect.", "evidence_ids": ["cms-1"], "general_context": false},
+      {"text": "At a high level, public programs rely on enrollment systems to verify eligibility and keep coverage records current.", "evidence_ids": [], "general_context": true},
+      {"text": "As a general rule, clearer records help agencies apply program requirements consistently.", "evidence_ids": [], "general_context": true},
+      {"text": "Medicaid eligibility rules cover household categories, income measures and renewal steps.", "evidence_ids": ["cms-bg-1"], "general_context": false},
+      {"text": "State agencies handle many of the operational details around those renewals.", "evidence_ids": ["cms-bg-1"], "general_context": false},
+      {"text": "Federal timelines and state instructions guide different parts of implementation.", "evidence_ids": ["cms-bg-2"], "general_context": false},
+      {"text": "The extension changes the timetable while leaving the requirements in place.", "evidence_ids": ["cms-1"], "general_context": false},
+      {"text": "That makes state renewal guidance relevant for people following coverage policy.", "evidence_ids": ["cms-bg-2"], "general_context": false},
+      {"text": "States have until November thirtieth, twenty twenty-six, under the delayed schedule.", "evidence_ids": ["cms-1"], "general_context": false}
+    ]}
+  ]},
+  "verifier_response": {"verdicts": [
+    {"section_id": "story-fed-snb", "sentence_index": 0, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 1, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 2, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 3, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 4, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 5, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 6, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 7, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 8, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 0, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 1, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 2, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 3, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 4, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 5, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 6, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 7, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 8, "supported": true}
+  ]}
+}

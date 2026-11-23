@@ -1,0 +1,115 @@
+import sys as _briefing_sys
+from pathlib import Path as _BriefingPath
+_briefing_sys.path.insert(0, str(_BriefingPath(__file__).resolve().parents[2]))
+from dev.test_guard import enforce_test_environment as _enforce_test_environment
+_enforce_test_environment()
+
+import contextlib
+import io
+import json
+from pathlib import Path
+import sys
+import tempfile
+import unittest
+from unittest.mock import patch
+
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from dev.tools import daily_guard
+
+
+def bundle(*, words=900, audio_status='ready'):
+    stories = []
+    sources = []
+    for index in range(1, 4):
+        source_id = f'source-{index}'
+        story = {'id': f'fictional-story-{index}', 'cluster_id': f'fixture-story-{index}',
+                 'kind': 'story', 'heading': f'Fictional banking policy update {index}',
+                 'body': (f'Fictional banks changed payment rules for merchants in update {index}. [1] '
+                          f'The new settlement schedule gives operations teams a separate reconciliation window {index}. [1]'),
+                 'source_ids': [source_id], 'lead_source_ids': [source_id],
+                 'topic_ids': ['payments'],
+                 'read_takeaway': f'Payment operations can use schedule update {index}.'}
+        stories.append(story)
+        sources.append({'id': source_id, 'url': f'https://fictional-{index}.example.test/story',
+                        'published_at': '2026-11-18T10:00:00Z', 'source_class': 'primary'})
+    edition = {'id': 'fictional-edition', 'kind': 'daily', 'local_date': '2026-11-18',
+               'sections': stories, 'sources': sources,
+               'daily_briefing': {'spoken_words': words, 'target_spoken_words': 750},
+               'audio': {'audio_status': audio_status,
+                         'audio_url': '/api/daily/audio' if audio_status == 'ready' else None}}
+    return {'editions': {'editions': [edition]}, 'sources': {'sources': sources}}, edition
+
+
+class DailyGuardTests(unittest.TestCase):
+    def test_retries_each_content_health_and_short_runtime_failure(self):
+        ok_status = {'ok': True, 'daily_run': {'status': 'complete'}}
+        good_checks = [{'name': 'quality', 'passed': True}]
+        _bundle, full_edition = bundle()
+        short = dict(full_edition)
+        short['daily_briefing'] = {'spoken_words': 250}
+        cases = [
+            (dict(ok=False), good_checks, full_edition, False, 'status_not_ok'),
+            (ok_status, [{'passed': False}], full_edition, False, 'content_check_failed'),
+            (ok_status, good_checks, short, False, 'spoken_under_3_minutes'),
+        ]
+        for status, checks, edition, cap, reason in cases:
+            with self.subTest(reason=reason):
+                retry, reasons = daily_guard.decide(status=status, content_checks=checks,
+                                                    edition=edition, audio_budget_allows=cap)
+                self.assertTrue(retry)
+                self.assertIn(reason, reasons)
+
+    def test_missing_audio_retries_only_when_estimate_fits_daily_reserve(self):
+        status = {'ok': True, 'daily_run': {'status': 'complete'}}
+        checks = [{'passed': True}]
+        _bundle, edition = bundle(audio_status='pending')
+        retry, reasons = daily_guard.decide(status=status, content_checks=checks,
+                                            edition=edition, audio_budget_allows=True)
+        self.assertTrue(retry)
+        self.assertEqual(reasons, ['audio_missing_within_cap'])
+        retry, reasons = daily_guard.decide(status=status, content_checks=checks,
+                                            edition=edition, audio_budget_allows=False)
+        self.assertFalse(retry)
+        self.assertEqual(reasons, [])
+
+    def test_tts_disabled_does_not_schedule_audio_only_retry(self):
+        status = {'ok': True, 'daily_run': {'status': 'complete'}}
+        checks = [{'passed': True}]
+        _bundle, edition = bundle(audio_status='pending')
+        with patch.dict('os.environ', {'BRIEFING_TTS': 'disabled'}):
+            retry, reasons = daily_guard.decide(status=status, content_checks=checks,
+                                                edition=edition, audio_budget_allows=True)
+        self.assertFalse(retry)
+        self.assertEqual(reasons, [])
+
+    def test_fixture_state_calls_content_checker_and_prints_count_only_decision(self):
+        with tempfile.TemporaryDirectory() as temp:
+            state = Path(temp)
+            payload, _edition = bundle()
+            generated = state / 'generated' / 'default'
+            generated.mkdir(parents=True)
+            (generated / 'current.json').write_text(json.dumps(payload), encoding='utf-8')
+            (generated / 'editions-history.json').write_text('[]', encoding='utf-8')
+            (state / 'profile.json').write_text(json.dumps({'topics': [
+                {'id': 'payments', 'label': 'Fictional banking and payments'}]}), encoding='utf-8')
+            (state / 'status.json').write_text(json.dumps({'ok': True,
+                'daily_run': {'status': 'complete'}}), encoding='utf-8')
+            output = io.StringIO()
+            with patch.dict('os.environ', {'BRIEFING_TTS': 'disabled'}), contextlib.redirect_stdout(output):
+                code = daily_guard.main(['--state-dir', temp], budget_checker=lambda _edition: True)
+        self.assertEqual(code, 1)
+        self.assertEqual(output.getvalue().strip(), 'daily_guard decision=skip reasons=healthy')
+        self.assertNotIn('Fictional', output.getvalue())
+
+    def test_missing_state_retries_without_accessing_live_paths(self):
+        with tempfile.TemporaryDirectory() as temp:
+            retry, reasons = daily_guard.inspect_state(temp, budget_checker=lambda _edition: True)
+        self.assertTrue(retry)
+        self.assertIn('status_not_ok', reasons)
+        self.assertIn('content_check_failed', reasons)
+
+
+if __name__ == '__main__':
+    unittest.main()

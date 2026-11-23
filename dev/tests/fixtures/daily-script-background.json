@@ -1,0 +1,33 @@
+{
+  "payments": [
+    "Payment settlement schedules define when a completed transfer becomes available to the receiving institution for reconciliation and customer support.",
+    "A payment network's operating rules describe message formats, participant responsibilities, exception handling, and the finality of completed transfers.",
+    "Banks compare transaction counts with settlement totals because timing differences can arise when weekends and regional holidays affect processing.",
+    "A published dispute process identifies which participant collects documents, when a response is due, and how a decision is communicated.",
+    "Payment volume reports need a stated period and unit, since monthly totals cannot be compared directly with daily transaction counts.",
+    "Operational resilience plans document alternate routes, escalation contacts, and recovery priorities for services that support merchant payments.",
+    "A fee schedule separates network charges from issuer and acquirer charges, helping businesses understand which party sets each amount.",
+    "Cross-border payment descriptions should identify the currencies, intermediaries, and settlement stages included in the reported transfer time.",
+    "Business continuity exercises test whether staff can reconcile pending transactions after a service interruption and communicate expected settlement timing."
+  ],
+  "housing": [
+    "A permit review timeline begins when an application is complete, so published averages can differ from the time a homeowner first applies.",
+    "Residential construction data separates permits, starts, and completed units because each measure describes a different stage of building activity.",
+    "Local zoning rules define allowed uses and review procedures, while a separate building code sets safety requirements for construction work.",
+    "A county housing report may count units by permit date, completion date, or occupancy, and the choice changes the apparent trend.",
+    "Infrastructure capacity affects where new homes can proceed, including water service, road access, school enrollment, and emergency response coverage.",
+    "Public meeting records show which proposed land-use changes received comments and which questions remain for the planning board to resolve.",
+    "Construction cost indexes track selected materials and labor inputs, but they do not equal the final price of an individual home.",
+    "Regional vacancy estimates depend on survey coverage and definitions, so comparisons are strongest when geography and collection dates match."
+  ],
+  "health-policy": [
+    "Medicaid eligibility rules describe household categories, income measures, and renewal steps, while state agencies administer many operational details.",
+    "Enrollment reports distinguish applications, approvals, renewals, and terminations, which represent different stages in a person's coverage status.",
+    "A federal policy notice states its effective date and covered programs, but implementation can require later guidance to state agencies.",
+    "Appeal procedures explain how a person can challenge a coverage decision, what records may be submitted, and when a response is expected.",
+    "Public insurance spending tables identify the fiscal period and funding source, allowing readers to distinguish federal shares from state shares.",
+    "Marketplace enrollment counts usually describe a defined sign-up period and should not be treated as a measure of active coverage year-round.",
+    "Quality measures rely on specified populations and reporting methods, so a change in the covered group can affect year-to-year comparisons.",
+    "State implementation documents can clarify local deadlines and contact points after a federal rule establishes the general policy framework."
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "id": "fictional-alder-bay-community-battery",
+  "requested_minutes": 5,
+  "fictional_fixture": true,
+  "topic": "Alder Bay's shared solar battery trial",
+  "chapters": [
+    {
+      "title": "A shared battery for local power",
+      "sentences": [
+        {"text": "Here's your five-minute briefing on Alder Bay's shared solar battery trial.", "kind": "opening", "evidence_ids": []},
+        {"text": "Alder Bay is testing one neighborhood battery beside its public works building.", "kind": "claim", "evidence_ids": ["F-1"]},
+        {"text": "The battery stores extra electricity from solar panels on the building's roof.", "kind": "claim", "evidence_ids": ["F-1"]},
+        {"text": "That gives the town a way to move some solar power into the evening.", "kind": "claim", "evidence_ids": ["F-2"]},
+        {"text": "The shift matters because local demand rises after offices and schools close.", "kind": "claim", "evidence_ids": ["F-2"]},
+        {"text": "The system does not create more electricity; it changes when stored power is available.", "kind": "claim", "evidence_ids": ["F-2"]},
+        {"text": "That distinction helps explain what the pilot can test and what it cannot.", "kind": "claim", "evidence_ids": ["F-3"]},
+        {"text": "A town can measure storage and timing without claiming the battery solves every supply problem.", "kind": "claim", "evidence_ids": ["F-3"]},
+        {"text": "The first question, then, is how the equipment behaves during ordinary days.", "kind": "claim", "evidence_ids": ["F-3"]},
+        {"text": "Alder Bay plans to record charging, discharge, and maintenance across the trial.", "kind": "claim", "evidence_ids": ["F-4"]},
+        {"text": "Those records can show whether the battery follows the town's intended schedule.", "kind": "claim", "evidence_ids": ["F-4"]},
+        {"text": "The pilot begins with a practical question about control, not a promise of independence.", "kind": "claim", "evidence_ids": ["F-4"]},
+        {"text": "The town will compare stored power with its evening use in monthly summaries.", "kind": "claim", "evidence_ids": ["F-5"]}
+      ]
+    },
+    {
+      "title": "Who can draw power, and when",
+      "sentences": [
+        {"text": "Turning to access.", "kind": "navigation", "evidence_ids": []},
+        {"text": "The battery remains connected to the public works building's electrical system.", "kind": "claim", "evidence_ids": ["F-6"]},
+        {"text": "A controller releases stored electricity when the building's demand crosses a set level.", "kind": "claim", "evidence_ids": ["F-6"]},
+        {"text": "That arrangement gives the building first access during its own operating hours.", "kind": "claim", "evidence_ids": ["F-7"]},
+        {"text": "After closing time, the town can send available power toward a nearby cooling center.", "kind": "claim", "evidence_ids": ["F-7"]},
+        {"text": "The cooling center is a municipal site that stays open during summer heat advisories.", "kind": "claim", "evidence_ids": ["F-8"]},
+        {"text": "The pilot therefore links a technical schedule to a public service people already use.", "kind": "claim", "evidence_ids": ["F-8"]},
+        {"text": "Staff will log how often the cooling center receives power from the battery.", "kind": "claim", "evidence_ids": ["F-10"]},
+        {"text": "They will also record occasions when the battery is empty at the requested time.", "kind": "claim", "evidence_ids": ["F-10"]},
+        {"text": "That second measure matters because demand and stored energy may not line up.", "kind": "claim", "evidence_ids": ["F-11"]},
+        {"text": "The schedule will show whether the current rules support the town's actual service hours.", "kind": "claim", "evidence_ids": ["F-11"]},
+        {"text": "For staff, the key operational detail is the handoff between the controller and the building manager.", "kind": "claim", "evidence_ids": ["F-12"]},
+        {"text": "The manager can pause transfers if a building needs power for an immediate facility issue.", "kind": "claim", "evidence_ids": ["F-12"]},
+        {"text": "That safeguard keeps the pilot's schedule subordinate to the site's basic operation.", "kind": "claim", "evidence_ids": ["F-12"]},
+        {"text": "In the monthly report, Alder Bay will list each transfer and any interruption.", "kind": "claim", "evidence_ids": ["F-13"]}
+      ]
+    },
+    {
+      "title": "What the local grid can tell us",
+      "sentences": [
+        {"text": "Now, let's look at the grid connection.", "kind": "navigation", "evidence_ids": []},
+        {"text": "Alder Bay's utility approved the pilot's connection after a safety review.", "kind": "claim", "evidence_ids": ["F-14"]},
+        {"text": "The review set a limit on how much power can flow back to the local circuit.", "kind": "claim", "evidence_ids": ["F-14"]},
+        {"text": "That limit reflects the capacity of the equipment serving this part of town.", "kind": "claim", "evidence_ids": ["F-15"]},
+        {"text": "It also means the battery cannot simply discharge at its maximum rate whenever the town asks.", "kind": "claim", "evidence_ids": ["F-15"]},
+        {"text": "The controller checks the circuit limit before each planned transfer.", "kind": "claim", "evidence_ids": ["F-16"]},
+        {"text": "If the limit would be exceeded, the controller holds the remaining energy.", "kind": "claim", "evidence_ids": ["F-16"]},
+        {"text": "This is why the pilot's logs need to include both energy stored and energy delivered.", "kind": "claim", "evidence_ids": ["F-17"]},
+        {"text": "A full battery does not tell the whole story if the circuit cannot accept a transfer.", "kind": "claim", "evidence_ids": ["F-17"]},
+        {"text": "The utility will compare the pilot logs with the circuit's normal operating records.", "kind": "claim", "evidence_ids": ["F-18"]},
+        {"text": "That comparison can distinguish a battery limit from a local grid limit.", "kind": "claim", "evidence_ids": ["F-18"]},
+        {"text": "For the town, that difference matters before any discussion of a larger installation.", "kind": "claim", "evidence_ids": ["F-19"]},
+        {"text": "A larger battery might need different controls or a stronger circuit connection.", "kind": "claim", "evidence_ids": ["F-19"]},
+        {"text": "Those choices depend on measured performance, not the battery's advertised capacity.", "kind": "claim", "evidence_ids": ["F-20"]},
+        {"text": "The pilot will publish any missed transfers beside the circuit limit in its quarterly update.", "kind": "claim", "evidence_ids": ["F-20"]},
+        {"text": "That gives residents a way to see when stored power was available and when the grid constrained it.", "kind": "claim", "evidence_ids": ["F-21"]}
+      ]
+    },
+    {
+      "title": "The decision after the trial",
+      "sentences": [
+        {"text": "From there, we can consider the town's next decision.", "kind": "navigation", "evidence_ids": []},
+        {"text": "The council approved the pilot for a year, with a public review scheduled afterward.", "kind": "claim", "evidence_ids": ["F-22"]},
+        {"text": "The review will examine operating costs, maintenance calls, and energy delivered to the cooling center.", "kind": "claim", "evidence_ids": ["F-23"]},
+        {"text": "It will also include the utility's findings on circuit conditions during transfers.", "kind": "claim", "evidence_ids": ["F-24"]},
+        {"text": "The pilot covers a public site and a nearby cooling center.", "kind": "claim", "evidence_ids": ["F-25"]},
+        {"text": "That scope keeps the result useful as a local test, while limiting what it can show about other towns.", "kind": "claim", "evidence_ids": ["F-26"]},
+        {"text": "The council can use the operating record to decide whether an additional location is worth studying.", "kind": "claim", "evidence_ids": ["F-27"]},
+        {"text": "Staff will bring the initial public summary to the council after the summer season.", "kind": "claim", "evidence_ids": ["F-28"]},
+        {"text": "That summary will include charge levels, delivered energy, interruptions, and repair visits.", "kind": "claim", "evidence_ids": ["F-29"]},
+        {"text": "Those details should show whether the battery's schedule matched the cooling center's hours.", "kind": "claim", "evidence_ids": ["F-30"]},
+        {"text": "Alder Bay has a defined review point, but its decision still depends on those results.", "kind": "claim", "evidence_ids": ["F-31"]},
+        {"text": "The useful thing to watch is whether the public summary shows reliable transfers within the circuit limit.", "kind": "closing", "evidence_ids": ["F-14", "F-16", "F-28"]}
+      ]
+    }
+  ]
+}

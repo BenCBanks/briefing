@@ -1,0 +1,41 @@
+{
+  "version": 1,
+  "words": "Charlotte NC and Upstate SC housing market, home building, construction, design trends, affordable housing",
+  "minutes": 12,
+  "background": null,
+  "muted": [],
+  "topics": [
+    {
+      "id": "custom-charlotte-upstate-housing",
+      "label": "Charlotte NC and Upstate SC housing market",
+      "scope": "Housing prices, rents, inventory, permits, and affordability in Charlotte and Upstate South Carolina",
+      "include": ["Charlotte housing", "Upstate South Carolina housing", "home prices", "rents", "inventory"],
+      "exclude": [],
+      "mustFollow": true
+    },
+    {
+      "id": "custom-home-building-construction",
+      "label": "Home building and construction",
+      "scope": "Residential home building, construction costs, builders, and permits",
+      "include": ["home building", "residential construction", "builders", "building permits"],
+      "exclude": [],
+      "mustFollow": true
+    },
+    {
+      "id": "custom-housing-design-trends",
+      "label": "Housing design trends",
+      "scope": "Design and construction trends in homes and residential development",
+      "include": ["housing design", "home design", "residential development"],
+      "exclude": [],
+      "mustFollow": true
+    },
+    {
+      "id": "custom-affordable-housing",
+      "label": "Affordable housing",
+      "scope": "Affordable housing policy, rents, supply, and development",
+      "include": ["affordable housing", "housing supply", "rents", "development"],
+      "exclude": [],
+      "mustFollow": true
+    }
+  ]
+}

@@ -1,0 +1,25 @@
+{
+  "daily_candidate_pool": {
+    "fixture": "source-selection.json",
+    "considered": 7,
+    "kept": 3,
+    "outlet_counts": {
+      "Payments Dive": 2,
+      "Reuters": 1
+    },
+    "tier_counts": {
+      "trade": 2,
+      "major": 1
+    },
+    "max_outlet_share": 0.6667,
+    "scorecard_max_publisher_share": 0.4
+  },
+  "cross_outlet_duplicate": {
+    "fixture": "canonical-story-clusters.json",
+    "considered": 2,
+    "kept": 1,
+    "dropped": 1,
+    "dropped_reason": "duplicate_story_cluster",
+    "winner_source_id": "fictional-payments-dive"
+  }
+}

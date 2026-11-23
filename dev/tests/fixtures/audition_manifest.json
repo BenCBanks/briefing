@@ -1,0 +1,11 @@
+{
+  "format_version": 1,
+  "samples": [
+    { "label": "A", "file": "sample-a.wav", "voice": "FixtureVoiceA" },
+    { "label": "B", "file": "sample-b.wav", "voice": "FixtureVoiceB" },
+    { "label": "C", "file": "sample-c.wav", "voice": "FixtureVoiceC" },
+    { "label": "D", "file": "sample-d.wav", "voice": "FixtureVoiceD" },
+    { "label": "E", "file": "sample-e.wav", "voice": "FixtureVoiceE" },
+    { "label": "F", "file": "sample-f.wav", "voice": "FixtureVoiceF" }
+  ]
+}

@@ -1,0 +1,11 @@
+{
+  "sources": [
+    {
+      "id": "legacy-fictional-payments-source",
+      "title": "Fictional settlement operations note",
+      "url": "https://settlement.example.test/notes/17",
+      "publisher": "Fictional Settlement Desk",
+      "kind": "Fictional reference"
+    }
+  ]
+}

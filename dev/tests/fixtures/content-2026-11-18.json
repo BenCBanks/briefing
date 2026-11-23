@@ -1,0 +1,75 @@
+{
+  "editions": {
+    "editions": [
+      {
+        "id": "fictional-2026-11-18",
+        "kind": "daily",
+        "generated_at": "2026-11-18T12:00:00Z",
+        "sections": [
+          {
+            "cluster_id": "prior-zelle-solana",
+            "heading": "Zelle and Solana expand payment links",
+            "body": "Zelle and Solana announced a new payment link feature. [1]",
+            "source_ids": [
+              "src-zelle"
+            ],
+            "entities": [
+              "Zelle",
+              "Solana"
+            ]
+          },
+          {
+            "cluster_id": "prior-pq",
+            "heading": "PCI post-quantum cryptography guidance",
+            "body": "The PCI council published post-quantum cryptography guidance. [1]",
+            "source_ids": [
+              "src-pq"
+            ],
+            "entities": [
+              "PCI"
+            ]
+          },
+          {
+            "cluster_id": "prior-cms",
+            "heading": "CMS delays Medicaid work requirements",
+            "body": "CMS delayed Medicaid work requirements until November 30, 2026. [1]",
+            "source_ids": [
+              "src-cms"
+            ],
+            "entities": [
+              "CMS",
+              "Medicaid"
+            ]
+          }
+        ],
+        "local_date": "2026-11-18"
+      }
+    ]
+  },
+  "sources": {
+    "sources": [
+      {
+        "id": "src-zelle",
+        "url": "https://payments.example.test/zelle-solana?utm_source=feed",
+        "publisher": "Fictional Payments Desk",
+        "title": "Zelle and Solana expand payment links",
+        "published_at": "2026-11-18T10:00:00Z"
+      },
+      {
+        "id": "src-pq",
+        "url": "https://standards.example.test/pci-pq?utm_source=feed",
+        "publisher": "Fictional Standards Desk",
+        "title": "PCI post-quantum cryptography guidance",
+        "published_at": "2026-11-18T10:00:00Z"
+      },
+      {
+        "id": "src-cms",
+        "url": "https://health.example.test/cms-medicaid?utm_source=feed",
+        "publisher": "Fictional Health Desk",
+        "title": "CMS delays Medicaid work requirements",
+        "published_at": "2026-11-18T10:00:00Z"
+      }
+    ]
+  },
+  "_fixture_note": "Reconstructed from the existing sanitized repeat-suppression fixture and reported Nov 17/18 subjects; not a live JSON export. URLs and copy are fictional."
+}

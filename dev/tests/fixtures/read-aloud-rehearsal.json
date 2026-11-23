@@ -1,0 +1,35 @@
+{
+  "fixture_only": true,
+  "editions": {
+    "editions": [
+      {
+        "id": "rehearsal-fixture",
+        "kind": "daily",
+        "local_date": "2026-11-20",
+        "generated_at": "2026-11-20T09:00:00Z",
+        "sections": [
+          {
+            "id": "rehearsal-bank",
+            "cluster_id": "fictional-bank",
+            "heading": "Fictional banking update",
+            "topic_label": "banking",
+            "audio_script": {
+              "spoken_text": "Fictional Bank reported $90 billion over five years on August 7, 2024 at 11:00 a.m. Eastern. CMS and AI reviewed the U.S. policy.",
+              "includes_title": false
+            }
+          },
+          {
+            "id": "rehearsal-health",
+            "cluster_id": "fictional-health",
+            "heading": "Fictional health update",
+            "topic_label": "nc health insurance",
+            "audio_script": {
+              "spoken_text": "Next, nc health insurance. Fictional agencies described a policy change. Fictional agencies described a policy change.",
+              "includes_title": false
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

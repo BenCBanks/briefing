@@ -1,0 +1,96 @@
+{
+  "fixture_only": true,
+  "description": "Ten fictional professional beats with reserved example.test sources and claim-sized evidence. No real people, organizations, or reports are represented.",
+  "topics": [
+    {
+      "id": "payments-ops", "label": "Regional payments operations", "scope": "bank transfers, settlement windows, and payment-network operations", "include": ["bank transfer", "settlement", "payment network"],
+      "source": {"id": "fictional-payments-authority", "publisher": "Linden Payments Authority", "title": "Settlement window operating notice", "url": "https://payments.example.test/notices/settlement-window", "published_at": "2026-11-12T12:00:00Z", "tier": "primary"},
+      "questions": [
+        {"focus": "schedule", "sub_question": "What settlement window did the payments authority change?", "query": "Linden settlement window operating notice", "text": "Linden Payments Authority moved its regional transfer settlement cutoff from 5 p.m. to 6 p.m. on business days, beginning December 1."},
+        {"focus": "participants", "sub_question": "Which payment participants must adjust their operations?", "query": "Linden transfer settlement participant operating requirements", "text": "Banks and payment processors must submit same-day transfer files before the revised cutoff; customer-facing payment initiation hours are not changed by the notice."},
+        {"focus": "monitoring", "sub_question": "What operational measure will the authority review?", "query": "Linden payment settlement monitoring review measures", "text": "The authority will review late-file rates after the first quarter and publish whether the later cutoff changed settlement completion or reconciliation work."}
+      ]
+    },
+    {
+      "id": "health-coverage", "label": "Health coverage policy", "scope": "insurance eligibility, enrollment processes, public coverage, and plan administration", "include": ["coverage", "eligibility", "enrollment"],
+      "source": {"id": "fictional-coverage-office", "publisher": "North Coast Coverage Office", "title": "Renewal processing bulletin", "url": "https://coverage.example.test/bulletins/renewals", "published_at": "2026-11-10T12:00:00Z", "tier": "primary"},
+      "questions": [
+        {"focus": "process", "sub_question": "How will the coverage office change renewal processing?", "query": "North Coast coverage renewal processing bulletin", "text": "The North Coast Coverage Office will send renewal notices in two batches, giving households with incomplete records an additional thirty days to return requested documents."},
+        {"focus": "scope", "sub_question": "Which coverage groups are included in the renewal change?", "query": "North Coast public coverage renewal groups included", "text": "The bulletin applies to adult public-plan renewals processed by the state office and excludes applications handled directly by employer-sponsored plans."},
+        {"focus": "reporting", "sub_question": "What renewal outcomes will officials track?", "query": "North Coast renewal completion reporting measures", "text": "Officials will report completed renewals, pending cases, and procedural closures separately, allowing administrators to distinguish missing paperwork from eligibility decisions."}
+      ]
+    },
+    {
+      "id": "housing-permits", "label": "Housing permitting and construction", "scope": "residential permits, review timing, zoning administration, and building activity", "include": ["housing", "permit", "construction"],
+      "source": {"id": "fictional-housing-department", "publisher": "Maple Crossing Housing Department", "title": "Small-project permit review update", "url": "https://housing.example.test/reports/permit-review", "published_at": "2026-11-08T12:00:00Z", "tier": "primary"},
+      "questions": [
+        {"focus": "workflow", "sub_question": "Which permit reviews will use the revised workflow?", "query": "Maple Crossing small housing permit review workflow", "text": "Maple Crossing will route small multifamily permit applications through one coordinated review desk instead of separate sequential reviews by planning and building staff."},
+        {"focus": "timing", "sub_question": "What review-time target did the department publish?", "query": "Maple Crossing permit review target published timeline", "text": "The department set a forty-five-day target for complete applications and will pause the count when applicants need to supply missing drawings or engineering details."},
+        {"focus": "evaluation", "sub_question": "How will the city assess whether the workflow helps?", "query": "Maple Crossing permit workflow evaluation data", "text": "Quarterly tables will compare application volume, median review time, and revision requests with the prior year; the department has not forecast added housing units."}
+      ]
+    },
+    {
+      "id": "grid-interconnection", "label": "Electric grid interconnection", "scope": "power generation connections, queue administration, transmission studies, and storage projects", "include": ["grid", "interconnection", "transmission"],
+      "source": {"id": "fictional-grid-operator", "publisher": "Pine State Grid Operator", "title": "Interconnection study calendar", "url": "https://grid.example.test/planning/study-calendar", "published_at": "2026-11-14T12:00:00Z", "tier": "primary"},
+      "questions": [
+        {"focus": "schedule", "sub_question": "How will the grid operator change its interconnection studies?", "query": "Pine State grid operator interconnection study calendar", "text": "Pine State Grid Operator will group new solar and battery applications by transmission zone and run the first shared study cycle in January."},
+        {"focus": "requirements", "sub_question": "What information must project applicants submit?", "query": "Pine State interconnection application engineering requirements", "text": "Applicants must submit a common equipment model and site-control record before the queue window closes; incomplete requests will wait for the following cycle."},
+        {"focus": "limits", "sub_question": "What capacity conclusion does the calendar provide?", "query": "Pine State grid study calendar capacity results limitations", "text": "The calendar sets study dates but does not establish available transmission capacity; project-specific upgrade needs will be published after engineering review."}
+      ]
+    },
+    {
+      "id": "freight-logistics", "label": "Freight logistics and distribution", "scope": "freight routes, port and rail capacity, warehouse operations, and shipping costs", "include": ["freight", "rail", "distribution"],
+      "source": {"id": "fictional-freight-council", "publisher": "Blue Ridge Freight Council", "title": "Inland corridor capacity review", "url": "https://freight.example.test/reviews/inland-corridor", "published_at": "2026-11-11T12:00:00Z", "tier": "trade"},
+      "questions": [
+        {"focus": "capacity", "sub_question": "What capacity constraint did the freight review identify?", "query": "Blue Ridge inland freight corridor capacity review", "text": "The council found that weekday container arrivals cluster around two interchange windows, leaving unused handling capacity on several late-evening shifts."},
+        {"focus": "costs", "sub_question": "What operating costs affect use of the later shifts?", "query": "Blue Ridge corridor freight shift labor operating costs", "text": "Operators cited additional night staffing and drayage availability as costs that determine whether shippers can move volume into the later windows."},
+        {"focus": "follow-up", "sub_question": "What information will the council collect next?", "query": "Blue Ridge freight council next corridor data release", "text": "The council plans a quarterly release of anonymized dwell times and missed connections, but it has not estimated savings for individual shippers."}
+      ]
+    },
+    {
+      "id": "financial-ai-controls", "label": "AI governance in banking", "scope": "bank model risk, automated decision controls, audit trails, and financial regulation", "include": ["bank", "model risk", "automated decision"],
+      "source": {"id": "fictional-bank-supervisor", "publisher": "Commonwealth Bank Supervisory Office", "title": "Automated decision control guidance", "url": "https://supervision.example.test/guidance/automated-controls", "published_at": "2026-11-13T12:00:00Z", "tier": "primary"},
+      "questions": [
+        {"focus": "controls", "sub_question": "Which controls does the supervisor expect banks to document?", "query": "Commonwealth bank supervisor automated decision control guidance", "text": "The supervisory note asks banks to document model ownership, human escalation paths, and testing records for automated decisions used in customer account servicing."},
+        {"focus": "scope", "sub_question": "Which banking systems are covered by the guidance?", "query": "Commonwealth supervisory guidance covered automated banking systems", "text": "The guidance covers systems that rank or route account-service requests and does not set technical rules for general-purpose tools used only to draft internal text."},
+        {"focus": "implementation", "sub_question": "When will supervisors discuss implementation progress?", "query": "Commonwealth bank supervision implementation discussion date", "text": "Examiners will discuss the documentation approach during routine reviews beginning next spring; the office has not announced a separate compliance deadline."}
+      ]
+    },
+    {
+      "id": "workforce-education", "label": "Workforce education and apprenticeships", "scope": "community college programs, employer partnerships, credentials, and student outcomes", "include": ["college", "apprenticeship", "credential"],
+      "source": {"id": "fictional-workforce-board", "publisher": "River Counties Workforce Board", "title": "Apprenticeship completion report", "url": "https://workforce.example.test/data/apprenticeships", "published_at": "2026-11-09T12:00:00Z", "tier": "primary"},
+      "questions": [
+        {"focus": "outcomes", "sub_question": "What completion pattern did the workforce report describe?", "query": "River Counties apprenticeship completion outcomes report", "text": "The report shows higher completion among apprentices who received paid release time for coursework, while the board cautions that participating employers differ in program design."},
+        {"focus": "program", "sub_question": "Which programs contributed to the reported outcomes?", "query": "River Counties college employer apprenticeship programs included", "text": "The analysis combines electrical maintenance and health technician programs offered through three community colleges and six participating employers."},
+        {"focus": "next step", "sub_question": "What additional apprenticeship data will be published?", "query": "River Counties apprenticeship next wage follow-up data", "text": "The board plans a follow-up on credential attainment and wages after one year, but those longer-term results are not available in this release."}
+      ]
+    },
+    {
+      "id": "sports-media-rights", "label": "Sports business and media rights", "scope": "league distribution agreements, team revenue, venue operations, and broadcast access", "include": ["league", "media rights", "broadcast"],
+      "source": {"id": "fictional-sports-league", "publisher": "Continental Field League", "title": "Regional distribution agreement summary", "url": "https://sportsbiz.example.test/releases/distribution-summary", "published_at": "2026-11-07T12:00:00Z", "tier": "primary"},
+      "questions": [
+        {"focus": "distribution", "sub_question": "How does the league's new distribution agreement divide games?", "query": "Continental Field League regional media distribution agreement", "text": "The league assigned midweek games to a regional streaming partner and kept weekend matches in its existing national television package."},
+        {"focus": "access", "sub_question": "What does the agreement say about local viewer access?", "query": "Continental Field League local market viewer access terms", "text": "The summary says local-market games remain available through participating cable bundles, while the streaming partner receives rights outside those markets."},
+        {"focus": "financial disclosure", "sub_question": "What financial terms did the league disclose?", "query": "Continental Field League media agreement financial terms disclosure", "text": "The league did not disclose the contract value or team-level revenue shares, so the announcement does not establish how income will vary among clubs."}
+      ]
+    },
+    {
+      "id": "water-agriculture", "label": "Agricultural water management", "scope": "irrigation rules, basin allocations, farm water efficiency, and drought planning", "include": ["farm", "irrigation", "water allocation"],
+      "source": {"id": "fictional-basin-district", "publisher": "Juniper Basin Water District", "title": "Seasonal irrigation allocation notice", "url": "https://water.example.test/notices/irrigation-allocation", "published_at": "2026-11-06T12:00:00Z", "tier": "primary"},
+      "questions": [
+        {"focus": "allocation", "sub_question": "How will the basin district set seasonal irrigation allocations?", "query": "Juniper Basin seasonal irrigation allocation notice", "text": "The district will set each farm's seasonal allocation from verified acreage and meter readings rather than applying one uniform volume to every account."},
+        {"focus": "eligibility", "sub_question": "Which farms must submit updated water records?", "query": "Juniper Basin farms meter readings acreage records", "text": "Accounts with a new well or expanded irrigated acreage must submit meter records before the annual review; unchanged accounts may use existing verified records."},
+        {"focus": "review", "sub_question": "What information will the district publish after the allocation review?", "query": "Juniper Basin allocation review water use publication", "text": "The district will publish aggregate allocations and withdrawals by crop group after the review, without identifying individual farms or predicting seasonal yields."}
+      ]
+    },
+    {
+      "id": "climate-adaptation", "label": "Climate adaptation infrastructure", "scope": "flood protection, municipal infrastructure planning, resilience grants, and project delivery", "include": ["flood", "resilience", "infrastructure"],
+      "source": {"id": "fictional-resilience-office", "publisher": "East Fork Resilience Office", "title": "Flood infrastructure grant progress", "url": "https://resilience.example.test/updates/flood-grants", "published_at": "2026-11-15T12:00:00Z", "tier": "primary"},
+      "questions": [
+        {"focus": "projects", "sub_question": "Which flood infrastructure projects received grant approvals?", "query": "East Fork resilience office flood infrastructure grant approvals", "text": "The office approved drainage upgrades in two low-lying districts and a design study for a raised access road serving the regional medical campus."},
+        {"focus": "funding", "sub_question": "What funding share must municipalities provide?", "query": "East Fork flood resilience grant municipal matching share", "text": "Municipalities must provide fifteen percent of construction costs, while the office pays for approved design work and quarterly engineering inspections."},
+        {"focus": "delivery", "sub_question": "What will the next progress report cover?", "query": "East Fork grant progress report construction schedule", "text": "A spring progress report will list procurement status and revised construction schedules; the current release contains no completed flood-risk measurements."}
+      ]
+    }
+  ]
+}

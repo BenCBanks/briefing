@@ -1,0 +1,2139 @@
+{
+  "fixture_only": true,
+  "length_options": [
+    {
+      "minutes": 3,
+      "target_words": 420,
+      "question_count": 3,
+      "max_rounds": 2,
+      "max_reads": 12,
+      "grounded_queries": 1
+    },
+    {
+      "minutes": 5,
+      "target_words": 700,
+      "question_count": 4,
+      "max_rounds": 2,
+      "max_reads": 12,
+      "grounded_queries": 2
+    },
+    {
+      "minutes": 10,
+      "target_words": 1400,
+      "question_count": 4,
+      "max_rounds": 3,
+      "max_reads": 16,
+      "grounded_queries": 3
+    },
+    {
+      "minutes": 15,
+      "target_words": 2100,
+      "question_count": 5,
+      "max_rounds": 3,
+      "max_reads": 20,
+      "grounded_queries": 4
+    }
+  ],
+  "episodes": [
+    {
+      "id": "fixture-length-3",
+      "topic": "How do fictional parcel lockers work",
+      "topic_label": "How do fictional parcel lockers work",
+      "asked": "How do fictional parcel lockers work",
+      "style": "explainer",
+      "title": "How do fictional parcel lockers work",
+      "made_date": "2026-11-18",
+      "created_at": "2026-11-18T00:00:00Z",
+      "requested_minutes": 3,
+      "duration_minutes": 1.06,
+      "duration_basis": "estimated at 140 words per minute; no audio rendered",
+      "target_words": 420,
+      "content_word_count": 124,
+      "shorter_than_requested": true,
+      "shortfall_notice": "The verified script is shorter than requested; see What we couldn’t confirm.",
+      "narrator_count": 1,
+      "chapters": [
+        {
+          "id": "chapter-1",
+          "title": "Parcel locker trial",
+          "title_evidence_ids": [
+            "E-S1-1"
+          ],
+          "sentences": [
+            {
+              "id": "c1-s1",
+              "text": "Alder Bay runs a parcel locker trial at its public library for residents collecting deliveries.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-1"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c1-s2",
+              "text": "The town assigns each parcel a collection code that residents enter at the locker door.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-2"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c1-s3",
+              "text": "The library staff place parcels into empty lockers and send collection codes to the intended residents.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-3"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            }
+          ],
+          "spoken_text": "Alder Bay runs a parcel locker trial at its public library for residents collecting deliveries. The town assigns each parcel a collection code that residents enter at the locker door. The library staff place parcels into empty lockers and send collection codes to the intended residents."
+        },
+        {
+          "id": "chapter-2",
+          "title": "Library opening hours",
+          "title_evidence_ids": [
+            "E-S1-4"
+          ],
+          "sentences": [
+            {
+              "id": "c2-s1",
+              "text": "Residents can collect their parcels during library opening hours without waiting for a staffed delivery desk.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-4"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c2-s2",
+              "text": "The town pays for locker maintenance while the library provides space for the trial equipment.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-5"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c2-s3",
+              "text": "Library staff check empty compartments each morning and report broken doors to the maintenance team.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-6"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            }
+          ],
+          "spoken_text": "Residents can collect their parcels during library opening hours without waiting for a staffed delivery desk. The town pays for locker maintenance while the library provides space for the trial equipment. Library staff check empty compartments each morning and report broken doors to the maintenance team."
+        },
+        {
+          "id": "chapter-3",
+          "title": "Resident feedback",
+          "title_evidence_ids": [
+            "E-S1-7"
+          ],
+          "sentences": [
+            {
+              "id": "c3-s1",
+              "text": "The trial report records missed collections and resident feedback but does not estimate wider economic benefits.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-7"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c3-s2",
+              "text": "The town will review the recorded collection problems before deciding whether to extend the locker trial.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-8"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            }
+          ],
+          "spoken_text": "The trial report records missed collections and resident feedback but does not estimate wider economic benefits. The town will review the recorded collection problems before deciding whether to extend the locker trial."
+        },
+        {
+          "id": "evidence-notes",
+          "title": "What we couldn't confirm",
+          "title_evidence_ids": [],
+          "sentences": [
+            {
+              "id": "notice-1",
+              "text": "This episode is shorter than requested because the available evidence is limited.",
+              "kind": "editorial",
+              "evidence_ids": [],
+              "source_ids": [],
+              "source_numbers": []
+            },
+            {
+              "id": "notice-2",
+              "text": "Here is what we couldn't confirm.",
+              "kind": "editorial",
+              "evidence_ids": [],
+              "source_ids": [],
+              "source_numbers": []
+            },
+            {
+              "id": "notice-3",
+              "text": "Will the trial continue beyond the review?",
+              "kind": "editorial",
+              "evidence_ids": [],
+              "source_ids": [],
+              "source_numbers": []
+            }
+          ],
+          "spoken_text": "This episode is shorter than requested because the available evidence is limited. Here is what we couldn't confirm. Will the trial continue beyond the review?"
+        }
+      ],
+      "sources": [
+        {
+          "id": "source-1",
+          "number": 1,
+          "outlet": "Fictional civic desk",
+          "publisher": "Fictional civic desk",
+          "title": "Parcel locker trial",
+          "url": "https://alder.example.test/lockers",
+          "date": null,
+          "published_at": null,
+          "fetched_at": "2026-11-18T00:00:00Z",
+          "evidence_chars": 874,
+          "content_hash": "d3af382ed75851daff6f0797dfafc1910943dcb4df0d4865de85d6a5757d2920",
+          "locators": [
+            {
+              "id": "E-S1-1",
+              "sentence": 1,
+              "start_char": 0,
+              "end_char": 95,
+              "sha256": "f048e6b956d3f804b7d3eb66f87124144638e5d68eff19036c9e62c5dfbee97e"
+            },
+            {
+              "id": "E-S1-2",
+              "sentence": 2,
+              "start_char": 96,
+              "end_char": 183,
+              "sha256": "ebd98a8c8715d85973f9210251092f9e980ec2eaf7be06da9b13609e70ecc0df"
+            },
+            {
+              "id": "E-S1-3",
+              "sentence": 3,
+              "start_char": 184,
+              "end_char": 287,
+              "sha256": "6c91b68c514ee1d8e2741b68fa32577983cff30e4ea4d23911a3020196f4edf3"
+            },
+            {
+              "id": "E-S1-4",
+              "sentence": 4,
+              "start_char": 288,
+              "end_char": 397,
+              "sha256": "602f879e69e1c9d81f1c54744a2cb896fc821899a9a803b9950d7b59e8be23cd"
+            },
+            {
+              "id": "E-S1-5",
+              "sentence": 5,
+              "start_char": 398,
+              "end_char": 492,
+              "sha256": "a0c8fe9644a2f92e1726dd865e8c281ae6483234a9cbe3019bdd5e32d1092941"
+            },
+            {
+              "id": "E-S1-6",
+              "sentence": 6,
+              "start_char": 493,
+              "end_char": 593,
+              "sha256": "33b6dc093de9e26e6041c9222391fff20e10e77694cc5a14f2bb72b053b0580f"
+            },
+            {
+              "id": "E-S1-7",
+              "sentence": 7,
+              "start_char": 594,
+              "end_char": 706,
+              "sha256": "2104ee794a590fb7c498ddf7423a15f0c2f1305c035b6a276524c99689982936"
+            },
+            {
+              "id": "E-S1-8",
+              "sentence": 8,
+              "start_char": 707,
+              "end_char": 812,
+              "sha256": "f6bff17e2014cbe3b9b364de0653db6c9f98fa7422bfbae93e8f3ae0a1f4e7d8"
+            }
+          ],
+          "reuse_terms": "UNKNOWN: transient prototype fetch only",
+          "registry_id": null,
+          "evidence_depth": "transient-full-text",
+          "credibility": {
+            "version": 1,
+            "domain": "alder.example.test",
+            "tier": "unknown",
+            "authority": {
+              "points": 0,
+              "reason": "No reviewed domain entry; no suffix-based authority.",
+              "reviewed_at": null,
+              "risks": []
+            },
+            "originality": {
+              "kind": "unknown",
+              "reason": "Domain or headline alone cannot establish a primary document."
+            },
+            "freshness": {
+              "status": "unknown",
+              "age_days": null,
+              "reason": "Publication date only; age is not a reliability verdict for infrequent releases."
+            },
+            "readability": {
+              "status": "read",
+              "reason": "Evidence extraction depth; successful fetching is not credibility or permission."
+            },
+            "rights": {
+              "status": "unverified",
+              "reason": "UNKNOWN: transient prototype fetch only"
+            },
+            "promotion": "probation",
+            "independence": {
+              "origin": "example.test",
+              "reason": "Unreviewed domain origin; ownership is unverified.",
+              "independent_origins": 1,
+              "corroborated": false,
+              "scope": "same-story coverage; claim agreement not verified"
+            },
+            "ranking_score": 10
+          },
+          "cited": true
+        }
+      ],
+      "source_count": 1,
+      "sources_read": 1,
+      "could_not_confirm": [
+        {
+          "question": "Will the trial continue beyond the review?"
+        }
+      ],
+      "transcript": "Alder Bay runs a parcel locker trial at its public library for residents collecting deliveries. The town assigns each parcel a collection code that residents enter at the locker door. The library staff place parcels into empty lockers and send collection codes to the intended residents.\n\nResidents can collect their parcels during library opening hours without waiting for a staffed delivery desk. The town pays for locker maintenance while the library provides space for the trial equipment. Library staff check empty compartments each morning and report broken doors to the maintenance team.\n\nThe trial report records missed collections and resident feedback but does not estimate wider economic benefits. The town will review the recorded collection problems before deciding whether to extend the locker trial.\n\nThis episode is shorter than requested because the available evidence is limited. Here is what we couldn't confirm. Will the trial continue beyond the review?",
+      "word_count": 149,
+      "revision_id": "episode-a8327cdae1d96c6c",
+      "script_hash": "a8327cdae1d96c6c1f42f8d7cff95224fe9a1d793b7046b156ecac451ebd7367",
+      "audio": {
+        "status": "not_recorded",
+        "script_hash": "a8327cdae1d96c6c1f42f8d7cff95224fe9a1d793b7046b156ecac451ebd7367",
+        "revision_id": "episode-a8327cdae1d96c6c"
+      },
+      "evidence_pack": {
+        "version": 1,
+        "id": "be769eaf2d220748d55f826be913db5989c461b94aa684eaa83f1e7072186114",
+        "sentence_count": 9,
+        "retained_text": false
+      },
+      "verification": {
+        "passed": true,
+        "checks": [
+          {
+            "number": 1,
+            "name": "Claim coverage",
+            "status": "PASS",
+            "critical": true,
+            "detail": "8 linked claim sentence(s) across 1 story/stories"
+          },
+          {
+            "number": 2,
+            "name": "Citation validity",
+            "status": "PASS",
+            "critical": true,
+            "detail": "Every sentence ID resolves to extracted evidence and a numbered source."
+          },
+          {
+            "number": 3,
+            "name": "Sentence support",
+            "status": "PASS",
+            "critical": true,
+            "detail": "8/8 claim(s) passed the source-sentence check."
+          },
+          {
+            "number": 4,
+            "name": "Numbers, dates, names",
+            "status": "PASS",
+            "critical": true,
+            "detail": "Numbers and likely names resolve in cited passages."
+          },
+          {
+            "number": 5,
+            "name": "Quote hygiene",
+            "status": "PASS",
+            "critical": true,
+            "detail": "0 quote(s); maximum 15 words, exact source match and named attribution required."
+          },
+          {
+            "number": 8,
+            "name": "Story deduplication",
+            "status": "PASS",
+            "critical": true,
+            "detail": "No cluster appears more than once."
+          },
+          {
+            "number": 9,
+            "name": "Tone and advice",
+            "status": "PASS",
+            "critical": false,
+            "detail": "No configured clickbait phrases or personal buy/sell/health directives found."
+          },
+          {
+            "number": 13,
+            "name": "Uncited background separation",
+            "status": "PASS",
+            "critical": true,
+            "detail": "Any general-knowledge background is a separate labelled context block with no names, dates, or numerals."
+          }
+        ],
+        "semantic_support": true,
+        "complete_script_checked": true,
+        "attempts": 1,
+        "uncertainty_relevant": true,
+        "pruned_and_rechecked": false,
+        "pruning_checks": 0,
+        "scope": "Episode claim checks reuse edition scorecard 1–5, 8, 9, 13. Historical freshness, reuse rights and audio are not certified.",
+        "script_checks": {
+          "passed": true,
+          "score": 6,
+          "out_of": 6,
+          "checks": [
+            {
+              "name": "sentence_length",
+              "passed": true,
+              "detail": "0 below 4; 0 above 32 words"
+            },
+            {
+              "name": "spoken_numbers",
+              "passed": true
+            },
+            {
+              "name": "no_urls",
+              "passed": true
+            },
+            {
+              "name": "no_banned_filler",
+              "passed": true
+            },
+            {
+              "name": "read_takeaway_is_fresh",
+              "passed": true
+            },
+            {
+              "name": "requested_duration",
+              "passed": true
+            }
+          ],
+          "errors": [],
+          "warnings": [
+            "shorter_than_requested; preserve the evidence-supported script without padding"
+          ],
+          "word_count": 149,
+          "estimated_minutes": 1.06,
+          "requested_minutes": 3.0,
+          "words_per_minute": 140,
+          "chapters": [
+            {
+              "chapter": 1,
+              "title": "Parcel locker trial",
+              "word_count": 46,
+              "estimated_minutes": 0.33
+            },
+            {
+              "chapter": 2,
+              "title": "Library opening hours",
+              "word_count": 46,
+              "estimated_minutes": 0.33
+            },
+            {
+              "chapter": 3,
+              "title": "Resident feedback",
+              "word_count": 32,
+              "estimated_minutes": 0.23
+            },
+            {
+              "chapter": 4,
+              "title": "What we couldn't confirm",
+              "word_count": 25,
+              "estimated_minutes": 0.18
+            }
+          ]
+        }
+      },
+      "timing": {},
+      "timing_basis": "total_seconds is wall clock; parallel model stage seconds sum request durations",
+      "research_plan": [
+        {
+          "question": "How does the fictional parcel locker trial work?",
+          "target_words": 140,
+          "sources_read": 1
+        },
+        {
+          "question": "When can residents use the fictional parcel lockers?",
+          "target_words": 140,
+          "sources_read": 1
+        },
+        {
+          "question": "How is the fictional parcel locker trial reviewed?",
+          "target_words": 140,
+          "sources_read": 1
+        }
+      ],
+      "retrieval": {
+        "queries": 0,
+        "attempts": [
+          {
+            "round": 1,
+            "question": 1
+          },
+          {
+            "round": 1,
+            "question": 2
+          },
+          {
+            "round": 1,
+            "question": 3
+          }
+        ],
+        "read_attempts": 1
+      },
+      "cost_estimate": {
+        "usd": 3e-05,
+        "model": "fictional-model",
+        "model_calls": 5,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "basis": "Text tokens priced from usage.py price list; search and audio costs are in the job ledger record."
+      },
+      "fixture": true
+    },
+    {
+      "id": "fixture-length-5",
+      "topic": "How do fictional parcel lockers work",
+      "topic_label": "How do fictional parcel lockers work",
+      "asked": "How do fictional parcel lockers work",
+      "style": "explainer",
+      "title": "How do fictional parcel lockers work",
+      "made_date": "2026-11-18",
+      "created_at": "2026-11-18T00:00:00Z",
+      "requested_minutes": 5,
+      "duration_minutes": 1.06,
+      "duration_basis": "estimated at 140 words per minute; no audio rendered",
+      "target_words": 700,
+      "content_word_count": 124,
+      "shorter_than_requested": true,
+      "shortfall_notice": "The verified script is shorter than requested; see What we couldn’t confirm.",
+      "narrator_count": 1,
+      "chapters": [
+        {
+          "id": "chapter-1",
+          "title": "Parcel locker trial",
+          "title_evidence_ids": [
+            "E-S1-1"
+          ],
+          "sentences": [
+            {
+              "id": "c1-s1",
+              "text": "Alder Bay runs a parcel locker trial at its public library for residents collecting deliveries.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-1"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c1-s2",
+              "text": "The town assigns each parcel a collection code that residents enter at the locker door.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-2"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c1-s3",
+              "text": "The library staff place parcels into empty lockers and send collection codes to the intended residents.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-3"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            }
+          ],
+          "spoken_text": "Alder Bay runs a parcel locker trial at its public library for residents collecting deliveries. The town assigns each parcel a collection code that residents enter at the locker door. The library staff place parcels into empty lockers and send collection codes to the intended residents."
+        },
+        {
+          "id": "chapter-2",
+          "title": "Library opening hours",
+          "title_evidence_ids": [
+            "E-S1-4"
+          ],
+          "sentences": [
+            {
+              "id": "c2-s1",
+              "text": "Residents can collect their parcels during library opening hours without waiting for a staffed delivery desk.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-4"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c2-s2",
+              "text": "The town pays for locker maintenance while the library provides space for the trial equipment.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-5"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c2-s3",
+              "text": "Library staff check empty compartments each morning and report broken doors to the maintenance team.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-6"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            }
+          ],
+          "spoken_text": "Residents can collect their parcels during library opening hours without waiting for a staffed delivery desk. The town pays for locker maintenance while the library provides space for the trial equipment. Library staff check empty compartments each morning and report broken doors to the maintenance team."
+        },
+        {
+          "id": "chapter-3",
+          "title": "Resident feedback",
+          "title_evidence_ids": [
+            "E-S1-7"
+          ],
+          "sentences": [
+            {
+              "id": "c3-s1",
+              "text": "The trial report records missed collections and resident feedback but does not estimate wider economic benefits.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-7"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c3-s2",
+              "text": "The town will review the recorded collection problems before deciding whether to extend the locker trial.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-8"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            }
+          ],
+          "spoken_text": "The trial report records missed collections and resident feedback but does not estimate wider economic benefits. The town will review the recorded collection problems before deciding whether to extend the locker trial."
+        },
+        {
+          "id": "evidence-notes",
+          "title": "What we couldn't confirm",
+          "title_evidence_ids": [],
+          "sentences": [
+            {
+              "id": "notice-1",
+              "text": "This episode is shorter than requested because the available evidence is limited.",
+              "kind": "editorial",
+              "evidence_ids": [],
+              "source_ids": [],
+              "source_numbers": []
+            },
+            {
+              "id": "notice-2",
+              "text": "Here is what we couldn't confirm.",
+              "kind": "editorial",
+              "evidence_ids": [],
+              "source_ids": [],
+              "source_numbers": []
+            },
+            {
+              "id": "notice-3",
+              "text": "Will the trial continue beyond the review?",
+              "kind": "editorial",
+              "evidence_ids": [],
+              "source_ids": [],
+              "source_numbers": []
+            }
+          ],
+          "spoken_text": "This episode is shorter than requested because the available evidence is limited. Here is what we couldn't confirm. Will the trial continue beyond the review?"
+        }
+      ],
+      "sources": [
+        {
+          "id": "source-1",
+          "number": 1,
+          "outlet": "Fictional civic desk",
+          "publisher": "Fictional civic desk",
+          "title": "Parcel locker trial",
+          "url": "https://alder.example.test/lockers",
+          "date": null,
+          "published_at": null,
+          "fetched_at": "2026-11-18T00:00:00Z",
+          "evidence_chars": 874,
+          "content_hash": "d3af382ed75851daff6f0797dfafc1910943dcb4df0d4865de85d6a5757d2920",
+          "locators": [
+            {
+              "id": "E-S1-1",
+              "sentence": 1,
+              "start_char": 0,
+              "end_char": 95,
+              "sha256": "f048e6b956d3f804b7d3eb66f87124144638e5d68eff19036c9e62c5dfbee97e"
+            },
+            {
+              "id": "E-S1-2",
+              "sentence": 2,
+              "start_char": 96,
+              "end_char": 183,
+              "sha256": "ebd98a8c8715d85973f9210251092f9e980ec2eaf7be06da9b13609e70ecc0df"
+            },
+            {
+              "id": "E-S1-3",
+              "sentence": 3,
+              "start_char": 184,
+              "end_char": 287,
+              "sha256": "6c91b68c514ee1d8e2741b68fa32577983cff30e4ea4d23911a3020196f4edf3"
+            },
+            {
+              "id": "E-S1-4",
+              "sentence": 4,
+              "start_char": 288,
+              "end_char": 397,
+              "sha256": "602f879e69e1c9d81f1c54744a2cb896fc821899a9a803b9950d7b59e8be23cd"
+            },
+            {
+              "id": "E-S1-5",
+              "sentence": 5,
+              "start_char": 398,
+              "end_char": 492,
+              "sha256": "a0c8fe9644a2f92e1726dd865e8c281ae6483234a9cbe3019bdd5e32d1092941"
+            },
+            {
+              "id": "E-S1-6",
+              "sentence": 6,
+              "start_char": 493,
+              "end_char": 593,
+              "sha256": "33b6dc093de9e26e6041c9222391fff20e10e77694cc5a14f2bb72b053b0580f"
+            },
+            {
+              "id": "E-S1-7",
+              "sentence": 7,
+              "start_char": 594,
+              "end_char": 706,
+              "sha256": "2104ee794a590fb7c498ddf7423a15f0c2f1305c035b6a276524c99689982936"
+            },
+            {
+              "id": "E-S1-8",
+              "sentence": 8,
+              "start_char": 707,
+              "end_char": 812,
+              "sha256": "f6bff17e2014cbe3b9b364de0653db6c9f98fa7422bfbae93e8f3ae0a1f4e7d8"
+            }
+          ],
+          "reuse_terms": "UNKNOWN: transient prototype fetch only",
+          "registry_id": null,
+          "evidence_depth": "transient-full-text",
+          "credibility": {
+            "version": 1,
+            "domain": "alder.example.test",
+            "tier": "unknown",
+            "authority": {
+              "points": 0,
+              "reason": "No reviewed domain entry; no suffix-based authority.",
+              "reviewed_at": null,
+              "risks": []
+            },
+            "originality": {
+              "kind": "unknown",
+              "reason": "Domain or headline alone cannot establish a primary document."
+            },
+            "freshness": {
+              "status": "unknown",
+              "age_days": null,
+              "reason": "Publication date only; age is not a reliability verdict for infrequent releases."
+            },
+            "readability": {
+              "status": "read",
+              "reason": "Evidence extraction depth; successful fetching is not credibility or permission."
+            },
+            "rights": {
+              "status": "unverified",
+              "reason": "UNKNOWN: transient prototype fetch only"
+            },
+            "promotion": "probation",
+            "independence": {
+              "origin": "example.test",
+              "reason": "Unreviewed domain origin; ownership is unverified.",
+              "independent_origins": 1,
+              "corroborated": false,
+              "scope": "same-story coverage; claim agreement not verified"
+            },
+            "ranking_score": 10
+          },
+          "cited": true
+        }
+      ],
+      "source_count": 1,
+      "sources_read": 1,
+      "could_not_confirm": [
+        {
+          "question": "Will the trial continue beyond the review?"
+        }
+      ],
+      "transcript": "Alder Bay runs a parcel locker trial at its public library for residents collecting deliveries. The town assigns each parcel a collection code that residents enter at the locker door. The library staff place parcels into empty lockers and send collection codes to the intended residents.\n\nResidents can collect their parcels during library opening hours without waiting for a staffed delivery desk. The town pays for locker maintenance while the library provides space for the trial equipment. Library staff check empty compartments each morning and report broken doors to the maintenance team.\n\nThe trial report records missed collections and resident feedback but does not estimate wider economic benefits. The town will review the recorded collection problems before deciding whether to extend the locker trial.\n\nThis episode is shorter than requested because the available evidence is limited. Here is what we couldn't confirm. Will the trial continue beyond the review?",
+      "word_count": 149,
+      "revision_id": "episode-a8327cdae1d96c6c",
+      "script_hash": "a8327cdae1d96c6c1f42f8d7cff95224fe9a1d793b7046b156ecac451ebd7367",
+      "audio": {
+        "status": "not_recorded",
+        "script_hash": "a8327cdae1d96c6c1f42f8d7cff95224fe9a1d793b7046b156ecac451ebd7367",
+        "revision_id": "episode-a8327cdae1d96c6c"
+      },
+      "evidence_pack": {
+        "version": 1,
+        "id": "be769eaf2d220748d55f826be913db5989c461b94aa684eaa83f1e7072186114",
+        "sentence_count": 9,
+        "retained_text": false
+      },
+      "verification": {
+        "passed": true,
+        "checks": [
+          {
+            "number": 1,
+            "name": "Claim coverage",
+            "status": "PASS",
+            "critical": true,
+            "detail": "8 linked claim sentence(s) across 1 story/stories"
+          },
+          {
+            "number": 2,
+            "name": "Citation validity",
+            "status": "PASS",
+            "critical": true,
+            "detail": "Every sentence ID resolves to extracted evidence and a numbered source."
+          },
+          {
+            "number": 3,
+            "name": "Sentence support",
+            "status": "PASS",
+            "critical": true,
+            "detail": "8/8 claim(s) passed the source-sentence check."
+          },
+          {
+            "number": 4,
+            "name": "Numbers, dates, names",
+            "status": "PASS",
+            "critical": true,
+            "detail": "Numbers and likely names resolve in cited passages."
+          },
+          {
+            "number": 5,
+            "name": "Quote hygiene",
+            "status": "PASS",
+            "critical": true,
+            "detail": "0 quote(s); maximum 15 words, exact source match and named attribution required."
+          },
+          {
+            "number": 8,
+            "name": "Story deduplication",
+            "status": "PASS",
+            "critical": true,
+            "detail": "No cluster appears more than once."
+          },
+          {
+            "number": 9,
+            "name": "Tone and advice",
+            "status": "PASS",
+            "critical": false,
+            "detail": "No configured clickbait phrases or personal buy/sell/health directives found."
+          },
+          {
+            "number": 13,
+            "name": "Uncited background separation",
+            "status": "PASS",
+            "critical": true,
+            "detail": "Any general-knowledge background is a separate labelled context block with no names, dates, or numerals."
+          }
+        ],
+        "semantic_support": true,
+        "complete_script_checked": true,
+        "attempts": 1,
+        "uncertainty_relevant": true,
+        "pruned_and_rechecked": false,
+        "pruning_checks": 0,
+        "scope": "Episode claim checks reuse edition scorecard 1–5, 8, 9, 13. Historical freshness, reuse rights and audio are not certified.",
+        "script_checks": {
+          "passed": true,
+          "score": 6,
+          "out_of": 6,
+          "checks": [
+            {
+              "name": "sentence_length",
+              "passed": true,
+              "detail": "0 below 4; 0 above 32 words"
+            },
+            {
+              "name": "spoken_numbers",
+              "passed": true
+            },
+            {
+              "name": "no_urls",
+              "passed": true
+            },
+            {
+              "name": "no_banned_filler",
+              "passed": true
+            },
+            {
+              "name": "read_takeaway_is_fresh",
+              "passed": true
+            },
+            {
+              "name": "requested_duration",
+              "passed": true
+            }
+          ],
+          "errors": [],
+          "warnings": [
+            "shorter_than_requested; preserve the evidence-supported script without padding"
+          ],
+          "word_count": 149,
+          "estimated_minutes": 1.06,
+          "requested_minutes": 5.0,
+          "words_per_minute": 140,
+          "chapters": [
+            {
+              "chapter": 1,
+              "title": "Parcel locker trial",
+              "word_count": 46,
+              "estimated_minutes": 0.33
+            },
+            {
+              "chapter": 2,
+              "title": "Library opening hours",
+              "word_count": 46,
+              "estimated_minutes": 0.33
+            },
+            {
+              "chapter": 3,
+              "title": "Resident feedback",
+              "word_count": 32,
+              "estimated_minutes": 0.23
+            },
+            {
+              "chapter": 4,
+              "title": "What we couldn't confirm",
+              "word_count": 25,
+              "estimated_minutes": 0.18
+            }
+          ]
+        }
+      },
+      "timing": {},
+      "timing_basis": "total_seconds is wall clock; parallel model stage seconds sum request durations",
+      "research_plan": [
+        {
+          "question": "How does the fictional parcel locker trial work?",
+          "target_words": 234,
+          "sources_read": 1
+        },
+        {
+          "question": "When can residents use the fictional parcel lockers?",
+          "target_words": 233,
+          "sources_read": 1
+        },
+        {
+          "question": "How is the fictional parcel locker trial reviewed?",
+          "target_words": 233,
+          "sources_read": 1
+        }
+      ],
+      "retrieval": {
+        "queries": 0,
+        "attempts": [
+          {
+            "round": 1,
+            "question": 1
+          },
+          {
+            "round": 1,
+            "question": 2
+          },
+          {
+            "round": 1,
+            "question": 3
+          },
+          {
+            "round": 2,
+            "question": 1
+          },
+          {
+            "round": 2,
+            "question": 2
+          },
+          {
+            "round": 2,
+            "question": 3
+          }
+        ],
+        "read_attempts": 1
+      },
+      "cost_estimate": {
+        "usd": 3e-05,
+        "model": "fictional-model",
+        "model_calls": 5,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "basis": "Text tokens priced from usage.py price list; search and audio costs are in the job ledger record."
+      },
+      "fixture": true
+    },
+    {
+      "id": "fixture-length-10",
+      "topic": "How do fictional parcel lockers work",
+      "topic_label": "How do fictional parcel lockers work",
+      "asked": "How do fictional parcel lockers work",
+      "style": "explainer",
+      "title": "How do fictional parcel lockers work",
+      "made_date": "2026-11-18",
+      "created_at": "2026-11-18T00:00:00Z",
+      "requested_minutes": 10,
+      "duration_minutes": 1.06,
+      "duration_basis": "estimated at 140 words per minute; no audio rendered",
+      "target_words": 1400,
+      "content_word_count": 124,
+      "shorter_than_requested": true,
+      "shortfall_notice": "The verified script is shorter than requested; see What we couldn’t confirm.",
+      "narrator_count": 1,
+      "chapters": [
+        {
+          "id": "chapter-1",
+          "title": "Parcel locker trial",
+          "title_evidence_ids": [
+            "E-S1-1"
+          ],
+          "sentences": [
+            {
+              "id": "c1-s1",
+              "text": "Alder Bay runs a parcel locker trial at its public library for residents collecting deliveries.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-1"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c1-s2",
+              "text": "The town assigns each parcel a collection code that residents enter at the locker door.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-2"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c1-s3",
+              "text": "The library staff place parcels into empty lockers and send collection codes to the intended residents.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-3"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            }
+          ],
+          "spoken_text": "Alder Bay runs a parcel locker trial at its public library for residents collecting deliveries. The town assigns each parcel a collection code that residents enter at the locker door. The library staff place parcels into empty lockers and send collection codes to the intended residents."
+        },
+        {
+          "id": "chapter-2",
+          "title": "Library opening hours",
+          "title_evidence_ids": [
+            "E-S1-4"
+          ],
+          "sentences": [
+            {
+              "id": "c2-s1",
+              "text": "Residents can collect their parcels during library opening hours without waiting for a staffed delivery desk.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-4"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c2-s2",
+              "text": "The town pays for locker maintenance while the library provides space for the trial equipment.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-5"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c2-s3",
+              "text": "Library staff check empty compartments each morning and report broken doors to the maintenance team.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-6"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            }
+          ],
+          "spoken_text": "Residents can collect their parcels during library opening hours without waiting for a staffed delivery desk. The town pays for locker maintenance while the library provides space for the trial equipment. Library staff check empty compartments each morning and report broken doors to the maintenance team."
+        },
+        {
+          "id": "chapter-3",
+          "title": "Resident feedback",
+          "title_evidence_ids": [
+            "E-S1-7"
+          ],
+          "sentences": [
+            {
+              "id": "c3-s1",
+              "text": "The trial report records missed collections and resident feedback but does not estimate wider economic benefits.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-7"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c3-s2",
+              "text": "The town will review the recorded collection problems before deciding whether to extend the locker trial.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-8"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            }
+          ],
+          "spoken_text": "The trial report records missed collections and resident feedback but does not estimate wider economic benefits. The town will review the recorded collection problems before deciding whether to extend the locker trial."
+        },
+        {
+          "id": "evidence-notes",
+          "title": "What we couldn't confirm",
+          "title_evidence_ids": [],
+          "sentences": [
+            {
+              "id": "notice-1",
+              "text": "This episode is shorter than requested because the available evidence is limited.",
+              "kind": "editorial",
+              "evidence_ids": [],
+              "source_ids": [],
+              "source_numbers": []
+            },
+            {
+              "id": "notice-2",
+              "text": "Here is what we couldn't confirm.",
+              "kind": "editorial",
+              "evidence_ids": [],
+              "source_ids": [],
+              "source_numbers": []
+            },
+            {
+              "id": "notice-3",
+              "text": "Will the trial continue beyond the review?",
+              "kind": "editorial",
+              "evidence_ids": [],
+              "source_ids": [],
+              "source_numbers": []
+            }
+          ],
+          "spoken_text": "This episode is shorter than requested because the available evidence is limited. Here is what we couldn't confirm. Will the trial continue beyond the review?"
+        }
+      ],
+      "sources": [
+        {
+          "id": "source-1",
+          "number": 1,
+          "outlet": "Fictional civic desk",
+          "publisher": "Fictional civic desk",
+          "title": "Parcel locker trial",
+          "url": "https://alder.example.test/lockers",
+          "date": null,
+          "published_at": null,
+          "fetched_at": "2026-11-18T00:00:00Z",
+          "evidence_chars": 874,
+          "content_hash": "d3af382ed75851daff6f0797dfafc1910943dcb4df0d4865de85d6a5757d2920",
+          "locators": [
+            {
+              "id": "E-S1-1",
+              "sentence": 1,
+              "start_char": 0,
+              "end_char": 95,
+              "sha256": "f048e6b956d3f804b7d3eb66f87124144638e5d68eff19036c9e62c5dfbee97e"
+            },
+            {
+              "id": "E-S1-2",
+              "sentence": 2,
+              "start_char": 96,
+              "end_char": 183,
+              "sha256": "ebd98a8c8715d85973f9210251092f9e980ec2eaf7be06da9b13609e70ecc0df"
+            },
+            {
+              "id": "E-S1-3",
+              "sentence": 3,
+              "start_char": 184,
+              "end_char": 287,
+              "sha256": "6c91b68c514ee1d8e2741b68fa32577983cff30e4ea4d23911a3020196f4edf3"
+            },
+            {
+              "id": "E-S1-4",
+              "sentence": 4,
+              "start_char": 288,
+              "end_char": 397,
+              "sha256": "602f879e69e1c9d81f1c54744a2cb896fc821899a9a803b9950d7b59e8be23cd"
+            },
+            {
+              "id": "E-S1-5",
+              "sentence": 5,
+              "start_char": 398,
+              "end_char": 492,
+              "sha256": "a0c8fe9644a2f92e1726dd865e8c281ae6483234a9cbe3019bdd5e32d1092941"
+            },
+            {
+              "id": "E-S1-6",
+              "sentence": 6,
+              "start_char": 493,
+              "end_char": 593,
+              "sha256": "33b6dc093de9e26e6041c9222391fff20e10e77694cc5a14f2bb72b053b0580f"
+            },
+            {
+              "id": "E-S1-7",
+              "sentence": 7,
+              "start_char": 594,
+              "end_char": 706,
+              "sha256": "2104ee794a590fb7c498ddf7423a15f0c2f1305c035b6a276524c99689982936"
+            },
+            {
+              "id": "E-S1-8",
+              "sentence": 8,
+              "start_char": 707,
+              "end_char": 812,
+              "sha256": "f6bff17e2014cbe3b9b364de0653db6c9f98fa7422bfbae93e8f3ae0a1f4e7d8"
+            }
+          ],
+          "reuse_terms": "UNKNOWN: transient prototype fetch only",
+          "registry_id": null,
+          "evidence_depth": "transient-full-text",
+          "credibility": {
+            "version": 1,
+            "domain": "alder.example.test",
+            "tier": "unknown",
+            "authority": {
+              "points": 0,
+              "reason": "No reviewed domain entry; no suffix-based authority.",
+              "reviewed_at": null,
+              "risks": []
+            },
+            "originality": {
+              "kind": "unknown",
+              "reason": "Domain or headline alone cannot establish a primary document."
+            },
+            "freshness": {
+              "status": "unknown",
+              "age_days": null,
+              "reason": "Publication date only; age is not a reliability verdict for infrequent releases."
+            },
+            "readability": {
+              "status": "read",
+              "reason": "Evidence extraction depth; successful fetching is not credibility or permission."
+            },
+            "rights": {
+              "status": "unverified",
+              "reason": "UNKNOWN: transient prototype fetch only"
+            },
+            "promotion": "probation",
+            "independence": {
+              "origin": "example.test",
+              "reason": "Unreviewed domain origin; ownership is unverified.",
+              "independent_origins": 1,
+              "corroborated": false,
+              "scope": "same-story coverage; claim agreement not verified"
+            },
+            "ranking_score": 10
+          },
+          "cited": true
+        }
+      ],
+      "source_count": 1,
+      "sources_read": 1,
+      "could_not_confirm": [
+        {
+          "question": "Will the trial continue beyond the review?"
+        }
+      ],
+      "transcript": "Alder Bay runs a parcel locker trial at its public library for residents collecting deliveries. The town assigns each parcel a collection code that residents enter at the locker door. The library staff place parcels into empty lockers and send collection codes to the intended residents.\n\nResidents can collect their parcels during library opening hours without waiting for a staffed delivery desk. The town pays for locker maintenance while the library provides space for the trial equipment. Library staff check empty compartments each morning and report broken doors to the maintenance team.\n\nThe trial report records missed collections and resident feedback but does not estimate wider economic benefits. The town will review the recorded collection problems before deciding whether to extend the locker trial.\n\nThis episode is shorter than requested because the available evidence is limited. Here is what we couldn't confirm. Will the trial continue beyond the review?",
+      "word_count": 149,
+      "revision_id": "episode-a8327cdae1d96c6c",
+      "script_hash": "a8327cdae1d96c6c1f42f8d7cff95224fe9a1d793b7046b156ecac451ebd7367",
+      "audio": {
+        "status": "not_recorded",
+        "script_hash": "a8327cdae1d96c6c1f42f8d7cff95224fe9a1d793b7046b156ecac451ebd7367",
+        "revision_id": "episode-a8327cdae1d96c6c"
+      },
+      "evidence_pack": {
+        "version": 1,
+        "id": "be769eaf2d220748d55f826be913db5989c461b94aa684eaa83f1e7072186114",
+        "sentence_count": 9,
+        "retained_text": false
+      },
+      "verification": {
+        "passed": true,
+        "checks": [
+          {
+            "number": 1,
+            "name": "Claim coverage",
+            "status": "PASS",
+            "critical": true,
+            "detail": "8 linked claim sentence(s) across 1 story/stories"
+          },
+          {
+            "number": 2,
+            "name": "Citation validity",
+            "status": "PASS",
+            "critical": true,
+            "detail": "Every sentence ID resolves to extracted evidence and a numbered source."
+          },
+          {
+            "number": 3,
+            "name": "Sentence support",
+            "status": "PASS",
+            "critical": true,
+            "detail": "8/8 claim(s) passed the source-sentence check."
+          },
+          {
+            "number": 4,
+            "name": "Numbers, dates, names",
+            "status": "PASS",
+            "critical": true,
+            "detail": "Numbers and likely names resolve in cited passages."
+          },
+          {
+            "number": 5,
+            "name": "Quote hygiene",
+            "status": "PASS",
+            "critical": true,
+            "detail": "0 quote(s); maximum 15 words, exact source match and named attribution required."
+          },
+          {
+            "number": 8,
+            "name": "Story deduplication",
+            "status": "PASS",
+            "critical": true,
+            "detail": "No cluster appears more than once."
+          },
+          {
+            "number": 9,
+            "name": "Tone and advice",
+            "status": "PASS",
+            "critical": false,
+            "detail": "No configured clickbait phrases or personal buy/sell/health directives found."
+          },
+          {
+            "number": 13,
+            "name": "Uncited background separation",
+            "status": "PASS",
+            "critical": true,
+            "detail": "Any general-knowledge background is a separate labelled context block with no names, dates, or numerals."
+          }
+        ],
+        "semantic_support": true,
+        "complete_script_checked": true,
+        "attempts": 1,
+        "uncertainty_relevant": true,
+        "pruned_and_rechecked": false,
+        "pruning_checks": 0,
+        "scope": "Episode claim checks reuse edition scorecard 1–5, 8, 9, 13. Historical freshness, reuse rights and audio are not certified.",
+        "script_checks": {
+          "passed": true,
+          "score": 6,
+          "out_of": 6,
+          "checks": [
+            {
+              "name": "sentence_length",
+              "passed": true,
+              "detail": "0 below 4; 0 above 32 words"
+            },
+            {
+              "name": "spoken_numbers",
+              "passed": true
+            },
+            {
+              "name": "no_urls",
+              "passed": true
+            },
+            {
+              "name": "no_banned_filler",
+              "passed": true
+            },
+            {
+              "name": "read_takeaway_is_fresh",
+              "passed": true
+            },
+            {
+              "name": "requested_duration",
+              "passed": true
+            }
+          ],
+          "errors": [],
+          "warnings": [
+            "shorter_than_requested; preserve the evidence-supported script without padding"
+          ],
+          "word_count": 149,
+          "estimated_minutes": 1.06,
+          "requested_minutes": 10.0,
+          "words_per_minute": 140,
+          "chapters": [
+            {
+              "chapter": 1,
+              "title": "Parcel locker trial",
+              "word_count": 46,
+              "estimated_minutes": 0.33
+            },
+            {
+              "chapter": 2,
+              "title": "Library opening hours",
+              "word_count": 46,
+              "estimated_minutes": 0.33
+            },
+            {
+              "chapter": 3,
+              "title": "Resident feedback",
+              "word_count": 32,
+              "estimated_minutes": 0.23
+            },
+            {
+              "chapter": 4,
+              "title": "What we couldn't confirm",
+              "word_count": 25,
+              "estimated_minutes": 0.18
+            }
+          ]
+        }
+      },
+      "timing": {},
+      "timing_basis": "total_seconds is wall clock; parallel model stage seconds sum request durations",
+      "research_plan": [
+        {
+          "question": "How does the fictional parcel locker trial work?",
+          "target_words": 467,
+          "sources_read": 1
+        },
+        {
+          "question": "When can residents use the fictional parcel lockers?",
+          "target_words": 467,
+          "sources_read": 1
+        },
+        {
+          "question": "How is the fictional parcel locker trial reviewed?",
+          "target_words": 466,
+          "sources_read": 1
+        }
+      ],
+      "retrieval": {
+        "queries": 0,
+        "attempts": [
+          {
+            "round": 1,
+            "question": 1
+          },
+          {
+            "round": 1,
+            "question": 2
+          },
+          {
+            "round": 1,
+            "question": 3
+          },
+          {
+            "round": 2,
+            "question": 1
+          },
+          {
+            "round": 2,
+            "question": 2
+          },
+          {
+            "round": 2,
+            "question": 3
+          },
+          {
+            "round": 3,
+            "question": 1
+          },
+          {
+            "round": 3,
+            "question": 2
+          },
+          {
+            "round": 3,
+            "question": 3
+          }
+        ],
+        "read_attempts": 1
+      },
+      "cost_estimate": {
+        "usd": 3e-05,
+        "model": "fictional-model",
+        "model_calls": 5,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "basis": "Text tokens priced from usage.py price list; search and audio costs are in the job ledger record."
+      },
+      "fixture": true
+    },
+    {
+      "id": "fixture-length-15",
+      "topic": "How do fictional parcel lockers work",
+      "topic_label": "How do fictional parcel lockers work",
+      "asked": "How do fictional parcel lockers work",
+      "style": "explainer",
+      "title": "How do fictional parcel lockers work",
+      "made_date": "2026-11-18",
+      "created_at": "2026-11-18T00:00:00Z",
+      "requested_minutes": 15,
+      "duration_minutes": 1.06,
+      "duration_basis": "estimated at 140 words per minute; no audio rendered",
+      "target_words": 2100,
+      "content_word_count": 124,
+      "shorter_than_requested": true,
+      "shortfall_notice": "The verified script is shorter than requested; see What we couldn’t confirm.",
+      "narrator_count": 1,
+      "chapters": [
+        {
+          "id": "chapter-1",
+          "title": "Parcel locker trial",
+          "title_evidence_ids": [
+            "E-S1-1"
+          ],
+          "sentences": [
+            {
+              "id": "c1-s1",
+              "text": "Alder Bay runs a parcel locker trial at its public library for residents collecting deliveries.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-1"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c1-s2",
+              "text": "The town assigns each parcel a collection code that residents enter at the locker door.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-2"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c1-s3",
+              "text": "The library staff place parcels into empty lockers and send collection codes to the intended residents.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-3"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            }
+          ],
+          "spoken_text": "Alder Bay runs a parcel locker trial at its public library for residents collecting deliveries. The town assigns each parcel a collection code that residents enter at the locker door. The library staff place parcels into empty lockers and send collection codes to the intended residents."
+        },
+        {
+          "id": "chapter-2",
+          "title": "Library opening hours",
+          "title_evidence_ids": [
+            "E-S1-4"
+          ],
+          "sentences": [
+            {
+              "id": "c2-s1",
+              "text": "Residents can collect their parcels during library opening hours without waiting for a staffed delivery desk.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-4"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c2-s2",
+              "text": "The town pays for locker maintenance while the library provides space for the trial equipment.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-5"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c2-s3",
+              "text": "Library staff check empty compartments each morning and report broken doors to the maintenance team.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-6"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            }
+          ],
+          "spoken_text": "Residents can collect their parcels during library opening hours without waiting for a staffed delivery desk. The town pays for locker maintenance while the library provides space for the trial equipment. Library staff check empty compartments each morning and report broken doors to the maintenance team."
+        },
+        {
+          "id": "chapter-3",
+          "title": "Resident feedback",
+          "title_evidence_ids": [
+            "E-S1-7"
+          ],
+          "sentences": [
+            {
+              "id": "c3-s1",
+              "text": "The trial report records missed collections and resident feedback but does not estimate wider economic benefits.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-7"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            },
+            {
+              "id": "c3-s2",
+              "text": "The town will review the recorded collection problems before deciding whether to extend the locker trial.",
+              "kind": "claim",
+              "evidence_ids": [
+                "E-S1-8"
+              ],
+              "source_ids": [
+                "source-1"
+              ],
+              "source_numbers": [
+                1
+              ]
+            }
+          ],
+          "spoken_text": "The trial report records missed collections and resident feedback but does not estimate wider economic benefits. The town will review the recorded collection problems before deciding whether to extend the locker trial."
+        },
+        {
+          "id": "evidence-notes",
+          "title": "What we couldn't confirm",
+          "title_evidence_ids": [],
+          "sentences": [
+            {
+              "id": "notice-1",
+              "text": "This episode is shorter than requested because the available evidence is limited.",
+              "kind": "editorial",
+              "evidence_ids": [],
+              "source_ids": [],
+              "source_numbers": []
+            },
+            {
+              "id": "notice-2",
+              "text": "Here is what we couldn't confirm.",
+              "kind": "editorial",
+              "evidence_ids": [],
+              "source_ids": [],
+              "source_numbers": []
+            },
+            {
+              "id": "notice-3",
+              "text": "Will the trial continue beyond the review?",
+              "kind": "editorial",
+              "evidence_ids": [],
+              "source_ids": [],
+              "source_numbers": []
+            }
+          ],
+          "spoken_text": "This episode is shorter than requested because the available evidence is limited. Here is what we couldn't confirm. Will the trial continue beyond the review?"
+        }
+      ],
+      "sources": [
+        {
+          "id": "source-1",
+          "number": 1,
+          "outlet": "Fictional civic desk",
+          "publisher": "Fictional civic desk",
+          "title": "Parcel locker trial",
+          "url": "https://alder.example.test/lockers",
+          "date": null,
+          "published_at": null,
+          "fetched_at": "2026-11-18T00:00:00Z",
+          "evidence_chars": 874,
+          "content_hash": "d3af382ed75851daff6f0797dfafc1910943dcb4df0d4865de85d6a5757d2920",
+          "locators": [
+            {
+              "id": "E-S1-1",
+              "sentence": 1,
+              "start_char": 0,
+              "end_char": 95,
+              "sha256": "f048e6b956d3f804b7d3eb66f87124144638e5d68eff19036c9e62c5dfbee97e"
+            },
+            {
+              "id": "E-S1-2",
+              "sentence": 2,
+              "start_char": 96,
+              "end_char": 183,
+              "sha256": "ebd98a8c8715d85973f9210251092f9e980ec2eaf7be06da9b13609e70ecc0df"
+            },
+            {
+              "id": "E-S1-3",
+              "sentence": 3,
+              "start_char": 184,
+              "end_char": 287,
+              "sha256": "6c91b68c514ee1d8e2741b68fa32577983cff30e4ea4d23911a3020196f4edf3"
+            },
+            {
+              "id": "E-S1-4",
+              "sentence": 4,
+              "start_char": 288,
+              "end_char": 397,
+              "sha256": "602f879e69e1c9d81f1c54744a2cb896fc821899a9a803b9950d7b59e8be23cd"
+            },
+            {
+              "id": "E-S1-5",
+              "sentence": 5,
+              "start_char": 398,
+              "end_char": 492,
+              "sha256": "a0c8fe9644a2f92e1726dd865e8c281ae6483234a9cbe3019bdd5e32d1092941"
+            },
+            {
+              "id": "E-S1-6",
+              "sentence": 6,
+              "start_char": 493,
+              "end_char": 593,
+              "sha256": "33b6dc093de9e26e6041c9222391fff20e10e77694cc5a14f2bb72b053b0580f"
+            },
+            {
+              "id": "E-S1-7",
+              "sentence": 7,
+              "start_char": 594,
+              "end_char": 706,
+              "sha256": "2104ee794a590fb7c498ddf7423a15f0c2f1305c035b6a276524c99689982936"
+            },
+            {
+              "id": "E-S1-8",
+              "sentence": 8,
+              "start_char": 707,
+              "end_char": 812,
+              "sha256": "f6bff17e2014cbe3b9b364de0653db6c9f98fa7422bfbae93e8f3ae0a1f4e7d8"
+            }
+          ],
+          "reuse_terms": "UNKNOWN: transient prototype fetch only",
+          "registry_id": null,
+          "evidence_depth": "transient-full-text",
+          "credibility": {
+            "version": 1,
+            "domain": "alder.example.test",
+            "tier": "unknown",
+            "authority": {
+              "points": 0,
+              "reason": "No reviewed domain entry; no suffix-based authority.",
+              "reviewed_at": null,
+              "risks": []
+            },
+            "originality": {
+              "kind": "unknown",
+              "reason": "Domain or headline alone cannot establish a primary document."
+            },
+            "freshness": {
+              "status": "unknown",
+              "age_days": null,
+              "reason": "Publication date only; age is not a reliability verdict for infrequent releases."
+            },
+            "readability": {
+              "status": "read",
+              "reason": "Evidence extraction depth; successful fetching is not credibility or permission."
+            },
+            "rights": {
+              "status": "unverified",
+              "reason": "UNKNOWN: transient prototype fetch only"
+            },
+            "promotion": "probation",
+            "independence": {
+              "origin": "example.test",
+              "reason": "Unreviewed domain origin; ownership is unverified.",
+              "independent_origins": 1,
+              "corroborated": false,
+              "scope": "same-story coverage; claim agreement not verified"
+            },
+            "ranking_score": 10
+          },
+          "cited": true
+        }
+      ],
+      "source_count": 1,
+      "sources_read": 1,
+      "could_not_confirm": [
+        {
+          "question": "Will the trial continue beyond the review?"
+        }
+      ],
+      "transcript": "Alder Bay runs a parcel locker trial at its public library for residents collecting deliveries. The town assigns each parcel a collection code that residents enter at the locker door. The library staff place parcels into empty lockers and send collection codes to the intended residents.\n\nResidents can collect their parcels during library opening hours without waiting for a staffed delivery desk. The town pays for locker maintenance while the library provides space for the trial equipment. Library staff check empty compartments each morning and report broken doors to the maintenance team.\n\nThe trial report records missed collections and resident feedback but does not estimate wider economic benefits. The town will review the recorded collection problems before deciding whether to extend the locker trial.\n\nThis episode is shorter than requested because the available evidence is limited. Here is what we couldn't confirm. Will the trial continue beyond the review?",
+      "word_count": 149,
+      "revision_id": "episode-a8327cdae1d96c6c",
+      "script_hash": "a8327cdae1d96c6c1f42f8d7cff95224fe9a1d793b7046b156ecac451ebd7367",
+      "audio": {
+        "status": "not_recorded",
+        "script_hash": "a8327cdae1d96c6c1f42f8d7cff95224fe9a1d793b7046b156ecac451ebd7367",
+        "revision_id": "episode-a8327cdae1d96c6c"
+      },
+      "evidence_pack": {
+        "version": 1,
+        "id": "be769eaf2d220748d55f826be913db5989c461b94aa684eaa83f1e7072186114",
+        "sentence_count": 9,
+        "retained_text": false
+      },
+      "verification": {
+        "passed": true,
+        "checks": [
+          {
+            "number": 1,
+            "name": "Claim coverage",
+            "status": "PASS",
+            "critical": true,
+            "detail": "8 linked claim sentence(s) across 1 story/stories"
+          },
+          {
+            "number": 2,
+            "name": "Citation validity",
+            "status": "PASS",
+            "critical": true,
+            "detail": "Every sentence ID resolves to extracted evidence and a numbered source."
+          },
+          {
+            "number": 3,
+            "name": "Sentence support",
+            "status": "PASS",
+            "critical": true,
+            "detail": "8/8 claim(s) passed the source-sentence check."
+          },
+          {
+            "number": 4,
+            "name": "Numbers, dates, names",
+            "status": "PASS",
+            "critical": true,
+            "detail": "Numbers and likely names resolve in cited passages."
+          },
+          {
+            "number": 5,
+            "name": "Quote hygiene",
+            "status": "PASS",
+            "critical": true,
+            "detail": "0 quote(s); maximum 15 words, exact source match and named attribution required."
+          },
+          {
+            "number": 8,
+            "name": "Story deduplication",
+            "status": "PASS",
+            "critical": true,
+            "detail": "No cluster appears more than once."
+          },
+          {
+            "number": 9,
+            "name": "Tone and advice",
+            "status": "PASS",
+            "critical": false,
+            "detail": "No configured clickbait phrases or personal buy/sell/health directives found."
+          },
+          {
+            "number": 13,
+            "name": "Uncited background separation",
+            "status": "PASS",
+            "critical": true,
+            "detail": "Any general-knowledge background is a separate labelled context block with no names, dates, or numerals."
+          }
+        ],
+        "semantic_support": true,
+        "complete_script_checked": true,
+        "attempts": 1,
+        "uncertainty_relevant": true,
+        "pruned_and_rechecked": false,
+        "pruning_checks": 0,
+        "scope": "Episode claim checks reuse edition scorecard 1–5, 8, 9, 13. Historical freshness, reuse rights and audio are not certified.",
+        "script_checks": {
+          "passed": true,
+          "score": 6,
+          "out_of": 6,
+          "checks": [
+            {
+              "name": "sentence_length",
+              "passed": true,
+              "detail": "0 below 4; 0 above 32 words"
+            },
+            {
+              "name": "spoken_numbers",
+              "passed": true
+            },
+            {
+              "name": "no_urls",
+              "passed": true
+            },
+            {
+              "name": "no_banned_filler",
+              "passed": true
+            },
+            {
+              "name": "read_takeaway_is_fresh",
+              "passed": true
+            },
+            {
+              "name": "requested_duration",
+              "passed": true
+            }
+          ],
+          "errors": [],
+          "warnings": [
+            "shorter_than_requested; preserve the evidence-supported script without padding"
+          ],
+          "word_count": 149,
+          "estimated_minutes": 1.06,
+          "requested_minutes": 15.0,
+          "words_per_minute": 140,
+          "chapters": [
+            {
+              "chapter": 1,
+              "title": "Parcel locker trial",
+              "word_count": 46,
+              "estimated_minutes": 0.33
+            },
+            {
+              "chapter": 2,
+              "title": "Library opening hours",
+              "word_count": 46,
+              "estimated_minutes": 0.33
+            },
+            {
+              "chapter": 3,
+              "title": "Resident feedback",
+              "word_count": 32,
+              "estimated_minutes": 0.23
+            },
+            {
+              "chapter": 4,
+              "title": "What we couldn't confirm",
+              "word_count": 25,
+              "estimated_minutes": 0.18
+            }
+          ]
+        }
+      },
+      "timing": {},
+      "timing_basis": "total_seconds is wall clock; parallel model stage seconds sum request durations",
+      "research_plan": [
+        {
+          "question": "How does the fictional parcel locker trial work?",
+          "target_words": 700,
+          "sources_read": 1
+        },
+        {
+          "question": "When can residents use the fictional parcel lockers?",
+          "target_words": 700,
+          "sources_read": 1
+        },
+        {
+          "question": "How is the fictional parcel locker trial reviewed?",
+          "target_words": 700,
+          "sources_read": 1
+        }
+      ],
+      "retrieval": {
+        "queries": 0,
+        "attempts": [
+          {
+            "round": 1,
+            "question": 1
+          },
+          {
+            "round": 1,
+            "question": 2
+          },
+          {
+            "round": 1,
+            "question": 3
+          },
+          {
+            "round": 2,
+            "question": 1
+          },
+          {
+            "round": 2,
+            "question": 2
+          },
+          {
+            "round": 2,
+            "question": 3
+          },
+          {
+            "round": 3,
+            "question": 1
+          },
+          {
+            "round": 3,
+            "question": 2
+          },
+          {
+            "round": 3,
+            "question": 3
+          }
+        ],
+        "read_attempts": 1
+      },
+      "cost_estimate": {
+        "usd": 3e-05,
+        "model": "fictional-model",
+        "model_calls": 5,
+        "input_tokens": 10,
+        "output_tokens": 10,
+        "basis": "Text tokens priced from usage.py price list; search and audio costs are in the job ledger record."
+      },
+      "fixture": true
+    }
+  ]
+}

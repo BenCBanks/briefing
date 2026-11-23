@@ -1,0 +1,133 @@
+{
+  "fixture_only": true,
+  "note": "Fictional, concise three-story daily with dated evidence and distinct cited Read takeaways.",
+  "edition": {
+    "id": "fictional-concise-three-story-daily",
+    "local_date": "2026-11-21",
+    "sections": [
+      {
+        "id": "transit-weekend-timetable",
+        "cluster_id": "transit-weekend-timetable",
+        "heading": "Fictional Metro Authority updates weekend timetable",
+        "topic_ids": ["city-transit"],
+        "source_ids": ["source-transit"],
+        "body": "Fictional Metro Authority published a new weekend timetable on November 20, with service changes beginning December 6. [1]",
+        "read_takeaway": "The accessible station map is due Friday, November 27. [1]",
+        "claim_links": [
+          {
+            "text": "Fictional Metro Authority published a revised weekend timetable on November 20, 2026; changes begin December 6.",
+            "section": "what_happened",
+            "source_sentence_ids": ["transit-1"],
+            "citation_numbers": [1],
+            "verified": true
+          }
+        ]
+      },
+      {
+        "id": "settlement-window",
+        "cluster_id": "settlement-window",
+        "heading": "Fictional Settlement Network shifts small-business payout window",
+        "topic_ids": ["payments-operations"],
+        "source_ids": ["source-settlement"],
+        "body": "Fictional Settlement Network will move small-business payouts from 3 a.m. to 7 a.m. starting January 4. [1]",
+        "read_takeaway": "Accounts using international correspondent banks remain outside the pilot. [1]",
+        "claim_links": [
+          {
+            "text": "Fictional Settlement Network announced a new small-business payout window on November 19, effective January 4.",
+            "section": "what_happened",
+            "source_sentence_ids": ["settlement-1"],
+            "citation_numbers": [1],
+            "verified": true
+          }
+        ]
+      },
+      {
+        "id": "home-permit-review",
+        "cluster_id": "home-permit-review",
+        "heading": "Fictional County shortens standard home-permit review target",
+        "topic_ids": ["building-permits"],
+        "source_ids": ["source-permits"],
+        "body": "Fictional County shortened standard home-permit reviews from 21 to 14 business days starting December 1. [1]",
+        "read_takeaway": "Commercial permits remain on their current 30-business-day target. [1]",
+        "claim_links": [
+          {
+            "text": "Fictional County announced on November 18 that standard home-permit reviews will take 14 rather than 21 business days from December 1.",
+            "section": "what_happened",
+            "source_sentence_ids": ["permits-1"],
+            "citation_numbers": [1],
+            "verified": true
+          }
+        ]
+      }
+    ],
+    "daily_briefing": {
+      "version": 1,
+      "target_minutes": 5,
+      "target_spoken_words": 675,
+      "maximum_spoken_words": 825,
+      "narrator_words_per_minute": 150,
+      "greeting": "Good morning. Here is your daily briefing.",
+      "briefing_script": [
+        {"kind": "greeting", "text": "Good morning. Here is your daily briefing.", "source_sentence_ids": [], "citation_numbers": []},
+        {"kind": "story_intro", "text": "First up.", "section_id": "transit-weekend-timetable", "source_sentence_ids": [], "citation_numbers": []},
+        {"kind": "story_intro", "text": "Next.", "section_id": "settlement-window", "source_sentence_ids": [], "citation_numbers": []},
+        {"kind": "story_intro", "text": "Finally.", "section_id": "home-permit-review", "source_sentence_ids": [], "citation_numbers": []},
+        {"kind": "closing", "text": "That's today's briefing.", "source_sentence_ids": [], "citation_numbers": []}
+      ],
+      "background_segments": []
+    }
+  },
+  "profile": {
+    "topics": [
+      {"id": "city-transit", "label": "City transit"},
+      {"id": "payments-operations", "label": "Payments operations"},
+      {"id": "building-permits", "label": "Building permits"}
+    ]
+  },
+  "sources": [
+    {"id": "source-transit", "publisher": "Fictional Transit Desk", "title": "Synthetic weekend service notice"},
+    {"id": "source-settlement", "publisher": "Fictional Payments Desk", "title": "Synthetic settlement schedule notice"},
+    {"id": "source-permits", "publisher": "Fictional County Desk", "title": "Synthetic residential permit schedule"}
+  ],
+  "runtime_evidence": {
+    "transit-1": {
+      "text": "Fictional Metro Authority published a revised weekend timetable on Friday, November 20, 2026. Service changes begin December 6. The authority will post an accessible station map on November 27.",
+      "source_number": 1
+    },
+    "settlement-1": {
+      "text": "Fictional Settlement Network announced on Thursday, November 19, 2026, that small-business payouts will move from 3 a.m. to 7 a.m. starting January 4. Accounts using international correspondent banks are outside the pilot.",
+      "source_number": 1
+    },
+    "permits-1": {
+      "text": "Fictional County announced on Wednesday, November 18, 2026, that standard home-permit reviews will fall from 21 to 14 business days beginning December 1. Commercial permits keep the current 30-business-day target.",
+      "source_number": 1
+    }
+  },
+  "writer_response": {
+    "stories": [
+      {
+        "section_id": "transit-weekend-timetable",
+        "sentences": [
+          {"text": "Riders have a new weekend timetable to plan around.", "evidence_ids": ["transit-1"], "general_context": false},
+          {"text": "Fictional Metro Authority published it Friday, November twentieth, with changes starting December sixth.", "evidence_ids": ["transit-1"], "general_context": false}
+        ]
+      },
+      {
+        "section_id": "settlement-window",
+        "sentences": [
+          {"text": "Small-business payouts are moving to a later window.", "evidence_ids": ["settlement-1"], "general_context": false},
+          {"text": "Fictional Settlement Network announced it Thursday, November nineteenth: payouts move from three in the morning to seven on January fourth.", "evidence_ids": ["settlement-1"], "general_context": false},
+          {"text": "If an account uses an international correspondent bank, that account is outside the pilot.", "evidence_ids": ["settlement-1"], "general_context": false}
+        ]
+      },
+      {
+        "section_id": "home-permit-review",
+        "sentences": [
+          {"text": "For standard home permits, the review target falls from twenty-one to fourteen business days on December first.", "evidence_ids": ["permits-1"], "general_context": false},
+          {"text": "Fictional County announced that change Wednesday, November eighteenth.", "evidence_ids": ["permits-1"], "general_context": false},
+          {"text": "Commercial permits keep their current thirty-business-day target.", "evidence_ids": ["permits-1"], "general_context": false}
+        ]
+      }
+    ]
+  }
+}

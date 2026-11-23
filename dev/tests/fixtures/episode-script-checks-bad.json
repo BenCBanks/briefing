@@ -1,0 +1,16 @@
+{
+  "id": "fictional-script-bad",
+  "requested_minutes": 1,
+  "title": "Alder Bay parcel lockers",
+  "chapters": [
+    {
+      "title": "A local delivery trial",
+      "sentences": [
+        {"text": "Alder Bay is testing parcel lockers at its public library.", "kind": "claim"},
+        {"text": "The report says 25 percent of residents used https://alder.example.test/lockers during the trial, and this move brings a major change to the town while officials prepare detailed weekly notices for every resident and explain the next steps at several public meetings.", "kind": "claim"},
+        {"text": "This move brings a significant benefit to every family in the area.", "kind": "claim"}
+      ]
+    }
+  ],
+  "read_takeaway": "Alder Bay is testing parcel lockers at its public library."
+}

@@ -1,0 +1,21 @@
+{
+  "id": "1234567890abcdef1234567890abcdef",
+  "revision_id": "fictional-r1",
+  "profile_id": "0123456789abcdef01234567",
+  "title": "A fictional town tests a library delivery hub",
+  "chapters": [
+    {
+      "id": "what-changed",
+      "title": "What changed",
+      "spoken_text": "Alder Bay will test a shared delivery locker beside its fictional library this spring. The town says residents can collect packages during one trip downtown."
+    },
+    {
+      "id": "what-to-watch",
+      "title": "What to watch",
+      "spoken_text": "The trial is scheduled to run through May. A fictional council review will weigh missed deliveries, operating costs, and resident feedback."
+    }
+  ],
+  "sources": [
+    {"id": "fictional-1", "outlet": "Alder Bay Civic Desk", "url": "https://alder-bay.example.test/library-locker"}
+  ]
+}

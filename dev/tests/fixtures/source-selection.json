@@ -1,0 +1,17 @@
+{
+  "topic": {"id": "payments", "label": "payments and banking", "scope": "payments, banks, regulators"},
+  "registry": [
+    {"id": "payments-dive", "name": "Payments Dive", "tier": "trade", "topics": ["payments"], "publisher_group": "payments-dive"},
+    {"id": "reuters", "name": "Reuters", "tier": "major", "topics": ["payments", "banking"], "publisher_group": "reuters"},
+    {"id": "seo-site", "name": "Consumer Finance SEO", "tier": "blog", "topics": ["payments"], "publisher_group": "seo-site"}
+  ],
+  "items": [
+    {"source_id": "seo-site", "url": "https://www.nerdwallet.com/article/credit-cards/concora-card", "title": "5 Things to Know About the Concora Credit Mastercard", "published": "2026-11-18T10:00:00Z", "rank": 0},
+    {"source_id": "seo-site", "url": "https://www.bankrate.com/credit-cards/reviews/sample/", "title": "Review: How to get the best card deal", "published": "2026-11-18T10:00:00Z", "rank": 1},
+    {"source_id": "seo-site", "url": "https://www.bankrate.com/credit-cards/best-cards/", "title": "Best travel credit cards for a welcome bonus", "published": "2026-11-18T10:00:00Z", "rank": 2},
+    {"source_id": "payments-dive", "url": "https://paymentsdive.com/news/fednow-fraud-rules", "title": "Federal Reserve expands FedNow fraud prevention rules for banks", "published": "2026-11-18T10:00:00Z", "rank": 3},
+    {"source_id": "reuters", "url": "https://reuters.com/business/finance/payment-network-fees", "title": "Payment network changes merchant settlement rules", "published": "2026-11-18T10:00:00Z", "rank": 4},
+    {"source_id": "payments-dive", "url": "https://paymentsdive.com/news/second-payments-policy", "title": "CFPB opens review of payment account disclosures", "published": "2026-11-18T10:00:00Z", "rank": 5},
+    {"source_id": "payments-dive", "url": "https://paymentsdive.com/news/third-payments-policy", "title": "Banks report higher settlement volumes in October", "published": "2026-11-18T10:00:00Z", "rank": 6}
+  ]
+}

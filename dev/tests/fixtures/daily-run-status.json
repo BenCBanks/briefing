@@ -1,0 +1,35 @@
+{
+  "ok": true,
+  "last_run_at": "2026-11-15T10:00:00Z",
+  "items_fetched": 28,
+  "stories_written": 5,
+  "feeds_disabled": [],
+  "reason": null,
+  "daily_run": {
+    "version": 1,
+    "local_date": "2026-11-15",
+    "status": "complete",
+    "stories": 5,
+    "thin_day": false,
+    "daily_briefing": {
+      "target_minutes": 5,
+      "spoken_words": 720,
+      "duration_seconds": 288,
+      "supply_ladder": [
+        {"rung": "feed", "status": "available", "topics": ["payments", "energy"]},
+        {"rung": "open_web", "status": "available", "topics": ["energy"]},
+        {"rung": "followups", "status": "not_needed", "topics": []},
+        {"rung": "background", "status": "available", "topics": ["payments"]}
+      ]
+    },
+    "daily_narration": {"status": "written", "reason": null},
+    "daily_audio": {
+      "audio_status": "ready",
+      "ready_at": "2026-11-15T10:00:00Z",
+      "duration_seconds": 288,
+      "file_size_bytes": 144000,
+      "resumed": false
+    },
+    "failure_reason": null
+  }
+}

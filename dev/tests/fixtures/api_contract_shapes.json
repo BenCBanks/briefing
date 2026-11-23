@@ -1,0 +1,213 @@
+{
+  "required_paths": {
+    "/api/edition?profile=active&history=1": [
+      "generated",
+      "edition.id",
+      "edition.kind",
+      "edition.revision_id",
+      "edition.local_date",
+      "edition.title",
+      "edition.sections[].id",
+      "edition.sections[].heading",
+      "edition.sections[].body",
+      "edition.sections[].topic_id",
+      "edition.sections[].source_ids[]",
+      "edition.sections[].audio_script.paragraphs[].text",
+      "sources[].id",
+      "sources[].outlet",
+      "sources[].url",
+      "history[].edition.id",
+      "history[].edition.sections[].heading",
+      "history[].sources[].id"
+    ],
+    "/api/episodes": [
+      "jobs[].job_id",
+      "jobs[].status",
+      "jobs[].stage",
+      "jobs[].topic",
+      "jobs[].length",
+      "jobs[].quality_metrics.requested_minutes",
+      "jobs[].quality_metrics.spoken_minutes",
+      "daily_limit",
+      "used_today",
+      "left_today",
+      "length_options[].minutes",
+      "length_options[].target_words",
+      "words_per_minute"
+    ],
+    "/api/episodes/aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa": [
+      "job_id",
+      "status",
+      "stage",
+      "topic",
+      "length",
+      "audio_status",
+      "audio_state",
+      "episode.id",
+      "episode.title",
+      "episode.chapters[].id",
+      "episode.chapters[].title",
+      "episode.chapters[].spoken_text",
+      "episode.chapters[].sentences[].text",
+      "episode.chapters[].sentences[].source_numbers[]",
+      "episode.sources[].id",
+      "episode.sources[].outlet",
+      "episode.quality_metrics.requested_minutes",
+      "episode.quality_metrics.chapters_answered"
+    ],
+    "/api/voice": ["letter"],
+    "/api/corrections": [
+      "corrections[].date",
+      "corrections[].target_type",
+      "corrections[].target_id",
+      "corrections[].what_changed",
+      "corrections[].revision_id",
+      "corrections[].corrected_at",
+      "corrections[].audio_status"
+    ],
+    "/api/status": [
+      "last_run_at",
+      "ok",
+      "daily_monitor.status",
+      "daily_monitor.last_good_edition_date",
+      "daily_monitor.overdue",
+      "items_fetched",
+      "stories_written",
+      "feeds_disabled[]",
+      "feed_health_counts.enabled",
+      "feed_health_counts.backing_off",
+      "feed_health_counts.disabled_permanent",
+      "feed_health_event",
+      "feed_health_attempted",
+      "feed_health_failed",
+      "reason",
+      "daily_run.local_date",
+      "daily_run.daily_narration.status",
+      "daily_run.daily_briefing.duration_seconds",
+      "daily_run.daily_briefing.supply_ladder[].rung",
+      "daily_run.daily_briefing.supply_ladder[].status",
+      "daily_run.daily_audio.audio_status",
+      "daily_run.daily_audio.ready_at"
+    ],
+    "/api/profile": [
+      "profile.minutes",
+      "profile.topics[].id",
+      "profile.topics[].label"
+    ]
+  },
+  "responses": {
+    "edition": {
+      "generated": true,
+      "edition": {
+        "id": "fixture-edition-current",
+        "kind": "daily",
+        "revision_id": "fixture-edition-r2",
+        "local_date": "2026-11-18",
+        "title": "Fictional Daily Briefing",
+        "sections": [{
+          "id": "fixture-story-one",
+          "heading": "Fictional transit update",
+          "body": "A fictional town updated its transit schedule.",
+          "topic_id": "fictional-town",
+          "source_ids": ["fixture-source-one"],
+          "audio_script": {"paragraphs": [{"text": "A fictional town updated its transit schedule."}]}
+        }]
+      },
+      "sources": [{"id": "fixture-source-one", "outlet": "Fictional Desk", "url": "https://example.invalid/source-one"}],
+      "history": [{
+        "edition": {
+          "id": "fixture-edition-prior",
+          "kind": "daily",
+          "revision_id": "fixture-edition-r1",
+          "local_date": "2026-11-17",
+          "title": "Earlier fictional briefing",
+          "sections": [{
+            "id": "fixture-story-prior",
+            "heading": "Earlier fictional transit update",
+            "body": "A fictional town reviewed a transit proposal.",
+            "topic_id": "fictional-town",
+            "source_ids": ["fixture-source-one"]
+          }]
+        },
+        "sources": [{"id": "fixture-source-one", "outlet": "Fictional Desk", "url": "https://example.invalid/source-one"}]
+      }]
+    },
+    "episodes": {
+      "jobs": [{
+        "job_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "status": "done",
+        "stage": "done",
+        "topic": "Fictional transit planning",
+        "length": 5,
+        "quality_metrics": {"requested_minutes": 5, "spoken_minutes": 4.8}
+      }],
+      "daily_limit": 3,
+      "used_today": 1,
+      "left_today": 2,
+      "length_options": [{"minutes": 5, "target_words": 700}],
+      "words_per_minute": 140
+    },
+    "episode": {
+      "job_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "status": "done",
+      "stage": "done",
+      "topic": "Fictional transit planning",
+      "length": 5,
+      "audio_status": "pending",
+      "episode": {
+        "id": "fixture-episode-one",
+        "title": "Fictional transit planning",
+        "chapters": [{
+          "id": "fixture-chapter-one",
+          "title": "Schedule changes",
+          "spoken_text": "A fictional town updated its transit schedule.",
+          "sentences": [{"text": "A fictional town updated its transit schedule.", "source_numbers": [1]}]
+        }],
+        "sources": [{"id": "fixture-source-one", "outlet": "Fictional Desk", "url": "https://example.invalid/source-one"}],
+        "quality_metrics": {"requested_minutes": 5, "chapters_answered": 1}
+      }
+    },
+    "corrections": [{
+      "date": "2026-11-18",
+      "target_type": "episode",
+      "target_id": "fixture-episode-one",
+      "what_changed": "The fictional schedule date was clarified.",
+      "revision_id": "fixture-episode-r2",
+      "corrected_at": "2026-11-18T12:00:00Z",
+      "audio_status": "regenerating",
+      "internal_id": "must-not-be-returned",
+      "new_text": "private revision text is not part of the list contract"
+    }],
+    "status": {
+      "last_run_at": "2026-11-18T10:00:00Z",
+      "ok": true,
+      "daily_monitor": {
+        "status": "stale",
+        "last_good_edition_date": "2026-11-15",
+        "started_at": null,
+        "overdue": true
+      },
+      "items_fetched": 12,
+      "stories_written": 4,
+      "feeds_disabled": [],
+      "feed_health_counts": {"enabled": 20, "backing_off": 1, "disabled_permanent": 0},
+      "feed_health_event": null,
+      "feed_health_attempted": 3,
+      "feed_health_failed": 0,
+      "reason": null,
+      "daily_run": {
+        "local_date": "2026-11-15",
+        "daily_narration": {"status": "written", "reason": null},
+        "daily_briefing": {
+          "duration_seconds": 288,
+          "supply_ladder": [{"rung": "feed", "status": "available"}]
+        },
+        "daily_audio": {"audio_status": "ready", "ready_at": "2026-11-15T10:00:00Z"}
+      }
+    },
+    "profile": {
+      "minutes": 5,
+      "topics": [{"id": "fictional-town", "label": "Fictional town"}]
+    }
+  }
+}

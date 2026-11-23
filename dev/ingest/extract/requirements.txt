@@ -1,0 +1,2 @@
+# Optional PDF text-layer backend; HTML extraction uses the standard library.
+pypdf==6.21.1

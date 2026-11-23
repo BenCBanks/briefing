@@ -1,0 +1,5 @@
+{
+  "schema_version": 1,
+  "days": {"2026-11-18": {"estimated_cost_usd": "0.12000000"}},
+  "months": {"2026-11": {"estimated_cost_usd": "1.20000000"}}
+}

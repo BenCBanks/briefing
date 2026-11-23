@@ -1,0 +1,12 @@
+{
+  "commit": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "summary": {
+    "passed": true,
+    "passed_count": 116,
+    "total": 116
+  },
+  "phases": [
+    {"name": "unit and browser suites", "status": "PASS"},
+    {"name": "two real-build acceptances", "status": "PASS"}
+  ]
+}

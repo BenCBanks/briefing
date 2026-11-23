@@ -1,0 +1,13 @@
+{
+  "fictional-charlotte-tv": {
+    "disabled": true,
+    "disabled_until": "2026-11-20T12:00:00Z",
+    "retry_policy": "transient"
+  },
+  "fictional-upstate-tv": {
+    "disabled": true,
+    "disabled_until": "2026-11-25T12:00:00Z",
+    "retry_policy": "weekly",
+    "reason": "http_403"
+  }
+}

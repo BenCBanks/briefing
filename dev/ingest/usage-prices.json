@@ -1,0 +1,44 @@
+{
+  "currency": "USD",
+  "caps": {
+    "daily_usd": "3.00",
+    "monthly_usd": "40.00",
+    "daily_run_reserve_usd": "0.40"
+  },
+  "price_list_status": "verified 18 Nov 2026 from aistudio.google.com/docs/pricing",
+  "grounded_search_price_status": "unverified; Faro's reported allowance and overage were not confirmed against the current pricing page",
+  "prices": {
+    "gemini_text_by_model": {
+      "gemini-3.6-flash": {"input_usd_per_million_tokens": "0.75", "output_usd_per_million_tokens": "3.75"},
+      "gemini-3.8-flash": {"input_usd_per_million_tokens": "0.75", "output_usd_per_million_tokens": "3.75"},
+      "gemini-3-flash": {"input_usd_per_million_tokens": "0.50", "output_usd_per_million_tokens": "3.00"},
+      "gemini-3.1-flash-lite": {"input_usd_per_million_tokens": "0.25", "output_usd_per_million_tokens": "1.50"}
+    },
+    "gemini_text_fallback": {
+      "input_usd_per_million_tokens": "0.50",
+      "output_usd_per_million_tokens": "3.00"
+    },
+    "characters_per_token": 4,
+    "gemini_tts_lite": {
+      "text_usd_per_million_tokens": "0.50",
+      "audio_usd_per_million_tokens": "6.00",
+      "valid_through": "2026-12-31"
+    },
+    "search_usd_per_query": {
+      "gemini": "0",
+      "perplexity": "0.005",
+      "gdelt": "0",
+      "feeds": "0"
+    },
+    "gemini_grounded_search": {
+      "free_allowance": 1500,
+      "overage_usd_per_query": "0.014"
+    },
+    "fetch_usd_each": "0",
+    "tts": {
+      "usd_per_million_characters": "0.125",
+      "usd_per_minute": "0.009",
+      "estimated_characters_per_second": 12
+    }
+  }
+}

@@ -1,0 +1,59 @@
+{
+  "requested_minutes": 5,
+  "research_plan": [
+    {"question": "How do residents collect parcels from Alder Bay library lockers?"},
+    {"question": "What does the town review before deciding whether the locker service continues?"}
+  ],
+  "chapters": [
+    {
+      "title": "How Alder Bay residents collect library parcels",
+      "evidence_id": "e1",
+      "sentences": [
+        "Alder Bay residents collect library parcels from coded lockers beside the front desk while the library is open to visitors.",
+        "Library workers place incoming deliveries in secure compartments, then send each recipient a private collection code.",
+        "Residents enter the code at the assigned locker and retrieve the parcel without waiting at a staffed delivery desk.",
+        "The public library provides a collection point for people who cannot receive packages at home during the day.",
+        "A pickup notice tells each resident when a parcel is ready and which library entrance serves the locker area.",
+        "Staff keep the collection instructions near the front desk so visitors can find the service during ordinary library hours.",
+        "People arriving for a parcel can ask library staff about an access code or the location of their assigned compartment.",
+        "The locker arrangement gives residents another way to receive deliveries when a staffed counter is not convenient.",
+        "A parcel remains inside its compartment until the recipient arrives and enters the code provided by library workers.",
+        "Residents can collect packages during an existing library visit instead of arranging a separate meeting with a driver.",
+        "The service uses the library entrance as a familiar place for residents to complete a delivery pickup.",
+        "Each access message connects a parcel recipient with the locker holding that delivery at the public library.",
+        "Staff prepare compartments before notifying residents, which helps visitors know when a parcel can be collected.",
+        "The service record describes how people use the library lockers to collect deliveries from the town's public space.",
+        "Residents who miss a pickup can contact the desk and check the notice before making another trip to the library.",
+        "The library setting means collection happens alongside other public services rather than at a separate delivery depot.",
+        "A private code lets the intended recipient open a compartment without asking staff to hand over the parcel.",
+        "The documented process begins with delivery placement and ends when a resident retrieves the package from its locker.",
+        "Residents can ask the library desk for help when a pickup code does not open the assigned compartment.",
+        "Staff explain where parcels are placed and point visitors toward the locker entrance during public service hours."
+      ]
+    },
+    {
+      "title": "What the town reviews about the locker service",
+      "evidence_id": "e2",
+      "sentences": [
+        "Town coordinators compare missed collections with resident comments before discussing how the library service is working.",
+        "The trial report records access questions and maintenance concerns raised by residents and library staff.",
+        "Officials review service notes alongside pickup patterns when preparing a summary for the town's planning discussion.",
+        "Library workers report broken doors so the maintenance team can understand which equipment needs attention.",
+        "Resident feedback helps coordinators describe practical collection problems without claiming that every visitor has the same experience.",
+        "The review memo summarizes delivery patterns and unresolved access questions for people overseeing the locker trial.",
+        "Town staff discuss missed pickups with library workers to distinguish service issues from ordinary delivery delays.",
+        "The available report tracks locker operations but does not calculate wider economic benefits for the community.",
+        "Officials consider maintenance notes when deciding whether the library location remains useful for parcel collection.",
+        "The town's service review brings together resident feedback, equipment reports, and records of completed pickups.",
+        "Planning discussions use the written findings to identify questions that need more attention from library staff.",
+        "The evidence describes trial operations but leaves broader effects on local delivery costs unmeasured.",
+        "Coordinators share the summary with the town council so members can consider the recorded service experience.",
+        "The review distinguishes documented collection concerns from claims about benefits that the report does not measure.",
+        "Maintenance staff can compare reported door problems with the library's compartment checks during the service period.",
+        "Officials use resident comments to understand where collection instructions may need clearer wording or placement.",
+        "The trial records support a discussion about service access while leaving future operating choices unresolved.",
+        "Town coordinators can describe what the notes show without treating the limited record as a complete evaluation."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,20 @@
+{
+  "editions": {
+    "editions": [
+      {
+        "id": "fixture-edition-morning",
+        "kind": "daily",
+        "local_date": "2026-11-18",
+        "generated_at": "2026-11-18T06:00:00-05:00",
+        "daily_briefing": {"spoken_words": 750, "duration_seconds": 300},
+        "audio": {"audio_status": "recorded"},
+        "sections": [
+          {"id": "story-1", "kind": "story", "cluster_id": "cluster-1"},
+          {"id": "story-2", "kind": "story", "cluster_id": "cluster-2"},
+          {"id": "story-3", "kind": "story", "cluster_id": "cluster-3"},
+          {"id": "story-4", "kind": "story", "cluster_id": "cluster-4"}
+        ]
+      }
+    ]
+  }
+}

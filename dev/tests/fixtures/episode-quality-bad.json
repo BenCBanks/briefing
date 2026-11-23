@@ -1,0 +1,24 @@
+{
+  "episode": {
+    "could_not_confirm": ["Will the town continue the trial next year?"],
+    "chapters": [
+      {"title": "General update", "sentences": [
+        {"text": "Today, this episode covers the general update from Alder Bay.", "kind": "claim", "evidence_ids": ["e1"]},
+        {"text": "The trial proves the town will always keep every locker open for residents throughout the coming year, while staff record feedback, missed collections, parcel totals, and service questions for a later review.", "kind": "claim", "evidence_ids": ["e1"]},
+        {"text": "First, staff record feedback, second, they check missed collections, third, they compare parcel counts, and finally, they report all results.", "kind": "claim", "evidence_ids": ["e1"]}
+      ]},
+      {"title": "General update", "sentences": [
+        {"text": "The trial proves the town will always keep every locker open for residents throughout the coming year, while staff record feedback, missed collections, parcel totals, and service questions for a later review.", "kind": "claim", "evidence_ids": ["e2"]},
+        {"text": "The library recorded five missed collections during the trial.", "kind": "claim", "evidence_ids": ["e2"]}
+      ]}
+    ]
+  },
+  "research_plan": [
+    {"question": "How do residents collect parcels from Alder Bay library lockers?"},
+    {"question": "What does the town measure before continuing the locker trial?"}
+  ],
+  "evidence": {
+    "e1": {"text": "Staff record feedback and missed collections during the trial."},
+    "e2": {"text": "The town reviews the service after collecting resident feedback."}
+  }
+}

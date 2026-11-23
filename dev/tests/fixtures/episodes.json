@@ -1,0 +1,210 @@
+{
+  "version": 1,
+  "episodes": [
+    {
+      "id": "episode-payment-rules",
+      "topic_label": "Payments",
+      "title": "How a fictional city checks instant payments",
+      "asked": "What rules are changing for instant payments, and how might local banks respond?",
+      "hook": "A fictional city is testing a faster payment network, with new checks before a transfer is marked complete.",
+      "duration_minutes": 10,
+      "made_date": "17 Nov",
+      "audio_recorded": true,
+      "updated": {
+        "date": "18 Nov",
+        "note": "Clarified that the pilot is limited to the fictional city."
+      },
+      "chapters": [
+        {
+          "id": "why-change",
+          "title": "Why the city is changing its rules",
+          "sentences": [
+            {
+              "text": "The fictional city plans to connect several local banks to a shared instant payment network.",
+              "source_ids": [
+                "pay-1"
+              ]
+            },
+            {
+              "text": "The draft rule asks each bank to confirm receipt before describing a transfer as complete.",
+              "source_ids": [
+                "pay-2"
+              ]
+            }
+          ],
+          "start_seconds": 0,
+          "end_seconds": 1
+        },
+        {
+          "id": "bank-response",
+          "title": "How banks are responding",
+          "sentences": [
+            {
+              "text": "Two fictional lenders say they will begin with small business payments and extend the service later.",
+              "source_ids": [
+                "pay-3",
+                "pay-4"
+              ]
+            },
+            {
+              "text": "A public consultation remains open until the end of the month.",
+              "source_ids": [
+                "pay-5"
+              ]
+            }
+          ],
+          "start_seconds": 1,
+          "end_seconds": 2
+        },
+        {
+          "id": "what-changes",
+          "title": "What could change for customers",
+          "sentences": [
+            {
+              "text": "The pilot would add a receipt step for participating transfers while leaving other payment methods unchanged.",
+              "source_ids": [
+                "pay-2"
+              ]
+            }
+          ],
+          "start_seconds": 2,
+          "end_seconds": 3
+        },
+        {
+          "id": "next-steps",
+          "title": "What happens next",
+          "sentences": [
+            {
+              "text": "The fictional council says it will publish a response after reviewing the consultation comments.",
+              "source_ids": [
+                "pay-6"
+              ]
+            }
+          ],
+          "start_seconds": 3,
+          "end_seconds": 4
+        }
+      ],
+      "sources": [
+        {
+          "id": "pay-1",
+          "outlet": "Fictional City Journal",
+          "date": "17 Nov 2026",
+          "url": "https://journal.example.test/instant-network"
+        },
+        {
+          "id": "pay-2",
+          "outlet": "Fictional Payments Office",
+          "date": "16 Nov 2026",
+          "url": "https://payments.example.test/draft-rule"
+        },
+        {
+          "id": "pay-3",
+          "outlet": "Fictional Business Ledger",
+          "date": "15 Nov 2026",
+          "url": "https://ledger.example.test/bank-pilot"
+        },
+        {
+          "id": "pay-4",
+          "outlet": "Fictional Cooperative Bank",
+          "date": "14 Nov 2026",
+          "url": "https://cooperative.example.test/pilot-notice"
+        },
+        {
+          "id": "pay-5",
+          "outlet": "Fictional Council Records",
+          "date": "13 Nov 2026",
+          "url": "https://council.example.test/consultation"
+        },
+        {
+          "id": "pay-6",
+          "outlet": "Fictional City Council",
+          "date": "12 Nov 2026",
+          "url": "https://city.example.test/next-steps"
+        }
+      ],
+      "could_not_confirm": [
+        "The final launch date has not been set.",
+        "The consultation record does not yet say whether every local bank will join."
+      ],
+      "kind": "episode",
+      "audio": {
+        "url": "/dev/tests/fixtures/audio/episode-tone.wav",
+        "duration_seconds": 4,
+        "mime_type": "audio/wav"
+      },
+      "corrections": [
+        {
+          "severity": "material",
+          "section_ids": [
+            "what-changes"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "episode-weekend-transit",
+      "topic_label": "Local transport",
+      "title": "Why a fictional transit agency is revising weekend routes",
+      "asked": "What is behind the weekend timetable changes, and what is still uncertain?",
+      "hook": "A fictional transit agency is testing a simpler weekend schedule after riders reported missed connections.",
+      "duration_minutes": 8,
+      "made_date": "16 Nov",
+      "audio_recorded": false,
+      "updated": null,
+      "chapters": [
+        {
+          "id": "route-pilot",
+          "title": "The route pilot",
+          "sentences": [
+            {
+              "text": "The agency plans to coordinate three fictional bus routes around a shared transfer point.",
+              "source_ids": [
+                "tr-1"
+              ]
+            },
+            {
+              "text": "The trial timetable is scheduled for two weekends in the fictional town of Alder Bay.",
+              "source_ids": [
+                "tr-2"
+              ]
+            }
+          ]
+        },
+        {
+          "id": "rider-feedback",
+          "title": "What riders have asked for",
+          "sentences": [
+            {
+              "text": "The public comment summary lists more reliable transfers as a frequent request.",
+              "source_ids": [
+                "tr-3"
+              ]
+            }
+          ]
+        }
+      ],
+      "sources": [
+        {
+          "id": "tr-1",
+          "outlet": "Alder Bay Transit Office",
+          "date": "16 Nov 2026",
+          "url": "https://transit.example.test/route-pilot"
+        },
+        {
+          "id": "tr-2",
+          "outlet": "Alder Bay Gazette",
+          "date": "15 Nov 2026",
+          "url": "https://gazette.example.test/weekend-trial"
+        },
+        {
+          "id": "tr-3",
+          "outlet": "Alder Bay Public Records",
+          "date": "14 Nov 2026",
+          "url": "https://records.example.test/rider-comments"
+        }
+      ],
+      "could_not_confirm": []
+    }
+  ]
+}

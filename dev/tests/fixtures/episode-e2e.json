@@ -1,0 +1,200 @@
+{
+  "created_at": "2026-11-18T00:00:00Z",
+  "plan": {
+    "topic": "Fictional Aster ferry",
+    "length": "short",
+    "style": "balanced",
+    "query_budget": 3,
+    "questions": [
+      {
+        "sub_question": "How does the fictional Aster ferry booking work?",
+        "query": "Aster ferry booking",
+        "focus": "Fixture"
+      },
+      {
+        "sub_question": "Who can use the fictional Aster ferry service?",
+        "query": "Aster ferry eligibility",
+        "focus": "Fixture"
+      },
+      {
+        "sub_question": "What remains uncertain about the fictional Aster ferry trial?",
+        "query": "Aster ferry trial questions",
+        "focus": "Fixture"
+      }
+    ]
+  },
+  "searches": {
+    "Aster ferry booking": [
+      [
+        "https://source-0.example/aster-0"
+      ],
+      [
+        "https://source-1.example/aster-0"
+      ]
+    ],
+    "Aster ferry eligibility": [
+      [
+        "https://source-0.example/aster-1"
+      ],
+      [
+        "https://source-1.example/aster-1"
+      ]
+    ],
+    "Aster ferry trial questions": [
+      [
+        "https://source-0.example/aster-2"
+      ],
+      [
+        "https://source-1.example/aster-2"
+      ]
+    ]
+  },
+  "documents": {
+    "https://source-0.example/aster-0": {
+      "passages": [
+        {
+          "text": "Aster passengers reserve a place before reaching the quay by choosing a crossing on the booking form.",
+          "answers": [
+            "How does the fictional Aster ferry booking work?"
+          ]
+        },
+        {
+          "text": "The fictional ticket records the selected crossing and the passenger brings that ticket to the boarding gate.",
+          "answers": [
+            "How does the fictional Aster ferry booking work?"
+          ]
+        },
+        {
+          "text": "The booking office keeps a paper copy of each reservation so stewards can check the crossing list.",
+          "answers": [
+            "How does the fictional Aster ferry booking work?"
+          ]
+        }
+      ],
+      "body": "<html><nav>Hidden navigation sentinel.</nav><article><p>Aster passengers reserve a place before reaching the quay by choosing a crossing on the booking form.</p><p>The fictional ticket records the selected crossing and the passenger brings that ticket to the boarding gate.</p><p>The booking office keeps a paper copy of each reservation so stewards can check the crossing list.</p></article><script>Hidden script sentinel.</script></html>",
+      "content_type": "text/html"
+    },
+    "https://source-1.example/aster-0": {
+      "passages": [
+        {
+          "text": "Aster stewards check the reservation at the boarding gate and compare the ticket with the crossing list.",
+          "answers": [
+            "How does the fictional Aster ferry booking work?"
+          ]
+        },
+        {
+          "text": "A reserved place can be released before boarding by returning the ticket to the booking office.",
+          "answers": [
+            "How does the fictional Aster ferry booking work?"
+          ]
+        },
+        {
+          "text": "The released place becomes available on the same crossing when the booking office updates its list.",
+          "answers": [
+            "How does the fictional Aster ferry booking work?"
+          ]
+        }
+      ],
+      "body": "<html><nav>Hidden navigation sentinel.</nav><article><p>Aster stewards check the reservation at the boarding gate and compare the ticket with the crossing list.</p><p>A reserved place can be released before boarding by returning the ticket to the booking office.</p><p>The released place becomes available on the same crossing when the booking office updates its list.</p></article><script>Hidden script sentinel.</script></html>",
+      "content_type": "text/html"
+    },
+    "https://source-0.example/aster-1": {
+      "passages": [
+        {
+          "text": "The fictional Aster trial serves residents of Luma Island who present a resident card when booking.",
+          "answers": [
+            "Who can use the fictional Aster ferry service?"
+          ]
+        },
+        {
+          "text": "Visitors can request an unused place at the quay after stewards have checked all resident reservations.",
+          "answers": [
+            "Who can use the fictional Aster ferry service?"
+          ]
+        },
+        {
+          "text": "The island office keeps visitor requests on a separate list until the resident boarding period closes.",
+          "answers": [
+            "Who can use the fictional Aster ferry service?"
+          ]
+        }
+      ],
+      "body": "<html><nav>Hidden navigation sentinel.</nav><article><p>The fictional Aster trial serves residents of Luma Island who present a resident card when booking.</p><p>Visitors can request an unused place at the quay after stewards have checked all resident reservations.</p><p>The island office keeps visitor requests on a separate list until the resident boarding period closes.</p></article><script>Hidden script sentinel.</script></html>",
+      "content_type": "text/html"
+    },
+    "https://source-1.example/aster-1": {
+      "passages": [
+        {
+          "text": "The island access office issues a resident travel card after checking the address on the application form.",
+          "answers": [
+            "Who can use the fictional Aster ferry service?"
+          ]
+        },
+        {
+          "text": "The trial accepts that card when confirming a reservation and records the crossing on a paper ticket.",
+          "answers": [
+            "Who can use the fictional Aster ferry service?"
+          ]
+        },
+        {
+          "text": "Residents who lose their travel card can ask the island office to check the original application.",
+          "answers": [
+            "Who can use the fictional Aster ferry service?"
+          ]
+        }
+      ],
+      "body": "<html><nav>Hidden navigation sentinel.</nav><article><p>The island access office issues a resident travel card after checking the address on the application form.</p><p>The trial accepts that card when confirming a reservation and records the crossing on a paper ticket.</p><p>Residents who lose their travel card can ask the island office to check the original application.</p></article><script>Hidden script sentinel.</script></html>",
+      "content_type": "text/html"
+    },
+    "https://source-0.example/aster-2": {
+      "passages": [
+        {
+          "text": "The fictional trial has no announced end date because the published plan leaves its review schedule open.",
+          "answers": [
+            "What remains uncertain about the fictional Aster ferry trial?"
+          ]
+        },
+        {
+          "text": "The trial team has not selected a winter timetable and has requested observations from the island office.",
+          "answers": [
+            "What remains uncertain about the fictional Aster ferry trial?"
+          ]
+        },
+        {
+          "text": "The office records missed crossings during the trial so the review can describe access during quieter periods.",
+          "answers": [
+            "What remains uncertain about the fictional Aster ferry trial?"
+          ]
+        }
+      ],
+      "body": "<html><nav>Hidden navigation sentinel.</nav><article><p>The fictional trial has no announced end date because the published plan leaves its review schedule open.</p><p>The trial team has not selected a winter timetable and has requested observations from the island office.</p><p>The office records missed crossings during the trial so the review can describe access during quieter periods.</p></article><script>Hidden script sentinel.</script></html>",
+      "content_type": "text/html"
+    },
+    "https://source-1.example/aster-2": {
+      "passages": [
+        {
+          "text": "The fictional evaluation will review missed connections using the crossing lists held by the island booking office.",
+          "answers": [
+            "What remains uncertain about the fictional Aster ferry trial?"
+          ]
+        },
+        {
+          "text": "The published trial plan leaves future fares undecided and asks residents to describe their recent travel needs.",
+          "answers": [
+            "What remains uncertain about the fictional Aster ferry trial?"
+          ]
+        },
+        {
+          "text": "The trial team will collect those written responses before preparing a report about the booking process.",
+          "answers": [
+            "What remains uncertain about the fictional Aster ferry trial?"
+          ]
+        }
+      ],
+      "body": "<html><nav>Hidden navigation sentinel.</nav><article><p>The fictional evaluation will review missed connections using the crossing lists held by the island booking office.</p><p>The published trial plan leaves future fares undecided and asks residents to describe their recent travel needs.</p><p>The trial team will collect those written responses before preparing a report about the booking process.</p></article><script>Hidden script sentinel.</script></html>",
+      "content_type": "text/html"
+    }
+  },
+  "topic": "Fictional Aster ferry",
+  "missing_question": "Will the fictional Aster ferry offer overnight crossings?"
+}

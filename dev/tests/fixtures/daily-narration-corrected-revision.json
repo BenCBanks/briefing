@@ -1,0 +1,118 @@
+{
+  "fixture_only": true,
+  "superseded_revision": {
+    "revision_id": "daily-fictional-obsolete",
+    "claim": "The fictional River Line detour ends Thursday, May 14."
+  },
+  "current_claim": "The fictional River Line detour remains through Friday, May 15.",
+  "read_takeaway": "Leave extra time while using the temporary route.",
+  "edition": {
+    "id": "daily-fictional-route-update",
+    "local_date": "2026-11-21",
+    "revision_id": "daily-fictional-obsolete",
+    "script_hash": "obsolete-script-hash",
+    "audio": {
+      "state": "pending",
+      "revision_id": "daily-fictional-obsolete",
+      "script_hash": "obsolete-script-hash"
+    },
+    "sections": [
+      {
+        "id": "fictional-river-line",
+        "cluster_id": "fictional-river-line",
+        "heading": "Fictional River Line service update",
+        "topic_ids": ["transit"],
+        "source_ids": ["fictional-metro-source"],
+        "body": "The fictional River Line detour remains through Friday, May 15. [1]",
+        "claim_links": [
+          {
+            "text": "The fictional River Line detour remains through Friday, May 15.",
+            "section": "what_happened",
+            "source_sentence_ids": ["river-correction"],
+            "citation_numbers": [1],
+            "verified": true
+          }
+        ],
+        "read_takeaway": "Leave extra time while using the temporary route."
+      }
+    ],
+    "daily_briefing": {
+      "target_minutes": 5,
+      "target_spoken_words": 675,
+      "maximum_spoken_words": 675,
+      "narrator_words_per_minute": 150,
+      "background_segments": [],
+      "briefing_script": [
+        {
+          "kind": "greeting",
+          "text": "Here is yesterday's briefing.",
+          "source_sentence_ids": [],
+          "citation_numbers": []
+        },
+        {
+          "kind": "story_intro",
+          "section_id": "fictional-river-line",
+          "text": "The old script says the detour ends Thursday, May 14.",
+          "source_sentence_ids": ["river-obsolete"],
+          "citation_numbers": [1]
+        },
+        {
+          "kind": "claim",
+          "section_id": "fictional-river-line",
+          "text": "The fictional River Line detour ends Thursday, May 14.",
+          "source_sentence_ids": ["river-obsolete"],
+          "citation_numbers": [1]
+        },
+        {
+          "kind": "closing",
+          "text": "That's today's briefing.",
+          "source_sentence_ids": [],
+          "citation_numbers": []
+        }
+      ]
+    }
+  },
+  "profile": {
+    "topics": [{"id": "transit", "label": "Transit"}]
+  },
+  "stories": {
+    "fictional-river-line": [
+      {
+        "text": "The fictional Metro corrected its notice, and the River Line detour now remains through Friday, May 15.",
+        "evidence_ids": ["river-correction"],
+        "general_context": false
+      },
+      {
+        "text": "The updated notice replaces the earlier Thursday date, so riders have the corrected end date.",
+        "evidence_ids": ["river-correction"],
+        "general_context": false
+      },
+      {
+        "text": "The temporary stop map lists the relocated stops, so riders can check where to board.",
+        "evidence_ids": ["river-map"],
+        "general_context": false
+      },
+      {
+        "text": "That matters because commuters can plan connections while the detour remains active.",
+        "evidence_ids": ["river-correction"],
+        "general_context": false
+      }
+    ]
+  },
+  "evidence_by_story": {
+    "fictional-river-line": [
+      {
+        "id": "river-correction",
+        "citation_numbers": [1],
+        "text": "The fictional Metro corrected its notice. The River Line detour remains through Friday, May 15; the earlier Thursday, May 14 date was an error. The corrected end date applies to the service change.",
+        "type": "reported"
+      },
+      {
+        "id": "river-map",
+        "citation_numbers": [1],
+        "text": "The fictional Metro's temporary stop map lists the relocated River Line stops for boarding during the detour.",
+        "type": "reported"
+      }
+    ]
+  }
+}

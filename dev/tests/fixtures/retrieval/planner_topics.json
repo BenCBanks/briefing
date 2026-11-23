@@ -1,0 +1,12 @@
+[
+  {"id":"fictional-transit","label":"Fictional city transit","scope":"bus routes and station repairs","include":["service changes","ridership"]},
+  {"id":"fictional-housing","label":"Fictional housing construction","scope":"home building and affordable housing","include":["permits","construction costs"]},
+  {"id":"fictional-school-meals","label":"Fictional school meals","scope":"district food programs and nutrition","include":["meal funding","supplier changes"]},
+  {"id":"fictional-water","label":"Fictional water system","scope":"municipal drinking water and pipe work","include":["testing","infrastructure upgrades"]},
+  {"id":"fictional-library","label":"Fictional public libraries","scope":"library services and local facilities","include":["hours","funding"]},
+  {"id":"fictional-grid","label":"Fictional energy grid","scope":"electricity reliability and local generation","include":["grid upgrades","rate changes"]},
+  {"id":"fictional-farmers-market","label":"Fictional farmers market","scope":"local food access and market operations","include":["vendor rules","seasonal hours"]},
+  {"id":"fictional-bike-network","label":"Fictional bicycle network","scope":"protected lanes and street safety","include":["project plans","street changes"]},
+  {"id":"fictional-clinic-access","label":"Fictional clinic access","scope":"primary care appointments and clinic capacity","include":["service availability","public funding"]},
+  {"id":"fictional-waste","label":"Fictional waste collection","scope":"municipal recycling and collection service","include":["route changes","recycling rules"]}
+]

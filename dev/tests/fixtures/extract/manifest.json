@@ -1,0 +1,52 @@
+[
+  {
+    "file": "article.html",
+    "gold": "article.html.txt",
+    "content_type": "text/html"
+  },
+  {
+    "file": "unmarked.html",
+    "gold": "unmarked.html.txt",
+    "content_type": "text/html"
+  },
+  {
+    "file": "noisy.html",
+    "gold": "noisy.html.txt",
+    "content_type": "text/html"
+  },
+  {
+    "file": "malformed.html",
+    "gold": "malformed.html.txt",
+    "content_type": "text/html"
+  },
+  {
+    "file": "short.html",
+    "gold": "short.html.txt",
+    "content_type": "text/html"
+  },
+  {
+    "file": "paragraph.html",
+    "gold": "paragraph.html.txt",
+    "content_type": "text/html"
+  },
+  {
+    "file": "report.pdf",
+    "gold": "report.pdf.txt",
+    "content_type": "application/pdf"
+  },
+  {
+    "file": "compressed.pdf",
+    "gold": "compressed.pdf.txt",
+    "content_type": "application/pdf"
+  },
+  {
+    "file": "multipage.pdf",
+    "gold": "multipage.pdf.txt",
+    "content_type": "application/pdf"
+  },
+  {
+    "file": "escaped.pdf",
+    "gold": "escaped.pdf.txt",
+    "content_type": "application/pdf"
+  }
+]

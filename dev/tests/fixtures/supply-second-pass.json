@@ -1,0 +1,44 @@
+{
+  "first_round": [
+    {
+      "source_id": "payments",
+      "url": "https://payments.example.test/failed-a",
+      "title": "Payment network releases fraud findings"
+    },
+    {
+      "source_id": "wire",
+      "url": "https://wire.example.test/failed-b",
+      "title": "Banking regulator publishes branch review"
+    },
+    {
+      "source_id": "trade",
+      "url": "https://trade.example.test/failed-c",
+      "title": "Payment complaints spark ombudsman investigation"
+    },
+    {
+      "source_id": "nerdwallet",
+      "url": "https://nerdwallet.com/travel/news",
+      "title": "Chase Expands Credit Card Transfer Partners"
+    }
+  ],
+  "fill": [
+    {
+      "host": "payments",
+      "path": "fresh-settlement",
+      "title": "Settlement timetable released",
+      "body": "The fictional office announced a settlement timetable for member banks after completing its scheduled review of payment processing. The timetable describes how participating institutions will report completed transfers and reconcile outstanding entries at the end of each business day. The office published the reporting instructions alongside the timetable and said the review covered the existing settlement procedures used by participating banks. The notice gives member institutions the documentation needed to prepare their reports and describes the procedure for correcting incomplete submissions."
+    },
+    {
+      "host": "wire",
+      "path": "fresh-charter",
+      "title": "Bank charter approved",
+      "body": "The fictional regulator approved a bank charter following its review of the application and supporting payment records. The approval notice describes the settlement services the institution may provide and identifies the reporting obligations that apply to those services. The regulator published its decision alongside the application materials and said the bank must maintain records of completed payment transfers. The notice also explains the reporting timetable and the procedure for submitting corrections to the regulator after a settlement report has been filed."
+    },
+    {
+      "host": "trade",
+      "path": "fresh-portal",
+      "title": "Consumer complaint portal opens",
+      "body": "The fictional consumer office opened a complaint portal for customers reporting payment processing errors at participating banks. The portal allows customers to submit descriptions of missing transfers and attach the payment reference supplied by their bank. The consumer office published instructions describing how complaints will be referred to the relevant institution for investigation and a written response. The notice explains the information required to submit a complaint and identifies the procedure for providing additional documents after submission."
+    }
+  ]
+}

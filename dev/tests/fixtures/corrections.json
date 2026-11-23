@@ -1,0 +1,32 @@
+{
+  "corrections": [
+    {
+      "id": "fictional-story-correction-001",
+      "date": "2026-11-16",
+      "corrected_at": "2026-11-16T03:00:00Z",
+      "target_type": "story",
+      "target_id": "correction-checkout-pilot",
+      "edition_id": "fictional-correction-edition",
+      "paragraph_index": 0,
+      "what_changed": "The participant count was corrected from 120 to 12.",
+      "why_it_matters": "The size of the pilot changes how broadly its results can be interpreted.",
+      "previous_revision_id": "fictional-r1",
+      "revision_id": "fictional-r2",
+      "severity": "material"
+    },
+    {
+      "id": "fictional-episode-correction-001",
+      "date": "2026-11-17",
+      "corrected_at": "2026-11-17T12:00:00Z",
+      "target_type": "episode",
+      "target_id": "episode-payment-rules",
+      "chapter_id": "why-change",
+      "sentence_index": 0,
+      "what_changed": "Clarified that the pilot is limited to the fictional city.",
+      "why_it_matters": "The earlier wording could sound broader than the described pilot.",
+      "previous_revision_id": "episode-r1",
+      "revision_id": "episode-r2",
+      "severity": "material"
+    }
+  ]
+}

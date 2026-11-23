@@ -1,0 +1,150 @@
+{
+  "created_at": "2026-11-18T00:00:00Z",
+  "plan": {
+    "topic": "Fictional Aster ferry",
+    "length": "short",
+    "style": "balanced",
+    "query_budget": 3,
+    "questions": [
+      {
+        "sub_question": "How does the fictional Aster ferry booking work?",
+        "query": "Aster ferry booking",
+        "focus": "Fixture"
+      },
+      {
+        "sub_question": "Who can use the fictional Aster ferry service?",
+        "query": "Aster ferry eligibility",
+        "focus": "Fixture"
+      },
+      {
+        "sub_question": "What remains uncertain about the fictional Aster ferry trial?",
+        "query": "Aster ferry trial questions",
+        "focus": "Fixture"
+      }
+    ]
+  },
+  "searches": {
+    "Aster ferry booking": [
+      [
+        "https://source-0.example/aster-0"
+      ],
+      [
+        "https://source-1.example/aster-0"
+      ]
+    ],
+    "Aster ferry eligibility": [
+      [
+        "https://source-0.example/aster-1"
+      ],
+      [
+        "https://source-1.example/aster-1"
+      ]
+    ],
+    "Aster ferry trial questions": [
+      [
+        "https://source-0.example/aster-2"
+      ],
+      [
+        "https://source-1.example/aster-2"
+      ]
+    ]
+  },
+  "documents": {
+    "https://source-0.example/aster-0": {
+      "passages": [
+        {
+          "text": "Aster passengers reserve a place before reaching the quay.",
+          "answers": [
+            "How does the fictional Aster ferry booking work?"
+          ]
+        },
+        {
+          "text": "The fictional ticket records the selected crossing.",
+          "answers": [
+            "How does the fictional Aster ferry booking work?"
+          ]
+        }
+      ]
+    },
+    "https://source-1.example/aster-0": {
+      "passages": [
+        {
+          "text": "Aster stewards check the reservation at the boarding gate.",
+          "answers": [
+            "How does the fictional Aster ferry booking work?"
+          ]
+        },
+        {
+          "text": "A reserved place can be released before boarding.",
+          "answers": [
+            "How does the fictional Aster ferry booking work?"
+          ]
+        }
+      ]
+    },
+    "https://source-0.example/aster-1": {
+      "passages": [
+        {
+          "text": "The fictional Aster trial serves residents of Luma Island.",
+          "answers": [
+            "Who can use the fictional Aster ferry service?"
+          ]
+        },
+        {
+          "text": "Visitors can request an unused place at the quay.",
+          "answers": [
+            "Who can use the fictional Aster ferry service?"
+          ]
+        }
+      ]
+    },
+    "https://source-1.example/aster-1": {
+      "passages": [
+        {
+          "text": "The island access office issues a resident travel card.",
+          "answers": [
+            "Who can use the fictional Aster ferry service?"
+          ]
+        },
+        {
+          "text": "The trial accepts that card when confirming a reservation.",
+          "answers": [
+            "Who can use the fictional Aster ferry service?"
+          ]
+        }
+      ]
+    },
+    "https://source-0.example/aster-2": {
+      "passages": [
+        {
+          "text": "The fictional trial has no announced end date.",
+          "answers": [
+            "What remains uncertain about the fictional Aster ferry trial?"
+          ]
+        },
+        {
+          "text": "The trial team has not selected a winter timetable.",
+          "answers": [
+            "What remains uncertain about the fictional Aster ferry trial?"
+          ]
+        }
+      ]
+    },
+    "https://source-1.example/aster-2": {
+      "passages": [
+        {
+          "text": "The fictional evaluation will review missed connections.",
+          "answers": [
+            "What remains uncertain about the fictional Aster ferry trial?"
+          ]
+        },
+        {
+          "text": "The published trial plan leaves future fares undecided.",
+          "answers": [
+            "What remains uncertain about the fictional Aster ferry trial?"
+          ]
+        }
+      ]
+    }
+  }
+}

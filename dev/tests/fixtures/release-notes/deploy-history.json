@@ -1,0 +1,12 @@
+[
+  {
+    "sha": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+    "deployed_at": "2026-11-18T17:30:00Z",
+    "operation": "deploy"
+  },
+  {
+    "sha": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+    "deployed_at": "2026-11-19T19:45:00Z",
+    "operation": "deploy"
+  }
+]

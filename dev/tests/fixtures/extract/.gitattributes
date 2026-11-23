@@ -1,0 +1,2 @@
+# Preserve PDF bytes and fixed-width xref records, including trailing spaces.
+*.pdf binary

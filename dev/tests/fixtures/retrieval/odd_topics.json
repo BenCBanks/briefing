@@ -1,0 +1,17 @@
+[
+  {"label":"SRE","scope":"site reliability engineering in financial services","angles":["error-budget governance","incident learning without blame","service-level indicators for payment APIs"]},
+  {"label":"CVE-2026-1042","scope":"fictional security advisory for a widely used database","angles":["affected-version boundaries","vendor mitigation guidance","reported exploitation evidence"]},
+  {"label":"ISO 20022","scope":"financial messaging migration for regional banks","angles":["cross-border payment data quality","migration timelines for smaller banks","operational rejection rates"]},
+  {"label":"RBI UPI","scope":"India's Unified Payments Interface and Reserve Bank oversight","angles":["merchant settlement changes","official transaction-volume releases","dispute handling responsibilities"]},
+  {"label":"Sanae Takaichi","scope":"Japanese public policy positions and cabinet decisions","angles":["published policy commitments","budget measures affecting employers","parliamentary implementation milestones"]},
+  {"label":"Nvidia","scope":"data-center accelerator supply and enterprise markets","angles":["published shipment guidance","export-control exposure","customer concentration disclosures"]},
+  {"label":"MiCA","scope":"European Union crypto-asset market regulation","angles":["issuer authorization requirements","supervisory guidance from EU authorities","implementation dates for service providers"]},
+  {"label":"Section 230","scope":"United States platform-liability law and court decisions","angles":["recent appellate interpretations","effects on content moderation procedures","open questions before the Supreme Court"]},
+  {"label":"Bánh mì licensing","scope":"Da Nang street-vendor permits and local food rules","angles":["published permit requirements","inspection guidance for small vendors","changes announced by city authorities"]},
+  {"label":"Łódź transit","scope":"Poland's Łódź public transport service and city planning","angles":["tram service investment decisions","ridership data by route","regional funding for accessibility"]},
+  {"label":"Bank of Japan","scope":"monetary policy decisions and Japanese wage growth","angles":["published vote and policy rationale","wage data cited by policymakers","effects described for regional lenders"]},
+  {"label":"NHS England","scope":"public hospital waiting-time performance and workforce policy","angles":["official waiting-list statistics","staffing plans for elective care","regional variation in service capacity"]},
+  {"label":"Gyeonggi-do AI ordinance","scope":"South Korean provincial rules for public-sector AI procurement","angles":["draft text and consultation status","human-review requirements for agencies","procurement dates and covered systems"]},
+  {"label":"World Athletics","scope":"international track-and-field governance and commercial rights","angles":["published competition-rule changes","broadcast-rights disclosures","athlete eligibility review procedures"]},
+  {"label":"KYC","scope":"customer identity checks at community banks","angles":["regulator examination findings","document alternatives for underserved customers","operational cost evidence"]}
+]

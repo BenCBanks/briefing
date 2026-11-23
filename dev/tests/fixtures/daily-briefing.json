@@ -1,0 +1,52 @@
+{
+  "profile": {
+    "topics": [
+      {"id": "payments"},
+      {"id": "health-policy"},
+      {"id": "construction"}
+    ]
+  },
+  "edition": {
+    "kind": "daily",
+    "quick_hits": [
+      {"title": "Fictional payment network expands settlement window", "topic_id": "payments", "published_at": "2026-11-18T10:00:00Z", "url": "https://payments.example.test/brief"},
+      {"title": "Fictional coverage agency updates appeal timetable", "topic_id": "health-policy", "published_at": "2026-11-18T09:00:00Z", "url": "https://health.example.test/brief"}
+    ],
+    "sections": [
+      {
+        "cluster_id": "fictional-payments-event",
+        "heading": "Fictional payment network changes settlement window",
+        "topic_ids": ["payments"],
+        "claim_links": [
+          {"section": "what_happened", "text": "A fictional payment network moved settlement to the next business day.", "verified": true, "source_sentence_ids": ["p1"], "citation_numbers": [1]},
+          {"section": "why_it_matters", "text": "Merchants can use the published schedule to plan their cash reconciliation.", "verified": true, "source_sentence_ids": ["p2"], "citation_numbers": [1]},
+          {"section": "things_to_consider", "text": "The notice does not list individual merchant processing times.", "verified": true, "source_sentence_ids": ["p3"], "citation_numbers": [2]}
+        ]
+      },
+      {
+        "cluster_id": "fictional-health-event",
+        "heading": "Fictional coverage agency updates appeal timetable",
+        "topic_ids": ["health-policy"],
+        "claim_links": [
+          {"section": "what_happened", "text": "A fictional coverage agency set a new appeal timetable for state plans.", "verified": true, "source_sentence_ids": ["h1"], "citation_numbers": [1]}
+        ]
+      },
+      {
+        "cluster_id": "fictional-building-event",
+        "heading": "Fictional builders report permit review update",
+        "topic_ids": ["construction"],
+        "claim_links": [
+          {"section": "what_happened", "text": "A fictional county shortened its review period for residential permit applications.", "verified": true, "source_sentence_ids": ["c1"], "citation_numbers": [1]}
+        ]
+      },
+      {
+        "cluster_id": "outside-profile-event",
+        "heading": "Fictional unrelated topic item",
+        "topic_ids": ["sports"],
+        "claim_links": [
+          {"section": "what_happened", "text": "A fictional league changed its game schedule.", "verified": true, "source_sentence_ids": ["s1"], "citation_numbers": [1]}
+        ]
+      }
+    ]
+  }
+}

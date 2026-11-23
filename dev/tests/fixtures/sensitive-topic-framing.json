@@ -1,0 +1,32 @@
+{
+  "cases": [
+    {
+      "topic": "Medicaid eligibility policy",
+      "neutral": "The agency published a revised renewal schedule for state Medicaid offices.",
+      "sensational": "A shocking Medicaid crisis throws state families into chaos.",
+      "unattributed": "The Medicaid plan was reckless and deceptive.",
+      "attributed": "The auditor's report described the Medicaid plan as reckless and deceptive."
+    },
+    {
+      "topic": "Banking incident response",
+      "neutral": "The bank said its payment network recovered after a service interruption.",
+      "sensational": "A banking meltdown sparks panic among depositors.",
+      "unattributed": "The bank committed fraud and deliberately hid the outage.",
+      "attributed": "The regulator alleged the bank committed fraud and deliberately hid the outage."
+    },
+    {
+      "topic": "Crypto asset custody",
+      "neutral": "The filing says the exchange disclosed revised custody controls to customers.",
+      "sensational": "An explosive crypto bombshell exposes a devastating failure.",
+      "unattributed": "The exchange ran a fraudulent and deceptive custody scheme.",
+      "attributed": "The complaint alleges the exchange ran a fraudulent and deceptive custody scheme."
+    },
+    {
+      "topic": "Politics and election administration",
+      "neutral": "The election commission published its campaign finance review and methods.",
+      "sensational": "An explosive political scandal puts lawmakers under fire.",
+      "unattributed": "The campaign used a corrupt and rigged process.",
+      "attributed": "The watchdog's report called the campaign process corrupt and rigged."
+    }
+  ]
+}

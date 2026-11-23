@@ -1,0 +1,3611 @@
+{
+  "version": 1,
+  "reviewed_at": "2026-11-18",
+  "method": "Hand-built editorial seed from source references and source research, with explicit supplements. Categories are editorial inferences, not fetched verification, truth scores, rights approvals or domain-ownership guarantees. evidence_url identifies the publisher; it is not proof of a live check. No commercial ratings imported.",
+  "domains": {
+    "404media.co": {
+      "tier": "trade",
+      "origin": "404media.co",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://404media.co/",
+      "rights_status": "unverified"
+    },
+    "abc.org": {
+      "tier": "primary",
+      "origin": "abc.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://abc.org/",
+      "rights_status": "unverified"
+    },
+    "abnormalreturns.com": {
+      "tier": "blog",
+      "origin": "abnormalreturns.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://abnormalreturns.com/",
+      "rights_status": "unverified"
+    },
+    "acasignups.net": {
+      "tier": "blog",
+      "origin": "acasignups.net",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://acasignups.net/",
+      "rights_status": "unverified"
+    },
+    "adyen.com": {
+      "tier": "primary",
+      "origin": "adyen.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://adyen.com/",
+      "rights_status": "unverified"
+    },
+    "affirm.com": {
+      "tier": "primary",
+      "origin": "affirm.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://affirm.com/",
+      "rights_status": "unverified"
+    },
+    "afp.com": {
+      "tier": "major",
+      "origin": "afp.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "editorial-supplement"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://afp.com/",
+      "rights_status": "unverified",
+      "wire": true
+    },
+    "agc.org": {
+      "tier": "primary",
+      "origin": "agc.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://agc.org/",
+      "rights_status": "unverified"
+    },
+    "aia.org": {
+      "tier": "primary",
+      "origin": "aia.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://aia.org/",
+      "rights_status": "unverified"
+    },
+    "aisnakeoil.com": {
+      "tier": "blog",
+      "origin": "aisnakeoil.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://aisnakeoil.com/",
+      "rights_status": "unverified"
+    },
+    "aljazeera.com": {
+      "tier": "major",
+      "origin": "aljazeera.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://aljazeera.com/",
+      "rights_status": "unverified"
+    },
+    "americanbanker.com": {
+      "tier": "trade",
+      "origin": "americanbanker.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://americanbanker.com/",
+      "rights_status": "unverified"
+    },
+    "anthropic.com": {
+      "tier": "primary",
+      "origin": "anthropic.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://anthropic.com/",
+      "rights_status": "unverified"
+    },
+    "apnews.com": {
+      "tier": "major",
+      "origin": "apnews.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "editorial-supplement"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://apnews.com/",
+      "rights_status": "unverified",
+      "wire": true
+    },
+    "apricitas.io": {
+      "tier": "blog",
+      "origin": "apricitas.io",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://apricitas.io/",
+      "rights_status": "unverified"
+    },
+    "archdaily.com": {
+      "tier": "trade",
+      "origin": "archdaily.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://archdaily.com/",
+      "rights_status": "unverified"
+    },
+    "architectmagazine.com": {
+      "tier": "trade",
+      "origin": "architectmagazine.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://architectmagazine.com/",
+      "rights_status": "unverified"
+    },
+    "archpaper.com": {
+      "tier": "trade",
+      "origin": "archpaper.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://archpaper.com/",
+      "rights_status": "unverified"
+    },
+    "arsenal.com": {
+      "tier": "primary",
+      "origin": "arsenal.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://arsenal.com/",
+      "rights_status": "unverified"
+    },
+    "arstechnica.com": {
+      "tier": "trade",
+      "origin": "arstechnica.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://arstechnica.com/",
+      "rights_status": "unverified"
+    },
+    "arxiv.org": {
+      "tier": "primary",
+      "origin": "arxiv.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://arxiv.org/",
+      "rights_status": "unverified"
+    },
+    "atlantafed.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://atlantafed.org/",
+      "rights_status": "unverified"
+    },
+    "atlasobscura.com": {
+      "tier": "trade",
+      "origin": "atlasobscura.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://atlasobscura.com/",
+      "rights_status": "unverified"
+    },
+    "attomdata.com": {
+      "tier": "primary",
+      "origin": "attomdata.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://attomdata.com/",
+      "rights_status": "unverified"
+    },
+    "avfc.co.uk": {
+      "tier": "primary",
+      "origin": "avfc.co.uk",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://avfc.co.uk/",
+      "rights_status": "unverified"
+    },
+    "awealthofcommonsense.com": {
+      "tier": "blog",
+      "origin": "awealthofcommonsense.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://awealthofcommonsense.com/",
+      "rights_status": "unverified"
+    },
+    "axios.com": {
+      "tier": "major",
+      "origin": "axios.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://axios.com/",
+      "rights_status": "unverified"
+    },
+    "bair.berkeley.edu": {
+      "tier": "primary",
+      "origin": "bair.berkeley.edu",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bair.berkeley.edu/",
+      "rights_status": "unverified"
+    },
+    "bankdirector.com": {
+      "tier": "trade",
+      "origin": "bankdirector.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bankdirector.com/",
+      "rights_status": "unverified"
+    },
+    "bankingdive.com": {
+      "tier": "trade",
+      "origin": "bankingdive.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bankingdive.com/",
+      "rights_status": "unverified"
+    },
+    "bankingjournal.aba.com": {
+      "tier": "trade",
+      "origin": "bankingjournal.aba.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bankingjournal.aba.com/",
+      "rights_status": "unverified"
+    },
+    "bankingtech.com": {
+      "tier": "trade",
+      "origin": "bankingtech.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bankingtech.com/",
+      "rights_status": "unverified"
+    },
+    "bankofamerica.com": {
+      "tier": "primary",
+      "origin": "bankofamerica.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bankofamerica.com/",
+      "rights_status": "unverified"
+    },
+    "bankofcanada.ca": {
+      "tier": "primary",
+      "origin": "bankofcanada.ca",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bankofcanada.ca/",
+      "rights_status": "unverified"
+    },
+    "bankofengland.co.uk": {
+      "tier": "primary",
+      "origin": "bankofengland.co.uk",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bankofengland.co.uk/",
+      "rights_status": "unverified"
+    },
+    "bankunderground.co.uk": {
+      "tier": "blog",
+      "origin": "bankunderground.co.uk",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bankunderground.co.uk/",
+      "rights_status": "unverified"
+    },
+    "bbc.co.uk": {
+      "tier": "major",
+      "origin": "bbc",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "editorial-supplement"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bbc.co.uk/",
+      "rights_status": "unverified"
+    },
+    "bbc.com": {
+      "tier": "major",
+      "origin": "bbc",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "editorial-supplement"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bbc.com/",
+      "rights_status": "unverified"
+    },
+    "bdcnetwork.com": {
+      "tier": "trade",
+      "origin": "bdcnetwork.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bdcnetwork.com/",
+      "rights_status": "unverified"
+    },
+    "bea.gov": {
+      "tier": "primary",
+      "origin": "bea.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bea.gov/",
+      "rights_status": "unverified"
+    },
+    "beckerspayer.com": {
+      "tier": "trade",
+      "origin": "beckerspayer.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://beckerspayer.com/",
+      "rights_status": "unverified"
+    },
+    "ben-evans.com": {
+      "tier": "blog",
+      "origin": "ben-evans.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://ben-evans.com/",
+      "rights_status": "unverified"
+    },
+    "bikeradar.com": {
+      "tier": "trade",
+      "origin": "bikeradar.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bikeradar.com/",
+      "rights_status": "unverified"
+    },
+    "bis.org": {
+      "tier": "primary",
+      "origin": "bis.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bis.org/",
+      "rights_status": "unverified"
+    },
+    "bisnow.com": {
+      "tier": "trade",
+      "origin": "bisnow.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bisnow.com/",
+      "rights_status": "unverified"
+    },
+    "bitsaboutmoney.com": {
+      "tier": "blog",
+      "origin": "bitsaboutmoney.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bitsaboutmoney.com/",
+      "rights_status": "unverified"
+    },
+    "bizjournals.com": {
+      "tier": "trade",
+      "origin": "bizjournals.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bizjournals.com/",
+      "rights_status": "unverified"
+    },
+    "bleepingcomputer.com": {
+      "tier": "trade",
+      "origin": "bleepingcomputer.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bleepingcomputer.com/",
+      "rights_status": "unverified"
+    },
+    "block.xyz": {
+      "tier": "primary",
+      "origin": "block.xyz",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://block.xyz/",
+      "rights_status": "unverified"
+    },
+    "bloomberg.com": {
+      "tier": "major",
+      "origin": "bloomberg.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "editorial-supplement"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bloomberg.com/",
+      "rights_status": "unverified",
+      "wire": true
+    },
+    "bls.gov": {
+      "tier": "primary",
+      "origin": "bls.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bls.gov/",
+      "rights_status": "unverified"
+    },
+    "bostonfed.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bostonfed.org/",
+      "rights_status": "unverified"
+    },
+    "brookings.edu": {
+      "tier": "primary",
+      "origin": "brookings.edu",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://brookings.edu/",
+      "rights_status": "unverified"
+    },
+    "bruegel.org": {
+      "tier": "primary",
+      "origin": "bruegel.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://bruegel.org/",
+      "rights_status": "unverified"
+    },
+    "builderonline.com": {
+      "tier": "trade",
+      "origin": "builderonline.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://builderonline.com/",
+      "rights_status": "unverified"
+    },
+    "calculatedrisk.substack.com": {
+      "tier": "blog",
+      "origin": "calculatedrisk.substack.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://calculatedrisk.substack.com/",
+      "rights_status": "unverified"
+    },
+    "cbsnews.com": {
+      "tier": "major",
+      "origin": "cbsnews.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cbsnews.com/",
+      "rights_status": "unverified"
+    },
+    "cbssports.com": {
+      "tier": "trade",
+      "origin": "cbssports.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cbssports.com/",
+      "rights_status": "unverified"
+    },
+    "census.gov": {
+      "tier": "primary",
+      "origin": "census.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://census.gov/",
+      "rights_status": "unverified"
+    },
+    "cepr.org": {
+      "tier": "primary",
+      "origin": "cepr.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cepr.org/",
+      "rights_status": "unverified"
+    },
+    "cfr.org": {
+      "tier": "primary",
+      "origin": "cfr.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cfr.org/",
+      "rights_status": "unverified"
+    },
+    "charlottenc.gov": {
+      "tier": "primary",
+      "origin": "charlottenc.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://charlottenc.gov/",
+      "rights_status": "unverified"
+    },
+    "charlotteobserver.com": {
+      "tier": "major",
+      "origin": "mcclatchy",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://charlotteobserver.com/",
+      "rights_status": "unverified"
+    },
+    "chelseafc.com": {
+      "tier": "primary",
+      "origin": "chelseafc.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://chelseafc.com/",
+      "rights_status": "unverified"
+    },
+    "chicagofed.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://chicagofed.org/",
+      "rights_status": "unverified"
+    },
+    "circle.com": {
+      "tier": "primary",
+      "origin": "circle.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://circle.com/",
+      "rights_status": "unverified"
+    },
+    "cisa.gov": {
+      "tier": "primary",
+      "origin": "cisa.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "content-sources-2026-11-16"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cisa.gov/",
+      "rights_status": "unverified"
+    },
+    "clevelandfed.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://clevelandfed.org/",
+      "rights_status": "unverified"
+    },
+    "cms.gov": {
+      "tier": "primary",
+      "origin": "cms.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cms.gov/",
+      "rights_status": "unverified"
+    },
+    "cnbc.com": {
+      "tier": "major",
+      "origin": "cnbc.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cnbc.com/",
+      "rights_status": "unverified"
+    },
+    "cntraveler.com": {
+      "tier": "trade",
+      "origin": "cntraveler.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cntraveler.com/",
+      "rights_status": "unverified"
+    },
+    "coinbase.com": {
+      "tier": "primary",
+      "origin": "coinbase.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://coinbase.com/",
+      "rights_status": "unverified"
+    },
+    "coindesk.com": {
+      "tier": "trade",
+      "origin": "coindesk.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://coindesk.com/",
+      "rights_status": "unverified"
+    },
+    "cointelegraph.com": {
+      "tier": "trade",
+      "origin": "cointelegraph.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cointelegraph.com/",
+      "rights_status": "unverified"
+    },
+    "commonwealthfund.org": {
+      "tier": "primary",
+      "origin": "commonwealthfund.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://commonwealthfund.org/",
+      "rights_status": "unverified"
+    },
+    "constructiondive.com": {
+      "tier": "trade",
+      "origin": "constructiondive.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://constructiondive.com/",
+      "rights_status": "unverified"
+    },
+    "constructionexec.com": {
+      "tier": "trade",
+      "origin": "constructionexec.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://constructionexec.com/",
+      "rights_status": "unverified"
+    },
+    "consumerfinance.gov": {
+      "tier": "primary",
+      "origin": "consumerfinance.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "content/sources.json",
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://consumerfinance.gov/",
+      "rights_status": "unverified"
+    },
+    "cotality.com": {
+      "tier": "primary",
+      "origin": "cotality.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cotality.com/",
+      "rights_status": "unverified"
+    },
+    "cutimes.com": {
+      "tier": "trade",
+      "origin": "cutimes.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cutimes.com/",
+      "rights_status": "unverified"
+    },
+    "cutoday.info": {
+      "tier": "trade",
+      "origin": "cutoday.info",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cutoday.info/",
+      "rights_status": "unverified"
+    },
+    "cyclingnews.com": {
+      "tier": "trade",
+      "origin": "cyclingnews.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cyclingnews.com/",
+      "rights_status": "unverified"
+    },
+    "cyclingweekly.com": {
+      "tier": "trade",
+      "origin": "cyclingweekly.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://cyclingweekly.com/",
+      "rights_status": "unverified"
+    },
+    "dallasfed.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://dallasfed.org/",
+      "rights_status": "unverified"
+    },
+    "daringfireball.net": {
+      "tier": "blog",
+      "origin": "daringfireball.net",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://daringfireball.net/",
+      "rights_status": "unverified"
+    },
+    "darkreading.com": {
+      "tier": "trade",
+      "origin": "darkreading.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://darkreading.com/",
+      "rights_status": "unverified"
+    },
+    "deepmind.google": {
+      "tier": "primary",
+      "origin": "deepmind.google",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://deepmind.google/",
+      "rights_status": "unverified"
+    },
+    "dezeen.com": {
+      "tier": "trade",
+      "origin": "dezeen.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://dezeen.com/",
+      "rights_status": "unverified"
+    },
+    "digitaltransactions.net": {
+      "tier": "trade",
+      "origin": "digitaltransactions.net",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://digitaltransactions.net/",
+      "rights_status": "unverified"
+    },
+    "dpreview.com": {
+      "tier": "trade",
+      "origin": "dpreview.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://dpreview.com/",
+      "rights_status": "unverified"
+    },
+    "dw.com": {
+      "tier": "major",
+      "origin": "dw.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://dw.com/",
+      "rights_status": "unverified"
+    },
+    "dwell.com": {
+      "tier": "trade",
+      "origin": "dwell.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://dwell.com/",
+      "rights_status": "unverified"
+    },
+    "earlywarning.com": {
+      "tier": "primary",
+      "origin": "earlywarning.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://earlywarning.com/",
+      "rights_status": "unverified"
+    },
+    "eba.europa.eu": {
+      "tier": "primary",
+      "origin": "eba.europa.eu",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://eba.europa.eu/",
+      "rights_status": "unverified"
+    },
+    "ecb.europa.eu": {
+      "tier": "primary",
+      "origin": "ecb.europa.eu",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "content-sources-2026-11-16"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://ecb.europa.eu/",
+      "rights_status": "unverified"
+    },
+    "economist.com": {
+      "tier": "major",
+      "origin": "economist.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://economist.com/",
+      "rights_status": "unverified"
+    },
+    "edpb.europa.eu": {
+      "tier": "primary",
+      "origin": "edpb.europa.eu",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://edpb.europa.eu/",
+      "rights_status": "unverified"
+    },
+    "emvco.com": {
+      "tier": "primary",
+      "origin": "emvco.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://emvco.com/",
+      "rights_status": "unverified"
+    },
+    "energy.gov": {
+      "tier": "primary",
+      "origin": "energy.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://energy.gov/",
+      "rights_status": "unverified"
+    },
+    "engadget.com": {
+      "tier": "trade",
+      "origin": "engadget.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://engadget.com/",
+      "rights_status": "unverified"
+    },
+    "enr.com": {
+      "tier": "trade",
+      "origin": "enr.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://enr.com/",
+      "rights_status": "unverified"
+    },
+    "espn.com": {
+      "tier": "trade",
+      "origin": "espn.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://espn.com/",
+      "rights_status": "unverified"
+    },
+    "eugeneyan.com": {
+      "tier": "blog",
+      "origin": "eugeneyan.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://eugeneyan.com/",
+      "rights_status": "unverified"
+    },
+    "eurogamer.net": {
+      "tier": "trade",
+      "origin": "eurogamer.net",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://eurogamer.net/",
+      "rights_status": "unverified"
+    },
+    "evertonfc.com": {
+      "tier": "primary",
+      "origin": "evertonfc.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://evertonfc.com/",
+      "rights_status": "unverified"
+    },
+    "fanniemae.com": {
+      "tier": "primary",
+      "origin": "fanniemae.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fanniemae.com/",
+      "rights_status": "unverified"
+    },
+    "fca.org.uk": {
+      "tier": "primary",
+      "origin": "fca.org.uk",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fca.org.uk/",
+      "rights_status": "unverified"
+    },
+    "fda.gov": {
+      "tier": "primary",
+      "origin": "fda.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "universal-sourcing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fda.gov/",
+      "rights_status": "unverified"
+    },
+    "fdic.gov": {
+      "tier": "primary",
+      "origin": "fdic.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "content/sources.json",
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fdic.gov/",
+      "rights_status": "unverified"
+    },
+    "federalregister.gov": {
+      "tier": "primary",
+      "origin": "federalregister.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://federalregister.gov/",
+      "rights_status": "unverified"
+    },
+    "federalreserve.gov": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "content/sources.json",
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17",
+        "content-sources-2026-11-16"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://federalreserve.gov/",
+      "rights_status": "unverified"
+    },
+    "fednow.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fednow.org/",
+      "rights_status": "unverified"
+    },
+    "feeds.feedburner.com": {
+      "tier": "unknown",
+      "origin": "feeds.feedburner.com",
+      "reason": "Distribution or community host; publisher identity cannot be inferred from this host.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://feeds.feedburner.com/",
+      "rights_status": "unverified"
+    },
+    "fema.gov": {
+      "tier": "primary",
+      "origin": "fema.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fema.gov/",
+      "rights_status": "unverified"
+    },
+    "fhfa.gov": {
+      "tier": "primary",
+      "origin": "fhfa.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fhfa.gov/",
+      "rights_status": "unverified"
+    },
+    "fidoalliance.org": {
+      "tier": "primary",
+      "origin": "fidoalliance.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fidoalliance.org/",
+      "rights_status": "unverified"
+    },
+    "fiercehealthcare.com": {
+      "tier": "trade",
+      "origin": "fiercehealthcare.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fiercehealthcare.com/",
+      "rights_status": "unverified"
+    },
+    "files.zillowstatic.com": {
+      "tier": "primary",
+      "origin": "zillow",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://files.zillowstatic.com/",
+      "rights_status": "unverified"
+    },
+    "fincen.gov": {
+      "tier": "primary",
+      "origin": "fincen.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fincen.gov/",
+      "rights_status": "unverified"
+    },
+    "finehomebuilding.com": {
+      "tier": "trade",
+      "origin": "finehomebuilding.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://finehomebuilding.com/",
+      "rights_status": "unverified"
+    },
+    "finextra.com": {
+      "tier": "trade",
+      "origin": "finextra.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://finextra.com/",
+      "rights_status": "unverified"
+    },
+    "fintechbrainfood.com": {
+      "tier": "blog",
+      "origin": "fintechbrainfood.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fintechbrainfood.com/",
+      "rights_status": "unverified"
+    },
+    "fintechbusinessweekly.substack.com": {
+      "tier": "blog",
+      "origin": "fintechbusinessweekly.substack.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fintechbusinessweekly.substack.com/",
+      "rights_status": "unverified"
+    },
+    "fintechfutures.com": {
+      "tier": "trade",
+      "origin": "fintechfutures.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fintechfutures.com/",
+      "rights_status": "unverified"
+    },
+    "fintechtakes.com": {
+      "tier": "blog",
+      "origin": "fintechtakes.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fintechtakes.com/",
+      "rights_status": "unverified"
+    },
+    "fintechweekly.com": {
+      "tier": "trade",
+      "origin": "fintechweekly.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fintechweekly.com/",
+      "rights_status": "unverified"
+    },
+    "fiserv.com": {
+      "tier": "primary",
+      "origin": "fiserv.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fiserv.com/",
+      "rights_status": "unverified"
+    },
+    "fisglobal.com": {
+      "tier": "primary",
+      "origin": "fisglobal.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fisglobal.com/",
+      "rights_status": "unverified"
+    },
+    "football-data.co.uk": {
+      "tier": "primary",
+      "origin": "football-data.co.uk",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://football-data.co.uk/",
+      "rights_status": "unverified"
+    },
+    "frbservices.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://frbservices.org/",
+      "rights_status": "unverified"
+    },
+    "frbsf.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://frbsf.org/",
+      "rights_status": "unverified"
+    },
+    "freddiemac.com": {
+      "tier": "primary",
+      "origin": "freddiemac.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://freddiemac.com/",
+      "rights_status": "unverified"
+    },
+    "frontofficesports.com": {
+      "tier": "trade",
+      "origin": "frontofficesports.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://frontofficesports.com/",
+      "rights_status": "unverified"
+    },
+    "fsb.org": {
+      "tier": "primary",
+      "origin": "fsb.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://fsb.org/",
+      "rights_status": "unverified"
+    },
+    "ft.com": {
+      "tier": "major",
+      "origin": "ft.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://ft.com/",
+      "rights_status": "unverified"
+    },
+    "ftc.gov": {
+      "tier": "primary",
+      "origin": "ftc.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "content-sources-2026-11-16"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://ftc.gov/",
+      "rights_status": "unverified"
+    },
+    "gamespot.com": {
+      "tier": "trade",
+      "origin": "gamespot.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://gamespot.com/",
+      "rights_status": "unverified"
+    },
+    "globalpayments.com": {
+      "tier": "primary",
+      "origin": "globalpayments.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://globalpayments.com/",
+      "rights_status": "unverified"
+    },
+    "goupstate.com": {
+      "tier": "major",
+      "origin": "gannett",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://goupstate.com/",
+      "rights_status": "unverified"
+    },
+    "governing.com": {
+      "tier": "trade",
+      "origin": "governing.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://governing.com/",
+      "rights_status": "unverified"
+    },
+    "greenbuildingadvisor.com": {
+      "tier": "trade",
+      "origin": "greenbuildingadvisor.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://greenbuildingadvisor.com/",
+      "rights_status": "unverified"
+    },
+    "greenvilleonline.com": {
+      "tier": "major",
+      "origin": "gannett",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://greenvilleonline.com/",
+      "rights_status": "unverified"
+    },
+    "greenvillesc.gov": {
+      "tier": "primary",
+      "origin": "greenvillesc.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://greenvillesc.gov/",
+      "rights_status": "unverified"
+    },
+    "hai.stanford.edu": {
+      "tier": "primary",
+      "origin": "hai.stanford.edu",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://hai.stanford.edu/",
+      "rights_status": "unverified"
+    },
+    "healthaffairs.org": {
+      "tier": "primary",
+      "origin": "healthaffairs.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://healthaffairs.org/",
+      "rights_status": "unverified"
+    },
+    "healthcare.gov": {
+      "tier": "primary",
+      "origin": "healthcare.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "content-sources-2026-11-16"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://healthcare.gov/",
+      "rights_status": "unverified"
+    },
+    "healthcaredive.com": {
+      "tier": "trade",
+      "origin": "healthcaredive.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://healthcaredive.com/",
+      "rights_status": "unverified"
+    },
+    "healthcarefinancenews.com": {
+      "tier": "trade",
+      "origin": "healthcarefinancenews.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://healthcarefinancenews.com/",
+      "rights_status": "unverified"
+    },
+    "healthsystemtracker.org": {
+      "tier": "primary",
+      "origin": "healthsystemtracker.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://healthsystemtracker.org/",
+      "rights_status": "unverified"
+    },
+    "hhs.gov": {
+      "tier": "primary",
+      "origin": "hhs.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://hhs.gov/",
+      "rights_status": "unverified"
+    },
+    "hn.algolia.com": {
+      "tier": "unknown",
+      "origin": "hn.algolia.com",
+      "reason": "Distribution or community host; publisher identity cannot be inferred from this host.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://hn.algolia.com/",
+      "rights_status": "unverified"
+    },
+    "housingfinance.com": {
+      "tier": "trade",
+      "origin": "housingfinance.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://housingfinance.com/",
+      "rights_status": "unverified"
+    },
+    "housingwire.com": {
+      "tier": "trade",
+      "origin": "housingwire.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://housingwire.com/",
+      "rights_status": "unverified"
+    },
+    "hud.gov": {
+      "tier": "primary",
+      "origin": "hud.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://hud.gov/",
+      "rights_status": "unverified"
+    },
+    "huduser.gov": {
+      "tier": "primary",
+      "origin": "huduser.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://huduser.gov/",
+      "rights_status": "unverified"
+    },
+    "ic3.gov": {
+      "tier": "primary",
+      "origin": "ic3.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://ic3.gov/",
+      "rights_status": "unverified"
+    },
+    "ico.org.uk": {
+      "tier": "primary",
+      "origin": "ico.org.uk",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://ico.org.uk/",
+      "rights_status": "unverified"
+    },
+    "imf.org": {
+      "tier": "primary",
+      "origin": "imf.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://imf.org/",
+      "rights_status": "unverified"
+    },
+    "importai.substack.com": {
+      "tier": "blog",
+      "origin": "importai.substack.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://importai.substack.com/",
+      "rights_status": "unverified"
+    },
+    "independentbanker.org": {
+      "tier": "trade",
+      "origin": "independentbanker.org",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://independentbanker.org/",
+      "rights_status": "unverified"
+    },
+    "independentmail.com": {
+      "tier": "major",
+      "origin": "gannett",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://independentmail.com/",
+      "rights_status": "unverified"
+    },
+    "insurancejournal.com": {
+      "tier": "trade",
+      "origin": "insurancejournal.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://insurancejournal.com/",
+      "rights_status": "unverified"
+    },
+    "interfluidity.com": {
+      "tier": "blog",
+      "origin": "interfluidity.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://interfluidity.com/",
+      "rights_status": "unverified"
+    },
+    "irunfar.com": {
+      "tier": "trade",
+      "origin": "irunfar.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://irunfar.com/",
+      "rights_status": "unverified"
+    },
+    "iso20022.org": {
+      "tier": "primary",
+      "origin": "iso20022.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://iso20022.org/",
+      "rights_status": "unverified"
+    },
+    "jackhenry.com": {
+      "tier": "primary",
+      "origin": "jackhenry.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://jackhenry.com/",
+      "rights_status": "unverified"
+    },
+    "jchs.harvard.edu": {
+      "tier": "primary",
+      "origin": "jchs.harvard.edu",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://jchs.harvard.edu/",
+      "rights_status": "unverified"
+    },
+    "jlconline.com": {
+      "tier": "trade",
+      "origin": "jlconline.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://jlconline.com/",
+      "rights_status": "unverified"
+    },
+    "jpmorgan.com": {
+      "tier": "primary",
+      "origin": "jpmorgan",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://jpmorgan.com/",
+      "rights_status": "unverified"
+    },
+    "jpmorganchase.com": {
+      "tier": "primary",
+      "origin": "jpmorgan",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://jpmorganchase.com/",
+      "rights_status": "unverified"
+    },
+    "kansascityfed.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://kansascityfed.org/",
+      "rights_status": "unverified"
+    },
+    "kff.org": {
+      "tier": "primary",
+      "origin": "kff.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://kff.org/",
+      "rights_status": "unverified"
+    },
+    "kffhealthnews.org": {
+      "tier": "trade",
+      "origin": "kffhealthnews.org",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://kffhealthnews.org/",
+      "rights_status": "unverified"
+    },
+    "knowablemagazine.org": {
+      "tier": "trade",
+      "origin": "knowablemagazine.org",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://knowablemagazine.org/",
+      "rights_status": "unverified"
+    },
+    "krebsonsecurity.com": {
+      "tier": "blog",
+      "origin": "krebsonsecurity.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://krebsonsecurity.com/",
+      "rights_status": "unverified"
+    },
+    "lbmjournal.com": {
+      "tier": "trade",
+      "origin": "lbmjournal.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://lbmjournal.com/",
+      "rights_status": "unverified"
+    },
+    "lilianweng.github.io": {
+      "tier": "blog",
+      "origin": "lilianweng.github.io",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://lilianweng.github.io/",
+      "rights_status": "unverified"
+    },
+    "lincolninst.edu": {
+      "tier": "primary",
+      "origin": "lincolninst.edu",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://lincolninst.edu/",
+      "rights_status": "unverified"
+    },
+    "liverpoolfc.com": {
+      "tier": "primary",
+      "origin": "liverpoolfc.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://liverpoolfc.com/",
+      "rights_status": "unverified"
+    },
+    "lobste.rs": {
+      "tier": "unknown",
+      "origin": "lobste.rs",
+      "reason": "Distribution or community host; publisher identity cannot be inferred from this host.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://lobste.rs/",
+      "rights_status": "unverified"
+    },
+    "macpac.gov": {
+      "tier": "primary",
+      "origin": "macpac.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://macpac.gov/",
+      "rights_status": "unverified"
+    },
+    "macrumors.com": {
+      "tier": "trade",
+      "origin": "macrumors.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://macrumors.com/",
+      "rights_status": "unverified"
+    },
+    "mancity.com": {
+      "tier": "primary",
+      "origin": "mancity.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://mancity.com/",
+      "rights_status": "unverified"
+    },
+    "manutd.com": {
+      "tier": "primary",
+      "origin": "manutd.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://manutd.com/",
+      "rights_status": "unverified"
+    },
+    "marginalrevolution.com": {
+      "tier": "blog",
+      "origin": "marginalrevolution.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://marginalrevolution.com/",
+      "rights_status": "unverified"
+    },
+    "marqeta.com": {
+      "tier": "primary",
+      "origin": "marqeta.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://marqeta.com/",
+      "rights_status": "unverified"
+    },
+    "mas.gov.sg": {
+      "tier": "primary",
+      "origin": "mas.gov.sg",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://mas.gov.sg/",
+      "rights_status": "unverified"
+    },
+    "mastercard.com": {
+      "tier": "primary",
+      "origin": "mastercard.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://mastercard.com/",
+      "rights_status": "unverified"
+    },
+    "mecknc.gov": {
+      "tier": "primary",
+      "origin": "mecknc.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://mecknc.gov/",
+      "rights_status": "unverified"
+    },
+    "medicare.gov": {
+      "tier": "primary",
+      "origin": "medicare.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://medicare.gov/",
+      "rights_status": "unverified"
+    },
+    "medlineplus.gov": {
+      "tier": "primary",
+      "origin": "medlineplus.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://medlineplus.gov/",
+      "rights_status": "unverified"
+    },
+    "medpac.gov": {
+      "tier": "primary",
+      "origin": "medpac.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://medpac.gov/",
+      "rights_status": "unverified"
+    },
+    "minneapolisfed.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://minneapolisfed.org/",
+      "rights_status": "unverified"
+    },
+    "mlb.com": {
+      "tier": "primary",
+      "origin": "mlb.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://mlb.com/",
+      "rights_status": "unverified"
+    },
+    "modernhealthcare.com": {
+      "tier": "trade",
+      "origin": "modernhealthcare.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://modernhealthcare.com/",
+      "rights_status": "unverified"
+    },
+    "mortgagenewsdaily.com": {
+      "tier": "trade",
+      "origin": "mortgagenewsdaily.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://mortgagenewsdaily.com/",
+      "rights_status": "unverified"
+    },
+    "msrc.microsoft.com": {
+      "tier": "primary",
+      "origin": "msrc.microsoft.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://msrc.microsoft.com/",
+      "rights_status": "unverified"
+    },
+    "multihousingnews.com": {
+      "tier": "trade",
+      "origin": "multihousingnews.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://multihousingnews.com/",
+      "rights_status": "unverified"
+    },
+    "nacha.org": {
+      "tier": "primary",
+      "origin": "nacha.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nacha.org/",
+      "rights_status": "unverified"
+    },
+    "nahb.org": {
+      "tier": "primary",
+      "origin": "nahb.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nahb.org/",
+      "rights_status": "unverified"
+    },
+    "naic.org": {
+      "tier": "primary",
+      "origin": "naic.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "content/sources.json",
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://naic.org/",
+      "rights_status": "unverified"
+    },
+    "nakedcapitalism.com": {
+      "tier": "blog",
+      "origin": "nakedcapitalism.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nakedcapitalism.com/",
+      "rights_status": "unverified"
+    },
+    "nar.realtor": {
+      "tier": "primary",
+      "origin": "nar.realtor",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nar.realtor/",
+      "rights_status": "unverified"
+    },
+    "nasa.gov": {
+      "tier": "primary",
+      "origin": "nasa.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nasa.gov/",
+      "rights_status": "unverified"
+    },
+    "nature.com": {
+      "tier": "primary",
+      "origin": "nature.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nature.com/",
+      "rights_status": "unverified"
+    },
+    "nba.com": {
+      "tier": "primary",
+      "origin": "nba.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nba.com/",
+      "rights_status": "unverified"
+    },
+    "nber.org": {
+      "tier": "primary",
+      "origin": "nber.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nber.org/",
+      "rights_status": "unverified"
+    },
+    "ncdoi.gov": {
+      "tier": "primary",
+      "origin": "ncdoi.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://ncdoi.gov/",
+      "rights_status": "unverified"
+    },
+    "ncua.gov": {
+      "tier": "primary",
+      "origin": "ncua.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://ncua.gov/",
+      "rights_status": "unverified"
+    },
+    "netinterest.co": {
+      "tier": "blog",
+      "origin": "netinterest.co",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://netinterest.co/",
+      "rights_status": "unverified"
+    },
+    "news.ycombinator.com": {
+      "tier": "unknown",
+      "origin": "news.ycombinator.com",
+      "reason": "Distribution or community host; publisher identity cannot be inferred from this host.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://news.ycombinator.com/",
+      "rights_status": "unverified"
+    },
+    "newscientist.com": {
+      "tier": "trade",
+      "origin": "newscientist.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://newscientist.com/",
+      "rights_status": "unverified"
+    },
+    "newyorkfed.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://newyorkfed.org/",
+      "rights_status": "unverified"
+    },
+    "nextcity.org": {
+      "tier": "trade",
+      "origin": "nextcity.org",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nextcity.org/",
+      "rights_status": "unverified"
+    },
+    "nfl.com": {
+      "tier": "primary",
+      "origin": "nfl.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nfl.com/",
+      "rights_status": "unverified"
+    },
+    "nhl.com": {
+      "tier": "primary",
+      "origin": "nhl.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nhl.com/",
+      "rights_status": "unverified"
+    },
+    "nintendolife.com": {
+      "tier": "trade",
+      "origin": "nintendolife.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nintendolife.com/",
+      "rights_status": "unverified"
+    },
+    "nist.gov": {
+      "tier": "primary",
+      "origin": "nist.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "content/sources.json",
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17",
+        "content-sources-2026-11-16"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nist.gov/",
+      "rights_status": "unverified"
+    },
+    "nmhc.org": {
+      "tier": "primary",
+      "origin": "nmhc.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nmhc.org/",
+      "rights_status": "unverified"
+    },
+    "noaa.gov": {
+      "tier": "primary",
+      "origin": "noaa.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://noaa.gov/",
+      "rights_status": "unverified"
+    },
+    "noahpinion.blog": {
+      "tier": "blog",
+      "origin": "noahpinion.blog",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://noahpinion.blog/",
+      "rights_status": "unverified"
+    },
+    "npr.org": {
+      "tier": "major",
+      "origin": "npr.org",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://npr.org/",
+      "rights_status": "unverified"
+    },
+    "nufc.co.uk": {
+      "tier": "primary",
+      "origin": "nufc.co.uk",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nufc.co.uk/",
+      "rights_status": "unverified"
+    },
+    "nytimes.com": {
+      "tier": "major",
+      "origin": "nytimes.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://nytimes.com/",
+      "rights_status": "unverified"
+    },
+    "occ.gov": {
+      "tier": "primary",
+      "origin": "occ.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://occ.gov/",
+      "rights_status": "unverified"
+    },
+    "oecd.org": {
+      "tier": "primary",
+      "origin": "oecd.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://oecd.org/",
+      "rights_status": "unverified"
+    },
+    "openai.com": {
+      "tier": "primary",
+      "origin": "openai.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "universal-sourcing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://openai.com/",
+      "rights_status": "unverified"
+    },
+    "osha.gov": {
+      "tier": "primary",
+      "origin": "osha.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://osha.gov/",
+      "rights_status": "unverified"
+    },
+    "outsideonline.com": {
+      "tier": "trade",
+      "origin": "outsideonline.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://outsideonline.com/",
+      "rights_status": "unverified"
+    },
+    "paymentsdive.com": {
+      "tier": "trade",
+      "origin": "paymentsdive.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://paymentsdive.com/",
+      "rights_status": "unverified"
+    },
+    "paymentsjournal.com": {
+      "tier": "trade",
+      "origin": "paymentsjournal.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://paymentsjournal.com/",
+      "rights_status": "unverified"
+    },
+    "paymentssource.com": {
+      "tier": "trade",
+      "origin": "paymentssource.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://paymentssource.com/",
+      "rights_status": "unverified"
+    },
+    "paypal-corp.com": {
+      "tier": "primary",
+      "origin": "paypal",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://paypal-corp.com/",
+      "rights_status": "unverified"
+    },
+    "pbs.org": {
+      "tier": "major",
+      "origin": "pbs.org",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://pbs.org/",
+      "rights_status": "unverified"
+    },
+    "pcgamer.com": {
+      "tier": "trade",
+      "origin": "pcgamer.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://pcgamer.com/",
+      "rights_status": "unverified"
+    },
+    "pcisecuritystandards.org": {
+      "tier": "primary",
+      "origin": "pcisecuritystandards.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://pcisecuritystandards.org/",
+      "rights_status": "unverified"
+    },
+    "petapixel.com": {
+      "tier": "trade",
+      "origin": "petapixel.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://petapixel.com/",
+      "rights_status": "unverified"
+    },
+    "philadelphiafed.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://philadelphiafed.org/",
+      "rights_status": "unverified"
+    },
+    "phys.org": {
+      "tier": "trade",
+      "origin": "phys.org",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://phys.org/",
+      "rights_status": "unverified"
+    },
+    "piie.com": {
+      "tier": "primary",
+      "origin": "piie.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://piie.com/",
+      "rights_status": "unverified"
+    },
+    "polygon.com": {
+      "tier": "trade",
+      "origin": "polygon.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://polygon.com/",
+      "rights_status": "unverified"
+    },
+    "postandcourier.com": {
+      "tier": "major",
+      "origin": "postandcourier.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://postandcourier.com/",
+      "rights_status": "unverified"
+    },
+    "premierleague.com": {
+      "tier": "primary",
+      "origin": "premierleague.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://premierleague.com/",
+      "rights_status": "unverified"
+    },
+    "probuilder.com": {
+      "tier": "trade",
+      "origin": "probuilder.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://probuilder.com/",
+      "rights_status": "unverified"
+    },
+    "proremodeler.com": {
+      "tier": "trade",
+      "origin": "proremodeler.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://proremodeler.com/",
+      "rights_status": "unverified"
+    },
+    "proton.me": {
+      "tier": "primary",
+      "origin": "proton.me",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://proton.me/",
+      "rights_status": "unverified"
+    },
+    "psr.org.uk": {
+      "tier": "primary",
+      "origin": "psr.org.uk",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://psr.org.uk/",
+      "rights_status": "unverified"
+    },
+    "public.govdelivery.com": {
+      "tier": "unknown",
+      "origin": "public.govdelivery.com",
+      "reason": "Distribution or community host; publisher identity cannot be inferred from this host.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "content-sources-2026-11-16"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://public.govdelivery.com/",
+      "rights_status": "unverified"
+    },
+    "pymnts.com": {
+      "tier": "trade",
+      "origin": "pymnts.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://pymnts.com/",
+      "rights_status": "unverified"
+    },
+    "pypl.com": {
+      "tier": "primary",
+      "origin": "paypal",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://pypl.com/",
+      "rights_status": "unverified"
+    },
+    "quantamagazine.org": {
+      "tier": "trade",
+      "origin": "quantamagazine.org",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://quantamagazine.org/",
+      "rights_status": "unverified"
+    },
+    "rba.gov.au": {
+      "tier": "primary",
+      "origin": "rba.gov.au",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://rba.gov.au/",
+      "rights_status": "unverified"
+    },
+    "realtor.com": {
+      "tier": "primary",
+      "origin": "realtor.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://realtor.com/",
+      "rights_status": "unverified"
+    },
+    "redfin.com": {
+      "tier": "primary",
+      "origin": "redfin.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://redfin.com/",
+      "rights_status": "unverified"
+    },
+    "regulations.gov": {
+      "tier": "primary",
+      "origin": "regulations.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://regulations.gov/",
+      "rights_status": "unverified"
+    },
+    "reuters.com": {
+      "tier": "major",
+      "origin": "reuters.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "editorial-supplement"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://reuters.com/",
+      "rights_status": "unverified",
+      "wire": true
+    },
+    "richmondfed.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://richmondfed.org/",
+      "rights_status": "unverified"
+    },
+    "ritholtz.com": {
+      "tier": "blog",
+      "origin": "ritholtz.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://ritholtz.com/",
+      "rights_status": "unverified"
+    },
+    "road.cc": {
+      "tier": "trade",
+      "origin": "road.cc",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://road.cc/",
+      "rights_status": "unverified"
+    },
+    "rockpapershotgun.com": {
+      "tier": "trade",
+      "origin": "rockpapershotgun.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://rockpapershotgun.com/",
+      "rights_status": "unverified"
+    },
+    "runnersworld.com": {
+      "tier": "trade",
+      "origin": "runnersworld.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://runnersworld.com/",
+      "rights_status": "unverified"
+    },
+    "schneier.com": {
+      "tier": "blog",
+      "origin": "schneier.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://schneier.com/",
+      "rights_status": "unverified"
+    },
+    "schousing.sc.gov": {
+      "tier": "primary",
+      "origin": "schousing.sc.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://schousing.sc.gov/",
+      "rights_status": "unverified"
+    },
+    "sciencedaily.com": {
+      "tier": "trade",
+      "origin": "sciencedaily.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://sciencedaily.com/",
+      "rights_status": "unverified"
+    },
+    "sciencenews.org": {
+      "tier": "trade",
+      "origin": "sciencenews.org",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://sciencenews.org/",
+      "rights_status": "unverified"
+    },
+    "scpublicradio.org": {
+      "tier": "major",
+      "origin": "scpublicradio.org",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://scpublicradio.org/",
+      "rights_status": "unverified"
+    },
+    "sec.cloudapps.cisco.com": {
+      "tier": "primary",
+      "origin": "sec.cloudapps.cisco.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://sec.cloudapps.cisco.com/",
+      "rights_status": "unverified"
+    },
+    "sec.gov": {
+      "tier": "primary",
+      "origin": "sec.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "content-sources-2026-11-16",
+        "universal-sourcing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://sec.gov/",
+      "rights_status": "unverified"
+    },
+    "sec.okta.com": {
+      "tier": "primary",
+      "origin": "sec.okta.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://sec.okta.com/",
+      "rights_status": "unverified"
+    },
+    "shelterforce.org": {
+      "tier": "trade",
+      "origin": "shelterforce.org",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://shelterforce.org/",
+      "rights_status": "unverified"
+    },
+    "shift4.com": {
+      "tier": "primary",
+      "origin": "shift4.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://shift4.com/",
+      "rights_status": "unverified"
+    },
+    "signal.org": {
+      "tier": "primary",
+      "origin": "signal.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://signal.org/",
+      "rights_status": "unverified"
+    },
+    "simonwillison.net": {
+      "tier": "blog",
+      "origin": "simonwillison.net",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://simonwillison.net/",
+      "rights_status": "unverified"
+    },
+    "skift.com": {
+      "tier": "trade",
+      "origin": "skift.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://skift.com/",
+      "rights_status": "unverified"
+    },
+    "skysports.com": {
+      "tier": "trade",
+      "origin": "skysports.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://skysports.com/",
+      "rights_status": "unverified"
+    },
+    "sofi.com": {
+      "tier": "primary",
+      "origin": "sofi.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://sofi.com/",
+      "rights_status": "unverified"
+    },
+    "spartanburgcounty.gov": {
+      "tier": "primary",
+      "origin": "spartanburgcounty.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://spartanburgcounty.gov/",
+      "rights_status": "unverified"
+    },
+    "sportico.com": {
+      "tier": "trade",
+      "origin": "sportico.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://sportico.com/",
+      "rights_status": "unverified"
+    },
+    "sportsnet.ca": {
+      "tier": "trade",
+      "origin": "sportsnet.ca",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://sportsnet.ca/",
+      "rights_status": "unverified"
+    },
+    "ssrn.com": {
+      "tier": "primary",
+      "origin": "ssrn.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://ssrn.com/",
+      "rights_status": "unverified"
+    },
+    "statnews.com": {
+      "tier": "trade",
+      "origin": "statnews.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://statnews.com/",
+      "rights_status": "unverified"
+    },
+    "statsbomb.com": {
+      "tier": "primary",
+      "origin": "statsbomb.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://statsbomb.com/",
+      "rights_status": "unverified"
+    },
+    "stlouisfed.org": {
+      "tier": "primary",
+      "origin": "federal-reserve",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17",
+        "universal-sourcing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://stlouisfed.org/",
+      "rights_status": "unverified"
+    },
+    "stripe.com": {
+      "tier": "primary",
+      "origin": "stripe.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://stripe.com/",
+      "rights_status": "unverified"
+    },
+    "support.apple.com": {
+      "tier": "primary",
+      "origin": "support.apple.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://support.apple.com/",
+      "rights_status": "unverified"
+    },
+    "swift.com": {
+      "tier": "primary",
+      "origin": "swift.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://swift.com/",
+      "rights_status": "unverified"
+    },
+    "swissramble.substack.com": {
+      "tier": "blog",
+      "origin": "swissramble.substack.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://swissramble.substack.com/",
+      "rights_status": "unverified"
+    },
+    "tearsheet.co": {
+      "tier": "trade",
+      "origin": "tearsheet.co",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://tearsheet.co/",
+      "rights_status": "unverified"
+    },
+    "techcrunch.com": {
+      "tier": "trade",
+      "origin": "techcrunch.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "universal-sourcing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://techcrunch.com/",
+      "rights_status": "unverified"
+    },
+    "technologyreview.com": {
+      "tier": "trade",
+      "origin": "technologyreview.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://technologyreview.com/",
+      "rights_status": "unverified"
+    },
+    "ternercenter.berkeley.edu": {
+      "tier": "primary",
+      "origin": "ternercenter.berkeley.edu",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://ternercenter.berkeley.edu/",
+      "rights_status": "unverified"
+    },
+    "theathletic.com": {
+      "tier": "trade",
+      "origin": "theathletic.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "editorial-supplement"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://theathletic.com/",
+      "rights_status": "unverified"
+    },
+    "theblock.co": {
+      "tier": "trade",
+      "origin": "theblock.co",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://theblock.co/",
+      "rights_status": "unverified"
+    },
+    "theclearinghouse.org": {
+      "tier": "primary",
+      "origin": "theclearinghouse.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://theclearinghouse.org/",
+      "rights_status": "unverified"
+    },
+    "theconversation.com": {
+      "tier": "trade",
+      "origin": "theconversation.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://theconversation.com/",
+      "rights_status": "unverified"
+    },
+    "thefintechtimes.com": {
+      "tier": "trade",
+      "origin": "thefintechtimes.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://thefintechtimes.com/",
+      "rights_status": "unverified"
+    },
+    "theguardian.com": {
+      "tier": "major",
+      "origin": "theguardian.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://theguardian.com/",
+      "rights_status": "unverified"
+    },
+    "thehockeynews.com": {
+      "tier": "trade",
+      "origin": "thehockeynews.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://thehockeynews.com/",
+      "rights_status": "unverified"
+    },
+    "theifab.com": {
+      "tier": "primary",
+      "origin": "theifab.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "content/sources.json"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://theifab.com/",
+      "rights_status": "unverified"
+    },
+    "theovershoot.co": {
+      "tier": "blog",
+      "origin": "theovershoot.co",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://theovershoot.co/",
+      "rights_status": "unverified"
+    },
+    "thepaypers.com": {
+      "tier": "trade",
+      "origin": "thepaypers.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://thepaypers.com/",
+      "rights_status": "unverified"
+    },
+    "thepriceoffootball.substack.com": {
+      "tier": "blog",
+      "origin": "thepriceoffootball.substack.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://thepriceoffootball.substack.com/",
+      "rights_status": "unverified"
+    },
+    "therecord.media": {
+      "tier": "trade",
+      "origin": "therecord.media",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://therecord.media/",
+      "rights_status": "unverified"
+    },
+    "thestate.com": {
+      "tier": "major",
+      "origin": "mcclatchy",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://thestate.com/",
+      "rights_status": "unverified"
+    },
+    "theverge.com": {
+      "tier": "trade",
+      "origin": "theverge.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://theverge.com/",
+      "rights_status": "unverified"
+    },
+    "toasttab.com": {
+      "tier": "primary",
+      "origin": "toasttab.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://toasttab.com/",
+      "rights_status": "unverified"
+    },
+    "tottenhamhotspur.com": {
+      "tier": "primary",
+      "origin": "tottenhamhotspur.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://tottenhamhotspur.com/",
+      "rights_status": "unverified"
+    },
+    "treasury.gov": {
+      "tier": "primary",
+      "origin": "treasury.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://treasury.gov/",
+      "rights_status": "unverified"
+    },
+    "troyhunt.com": {
+      "tier": "blog",
+      "origin": "troyhunt.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://troyhunt.com/",
+      "rights_status": "unverified"
+    },
+    "urban.org": {
+      "tier": "primary",
+      "origin": "urban.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17",
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://urban.org/",
+      "rights_status": "unverified"
+    },
+    "usda.gov": {
+      "tier": "primary",
+      "origin": "usda.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://usda.gov/",
+      "rights_status": "unverified"
+    },
+    "visa.com": {
+      "tier": "primary",
+      "origin": "visa.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://visa.com/",
+      "rights_status": "unverified"
+    },
+    "washingtonpost.com": {
+      "tier": "major",
+      "origin": "washingtonpost.com",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://washingtonpost.com/",
+      "rights_status": "unverified"
+    },
+    "wfae.org": {
+      "tier": "major",
+      "origin": "wfae.org",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://wfae.org/",
+      "rights_status": "unverified"
+    },
+    "whufc.com": {
+      "tier": "primary",
+      "origin": "whufc.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://whufc.com/",
+      "rights_status": "unverified"
+    },
+    "wired.com": {
+      "tier": "trade",
+      "origin": "wired.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://wired.com/",
+      "rights_status": "unverified"
+    },
+    "wise.com": {
+      "tier": "primary",
+      "origin": "wise.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://wise.com/",
+      "rights_status": "unverified"
+    },
+    "wolfstreet.com": {
+      "tier": "blog",
+      "origin": "wolfstreet.com",
+      "reason": "Commentary or individual publication; original work must be established per article.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://wolfstreet.com/",
+      "rights_status": "unverified"
+    },
+    "woodworkingnetwork.com": {
+      "tier": "trade",
+      "origin": "woodworkingnetwork.com",
+      "reason": "Specialist reporting publisher; article provenance and subject expertise still require checking.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://woodworkingnetwork.com/",
+      "rights_status": "unverified"
+    },
+    "worldbank.org": {
+      "tier": "primary",
+      "origin": "worldbank.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://worldbank.org/",
+      "rights_status": "unverified"
+    },
+    "wsj.com": {
+      "tier": "major",
+      "origin": "dow-jones",
+      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
+      "basis": [
+        "editorial-supplement"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://wsj.com/",
+      "rights_status": "unverified"
+    },
+    "zelle.com": {
+      "tier": "primary",
+      "origin": "zelle.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://zelle.com/",
+      "rights_status": "unverified"
+    },
+    "zillow.com": {
+      "tier": "primary",
+      "origin": "zillow",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://zillow.com/",
+      "rights_status": "unverified"
+    },
+    "zondahome.com": {
+      "tier": "primary",
+      "origin": "zondahome.com",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "great-sources-housing-2026-11-17"
+      ],
+      "reviewed_at": "2026-11-18",
+      "evidence_url": "https://zondahome.com/",
+      "rights_status": "unverified"
+    }
+  }
+}

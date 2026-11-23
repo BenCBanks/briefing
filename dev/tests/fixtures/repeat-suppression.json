@@ -1,0 +1,188 @@
+{
+  "history": [
+    {
+      "editions": {
+        "editions": [
+          {
+            "id": "fictional-2026-11-17",
+            "kind": "daily",
+            "generated_at": "2026-11-17T12:00:00Z",
+            "seen_by_reader": true,
+            "sections": [
+              {
+                "cluster_id": "prior-zelle-solana",
+                "heading": "Zelle and Solana expand payment links",
+                "body": "Zelle and Solana announced a new payment link feature.",
+                "source_ids": [
+                  "src-zelle"
+                ]
+              },
+              {
+                "cluster_id": "prior-pq",
+                "heading": "PCI post-quantum cryptography guidance",
+                "body": "The PCI council published post-quantum cryptography guidance.",
+                "source_ids": [
+                  "src-pq"
+                ]
+              },
+              {
+                "cluster_id": "prior-cms",
+                "heading": "CMS delays Medicaid work requirements",
+                "body": "CMS delayed Medicaid work requirements until November 30, 2026.",
+                "source_ids": [
+                  "src-cms"
+                ],
+                "entities": [
+                  "CMS",
+                  "Medicaid work requirements"
+                ]
+              }
+            ]
+          }
+        ]
+      },
+      "sources": {
+        "sources": [
+          {
+            "id": "src-zelle",
+            "url": "https://payments.example.test/zelle-solana",
+            "publisher": "Fictional Payments Desk",
+            "title": "Zelle and Solana expand payment links",
+            "published_at": "2026-11-17T11:00:00Z"
+          },
+          {
+            "id": "src-pq",
+            "url": "https://standards.example.test/pci-pq",
+            "publisher": "Fictional Standards Desk",
+            "title": "PCI post-quantum cryptography guidance",
+            "published_at": "2026-11-17T11:00:00Z"
+          },
+          {
+            "id": "src-cms",
+            "url": "https://health.example.test/cms-medicaid",
+            "publisher": "Fictional Health Desk",
+            "title": "CMS delays Medicaid work requirements",
+            "published_at": "2026-11-17T11:00:00Z"
+          }
+        ]
+      }
+    }
+  ],
+  "candidates": {
+    "zelle_sol": {
+      "id": "current-zelle-solana",
+      "rows": [
+        {
+          "item": {
+            "title": "Zelle and Solana expand payment links",
+            "url": "https://payments.example.test/zelle-solana?utm_source=feed",
+            "published_at": "2026-11-18T10:00:00Z"
+          }
+        }
+      ]
+    },
+    "post_quantum": {
+      "id": "current-pq",
+      "rows": [
+        {
+          "item": {
+            "title": "PCI post-quantum cryptography guidance",
+            "url": "https://standards.example.test/pci-pq",
+            "published_at": "2026-11-18T10:00:00Z"
+          }
+        }
+      ]
+    },
+    "cms_delay": {
+      "id": "current-cms",
+      "rows": [
+        {
+          "item": {
+            "title": "CMS delays Medicaid work requirements",
+            "url": "https://health.example.test/cms-medicaid",
+            "published_at": "2026-11-18T10:00:00Z",
+            "entities": [
+              "CMS",
+              "Medicaid work requirements"
+            ]
+          }
+        }
+      ]
+    },
+    "fresh": {
+      "id": "new-federal-payment-rule",
+      "rows": [
+        {
+          "item": {
+            "title": "Federal Reserve sets a new payment settlement date",
+            "url": "https://reserve.example.test/settlement-date",
+            "published_at": "2026-11-18T10:00:00Z"
+          }
+        }
+      ]
+    },
+    "cms_followup": {
+      "id": "cms-follow-up",
+      "rows": [
+        {
+          "item": {
+            "title": "CMS delays Medicaid work requirements until December 15, 2026",
+            "url": "https://health.example.test/cms-medicaid-update",
+            "published_at": "2026-11-18T11:00:00Z",
+            "entities": [
+              "CMS",
+              "Medicaid work requirements"
+            ]
+          }
+        }
+      ]
+    },
+    "cross_outlet": {
+      "id": "different-publisher-zelle-solana",
+      "rows": [
+        {
+          "item": {
+            "title": "Zelle and Solana add payment-link checkout tools",
+            "url": "https://another-payments.example.test/checkout-links",
+            "publisher": "Another Fictional Desk",
+            "entities": ["Zelle", "Solana"],
+            "published_at": "2026-11-18T10:00:00Z"
+          }
+        }
+      ]
+    },
+    "cms_same_fact_new_url": {
+      "id": "cms-same-fact-new-url",
+      "rows": [
+        {
+          "item": {
+            "title": "CMS delays Medicaid work requirements",
+            "url": "https://another-health.example.test/cms-medicaid",
+            "entities": ["CMS", "Medicaid work requirements"],
+            "published_at": "2026-11-18T11:00:00Z"
+          }
+        }
+      ]
+    },
+    "six_week_feature": {
+      "id": "new-to-reader-six-week-feature",
+      "rows": [
+        {
+          "item": {
+            "title": "A detailed payments market feature explains settlement options",
+            "url": "https://trade.example.test/six-week-feature",
+            "published_at": "2026-10-07T12:00:00Z"
+          }
+        }
+      ]
+    }
+  },
+  "evaluation_cases": [
+    {"id": "same-event-cross-outlet-next-day", "candidate": "cross_outlet", "history": "recent", "outcome": "suppressed", "match_reason": "entity_similarity"},
+    {"id": "same-canonical-url-with-tracking", "candidate": "zelle_sol", "history": "recent", "outcome": "suppressed", "match_reason": "canonical_url"},
+    {"id": "repeat-at-fourteen-day-boundary", "candidate": "cms_delay", "history": "boundary", "outcome": "suppressed", "match_reason": "canonical_url"},
+    {"id": "dated-follow-up-with-new-date", "candidate": "cms_followup", "history": "recent", "outcome": "update"},
+    {"id": "same-fact-new-outlet-and-url", "candidate": "cms_same_fact_new_url", "history": "recent", "outcome": "suppressed"},
+    {"id": "six-week-old-unseen-feature", "candidate": "six_week_feature", "history": "recent", "outcome": "accepted"}
+  ]
+}

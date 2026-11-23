@@ -1,0 +1,10 @@
+{
+  "registry": [
+    {"id": "fictional-payments-dive", "name": "Fictional Payments Dive", "publisher": "Fictional Payments Dive", "tier": "trade", "source_class": "trade", "enabled": true, "article_access": "full-text", "reuse_terms": "Fictional fixture permission", "allowed_domains": ["payments.example.test"]},
+    {"id": "fictional-wire", "name": "Fictional Wire", "publisher": "Fictional Wire", "tier": "major", "source_class": "news", "enabled": true, "article_access": "full-text", "reuse_terms": "Fictional fixture permission", "allowed_domains": ["wire.example.test"]}
+  ],
+  "stories": [
+    {"source_id": "fictional-payments-dive", "url": "https://payments.example.test/northstar-settlement", "title": "Northstar payment network changes merchant settlement rules", "published": "2026-11-18T10:00:00Z", "entities": ["Northstar Network"]},
+    {"source_id": "fictional-wire", "url": "https://wire.example.test/merchant-settlement-northstar?utm_source=briefing", "title": "Northstar Network changes rules for merchant settlement", "published": "2026-11-18T11:00:00Z", "entities": ["Northstar Network"]}
+  ]
+}

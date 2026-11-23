@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>Morning voice audition</title>
+  <link rel="stylesheet" href="/audition.css">
+</head>
+<body>
+  <main>
+    <h1>Morning voice audition</h1>
+    <p class="question">Which one would you listen to every morning?</p>
+    <div class="samples" aria-label="Voice samples">
+      <section class="sample" data-label="A"><h2>Sample A</h2><audio controls preload="none" aria-label="Listen to sample A"></audio><button class="choose-voice" type="button" aria-label="Use sample A voice" aria-pressed="false">Use this voice</button></section>
+      <section class="sample" data-label="B"><h2>Sample B</h2><audio controls preload="none" aria-label="Listen to sample B"></audio><button class="choose-voice" type="button" aria-label="Use sample B voice" aria-pressed="false">Use this voice</button></section>
+      <section class="sample" data-label="C"><h2>Sample C</h2><audio controls preload="none" aria-label="Listen to sample C"></audio><button class="choose-voice" type="button" aria-label="Use sample C voice" aria-pressed="false">Use this voice</button></section>
+      <section class="sample" data-label="D"><h2>Sample D</h2><audio controls preload="none" aria-label="Listen to sample D"></audio><button class="choose-voice" type="button" aria-label="Use sample D voice" aria-pressed="false">Use this voice</button></section>
+      <section class="sample" data-label="E"><h2>Sample E</h2><audio controls preload="none" aria-label="Listen to sample E"></audio><button class="choose-voice" type="button" aria-label="Use sample E voice" aria-pressed="false">Use this voice</button></section>
+      <section class="sample" data-label="F"><h2>Sample F</h2><audio controls preload="none" aria-label="Listen to sample F"></audio><button class="choose-voice" type="button" aria-label="Use sample F voice" aria-pressed="false">Use this voice</button></section>
+    </div>
+    <p class="status" role="status" aria-live="polite"></p>
+  </main>
+  <script src="/audition.js" defer></script>
+</body>
+</html>

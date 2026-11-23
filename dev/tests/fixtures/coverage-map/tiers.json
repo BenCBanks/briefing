@@ -1,0 +1,10 @@
+{
+  "version": 1,
+  "domains": {
+    "primary.example.test": {"tier": "primary", "origin": "primary.example.test", "reason": "Fictional primary publisher.", "reviewed_at": "2026-11-18"},
+    "trade.example.test": {"tier": "trade", "origin": "trade.example.test", "reason": "Fictional trade publisher.", "reviewed_at": "2026-11-18"},
+    "reuters.com": {"tier": "major", "origin": "reuters.com", "reason": "Wire publisher.", "reviewed_at": "2026-11-18"},
+    "local.example.test": {"tier": "blog", "origin": "local.example.test", "reason": "Fictional local publisher.", "reviewed_at": "2026-11-18"},
+    "disabled.example.test": {"tier": "primary", "origin": "disabled.example.test", "reason": "Fictional disabled publisher.", "reviewed_at": "2026-11-18"}
+  }
+}

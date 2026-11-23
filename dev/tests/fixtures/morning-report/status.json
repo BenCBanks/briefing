@@ -1,0 +1,12 @@
+{
+  "ok": true,
+  "last_run_at": "2026-11-18T11:00:00-05:00",
+  "daily_run": {
+    "status": "complete",
+    "local_date": "2026-11-18",
+    "repeat_suppressed": 2,
+    "daily_narration": {"status": "written", "reason": null},
+    "daily_briefing": {"spoken_words": 750, "duration_seconds": 300},
+    "feeds": {"attempted": 8, "failed": 1, "disabled": 0}
+  }
+}

@@ -1,0 +1,24 @@
+{
+  "id": "fictional-edition-v3-shape",
+  "title": "A fictional morning briefing",
+  "summary": "Schema-only fixture shaped like the current generated edition payload.",
+  "sections": [
+    {
+      "id": "fictional-rates-story",
+      "heading": "Savings account rates shift",
+      "topic_ids": ["savings-rates"],
+      "lead_paragraphs": [
+        "Several fictional banks changed their savings rates this week. The sample figures are invented for this fixture.",
+        "Readers can compare the published terms before moving money."
+      ],
+      "body": "Several fictional banks changed their savings rates this week. The sample figures are invented for this fixture. Readers can compare the published terms before moving money. Additional context follows here.",
+      "why_it_matters": ["A changed rate can affect the return on new deposits. A second sentence should not leak into the one-line takeaway."],
+      "things_to_consider": ["Check whether a promotional rate has an end date.", "Compare fees as well."],
+      "source_ids": ["fictional-source-one", "fictional-source-two"]
+    }
+  ],
+  "sources": [
+    { "id": "fictional-source-one", "publisher": "Example Ledger", "url": "https://example.test/rates" },
+    { "id": "fictional-source-two", "publisher": "Sample Finance Desk", "url": "https://example.test/terms" }
+  ]
+}

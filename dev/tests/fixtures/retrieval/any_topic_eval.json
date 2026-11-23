@@ -1,0 +1,281 @@
+{
+  "fixture_only": true,
+  "description": "Synthetic query-match hints for offline planner evaluation; no real retrieval results.",
+  "topics": [
+    {
+      "id": "law",
+      "label": "Legal practice and regulation",
+      "scope": "Legal practice and regulation",
+      "retrieval_hints": [
+        "case developments",
+        "regulatory guidance",
+        "client impact",
+        "implementation dates"
+      ]
+    },
+    {
+      "id": "medtech",
+      "label": "Medical technology and care delivery",
+      "scope": "Medical technology and care delivery",
+      "retrieval_hints": [
+        "clinical validation",
+        "regulatory pathway",
+        "reimbursement",
+        "care access"
+      ]
+    },
+    {
+      "id": "logistics",
+      "label": "Freight logistics and distribution",
+      "scope": "Freight logistics and distribution",
+      "retrieval_hints": [
+        "capacity changes",
+        "operating costs",
+        "route disruption",
+        "customer impact"
+      ]
+    },
+    {
+      "id": "climate",
+      "label": "Climate risk and adaptation",
+      "scope": "Climate risk and adaptation",
+      "retrieval_hints": [
+        "risk assessments",
+        "public investment",
+        "community impacts",
+        "implementation progress"
+      ]
+    },
+    {
+      "id": "education",
+      "label": "Higher education policy and operations",
+      "scope": "Higher education policy and operations",
+      "retrieval_hints": [
+        "funding decisions",
+        "enrollment changes",
+        "campus operations",
+        "student outcomes"
+      ]
+    },
+    {
+      "id": "sports-business",
+      "label": "Sports business and media rights",
+      "scope": "Sports business and media rights",
+      "retrieval_hints": [
+        "media agreements",
+        "team finances",
+        "venue development",
+        "fan effects"
+      ]
+    },
+    {
+      "id": "accounting",
+      "label": "Accounting standards and audit practice",
+      "scope": "Accounting standards and audit practice",
+      "retrieval_hints": [
+        "standard updates",
+        "audit findings",
+        "implementation dates",
+        "reporting impact"
+      ]
+    },
+    {
+      "id": "cybersecurity",
+      "label": "Cybersecurity risk management",
+      "scope": "Cybersecurity risk management",
+      "retrieval_hints": [
+        "incident patterns",
+        "agency guidance",
+        "controls and response",
+        "business impact"
+      ]
+    },
+    {
+      "id": "commercial-real-estate",
+      "label": "Commercial real estate markets",
+      "scope": "Commercial real estate markets",
+      "retrieval_hints": [
+        "leasing activity",
+        "financing conditions",
+        "property supply",
+        "tenant impact"
+      ]
+    },
+    {
+      "id": "energy-storage",
+      "label": "Grid energy storage",
+      "scope": "Grid energy storage",
+      "retrieval_hints": [
+        "project deployments",
+        "grid performance",
+        "cost and financing",
+        "permitting changes"
+      ]
+    },
+    {
+      "id": "agtech",
+      "label": "Agricultural technology",
+      "scope": "Agricultural technology",
+      "retrieval_hints": [
+        "field trials",
+        "farm economics",
+        "adoption barriers",
+        "labor effects"
+      ]
+    },
+    {
+      "id": "insurance",
+      "label": "Insurance markets and regulation",
+      "scope": "Insurance markets and regulation",
+      "retrieval_hints": [
+        "rate filings",
+        "coverage changes",
+        "claims trends",
+        "policyholder impact"
+      ]
+    },
+    {
+      "id": "telecom",
+      "label": "Telecommunications infrastructure",
+      "scope": "Telecommunications infrastructure",
+      "retrieval_hints": [
+        "network investment",
+        "spectrum policy",
+        "service availability",
+        "customer costs"
+      ]
+    },
+    {
+      "id": "aviation",
+      "label": "Commercial aviation operations",
+      "scope": "Commercial aviation operations",
+      "retrieval_hints": [
+        "fleet changes",
+        "safety findings",
+        "airport capacity",
+        "passenger effects"
+      ]
+    },
+    {
+      "id": "manufacturing",
+      "label": "Advanced manufacturing",
+      "scope": "Advanced manufacturing",
+      "retrieval_hints": [
+        "factory investment",
+        "production technology",
+        "workforce needs",
+        "supply constraints"
+      ]
+    },
+    {
+      "id": "supply-chain",
+      "label": "Supply chain resilience",
+      "scope": "Supply chain resilience",
+      "retrieval_hints": [
+        "trade flows",
+        "inventory conditions",
+        "supplier risks",
+        "business continuity"
+      ]
+    },
+    {
+      "id": "labor",
+      "label": "Labor markets and workplace policy",
+      "scope": "Labor markets and workplace policy",
+      "retrieval_hints": [
+        "employment trends",
+        "wage developments",
+        "workplace rules",
+        "worker impact"
+      ]
+    },
+    {
+      "id": "municipal-finance",
+      "label": "Municipal finance and public budgets",
+      "scope": "Municipal finance and public budgets",
+      "retrieval_hints": [
+        "bond issuance",
+        "budget conditions",
+        "credit factors",
+        "resident services"
+      ]
+    },
+    {
+      "id": "biotech",
+      "label": "Biotechnology research and industry",
+      "scope": "Biotechnology research and industry",
+      "retrieval_hints": [
+        "clinical milestones",
+        "research funding",
+        "regulatory decisions",
+        "patient access"
+      ]
+    },
+    {
+      "id": "water-utilities",
+      "label": "Water utilities and infrastructure",
+      "scope": "Water utilities and infrastructure",
+      "retrieval_hints": [
+        "system investment",
+        "testing results",
+        "rate decisions",
+        "service reliability"
+      ]
+    },
+    {
+      "id": "retail-payments",
+      "label": "Retail payments and merchant services",
+      "scope": "Retail payments and merchant services",
+      "retrieval_hints": [
+        "network changes",
+        "merchant costs",
+        "fraud controls",
+        "consumer impact"
+      ]
+    },
+    {
+      "id": "higher-ed",
+      "label": "Higher education research and policy",
+      "scope": "Higher education research and policy",
+      "retrieval_hints": [
+        "research funding",
+        "policy changes",
+        "institution finances",
+        "student impact"
+      ]
+    },
+    {
+      "id": "housing",
+      "label": "Housing supply and affordability",
+      "scope": "Housing supply and affordability",
+      "retrieval_hints": [
+        "construction activity",
+        "permit trends",
+        "financing conditions",
+        "renter and buyer impact"
+      ]
+    },
+    {
+      "id": "antitrust",
+      "label": "Competition policy and antitrust",
+      "scope": "Competition policy and antitrust",
+      "retrieval_hints": [
+        "enforcement actions",
+        "court decisions",
+        "market structure",
+        "business implications"
+      ]
+    },
+    {
+      "id": "public-health",
+      "label": "Public health preparedness",
+      "scope": "Public health preparedness",
+      "retrieval_hints": [
+        "surveillance indicators",
+        "agency guidance",
+        "response capacity",
+        "community impact"
+      ]
+    }
+  ]
+}

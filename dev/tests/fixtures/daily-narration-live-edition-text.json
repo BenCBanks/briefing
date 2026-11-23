@@ -1,0 +1,30 @@
+{
+  "fixture_only": true,
+  "copied_from": "/api/edition text fields, read-only GET on 2026-11-20",
+  "local_date": "2026-11-20",
+  "stories": [
+    {
+      "section_id": "story-fed-snb",
+      "heading": "Federal Reserve Ends Enforcement Action Against Bank of Eufaula",
+      "topic_id": "banking",
+      "source_ids": ["source-fed"],
+      "claim_text": [
+        "The Federal Reserve Board announced the termination of an enforcement action involving SNB Bancshares and the Bank of Eufaula, located in Eufaula, Oklahoma.",
+        "The enforcement action, which was originally established as a written agreement dated August 7, 2024, was officially terminated on September 3, 2026."
+      ]
+    },
+    {
+      "section_id": "story-cms",
+      "heading": "CMS Delays Medicaid Work Requirement Deadline for States",
+      "topic_id": "health-policy",
+      "source_ids": ["source-cms"],
+      "claim_text": [
+        "The Centers for Medicare and Medicaid Services extended the deadline for states to implement Medicaid work requirements by six months to June 30.",
+        "CMS offered states a hold-harmless option that postpones penalties while state agencies address eligibility verification challenges.",
+        "State officials requested additional time, reporting that current IT infrastructure and funding are inadequate for the mandatory eligibility checks.",
+        "CMS directed state Medicaid directors to use the extension to modernize IT systems, streamline applications, and improve administrative workflows.",
+        "A report from the Robert Wood Johnson Foundation estimates that up to 10.1 million individuals could lose Medicaid coverage once work requirements take effect."
+      ]
+    }
+  ]
+}

@@ -1,0 +1,61 @@
+{
+  "note": "Fixture titles include prior semantic false-positive examples; excerpts are fictional short test text.",
+  "cases": [
+    {
+      "id": "medicaid-national-policy",
+      "topic": {"id": "health", "label": "NC health insurance and finance policy", "scope": "Health coverage, insurance enrollment, Medicaid and state policy", "include": ["Medicaid", "ACA", "marketplace"], "exclude": []},
+      "title": "CMS delays Medicaid work requirements",
+      "excerpt": "The agency changed the timeline for a Medicaid coverage policy. The notice describes eligibility administration and the date the new timetable begins.",
+      "expected": true
+    },
+    {
+      "id": "aca-marketplace-rules",
+      "topic": {"id": "health", "label": "NC health insurance and finance policy", "scope": "Health coverage, insurance enrollment, Medicaid and state policy", "include": ["Medicaid", "ACA", "marketplace"], "exclude": []},
+      "title": "ACA marketplace insurers revise enrollment rules",
+      "excerpt": "The marketplace notice describes an enrollment-period change and the coverage options insurers must display.",
+      "expected": true
+    },
+    {
+      "id": "cms-education-acronym",
+      "topic": {"id": "health", "label": "NC health insurance and finance policy", "scope": "Health coverage, insurance enrollment, Medicaid and state policy", "include": ["Medicaid", "ACA", "marketplace"], "exclude": []},
+      "title": "CMS kindergarten grants expand play-based learning",
+      "excerpt": "An education office expanded grants for early learning programs. The announcement concerns classroom materials and teacher training.",
+      "expected": false
+    },
+    {
+      "id": "payments-network",
+      "topic": {"id": "payments", "label": "Payments and banking", "scope": "Payment networks, fintech, banks and regulation", "include": ["payments", "banking", "fintech"], "exclude": []},
+      "title": "Payment network expands instant settlement access for fintech firms",
+      "excerpt": "The network described new settlement access for participating financial technology companies and bank members.",
+      "expected": true
+    },
+    {
+      "id": "ai-bank-risk-report",
+      "topic": {"id": "ai", "label": "AI in finance", "scope": "Artificial intelligence in banks and financial services", "include": ["AI", "bank risk", "financial services"], "exclude": []},
+      "title": "Bank risk report examines controls for AI-assisted lending",
+      "excerpt": "The report reviews model governance, validation and oversight for artificial-intelligence systems used in lending.",
+      "expected": true
+    },
+    {
+      "id": "housing-space-shuttle",
+      "topic": {"id": "housing", "label": "Charlotte housing market", "scope": "Home building, rents, prices, zoning and permits", "include": ["housing"], "exclude": []},
+      "title": "Building a Permanent Home for a Space Shuttle",
+      "excerpt": "A museum described plans for a space-shuttle display hall and visitor exhibits.",
+      "expected": false
+    },
+    {
+      "id": "housing-kindergarten",
+      "topic": {"id": "housing", "label": "Charlotte housing market", "scope": "Home building, rents, prices, zoning and permits", "include": ["housing"], "exclude": []},
+      "title": "CMS parents push for play-based kindergarten",
+      "excerpt": "Parents discussed classroom activities and school schedules at a district meeting.",
+      "expected": false
+    },
+    {
+      "id": "housing-brooklyn-collapse",
+      "topic": {"id": "housing", "label": "Charlotte housing market", "scope": "Home building, rents, prices, zoning and permits", "include": ["housing"], "exclude": []},
+      "title": "Brooklyn Building Collapse",
+      "excerpt": "Emergency crews responded to a building collapse; the report contains no housing-market or construction-policy connection.",
+      "expected": false
+    }
+  ]
+}

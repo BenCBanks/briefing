@@ -1,0 +1,58 @@
+{
+  "editions": [
+    {
+      "id": "legacy-live-daily-2026-11-17",
+      "kind": "daily",
+      "generated": true,
+      "revision_id": "legacy-live-current-r1",
+      "script_hash": "fictional-legacy-current-script",
+      "local_date": "2026-11-17",
+      "generated_at": "2026-11-17T06:00:00-05:00",
+      "title": "A clearer path through fictional payments",
+      "summary": "A fictional update about payment confirmation and settlement status.",
+      "coverage": [
+        {
+          "topic_id": "payments",
+          "label": "Payments",
+          "state": "covered"
+        }
+      ],
+      "sections": [
+        {
+          "id": "legacy-confirmation-story",
+          "heading": "Confirm the payment before it moves",
+          "topic_ids": [
+            "payments"
+          ],
+          "source_ids": [
+            "legacy-fictional-payments-source"
+          ],
+          "body": "A fictional checkout now shows the amount and payment route before confirmation. The extra step gives a customer a clear moment to catch a mistaken selection.",
+          "lead_paragraphs": [
+            "The fictional checkout makes the amount and route visible before confirmation."
+          ],
+          "why_it_matters": [
+            "A readable confirmation can help prevent avoidable payment mistakes."
+          ]
+        },
+        {
+          "id": "legacy-settlement-story",
+          "heading": "Make settlement status easier to follow",
+          "topic_ids": [
+            "payments"
+          ],
+          "source_ids": [
+            "legacy-fictional-payments-source"
+          ],
+          "body": "In a made-up service, a transfer can remain pending while systems reconcile. A plain status note tells the customer what is known and when the next update is expected.",
+          "lead_paragraphs": [
+            "A fictional transfer screen separates pending activity from a completed payment."
+          ],
+          "why_it_matters": [
+            "Clear status reduces guesswork during a delay."
+          ]
+        }
+      ]
+    }
+  ]
+}

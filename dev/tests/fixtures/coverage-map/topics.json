@@ -1,0 +1,6 @@
+{
+  "topics": [
+    {"id": "housing-market", "label": "Housing market"},
+    {"id": "thin-topic", "label": "Thin topic"}
+  ]
+}

@@ -1,0 +1,33 @@
+{
+  "fixture_only": true,
+  "stories": [
+    {
+      "section_id": "fictional-bank-order",
+      "evidence": "The Federal Reserve ended the written agreement with this bank, so the public enforcement action is now closed.",
+      "general_context": [
+        "To put that in perspective, written agreements bind banks to corrective duties."
+      ]
+    },
+    {
+      "section_id": "fictional-public-insurance-rule",
+      "evidence": "The agency delayed the implementation date, so states have more time to prepare.",
+      "general_context": [
+        "At a high level, states handle enrollment."
+      ]
+    },
+    {
+      "section_id": "fictional-technology-risk",
+      "evidence": "The review flags concentration risk in technology-provider dependence, so finance firms check exposure to key vendors.",
+      "general_context": [
+        "Think of it this way, firms share a few providers."
+      ]
+    },
+    {
+      "section_id": "fictional-agreement-duration",
+      "evidence": "The agreement began on August seventh, twenty twenty-four, and ended on September third, twenty twenty-six, so it lasted just over two years.",
+      "general_context": [
+        "As a general rule, these agreements can remain open for years."
+      ]
+    }
+  ]
+}

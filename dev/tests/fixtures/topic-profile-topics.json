@@ -1,0 +1,14 @@
+{
+  "topics": [
+    {"id":"payment-settlement","label":"Payment settlement","scope":"Clearing and settlement systems","include":["instant payment rails"],"exclude":[],"depth":"standard","cadence":"daily","mustFollow":false,"sourcePhrase":"I follow payment settlement"},
+    {"id":"urban-tree-canopy","label":"Urban tree canopy","scope":"City tree cover, heat and maintenance","include":["street trees"],"exclude":[],"depth":"standard","cadence":"daily","mustFollow":false,"sourcePhrase":"urban tree canopy and street trees"},
+    {"id":"mercury","label":"Mercury","scope":"A topic you named that is not in this sample edition yet.","include":[],"exclude":[],"depth":"standard","cadence":"daily","mustFollow":false,"sourcePhrase":"Mercury"},
+    {"id":"charlotte-housing","label":"Charlotte housing","scope":"Home building and affordability in Charlotte","include":["building permits"],"exclude":[],"depth":"standard","cadence":"daily","mustFollow":false,"sourcePhrase":"Charlotte housing and permits"},
+    {"id":"rural-broadband","label":"Rural broadband","scope":"Coverage, funding and reliability in rural areas","include":["fiber access"],"exclude":["consumer router reviews"],"depth":"deeper","cadence":"daily","mustFollow":true,"sourcePhrase":"rural broadband I must follow"},
+    {"id":"jaguar","label":"Jaguar","scope":"A topic you named that is not in this sample edition yet.","include":[],"exclude":[],"depth":"standard","cadence":"daily","mustFollow":false,"sourcePhrase":"Jaguar"},
+    {"id":"municipal-water","label":"Municipal water","scope":"Local water quality, utility rules and infrastructure","include":["water treatment"],"exclude":[],"depth":"headline","cadence":"daily","mustFollow":false,"sourcePhrase":"municipal water treatment headlines"},
+    {"id":"orchid-conservation","label":"Orchid conservation","scope":"Wild orchid habitat and conservation research","include":["native orchids"],"exclude":[],"depth":"standard","cadence":"weekly","mustFollow":false,"sourcePhrase":"native orchid conservation"},
+    {"id":"small-bank-ai","label":"AI in community banks","scope":"AI risk and use in community banking","include":["model risk"],"exclude":[],"depth":"standard","cadence":"daily","mustFollow":false,"sourcePhrase":"AI model risk in community banks"},
+    {"id":"school-lunch-policy","label":"School lunch policy","scope":"Public school meal funding and nutrition rules","include":["school meals"],"exclude":[],"depth":"standard","cadence":"daily","mustFollow":false,"sourcePhrase":"public school lunch policy"}
+  ]
+}

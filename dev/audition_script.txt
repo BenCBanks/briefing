@@ -1,0 +1,11 @@
+Good morning. Here's what's worth your time today.
+
+First up, checkout. A mid-sized retailer says its new one-tap payment button cut abandoned carts by about twelve percent. That's a bigger deal than it sounds. The company handled one point two billion dollars in sales last year, so even a small change adds up.
+
+But here's the catch. The same system went down for about three hours on Tuesday. The retailer says its uptime slipped for the month from the usual ninety-nine point nine percent. That's why regulators, including the F-D-I-C, keep asking one simple question. When the tap doesn't work, can people still pay?
+
+Meanwhile, interest rates. The central bank held its benchmark rate at three and a half percent. Doctor Siobhan Ó Murchú, an economist in Dublin, says she expects no change before March fourth. Prices are steadier, she says, but not settled.
+
+One more thing. If you build apps, the new payments A-P-I is open for testing this week.
+
+That's your briefing. Back tomorrow.

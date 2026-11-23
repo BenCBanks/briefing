@@ -1,0 +1,66 @@
+{
+  "fictional": true,
+  "edition_date": "2026-11-18",
+  "scenarios": [
+    {
+      "id": "rich",
+      "topics": ["payments", "housing", "health-policy"],
+      "feed": [
+        {"id": "cedar-bank", "topic": "payments"},
+        {"id": "carolina-permits", "topic": "housing"},
+        {"id": "cms-calendar", "topic": "health-policy"},
+        {"id": "piedmont-network", "topic": "payments"},
+        {"id": "builder-survey", "topic": "housing"},
+        {"id": "coverage-report", "topic": "health-policy"}
+      ],
+      "open_web": [], "followups": [], "prior": [], "rungs_used": ["feed"]
+    },
+    {
+      "id": "thin",
+      "topics": ["payments", "housing", "health-policy"],
+      "feed": [{"id": "cedar-bank-thin", "topic": "payments"}],
+      "open_web": [
+        {"id": "carolina-permits-thin", "topic": "housing"},
+        {"id": "cms-calendar-thin", "topic": "health-policy"}
+      ],
+      "followups": [], "prior": [], "rungs_used": ["feed", "open_web", "background"]
+    },
+    {
+      "id": "repeat-heavy",
+      "topics": ["payments", "housing", "health-policy"],
+      "feed": [
+        {"id": "cedar-bank-old", "topic": "payments"},
+        {"id": "piedmont-network-old", "topic": "payments"},
+        {"id": "triad-payments-old", "topic": "payments"},
+        {"id": "carolina-permits-survivor", "topic": "housing"}
+      ],
+      "open_web": [{"id": "cms-calendar-after-repeats", "topic": "health-policy"}],
+      "followups": [{"id": "cedar-bank-update", "topic": "payments"}],
+      "prior": ["cedar-bank-old", "piedmont-network-old", "triad-payments-old"],
+      "rungs_used": ["feed", "open_web", "followups", "background"]
+    },
+    {
+      "id": "one-topic",
+      "topics": ["payments"],
+      "feed": [{"id": "cedar-bank-single-topic", "topic": "payments"}],
+      "open_web": [
+        {"id": "piedmont-network-single-topic", "topic": "payments"},
+        {"id": "triad-payments-single-topic", "topic": "payments"}
+      ],
+      "followups": [], "prior": [], "rungs_used": ["feed", "open_web", "background"]
+    },
+    {
+      "id": "many-topics",
+      "topics": ["payments", "housing", "health-policy", "ai-finance", "energy", "transport"],
+      "feed": [
+        {"id": "cedar-bank-many", "topic": "payments"},
+        {"id": "carolina-permits-many", "topic": "housing"},
+        {"id": "cms-calendar-many", "topic": "health-policy"},
+        {"id": "regional-bank-ai", "topic": "ai-finance"},
+        {"id": "grid-interconnection", "topic": "energy"},
+        {"id": "freight-corridor", "topic": "transport"}
+      ],
+      "open_web": [], "followups": [], "prior": [], "rungs_used": ["feed"]
+    }
+  ]
+}

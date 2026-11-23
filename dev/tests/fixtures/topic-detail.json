@@ -1,0 +1,17 @@
+{
+  "fictional": true,
+  "topic": {"id":"payments","label":"Payments","scope":"Payment systems and regulation","sourcePhrase":"real-time payment rules","include":["real-time payment rules"],"exclude":["crypto"]},
+  "edition": {
+    "id":"topic-detail-fixture","kind":"daily","local_date":"2026-11-18","revision_id":"topic-detail-fixture-r2","script_hash":"fictional-topic-detail-r2","generated":true,
+    "coverage":[{"topic_id":"payments","state":"covered","label":"Payments"}],
+    "corrections":[{"severity":"material","previous_revision_id":"topic-detail-fixture-r1","revision_id":"topic-detail-fixture-r2","section_ids":["payments-one"],"corrected_at":"2026-11-20T15:00:00Z","what_changed":"A prior fictional report gave the wrong service deadline.","why_it_matters":"The corrected date changes when payment providers need to finish their tests."}],
+    "sections":[
+      {"id":"payments-one","heading":"The payments rule sets a shared deadline","body":"What happened: A fictional regulator set a common deadline for payment providers.\n\nWhy it matters: A shared date gives banks and payment firms time to align their systems.","topic_ids":["payments"],"source_ids":["fed-payments"],"why_it_matters":"A shared date gives banks and payment firms time to align their systems."},
+      {"id":"payments-two","heading":"Banks test recovery after a settlement delay","body":"A fictional group of banks published a recovery exercise after a settlement delay.","topic_ids":["payments"],"source_ids":["fed-payments"]},
+      {"id":"payments-withdrawn","heading":"Superseded headline about a canceled fictional service","body":"The withdrawn text claimed the fictional service was canceled.","status":"withdrawn","withdrawn_at":"2026-11-20T16:00:00Z","topic_ids":["payments"],"source_ids":["withdrawn-source"]}
+    ]
+  },
+  "history":[{"edition":{"id":"topic-detail-older","kind":"daily","local_date":"2026-11-12","revision_id":"topic-detail-older-r1","script_hash":"fictional-topic-detail-older","generated":true,"coverage":[{"topic_id":"payments","state":"covered","label":"Payments"}],"sections":[{"id":"payments-three","heading":"A network updates its dispute process","body":"A fictional payment network revised the way banks submit a disputed transaction.","topic_ids":["payments"],"source_ids":["fed-payments-older"]}]},"sources":[{"id":"fed-payments-older","title":"Dispute process notice","publisher":"Payment Network","url":"https://payments.example.test/dispute-process","published_at":"2026-11-10T12:00:00Z","note":"Fictional test source."}]}],
+  "sources":[{"id":"fed-payments","title":"Payment systems overview","publisher":"Federal Reserve","url":"https://www.federalreserve.gov/paymentsystems/","published_at":"2026-11-14T12:00:00Z","note":"Fictional test source."},{"id":"withdrawn-source","title":"Superseded fictional service notice","publisher":"Fictional Payment Desk","url":"https://fictional.example.test/withdrawn","published_at":"2026-11-09T12:00:00Z","status":"withdrawn"}],
+  "profile":{"version":1,"words":"Follow real-time payment rules. Skip crypto.","minutes":12,"background":null,"muted":[],"topics":[{"id":"payments","label":"Payments","scope":"Payment systems and regulation","include":["real-time payment rules"],"exclude":["crypto"],"depth":"standard","cadence":"daily","mustFollow":false,"sourcePhrase":"real-time payment rules"}]}
+}

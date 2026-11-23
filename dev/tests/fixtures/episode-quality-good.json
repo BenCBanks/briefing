@@ -1,0 +1,23 @@
+{
+  "episode": {
+    "could_not_confirm": [],
+    "chapters": [
+      {"title": "How Alder lockers work", "sentences": [
+        {"text": "Alder Bay residents collect library parcels from coded lockers beside the front desk.", "kind": "claim", "evidence_ids": ["e1"]},
+        {"text": "Staff place each parcel inside and send its collection code directly to the resident.", "kind": "claim", "evidence_ids": ["e1"]}
+      ]},
+      {"title": "What the library measures", "sentences": [
+        {"text": "Library staff record missed collections and resident feedback during the trial.", "kind": "claim", "evidence_ids": ["e2"]},
+        {"text": "The town will review those records before deciding whether the service continues.", "kind": "claim", "evidence_ids": ["e2"]}
+      ]}
+    ]
+  },
+  "research_plan": [
+    {"question": "How do residents collect parcels from Alder Bay library lockers?"},
+    {"question": "What does the town measure before continuing the locker trial?"}
+  ],
+  "evidence": {
+    "e1": {"text": "Residents collect library parcels from coded lockers beside the front desk. Staff place each parcel inside and send its collection code directly to the resident."},
+    "e2": {"text": "Library staff record missed collections and resident feedback during the trial. The town will review those records before deciding whether the service continues."}
+  }
+}

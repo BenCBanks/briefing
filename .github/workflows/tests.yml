@@ -1,0 +1,49 @@
+# Tests on every pull request and on main. Fictional fixtures and mocks only:
+# no provider keys exist here and nothing calls a paid service.
+name: Tests
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install pypdf
+      - name: Unit tests
+        run: |
+          mkdir -p "$RUNNER_TEMP/ledger"
+          BRIEFING_TESTING=1 BRIEFING_EPISODES=fake \
+          BRIEFING_STATE_DIR="$RUNNER_TEMP/state" BRIEFING_TEST_LEDGER_DIR="$RUNNER_TEMP/ledger" \
+          python -m unittest discover -s dev/tests -p '*_test.py' -t .
+
+  browser:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install Playwright
+        run: |
+          npm install --no-save --prefix "$RUNNER_TEMP/pw" playwright@1.63.0
+          "$RUNNER_TEMP/pw/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Browser checks
+        env:
+          TZ: America/New_York
+        run: NODE_PATH="$RUNNER_TEMP/pw/node_modules" python dev/run_browser_tests.py

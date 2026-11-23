@@ -1,0 +1,133 @@
+{
+  "target_minutes": [3, 5, 10, 15],
+  "publication_date": "2026-10-08",
+  "initial_fraction": 0.4,
+  "expanded_fraction_by_minutes": {
+    "3": 1.0,
+    "5": 0.92,
+    "10": 0.92,
+    "15": 0.92
+  },
+  "angles": [
+    {
+      "title": "Residents collect library parcels",
+      "question": "How do Alder Bay residents collect parcels from the library lockers?",
+      "outlet": "Alder Bay Public Library",
+      "actor": "residents",
+      "actions": [
+        "compare pickup notices with locker labels",
+        "confirm a collection code at the public desk",
+        "check the compartment number on a receipt",
+        "read service messages beside the library entrance",
+        "match parcel tags with the posted pickup window",
+        "follow collection instructions on the notice board",
+        "review delivery updates before visiting the library",
+        "check a locker assignment against the collection slip"
+      ],
+      "contexts": [
+        "before collecting a parcel",
+        "after receiving a pickup notice",
+        "while visiting the public desk",
+        "during library opening hours",
+        "when checking a delivery update",
+        "before leaving the library"
+      ]
+    },
+    {
+      "title": "Library staff organize parcels",
+      "question": "How do library staff organize parcels and locker compartments?",
+      "outlet": "Alder Bay Library Operations",
+      "actor": "library staff",
+      "actions": [
+        "place labeled parcels in available compartments",
+        "match parcel tags with collection notices",
+        "sort incoming deliveries by pickup window",
+        "move unclaimed parcels to the service desk",
+        "check locker assignments against the daily register",
+        "prepare collection slips for the public desk",
+        "record completed pickups in the trial log",
+        "review open compartments before the next delivery"
+      ],
+      "contexts": [
+        "before the library opens",
+        "after each delivery arrives",
+        "while preparing the public desk",
+        "during the parcel locker trial",
+        "when a pickup notice is issued",
+        "before the next collection window"
+      ]
+    },
+    {
+      "title": "Town coordinators assess the trial",
+      "question": "How do town coordinators assess the parcel locker trial?",
+      "outlet": "Alder Bay Town Review Office",
+      "actor": "town coordinators",
+      "actions": [
+        "compare collection logs with resident comments",
+        "review missed pickups beside service desk notes",
+        "summarize delivery patterns for the public library",
+        "discuss access questions with library staff",
+        "document trial changes in a review memo",
+        "assess collection records before planning meetings",
+        "share service findings with the town council",
+        "track unresolved questions from the library trial"
+      ],
+      "contexts": [
+        "before a scheduled review meeting",
+        "after collecting resident feedback",
+        "while preparing the trial summary",
+        "during the town's service review",
+        "when discussing the next planning step",
+        "before sharing the findings with staff"
+      ]
+    },
+    {
+      "title": "Technicians maintain library lockers",
+      "question": "How do technicians maintain lockers used by library visitors?",
+      "outlet": "Alder Bay Facilities Unit",
+      "actor": "locker technicians",
+      "actions": [
+        "inspect locker doors before library opening",
+        "test keypad responses after service visits",
+        "clean compartment handles during routine checks",
+        "replace worn labels near the public desk",
+        "report sticking doors to the facilities team",
+        "check power connections during scheduled maintenance",
+        "review service notes after a repair",
+        "confirm each compartment closes before returning equipment"
+      ],
+      "contexts": [
+        "before residents begin collecting parcels",
+        "after a maintenance visit",
+        "while preparing the locker area",
+        "during the library service window",
+        "when staff report a door problem",
+        "before the next delivery arrives"
+      ]
+    },
+    {
+      "title": "Library visitors use the locker service",
+      "question": "When can library visitors use the parcel locker service?",
+      "outlet": "Alder Bay Visitor Services",
+      "actor": "library managers",
+      "actions": [
+        "post opening hours beside the locker entrance",
+        "share access instructions with library visitors",
+        "keep pickup notices near the public desk",
+        "explain collection steps during library visits",
+        "review access questions with front desk staff",
+        "update service notices after a schedule change",
+        "direct visitors to the staffed service desk",
+        "note access concerns in the visitor register"
+      ],
+      "contexts": [
+        "before the library opens to visitors",
+        "after a schedule notice is posted",
+        "while assisting someone at the desk",
+        "during the parcel locker trial",
+        "when visitors ask about collection hours",
+        "before the next public service period"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,39 @@
+{
+  "fixture_only": true,
+  "writer_response": {"stories": [
+    {"section_id": "story-fed-snb", "sentences": [
+      {"text": "The Federal Reserve Board has ended an enforcement action involving SNB Bancshares and the Bank of Eufaula, in Eufaula, Oklahoma.", "evidence_ids": ["fed-1"], "general_context": false},
+      {"text": "The agreement was dated August seventh, twenty twenty-four, and ended on September third, twenty twenty-six, just over two years later.", "evidence_ids": ["fed-2"], "general_context": false},
+      {"text": "To put that in perspective, a written agreement is a binding supervisory commitment.", "evidence_ids": [], "general_context": true},
+      {"text": "As a general rule, these agreements can remain open for years.", "evidence_ids": [], "general_context": true},
+      {"text": "This kind of action usually means regulators are satisfied with the corrections.", "evidence_ids": [], "general_context": true},
+      {"text": "For banking readers, the concrete update is that the Federal Reserve's action involving SNB Bancshares is closed.", "evidence_ids": ["fed-1"], "general_context": false}
+    ]},
+    {"section_id": "story-cms", "sentences": [
+      {"text": "The Centers for Medicare and Medicaid Services, or CMS, has given states six more months before work requirements begin, moving the deadline to June thirtieth.", "evidence_ids": ["cms-1"], "general_context": false},
+      {"text": "The agency's hold-harmless option pauses penalties while states address verification challenges.", "evidence_ids": ["cms-2"], "general_context": false},
+      {"text": "Officials asked for time, citing inadequate funding and technology for eligibility checks.", "evidence_ids": ["cms-3"], "general_context": false},
+      {"text": "CMS directed state Medicaid offices to modernize systems, streamline applications, and improve administrative workflows.", "evidence_ids": ["cms-4"], "general_context": false},
+      {"text": "A foundation estimates as many as ten point one million people could lose Medicaid coverage when the requirements take effect.", "evidence_ids": ["cms-5"], "general_context": false},
+      {"text": "As a general rule, eligibility checks depend on accurate records and application systems that work reliably.", "evidence_ids": [], "general_context": true},
+      {"text": "Generally, timing is the key distinction: states get more time, while the requirements themselves remain in place.", "evidence_ids": [], "general_context": true},
+      {"text": "More broadly, dependable records help state systems process renewals and make coverage decisions on schedule.", "evidence_ids": [], "general_context": true}
+    ]}
+  ]},
+  "verifier_response": {"verdicts": [
+    {"section_id": "story-fed-snb", "sentence_index": 0, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 1, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 2, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 3, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 4, "supported": true},
+    {"section_id": "story-fed-snb", "sentence_index": 5, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 0, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 1, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 2, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 3, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 4, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 5, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 6, "supported": true},
+    {"section_id": "story-cms", "sentence_index": 7, "supported": true}
+  ]}
+}

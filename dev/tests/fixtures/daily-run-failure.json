@@ -1,0 +1,18 @@
+{
+  "ok": false,
+  "last_run_at": "2026-11-20T10:00:00Z",
+  "items_fetched": 0,
+  "stories_written": 0,
+  "feeds_disabled": [],
+  "reason": "generation_failed",
+  "daily_run": {
+    "version": 1,
+    "local_date": "2026-11-20",
+    "status": "failed",
+    "stories": 0,
+    "thin_day": false,
+    "daily_briefing": { "target_minutes": 5, "spoken_words": 0, "duration_seconds": 0 },
+    "daily_audio": { "audio_status": "unavailable" },
+    "failure_reason": "generation_failed"
+  }
+}
