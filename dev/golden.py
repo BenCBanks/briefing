@@ -14,30 +14,33 @@ import json
 import os
 from pathlib import Path
 import re
+import sys
 import tempfile
 import time
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from dev.interpreter_proxy import KEY_FILE, MODEL_FALLBACK, call_gemini_json
 from dev.try_real import fictional_profile, ledger_cost_delta, ledger_snapshot
 
-ROOT = Path(__file__).resolve().parents[1]
 REPORT_DIR = ROOT / 'docs' / 'quality'
-RUN_BUDGET_USD = Decimal('0.60')
 JUDGE_MODEL = MODEL_FALLBACK
 
 QUESTIONS = (
-    ('factual explainer', 'How do instant payment systems move money between banks?'),
-    ('how-to', 'How should I prepare for a salary negotiation?'),
-    ('current topic', 'What is changing in battery recycling, and why does it matter?'),
-    ('comparison', 'How do nuclear power and solar power differ as sources of electricity?'),
-    ('before you choose', 'What should I know before choosing a home battery?'),
-    ('mechanism', 'Why do newer space launch vehicles aim to reuse their first stages?'),
-    ('factual explainer', 'How does a carbon price affect a company that emits greenhouse gases?'),
-    ('how-to', 'How can a small business start using passkeys safely?'),
-    ('comparison', 'How are grid batteries different from pumped-storage hydropower?'),
-    ('evidence', 'How do researchers estimate how much climate change affects a heat wave?'),
-    ('what to know', 'What should a patient ask before starting a new prescription medicine?'),
-    ('thin evidence', 'What do scientists know about the possibility of life on Europa?'),
+    ('instant-payments', 'Factual explainer', 'How do instant payment systems move money between banks?'),
+    ('salary-negotiation', 'How-to', 'How should I prepare for a salary negotiation?'),
+    ('battery-recycling', 'Current topic', 'What is changing in battery recycling, and why does it matter?'),
+    ('nuclear-solar', 'Comparison', 'How do nuclear power and solar power differ as sources of electricity?'),
+    ('home-battery', 'Before you choose', 'What should I know before choosing a home battery?'),
+    ('space-reuse', 'Mechanism', 'Why do newer space launch vehicles aim to reuse their first stages?'),
+    ('carbon-price', 'Factual explainer', 'How does a carbon price affect a company that emits greenhouse gases?'),
+    ('passkeys', 'How-to', 'How can a small business start using passkeys safely?'),
+    ('grid-storage', 'Comparison', 'How are grid batteries different from pumped-storage hydropower?'),
+    ('heat-wave-evidence', 'Evidence', 'How do researchers estimate how much climate change affects a heat wave?'),
+    ('new-medicine', 'What to know', 'What should a patient ask before starting a new prescription medicine?'),
+    ('europa-life', 'Thin evidence', 'What do scientists know about the possibility of life on Europa?'),
 )
 
 DAILY_PROFILES = (
@@ -58,8 +61,13 @@ JUDGE_SCHEMA = {
             'plain_paragraphs', 'no_citation_markers', 'honest_about_gaps']},
         'overall': {'type': 'INTEGER'},
         'notes': {'type': 'STRING'},
+        'lowest_sentences': {'type': 'ARRAY', 'minItems': 2, 'maxItems': 2, 'items': {
+            'type': 'OBJECT', 'properties': {
+                'quote': {'type': 'STRING'}, 'score': {'type': 'INTEGER'},
+                'issue': {'type': 'STRING'},
+            }, 'required': ['quote', 'score', 'issue']}},
     },
-    'required': ['scores', 'overall', 'notes'],
+    'required': ['scores', 'overall', 'notes', 'lowest_sentences'],
 }
 
 JUDGE_PROMPT = """You are a strict editor evaluating a spoken briefing script. The supplied
@@ -69,7 +77,9 @@ provided sources and mark unsupported specifics down. A thin record should be ha
 honestly and briefly, without pretending the evidence is complete. Style target: spoken,
 answers one plain question per paragraph, no citation markers, honest about gaps. A
 paragraph may contain several sentences, but it should have one clear point that answers
-the reader's question. Return only the requested JSON. Keep notes to one concise sentence."""
+the reader's question. Identify the two weakest sentences, quoting them exactly, with a
+1–5 quality score and one concrete reason each. Return only the requested JSON. Keep notes
+to one concise sentence."""
 
 
 @contextmanager
@@ -134,7 +144,13 @@ def judge(question: str, script: str, sources: list[dict]) -> dict:
     required = JUDGE_SCHEMA['properties']['scores']['required']
     if (not isinstance(scores, dict) or
             any(type(scores.get(name)) is not int or not 1 <= scores[name] <= 5 for name in required) or
-            type(result.get('overall')) is not int or not 1 <= result['overall'] <= 5):
+            type(result.get('overall')) is not int or not 1 <= result['overall'] <= 5 or
+            not isinstance(result.get('lowest_sentences'), list) or
+            len(result['lowest_sentences']) != 2 or
+            any(not isinstance(row, dict) or not isinstance(row.get('quote'), str) or
+                not row['quote'].strip() or type(row.get('score')) is not int or
+                not 1 <= row['score'] <= 5 or not isinstance(row.get('issue'), str)
+                for row in result['lowest_sentences'])):
         raise ValueError('judge returned scores outside the 1–5 rubric')
     return result
 
@@ -186,7 +202,7 @@ def _case_record(kind: str, name: str, question: str, generate) -> dict:
                 'words': word_count(script), 'seconds': round(time.monotonic() - started, 2),
                 'cost_usd': str(ledger_cost_delta(before, ledger_snapshot())),
                 'scores': evaluation['scores'], 'overall': evaluation['overall'],
-                'notes': evaluation['notes']}
+                'notes': evaluation['notes'], 'lowest_sentences': evaluation['lowest_sentences']}
     except Exception as error:
         return {'kind': kind, 'name': name, 'question': question,
                 'seconds': round(time.monotonic() - started, 2),
@@ -196,7 +212,7 @@ def _case_record(kind: str, name: str, question: str, generate) -> dict:
 
 def render_report(cases: list[dict], total_cost: Decimal, report_date: str) -> str:
     lines = [f'# Golden quality run — {report_date}', '',
-             f'Actual ledger spend for this run: **${total_cost:.5f}** (budget: ${RUN_BUDGET_USD:.2f}).',
+             f'Actual ledger spend for this run: **${total_cost:.5f}**.',
              f'Judge: `{JUDGE_MODEL}`. Cases run sequentially; failed cases are reported explicitly.', '',
              'Scores are 1–5. The judge checks whether each script answers its question, sounds spoken,',
              'stays grounded, avoids filler and repetition, uses one plain point per paragraph, has no',
@@ -213,34 +229,53 @@ def render_report(cases: list[dict], total_cost: Decimal, report_date: str) -> s
         lines += [f"**Words:** {case['words']} · **Time:** {case['seconds']} s · "
                   f"**Ledger cost:** ${Decimal(case['cost_usd']):.5f} · **Overall:** {case['overall']}/5",
                   f'**Scores:** {score_text}', f"**Judge note:** {case['notes']}", '',
-                  '<details><summary>Full script</summary>', '', case['script'], '', '</details>', '']
+                  '**Two weakest sentences:**']
+        for weak in case['lowest_sentences']:
+            lines.append(f"- {weak['score']}/5 — “{weak['quote']}” — {weak['issue']}")
+        lines += ['', '<details><summary>Full script</summary>', '', case['script'], '', '</details>', '']
     return '\n'.join(lines).rstrip() + '\n'
 
 
-def run(report_date: str | None = None, *, report_dir: Path = REPORT_DIR) -> Path:
+def run(report_date: str | None = None, *, report_dir: Path = REPORT_DIR,
+        limit: int | None = None, only: list[str] | None = None) -> Path:
     if not KEY_FILE.is_file():
         raise RuntimeError('Gemini key file is unavailable')
-    date.fromisoformat(report_date) if report_date else None
+    if report_date and not re.fullmatch(r'\d{4}-\d{2}-\d{2}(?:-[a-z0-9-]+)?', report_date):
+        raise ValueError('report name must start with YYYY-MM-DD')
+    date.fromisoformat(report_date[:10]) if report_date else None
     before = ledger_snapshot()
     cases = []
-    plans = [('episode', label, question, lambda q=question: _episode(q))
-             for label, question in QUESTIONS]
-    plans.extend(('daily', label, f'What useful developments should a reader interested in {label} know today?',
+    plans = [('episode', case_id, label, question, lambda q=question: _episode(q))
+             for case_id, label, question in QUESTIONS]
+    plans.extend(('daily', f'daily-{label.lower().replace(" ", "-")}', label,
+                  f'What useful developments should a reader interested in {label} know today?',
                   lambda l=label, i=topic_id, s=scope: _daily(l, i, s))
                  for label, topic_id, scope in DAILY_PROFILES)
-    for index, (kind, label, question, generate) in enumerate(plans):
-        current = ledger_cost_delta(before, ledger_snapshot())
-        if current >= RUN_BUDGET_USD:
-            for skipped_kind, skipped_label, skipped_question, _ in plans[index:]:
-                cases.append({'kind': skipped_kind, 'name': skipped_label,
-                              'question': skipped_question, 'seconds': 0, 'cost_usd': '0',
-                              'error': f'run budget reached at ${current:.5f}; case skipped'})
-            break
+    if only:
+        selectors = {item.strip().casefold() for item in only if item.strip()}
+        selected = [plan for plan in plans
+                    if plan[1].casefold() in selectors or plan[2].casefold() in selectors]
+        matched = {plan[1].casefold() for plan in selected} | {plan[2].casefold() for plan in selected}
+        unknown = selectors - matched
+        if unknown:
+            raise ValueError('unknown --only selector: ' + ', '.join(sorted(unknown)))
+        plans = selected
+    if limit is not None:
+        if limit < 1:
+            raise ValueError('--limit must be positive')
+        plans = plans[:limit]
+    if not plans:
+        raise ValueError('no cases selected')
+    for kind, case_id, label, question, generate in plans:
         case = _case_record(kind, label, question, generate)
         cases.append(case)
         status = f"failed: {case['error']}" if case.get('error') else f"{case['words']} words, score {case['overall']}/5"
         print(f"[{len(cases)}/{len(plans)}] {kind} {label}: {status}; "
               f"${Decimal(case['cost_usd']):.5f} ledger cost; {case['seconds']}s", flush=True)
+        if not case.get('error'):
+            print('  Scores: ' + ', '.join(f'{key}={value}' for key, value in case['scores'].items()), flush=True)
+            for weak in case['lowest_sentences']:
+                print(f"  Weak sentence ({weak['score']}/5): {weak['quote']} — {weak['issue']}", flush=True)
     total = ledger_cost_delta(before, ledger_snapshot())
     stamp = report_date or date.today().isoformat()
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -252,4 +287,11 @@ def run(report_date: str | None = None, *, report_dir: Path = REPORT_DIR) -> Pat
 
 
 if __name__ == '__main__':
-    run()
+    import argparse
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--limit', type=int, help='run at most this many selected cases')
+    parser.add_argument('--only', help='comma-separated case IDs or labels')
+    parser.add_argument('--date', dest='report_date', help='report filename date, optionally with a suffix')
+    args = parser.parse_args()
+    run(args.report_date, limit=args.limit,
+        only=args.only.split(',') if args.only else None)

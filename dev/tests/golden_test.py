@@ -17,7 +17,7 @@ class GoldenHarnessTests(unittest.TestCase):
         self.assertEqual([row[0] for row in golden.DAILY_PROFILES],
                          ['AI chips', 'Climate policy', 'Space launches'])
         self.assertTrue(all('fictional' not in question.casefold()
-                            for _, question in golden.QUESTIONS))
+                            for _, _, question in golden.QUESTIONS))
 
     def test_profile_uses_one_generic_topic(self):
         profile = golden._profile('AI chips', 'digital', 'AI chip design')
@@ -51,12 +51,40 @@ class GoldenHarnessTests(unittest.TestCase):
         case = {'kind': 'episode', 'name': 'example', 'question': 'How does it work?',
                 'script': 'One plain paragraph.', 'words': 3, 'seconds': 4.2,
                 'cost_usd': '0.01234', 'overall': 4,
-                'scores': {'answers_question': 4, 'spoken': 5}, 'notes': 'Clear and grounded.'}
+                'scores': {'answers_question': 4, 'spoken': 5}, 'notes': 'Clear and grounded.',
+                'lowest_sentences': [{'quote': 'One sentence.', 'score': 3, 'issue': 'Vague.'},
+                                     {'quote': 'Another sentence.', 'score': 4, 'issue': 'Long.'}]}
         report = golden.render_report([case], Decimal('0.01234'), '2026-11-23')
         self.assertIn('2026-11-23', report)
         self.assertIn('$0.01234', report)
         self.assertIn('answers question: 4', report)
+        self.assertIn('Two weakest sentences', report)
         self.assertIn('One plain paragraph.', report)
+
+    def test_only_and_limit_select_the_requested_six_before_cases(self):
+        judgment = {
+            'scores': {name: 4 for name in golden.JUDGE_SCHEMA['properties']['scores']['required']},
+            'overall': 4, 'notes': 'Fixture judgement.',
+            'lowest_sentences': [{'quote': 'Weak one.', 'score': 3, 'issue': 'Flat.'},
+                                 {'quote': 'Weak two.', 'score': 3, 'issue': 'Vague.'}],
+        }
+        fake_key = SimpleNamespace(is_file=lambda: True)
+        selected = ['instant-payments', 'salary-negotiation', 'battery-recycling',
+                    'nuclear-solar', 'europa-life', 'daily-ai-chips']
+        with tempfile.TemporaryDirectory() as output:
+            with patch.object(golden, 'KEY_FILE', fake_key), \
+                 patch.object(golden, 'ledger_snapshot', return_value={'daily': {'estimated_cost_usd': '0'}}), \
+                 patch.object(golden, 'ledger_cost_delta', return_value=Decimal('0')), \
+                 patch.object(golden, 'judge', return_value=judgment), \
+                 patch.object(golden, '_episode', return_value={'transcript': 'A fixture script.'}) as episode, \
+                 patch.object(golden, '_daily', return_value={'transcript': 'A daily fixture.'}) as daily:
+                report_path = golden.run('2026-11-23-before', report_dir=Path(output),
+                                         limit=6, only=selected)
+                report_text = report_path.read_text()
+        self.assertEqual(episode.call_count, 5)
+        daily.assert_called_once()
+        self.assertEqual(report_path.name, '2026-11-23-before.md')
+        self.assertEqual(report_text.count('## '), 6)
 
     def test_judge_rejects_invalid_fixture_scores(self):
         result = {'scores': {name: 4 for name in golden.JUDGE_SCHEMA['properties']['scores']['required']},
