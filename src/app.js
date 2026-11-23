@@ -26,6 +26,7 @@ import { renderSettingsScreen } from './screens/settings.js';
 import { renderTodayScreen } from './screens/today.js';
 import { renderEarlierScreen } from './screens/earlier.js';
 import { renderInterestDescribe as renderInterestDescribeScreen, renderInterestConfirm as renderInterestConfirmScreen, renderInterestBuild as renderInterestBuildScreen } from './screens/interests.js';
+import { episodeHistoryState, episodeHistoryDismissed, saveEpisodeHistoryDismissed, renderEpisodeHistory as renderEpisodeHistoryScreen, renderEpisodeMakingFromHistory as renderEpisodeMakingFromHistoryScreen } from './screens/episode-history.js';
 
 const app = document.querySelector('#app');
 const content = document.querySelector('#content');
@@ -2298,134 +2299,21 @@ function renderEpisodeRouteFailure(title, message) {
   content.replaceChildren(page);
 }
 
-function episodeHistoryState(job) {
-  const status = String(job.status || job.stage || 'queued').toLowerCase();
-  if (['done', 'ready', 'complete', 'completed'].includes(status)) return { key: 'ready', label: 'Ready', ring: 'done' };
-  if (['failed', 'error'].includes(status)) return { key: 'failed', label: 'Failed', ring: 'failed' };
-  if (['cancelled', 'canceled'].includes(status)) return { key: 'cancelled', label: 'Cancelled', ring: 'cancelled' };
-  return { key: 'making', label: 'Making', ring: 'active' };
-}
-
-function episodeHistoryDismissed() {
-  try {
-    const value = JSON.parse(localStorage.getItem('briefing:v1:episode-list-dismissed') || '[]');
-    return Array.isArray(value) ? value.filter(id => typeof id === 'string').slice(0, 100) : [];
-  } catch { return []; }
-}
-
-function saveEpisodeHistoryDismissed(ids) {
-  try { localStorage.setItem('briefing:v1:episode-list-dismissed', JSON.stringify([...new Set(ids)].slice(-100))); }
-  catch { /* The visible list still works for this visit if storage is blocked. */ }
-}
-
 function renderEpisodeMakingFromHistory(job) {
-  const page = node('section', null, 'episode-history-making');
-  page.append(link('‹ Episodes', '#episodes', 'episode-back'));
-  const view = episodeHistoryState(job);
-  const heading = view.key === 'failed' ? 'This episode could not be completed' : view.key === 'cancelled' ? 'This episode was cancelled' : 'Your episode is being made';
-  page.append(node('h1', heading));
-  if (job.topic) page.append(node('p', job.topic, 'episode-topic'));
-  const chip = node('span', null, `episode-status-chip episode-status-${view.key}`);
-  chip.dataset.state = view.ring;
-  const ring = node('span', null, 'episode-stage-ring'); ring.setAttribute('aria-hidden', 'true');
-  ring.dataset.check = view.ring === 'done' ? '✓' : view.ring === 'failed' ? '!' : view.ring === 'cancelled' ? '–' : '';
-  chip.append(ring, node('span', view.label));
-  page.append(chip);
-  const detail = view.key === 'making' ? (job.stage || job.status || 'queued').replaceAll('_', ' ') :
-    view.key === 'failed' ? 'You can ask for another episode when you’re ready.' : 'This request will stay in your episode history.';
-  page.append(node('p', detail, 'episode-job-card-status'));
-  content.replaceChildren(page);
+  renderEpisodeMakingFromHistoryScreen({ content, node, link, job });
 }
 
 function renderEpisodeHistory(result, available, corrections = []) {
   const jobs = Array.isArray(result?.jobs) ? result.jobs.filter(job => job && typeof job === 'object' && !Array.isArray(job) && typeof (job.job_id || job.id) === 'string') : [];
   episodeHistorySnapshot = { result: result && typeof result === 'object' ? result : {}, corrections, jobs };
-  document.querySelector('[data-page-title]').textContent = '';
-  const page = node('section', null, 'episode-list-page');
-  page.append(node('h1', 'Episodes'));
-  if (!available) {
-    page.append(node('p', 'Your episode list is not available right now.', 'episode-list-empty'));
-    const retry = node('button', 'Try again', 'episode-list-retry'); retry.type = 'button'; retry.addEventListener('click', () => void renderEpisodeRoute('episodes'));
-    page.append(retry);
-    content.replaceChildren(page); return;
-  }
-  const safeResult = episodeHistorySnapshot.result;
-  if (jobs.length) page.append(link('Ask for an episode', '#ask-episode', 'button-link'));
-  if (Number.isInteger(safeResult.left_today)) page.append(node('p', `${safeResult.left_today} left today`, 'episode-list-allowance'));
-  const dismissed = episodeHistoryDismissed();
-  const correctionIDs = new Set(corrections.filter(item => item?.target_type === 'episode').map(item => item.target_id).filter(Boolean));
-  const visibleJobs = jobs.filter(job => !dismissed.includes(job.job_id || job.id));
-  const byNewest = [...visibleJobs].sort((a, b) => String(b.created_at || b.updated_at || b.finished_at || '').localeCompare(String(a.created_at || a.updated_at || a.finished_at || '')));
-  const filters = [
-    ['all', 'All'], ['making', 'Making'], ['ready', 'Ready'], ['saved', 'Saved'], ['corrected', 'Corrected'],
-  ];
-  const filterBar = node('div', null, 'episode-history-filters');
-  filterBar.setAttribute('role', 'group'); filterBar.setAttribute('aria-label', 'Filter episodes');
-  for (const [key, label] of filters) {
-    const button = node('button', label, 'episode-history-filter'); button.type = 'button';
-    button.dataset.episodeFilter = key;
-    button.setAttribute('aria-pressed', String(episodeHistoryFilter === key));
-    button.addEventListener('click', () => { episodeHistoryFilter = key; renderEpisodeHistory(result, available, corrections); content.querySelector(`[data-episode-filter="${key}"]`)?.focus({ preventScroll: true }); });
-    filterBar.append(button);
-  }
-  page.append(filterBar);
-  const searchLabel = node('label', 'Search episodes', 'episode-history-search-label');
-  const search = node('input'); search.type = 'search'; search.placeholder = 'Search titles or topics'; search.value = episodeHistorySearch; search.setAttribute('aria-label', 'Search episodes');
-  search.addEventListener('input', () => { episodeHistorySearch = search.value; renderEpisodeHistory(result, available, corrections); const next = content.querySelector('.episode-history-search-label input'); next?.focus(); next?.setSelectionRange(episodeHistorySearch.length, episodeHistorySearch.length); });
-  searchLabel.append(search); page.append(searchLabel);
-  const filtered = byNewest.filter(job => {
-    const id = job.job_id || job.id;
-    const status = episodeHistoryState(job);
-    const corrected = Boolean(job.updated || job.corrected || job.episode?.updated || correctionIDs.has(id));
-    const saved = state.savedIds.includes(id) || (job.episode?.id && state.savedIds.includes(job.episode.id));
-    if (episodeHistoryFilter === 'making' && status.key !== 'making') return false;
-    if (episodeHistoryFilter === 'ready' && status.key !== 'ready') return false;
-    if (episodeHistoryFilter === 'saved' && !saved) return false;
-    if (episodeHistoryFilter === 'corrected' && !corrected) return false;
-    const query = episodeHistorySearch.trim().toLocaleLowerCase();
-    if (query && ![job.topic, job.asked, job.episode?.title, job.episode?.asked, job.episode?.topic_label].some(value => String(value || '').toLocaleLowerCase().includes(query))) return false;
-    return true;
-  });
-  const count = node('p', `${filtered.length} ${filtered.length === 1 ? 'episode' : 'episodes'}`, 'episode-history-count');
-  count.setAttribute('aria-live', 'polite'); page.append(count);
-  const list = node('div', null, 'episode-job-list');
-  for (const job of filtered) {
-    const id = job.job_id || job.id;
-    const status = episodeHistoryState(job);
-    const episode = job.episode || {};
-    const corrected = Boolean(job.updated || job.corrected || episode.updated || correctionIDs.has(id));
-    const saved = state.savedIds.includes(id) || (episode.id && state.savedIds.includes(episode.id));
-    const card = node('article', null, 'episode-job-card');
-    card.dataset.jobId = id || '';
-    const title = episode.title || job.topic || 'Episode request';
-    const hash = status.key === 'ready' ? `#episode/${encodeURIComponent(id)}` : `#episode-making/${encodeURIComponent(id)}`;
-    const titleLink = link(title, hash, 'episode-job-title');
-    const heading = node('h2'); heading.append(titleLink); card.append(heading);
-    if (episode.topic_label && episode.topic_label !== title) card.append(node('p', episode.topic_label, 'episode-job-topic'));
-    const chip = node('span', null, `episode-status-chip episode-status-${status.key}`); chip.dataset.state = status.ring;
-    const ring = node('span', null, 'episode-stage-ring'); ring.setAttribute('aria-hidden', 'true');
-    ring.dataset.check = status.ring === 'done' ? '✓' : status.ring === 'failed' ? '!' : status.ring === 'cancelled' ? '–' : '';
-    chip.append(ring, node('span', status.label));
-    const statusLine = node('div', null, 'episode-job-status-line'); statusLine.append(chip);
-    if (corrected) {
-      const updated = link('Updated', '#corrections', 'episode-updated');
-      updated.setAttribute('aria-label', 'Updated · view corrections'); statusLine.append(updated);
-    }
-    card.append(statusLine);
-    const date = job.created_at || job.finished_at || job.updated_at || '';
-    const parsedDate = date ? new Date(date) : null;
-    const dateText = parsedDate && !Number.isNaN(parsedDate.getTime()) ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(parsedDate) : '';
-    card.append(node('p', `${job.length || episode.duration_minutes || 5} min${dateText ? ` · ${dateText}` : ''}`, 'episode-job-card-status'));
-    const actions = node('div', null, 'episode-job-actions');
-    const save = node('button', saved ? 'Saved' : 'Save', 'episode-job-save'); save.type = 'button';
-    save.setAttribute('aria-label', `${saved ? 'Remove' : 'Save'} ${title}${saved ? ' from saved episodes' : ''}`); save.setAttribute('aria-pressed', String(saved));
-    save.addEventListener('click', () => {
-      toggleSave(id, episode.revision_id || job.revision_id || null, false);
-      renderEpisodeHistory(result, available, corrections);
-      const next = content.querySelector(`[data-job-id="${CSS.escape(id)}"] .episode-job-save`); next?.focus({ preventScroll: true });
-    });
-    const remove = node('button', 'Delete', 'episode-job-delete'); remove.type = 'button'; remove.setAttribute('aria-label', `Delete ${title} from this list`);
-    remove.addEventListener('click', () => {
+  renderEpisodeHistoryScreen({
+    content, node, link, result: episodeHistorySnapshot.result, available, corrections,
+    filter: episodeHistoryFilter, searchQuery: episodeHistorySearch, savedIds: state.savedIds,
+    onRetry: () => void renderEpisodeRoute('episodes'),
+    onFilter: key => { episodeHistoryFilter = key; renderEpisodeHistory(result, available, corrections); },
+    onSearch: value => { episodeHistorySearch = value; renderEpisodeHistory(result, available, corrections); },
+    onSave: (id, revisionId) => { toggleSave(id, revisionId, false); renderEpisodeHistory(result, available, corrections); },
+    onDelete: (id, title) => {
       saveEpisodeHistoryDismissed([...episodeHistoryDismissed(), id]);
       episodeHistoryUndo = { id, title };
       if (episodeHistoryUndoTimer) clearTimeout(episodeHistoryUndoTimer);
@@ -2440,28 +2328,8 @@ function renderEpisodeHistory(result, available, corrections = []) {
         renderEpisodeHistory(result, available, corrections);
       } }).querySelector('.app-toast-action')?.focus({ preventScroll: true });
       episodeHistoryUndoTimer = setTimeout(() => { episodeHistoryUndo = null; episodeHistoryUndoTimer = null; }, 4000);
-    });
-    actions.append(save, remove); card.append(actions);
-    list.append(card);
-  }
-  if (filtered.length) page.append(list);
-  else {
-    const empty = node('section', null, 'episode-history-empty');
-    const query = episodeHistorySearch.trim();
-    const messages = {
-      all: ['Ask for your first episode', 'Episodes you request will appear here.'],
-      making: ['No episodes being made', 'When an episode is in progress, it will appear here.'],
-      ready: ['No ready episodes yet', 'Completed episodes will appear here.'],
-      saved: ['No saved episodes', 'Save an episode to keep it close at hand.'],
-      corrected: ['No corrected episodes', 'Corrections to an episode will appear here.'],
-    };
-    if (query) empty.append(node('h2', 'No matching episodes'), node('p', `No episodes match “${query}”.`));
-    else if (!visibleJobs.length && episodeHistoryFilter === 'all') {
-      empty.append(node('h2', messages.all[0]), node('p', messages.all[1]), link('Ask for your first episode', '#ask-episode', 'button-link'));
-    } else empty.append(node('h2', messages[episodeHistoryFilter][0]), node('p', messages[episodeHistoryFilter][1]));
-    page.append(empty);
-  }
-  content.replaceChildren(page);
+    },
+  });
 }
 
 function openEpisodeStyleSheet(opener) {
