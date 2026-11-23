@@ -131,7 +131,7 @@ class ApiAccessRouteTests(unittest.TestCase):
         self.assertEqual(set(health['feeds']), {'available', 'enabled', 'backing_off', 'disabled_permanent'})
         self.assertEqual(set(health['jobs']), {'available', 'by_state', 'by_stage'})
         self.assertEqual(set(health['usage']), {'available', 'today', 'month'})
-        self.assertEqual(set(health['audio']), {'daily_status', 'episodes_by_status'})
+        self.assertEqual(set(health['audio']), {'daily_status', 'daily_duration_seconds', 'episodes_by_status'})
 
     def test_every_post_route_is_normal_or_loopback_only_as_documented(self):
         normal_routes = [

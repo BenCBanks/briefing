@@ -29,7 +29,8 @@ class StatusReportTests(unittest.TestCase):
                              'remaining_usd': '4'},
                  'key': 'secret'}
         projected = build_health_payload(status=status, feeds=feeds, jobs=jobs, usage=usage,
-                                         daily_audio_status='recorded', now=now)
+                                         daily_audio_status='recorded',
+                                         daily_audio_duration_seconds=242.4, now=now)
         self.assertEqual(projected['daily_run']['age_seconds'], 1800)
         self.assertEqual(projected['feeds'], {'available': True, 'enabled': 5,
                                                'backing_off': 2, 'disabled_permanent': 1})
@@ -38,6 +39,7 @@ class StatusReportTests(unittest.TestCase):
         self.assertNotIn('private content', repr(projected))
         self.assertNotIn('secret', repr(projected))
         self.assertEqual(projected['audio']['daily_status'], 'ready')
+        self.assertEqual(projected['audio']['daily_duration_seconds'], 242.4)
 
     def test_formatter_is_compact_and_does_not_echo_untrusted_fields(self):
         health = {
@@ -48,7 +50,8 @@ class StatusReportTests(unittest.TestCase):
             'usage': {'available': True,
                       'today': {'estimated_cost_usd': '0.100000', 'cap_usd': '0.500000', 'remaining_usd': '0.400000'},
                       'month': {'estimated_cost_usd': '1.000000', 'cap_usd': '5.000000', 'remaining_usd': '4.000000'}},
-            'audio': {'daily_status': 'pending', 'episodes_by_status': {'recorded': 2}},
+            'audio': {'daily_status': 'pending', 'daily_duration_seconds': 300,
+                      'episodes_by_status': {'recorded': 2}},
             'profile_name': 'private name',
         }
         lines = format_status_report(health)
@@ -57,8 +60,11 @@ class StatusReportTests(unittest.TestCase):
         self.assertEqual(lines[1], 'Feeds: 8 enabled · 2 backing off')
         self.assertIn('2 running', lines[2])
         self.assertIn('$0.100000 / $0.500000 cap ($0.400000 left)', lines[3])
-        self.assertIn('Audio: daily pending · episodes recorded 2', lines[4])
+        self.assertIn('Audio: daily pending · 5m 0s · episodes recorded 2', lines[4])
         self.assertNotIn('private name', '\n'.join(lines))
+        health['audio']['daily_duration_seconds'] = float('nan')
+        self.assertIn('Audio: daily pending · duration unavailable',
+                      format_status_report(health)[4])
 
     def test_correction_audio_pending_failed_and_fallback_states_are_distinct_and_private(self):
         private_request = 'FICTIONAL REQUEST: private correction wording'
