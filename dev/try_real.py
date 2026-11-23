@@ -123,6 +123,9 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
     if not isinstance(reported_words, int) or reported_words <= 0:
         reported_words = _words(text)
     print(f'Word count: {reported_words}')
+    warnings = result.get('soft_warnings') or result.get('content_soft_warnings')
+    if warnings:
+        print('Soft warnings: ' + json.dumps(warnings, sort_keys=True))
     print('\nScript:\n' + str(text).strip())
     if wall > 355:
         print('\nRuntime diagnosis: this exceeded the six-minute reader budget.')

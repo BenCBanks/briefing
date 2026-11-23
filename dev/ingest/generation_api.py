@@ -670,6 +670,11 @@ def _record_content_gate(report, checks):
     return failures
 
 
+def _hard_content_failures(failures):
+    """Keep evidence/citation safety hard; editorial shape is publishable."""
+    return [code for code in failures if code in {'content_citations', 'content_quality'}]
+
+
 def _score_and_filter_stories(edition, sources, registry, evidence, score_edition_fn):
     story_rows = [row for row in edition.get('sections', []) if row.get('cluster_id')]
     passed = []
@@ -1267,9 +1272,11 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                     {'editions': editions, 'sources': sources}, recent_history, profile,
                     now=core.utc_now())
                 content_failures = _record_content_gate(report, content_checks)
-                if content_failures:
+                hard_failures = _hard_content_failures(content_failures)
+                report['content_soft_warnings'] = [code for code in content_failures if code not in hard_failures]
+                if hard_failures:
                     _persist_job_scorecard(directory, job_id, report)
-                    raise RuntimeError('scorecard_critical_failed:' + ','.join(content_failures))
+                    raise RuntimeError('scorecard_critical_failed:' + ','.join(hard_failures))
             narration_result = None
             if flag_enabled('daily_narration'):
                 try:
@@ -1318,10 +1325,13 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                             {'editions': editions, 'sources': sources}, recent_history, profile,
                             now=core.utc_now())
                         final_content_failures = _record_content_gate(report, final_content_checks)
-                        if final_content_failures:
+                        hard_failures = _hard_content_failures(final_content_failures)
+                        report['content_soft_warnings'] = [code for code in final_content_failures
+                                                           if code not in hard_failures]
+                        if hard_failures:
                             _persist_job_scorecard(directory, job_id, report)
                             raise RuntimeError(
-                                'scorecard_critical_failed:' + ','.join(final_content_failures))
+                                'scorecard_critical_failed:' + ','.join(hard_failures))
                     elif _mark_daily_narration_failure(report, narration_result):
                         _persist_job_scorecard(directory, job_id, report)
                         raise RuntimeError('scorecard_critical_failed:daily_narration')

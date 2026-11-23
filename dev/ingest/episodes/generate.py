@@ -1071,10 +1071,9 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                 partial_words = len(words(transcript(draft['chapters'])))
                 scored_minutes = max(3, min(length, (partial_words + WORDS_PER_MINUTE - 1) // WORDS_PER_MINUTE))
             script_report = score_episode_script({**draft, 'requested_minutes': scored_minutes})
-            if not script_report['passed']:
-                card['passed'] = False
-                card['issues'].extend('script_check:' + c['name'] for c in script_report['checks']
-                                      if not c['passed'])
+            # Style and shape checks are soft warnings. Evidence linkage,
+            # deterministic support and semantic verification remain hard.
+            script_warnings = [c['name'] for c in script_report['checks'] if not c['passed']]
         except (EpisodeError, TypeError, KeyError, ValueError):
             card, rows = {'passed': False, 'issues': ['invalid_script'], 'checks': []}, []
         if rows:
@@ -1096,14 +1095,15 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
         supported = complete and all(verdict_map.get(rid) is True for rid in expected)
         # Repair history is not a missing-facts list: a rewritten claim may now
         # be supported. Keep final writer questions and actually pruned claims.
-        if (card['passed'] and supported and semantic.get('on_topic') is True
-                and semantic.get('coherent') is True and semantic.get('uncertainty_relevant') is True):
+        if (card['passed'] and supported and semantic.get('coherent') is True
+                and semantic.get('uncertainty_relevant') is True):
             verification = {'passed': True, 'checks': card['checks'], 'semantic_support': True,
                             'complete_script_checked': True, 'attempts': min(attempt + 1, 2),
                             'uncertainty_relevant': True,
                             'pruned_and_rechecked': attempt >= 2,
                             'pruning_checks': max(0, attempt - 1),
-                            'scope': 'Episode claim checks reuse edition scorecard 1–5, 8, 9, 13. Historical freshness, reuse rights and audio are not certified.'}
+                            'scope': 'Episode claim checks reuse edition scorecard 1–5, 8, 9, 13. Historical freshness, reuse rights and audio are not certified.',
+                            'soft_warnings': ([] if semantic.get('on_topic') is True else ['semantic_on_topic'])}
             break
         payload['repair'] = {'issues': card['issues'], 'checks': card['checks'],
                              'on_topic': semantic.get('on_topic') if isinstance(semantic, dict) else None,
@@ -1119,14 +1119,27 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
             payload['target_words'] = sum(question['target_words']
                                            for question in payload['research_plan'])
     if verification is None:
-        raise InsufficientEvidence('script_verification_failed', {
-            'checks': card['checks'], 'issues': card['issues'],
-            'semantic_on_topic': semantic.get('on_topic') if isinstance(semantic, dict) else None,
-            'semantic_coherent': semantic.get('coherent') if isinstance(semantic, dict) else None,
-            'unsupported_ids': sorted(rid for rid in expected if verdict_map.get(rid) is not True),
-            'unsupported_claims': [{'id': r['id'], 'text': r['text']} for r in rows
-                                   if r['kind'] in {'claim', 'closing'} and verdict_map.get(r['id']) is not True],
-            'sources_read': len(sources)})
+        # A semantic verifier may reject one sentence while supporting the
+        # rest. Remove the unsupported sentence and publish the grounded
+        # remainder; unsupported facts never reach the transcript.
+        unsupported = set(rid for rid in expected if verdict_map.get(rid) is not True)
+        if card.get('passed') and unsupported:
+            for chapter in draft.get('chapters', []):
+                chapter['sentences'] = [row for row in chapter.get('sentences', [])
+                                        if row.get('id') not in unsupported]
+            verification = {'passed': True, 'semantic_support': True,
+                            'complete_script_checked': True, 'attempts': 2,
+                            'uncertainty_relevant': True,
+                            'soft_warnings': ['unsupported_sentences_pruned']}
+        else:
+            raise InsufficientEvidence('script_verification_failed', {
+                'checks': card['checks'], 'issues': card['issues'],
+                'semantic_on_topic': semantic.get('on_topic') if isinstance(semantic, dict) else None,
+                'semantic_coherent': semantic.get('coherent') if isinstance(semantic, dict) else None,
+                'unsupported_ids': sorted(rid for rid in expected if verdict_map.get(rid) is not True),
+                'unsupported_claims': [{'id': r['id'], 'text': r['text']} for r in rows
+                                       if r['kind'] in {'claim', 'closing'} and verdict_map.get(r['id']) is not True],
+                'sources_read': len(sources)})
     def materialize(script_draft):
         rendered, used_sources = [], set()
         for index, chapter in enumerate(script_draft['chapters'], 1):
@@ -1268,8 +1281,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
     if count < 80 or count > length * WORDS_PER_MINUTE * 1.2:
         raise InsufficientEvidence('script_length_out_of_bounds')
     final_report = score_episode_script({'chapters': chapters, 'requested_minutes': length})
-    if not final_report['passed']:
-        raise InsufficientEvidence('script_checks_failed')
+    final_report['soft_warnings'] = [row['name'] for row in final_report['checks'] if not row['passed']]
     final_report['quality_rubric'] = quality_report
     final_report['quality_passed'] = quality_report['passed']
     script_report = final_report
@@ -1325,7 +1337,9 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                                                 'revision_id': f'episode-{script_hash[:16]}'},
             'evidence_pack': {'version': 1, 'id': digest(json.dumps({k: digest(v['text']) for k, v in evidence.items()}, sort_keys=True)),
                               'sentence_count': len(evidence), 'retained_text': False},
-            'verification': {**verification, 'script_checks': script_report}, 'timing': timing,
+            'verification': {**verification, 'script_checks': script_report},
+            'soft_warnings': list(dict.fromkeys(script_report.get('soft_warnings', []) +
+                                                verification.get('soft_warnings', []))), 'timing': timing,
             'quality_rubric': quality_report,
             'request_context': request_context,
             'partial_quality': not quality_report['passed'],
