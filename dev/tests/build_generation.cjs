@@ -107,18 +107,18 @@ async function flow({ fail = false, noStories = false, missingEndpoints = false,
         if ((missingEndpoints || fail) && noStories) {
           const expectedHeadings = generalEdition.sections.map(section => section.heading);
           assert.equal(await page.locator('.today-page').count(), 1, 'A no-match profile still gets the general edition page');
-          assert.deepEqual(await page.locator('.today-contents .story-row-copy strong').allTextContents(), expectedHeadings, 'No matching profile topic does not hide the general edition stories');
+          assert.deepEqual(await page.locator('.today-chapter-title').allTextContents(), expectedHeadings, 'No matching profile topic does not hide the general edition stories');
           assert.equal(await page.locator('.today-contents > ol > li').count(), generalEdition.sections.length, 'Every general edition story is visible in the fallback');
           assert.equal(await page.locator('.today-no-stories').count(), 0, 'General fallback stories replace the profile empty state');
           await page.reload({ waitUntil: 'networkidle' });
           await page.locator('.today-general-fallback-note').waitFor();
-          assert.deepEqual(await page.locator('.today-contents .story-row-copy strong').allTextContents(), expectedHeadings, 'Unfiltered fallback stories remain visible after reload');
+          assert.deepEqual(await page.locator('.today-chapter-title').allTextContents(), expectedHeadings, 'Unfiltered fallback stories remain visible after reload');
         } else if (missingEndpoints) {
-          assert.deepEqual(await page.locator('.today-contents .story-kicker').allTextContents(), ['Savings rates', 'Payments'], 'General edition rows are filtered and ordered by the reader profile');
+          assert.deepEqual(await page.locator('.today-contents .today-chapter-kicker').allTextContents(), ['1 · Savings rates', '2 · Payments'], 'General edition rows are filtered and ordered by the reader profile');
           assert.equal(await page.locator('.today-contents > ol > li').count(), 2, 'Unmatched general stories are omitted');
           await page.reload({ waitUntil: 'networkidle' });
           await page.locator('.today-general-fallback-note').waitFor();
-          assert.deepEqual(await page.locator('.today-contents .story-kicker').allTextContents(), ['Savings rates', 'Payments'], 'Fallback profile and ordering persist across reload');
+          assert.deepEqual(await page.locator('.today-contents .today-chapter-kicker').allTextContents(), ['1 · Savings rates', '2 · Payments'], 'Fallback profile and ordering persist across reload');
         }
       }
       assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('briefing:v1:interest-profile'))?.words), profile.words, 'Profile is saved when generation is unavailable');
@@ -136,12 +136,12 @@ async function flow({ fail = false, noStories = false, missingEndpoints = false,
     await page.locator('.today-page').waitFor();
     const greetingHeadlines = generatedEdition.sections.slice(0, 3).map(section => section.heading);
     assert.equal(await page.locator('.today-page h1').innerText(), 'Your daily briefing');
-    assert.equal(await page.locator('.today-top-stories li').count(), 1);
+    assert.equal(await page.locator('.today-chapter-title').count(), 1);
     assert.match(await page.locator('.today-date').innerText(), /^Tuesday 17 November$/, 'Generated Today shows the date and read time without a sample tag');
     assert.equal(await page.locator('.today-page .built-from-words,.today-page .edition-updated,.today-page .today-refresh,.today-page .today-meta,.today-page .edition-summary-dek').count(), 0, 'Generated Today adds no extra metadata, dek or refresh control');
     assert.equal(await page.locator('.today-listen-pill').count(), 1, 'Generated Today has one persistent Listen action');
     assert.equal(await page.locator('.story-kicker').count(), 0, 'One followed topic needs no repeated kicker');
-    assert.equal(await page.locator('.today-story-row .story-row-copy').evaluate(element => element.children.length), 1, 'Headline stands alone; text follows inline');
+    assert.equal(await page.locator('.today-story-row .today-chapter-title').count(), 1, 'The single chapter title is the row heading');
     assert.equal(generatePost.profile.words, profile.words, 'generate endpoint receives the interpreted profile');
     assert.equal(profilePost.profile.words, profile.words);
     assert.ok(polls >= 3, 'generation progress was polled through fetching, writing and scoring until complete');

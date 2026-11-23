@@ -38,6 +38,7 @@ async function run() {
     });
     await page.goto(`${baseURL}/#today`, { waitUntil: 'domcontentloaded' });
     await page.locator('.today-page').waitFor();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
     await page.locator(`.today-contents .edition[data-edition="${seenEdition.id}"]`).first().waitFor();
     await seenPost;
     assert.equal(seenRequests.length, 1, 'Displaying a generated daily edition records one seen marker');

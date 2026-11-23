@@ -179,7 +179,7 @@ class DailyBriefingTests(unittest.TestCase):
         self.assertEqual(spoken_sentence_ids, expected_sentence_ids)
         self.assertEqual(expected_claim_words, 352)
         self.assertEqual(sum(daily._spoken_words(row['text']) for row in spoken_claims), expected_claim_words)
-        self.assertEqual(metadata['spoken_words'], 428)
+        self.assertEqual(metadata['spoken_words'], 427)
         self.assertLess(metadata['spoken_words'], metadata['minimum_spoken_words'])
         self.assertEqual(metadata['nominal_target_spoken_words'], 750)
         self.assertEqual(metadata['target_spoken_words'], 675)
@@ -216,7 +216,7 @@ class DailyBriefingTests(unittest.TestCase):
                                profile, target=5, today=NOW.date())
         self.assertEqual(len(three['sections']), 3)
         self.assertEqual(three['daily_briefing']['briefing_script'][0]['text'],
-                         'Good morning. Your briefing has three stories.')
+                         'Good morning. Three stories today: Fictional topic.')
 
         retrieval_calls, followup_calls, background_calls = [], [], []
 
@@ -251,7 +251,7 @@ class DailyBriefingTests(unittest.TestCase):
                               background_fill=background, background_history=[recycled],
                               today=NOW.date())
         self.assertEqual(thin['daily_briefing']['briefing_script'][0]['text'],
-                         'Good morning. Your briefing has one story.')
+                         'Good morning. One story today: Fictional topic.')
         self.assertEqual([row['cluster_id'] for row in thin['sections']], ['fictional-story-1'])
         self.assertEqual(thin['daily_briefing']['background_segments'], [])
         spoken_ids = {sentence_id for row in thin['daily_briefing']['briefing_script']

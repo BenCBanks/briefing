@@ -199,12 +199,34 @@ def _profile_topics(profile):
     return {row.get('id') for row in topics if isinstance(row, dict) and isinstance(row.get('id'), str)} if isinstance(topics, list) else set()
 
 
-def _daily_greeting(sections):
+def _daily_greeting(sections, profile=None):
+    """Open with a spoken preview instead of a count-only status line.
+
+    Topic labels give the listener a useful map while avoiding a headline
+    being read aloud and then repeated when its story starts.
+    """
     from .audio_script import _integer_words
     story_count = sum(bool(_verified_links(section)) for section in sections)
     count = _integer_words(story_count)
     noun = 'story' if story_count == 1 else 'stories'
-    return f'Good morning. Your briefing has {count} {noun}.'
+    labels = {row.get('id'): str(row.get('label') or row.get('id'))
+              for row in (profile or {}).get('topics', [])
+              if isinstance(row, dict) and row.get('id')}
+    topics = []
+    for section in sections:
+        for topic_id in section.get('topic_ids', []):
+            label = labels.get(topic_id)
+            if label and label not in topics:
+                topics.append(label)
+    if topics:
+        if len(topics) == 1:
+            preview = topics[0]
+        elif len(topics) == 2:
+            preview = f'{topics[0]} and {topics[1]}'
+        else:
+            preview = ', '.join(topics[:-1]) + f', and {topics[-1]}'
+        return f'Good morning. {count.capitalize()} {noun} today: {preview}.'
+    return f'Good morning. {count.capitalize()} {noun} today.'
 
 
 def _published_note(section, source_dates):
@@ -763,7 +785,7 @@ def assemble(edition, profile, target=None, *, retrieval_fill=None, followup_fil
     for section in sections:
         _story_fields(section)
 
-    greeting = _daily_greeting(sections)
+    greeting = _daily_greeting(sections, profile)
     topic_intro = f'Today, we are following {topic_phrase}.'
     script = [{'kind': 'greeting', 'text': greeting, 'cited_text': greeting,
                'source_sentence_ids': [], 'citation_numbers': []},
@@ -788,11 +810,6 @@ def assemble(edition, profile, target=None, *, retrieval_fill=None, followup_fil
                        'cited_text': intro, 'source_sentence_ids': [],
                        'citation_numbers': date_citations,
                        'section_id': section['cluster_id'], 'topic_id': topic_id})
-        heading = str(section.get('heading') or '').strip()
-        if heading:
-            script.append({'kind': 'heading', 'text': heading, 'cited_text': heading,
-                           'source_sentence_ids': [], 'citation_numbers': [],
-                           'section_id': section['cluster_id'], 'topic_id': topic_id})
         for link in _verified_links(section):
             row = _spoken_line(link)
             if row['text']:

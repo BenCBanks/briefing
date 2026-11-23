@@ -15,6 +15,9 @@ const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/episod
       const url = new URL(route.request().url());
       return url.origin === baseURL && !url.pathname.startsWith('/api/') ? route.continue() : route.abort();
     });
+    await page.route('**/dev/tests/fixtures/episodes-lengths.json', route => route.fulfill({
+      contentType: 'application/json', body: JSON.stringify(fixture),
+    }));
     // A plain JSON document has no application startup or background jobs.
     await page.goto(`${baseURL}/dev/tests/fixtures/episodes-lengths.json`);
     for (const episode of fixture.episodes) {
@@ -22,6 +25,7 @@ const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/episod
         const { renderEpisodePage } = await import('/src/episodes/episodes.js');
         renderEpisodePage(document.body, value);
       }, episode);
+      await page.locator('.episode-chapter-disclosure').last().evaluate(details => { details.open = true; });
       assert.equal(await page.getByRole('heading', { name: "What we couldn't confirm", exact: true }).count(), 1);
       assert.equal(await page.locator('.episode-uncertain').count(), 0, 'Narrated evidence notes are not repeated below the transcript');
       assert.match(await page.locator('.episode-transcript').innerText(), /shorter than requested/);

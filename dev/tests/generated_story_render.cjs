@@ -159,24 +159,24 @@ async function run() {
     await seedInterestProfile(page, profile);
     await page.goto(`${baseURL}/#today`, { waitUntil: 'domcontentloaded' });
     const row = page.locator('.today-story-row').first();
-    const rowText = await row.locator('.story-row-copy').innerText();
+    const rowText = await row.locator('.today-chapter-title').innerText();
     assert.equal(/\[1\]|OFFICIAL|SOURCE-BACKED|Corrected/.test(rowText), false, 'Today omits citation syntax, confidence labels and unlinked correction tags');
-    assert.equal(await row.locator('.story-row-copy').evaluate(el=>el.children.length), 1, 'Headline and kicker are separate');
-    assert.equal(await row.locator('.story-kicker').innerText(), 'UPDATE: · PAYMENTS', 'Follow-up kicker stays in the v3 topic overline');
+    assert.equal(await row.locator('.today-chapter-title').count(), 1, 'The story title appears once as its chapter heading');
+    assert.equal(await row.locator('.today-chapter-kicker').innerText(), '1 · UPDATE: · PAYMENTS', 'Follow-up kicker stays in the chapter overline');
     assert.match(await page.locator('.today-date').innerText(), /^Tuesday 17 November$/);
-    assert.ok(await page.locator('.today-top-stories li').count() >= 1);
+    assert.ok(await page.locator('.today-chapter-title').count() >= 1);
     assert.equal(await page.locator('.today-thin-day,.today-availability-note,.today-link-row').count(), 0, 'No banners or raw peripheral items');
     assert.equal(await page.locator('.today-quick-hits li').count(), 3, 'The server-filtered remainder renders as three compact quick hits');
     assert.deepEqual(await page.locator('.today-quick-hits li a span').allTextContents(), ['Federal Reserve','Cedar News','Harbor Journal']);
     assert.doesNotMatch(await page.locator('.today-quick-hits').innerText(), /Weekend settlement window announced|revised settlement window/, 'Raw quick hits and summaries stay hidden');
     assert.equal(await page.locator('.today-completion strong').innerText(), "You're caught up for today.");
-    assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow at 5:00 am');
+    assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow morning');
     assert.equal(await page.locator('.today-quiet-line').innerText(), "We'll keep following AI in finance.",
       'A topic with no story gets a calm forward-looking note');
     await captureLargeText(page, 'today');
     assert.doesNotMatch(await page.locator('.today-page').innerText(), /Nothing happened today|No stories today|could not be loaded|coverage was limited/i,
       'Today ends with calm, plain copy instead of negative or source-limit language');
-    assert.equal(await page.locator('.story-more-toggle').first().getAttribute('aria-expanded'), 'true', 'Thin editions open their stories');
+    assert.equal(await page.locator('.today-transcript').first().evaluate(details => details.open), false, 'Thin editions keep transcripts folded until requested');
 
     await page.locator('.today-earlier-briefings-link').click();
     await page.locator('.library-briefing-list').waitFor();
@@ -190,7 +190,8 @@ async function run() {
     await page.locator('.today-story-row').first().waitFor();
 
     assert.equal(await row.locator('.story-interest-feedback').count(), 0, 'Today uses edition feedback only');
-    await row.locator('.story-row-link').click();
+    await row.locator('.today-transcript').evaluate(details => { details.open = true; });
+    await row.locator('.today-full-story-link').click();
     await page.locator('body.is-reader .edition-section').waitFor();
     assert.equal(await page.locator('.reader-story-header h1').innerText(), 'Medicare Administrative Contractors Announce a Nationwide Moratorium on Enrollment of New Hospice Providers', 'The Story page retains the full headline');
     if (shots) {

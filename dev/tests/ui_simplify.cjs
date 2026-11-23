@@ -50,6 +50,7 @@ async function capture(page, name) {
     await page.emulateMedia({ colorScheme: 'dark' });
     await capture(page, 'today-fixture-dark');
     await page.emulateMedia({ colorScheme: 'light' });
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
     const summary = page.locator('.story-more-toggle').first();
     if (await summary.getAttribute('aria-expanded') === 'false') await summary.click();
     const source = page.locator('.inline-story-sources [data-source]').first();
@@ -104,7 +105,8 @@ async function capture(page, name) {
     await page.goForward(); await page.locator('.library-filters').waitFor();
     await page.goForward(); await page.locator('.topics-page').waitFor();
     await page.locator('[data-nav=today]').click(); await page.locator('.today-page').waitFor();
-    const story = page.locator('.story-row-link').first();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    const story = page.locator('.today-full-story-link').first();
     await story.click(); await page.locator('.reader-story-header').waitFor();
     await capture(page, 'story-fixture-light');
     await page.emulateMedia({ colorScheme: 'dark' }); await capture(page, 'story-fixture-dark');
@@ -114,8 +116,14 @@ async function capture(page, name) {
     await page.evaluate(() => scrollTo(0, 0));
     await page.goBack(); await page.locator('.today-page').waitFor();
     await page.waitForFunction(() => document.activeElement?.hasAttribute('data-read-section'));
-    await page.locator('.today-completion').scrollIntoViewIfNeeded();
-    assert.ok(await page.locator('.today-completion').evaluate(el => el.getBoundingClientRect().bottom < document.querySelector('.mini-player').getBoundingClientRect().top), 'Ending clears the Listen bar');
+    await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
+    const completionGeometry = await page.locator('.today-completion').evaluate(el => {
+      const miniPlayer = document.querySelector('.mini-player');
+      const navigation = document.querySelector('.main-nav');
+      const pinnedTop = Math.min(miniPlayer?.getBoundingClientRect().top ?? Infinity, navigation.getBoundingClientRect().top);
+      return { bottom: el.getBoundingClientRect().bottom, pinnedTop };
+    });
+    assert.ok(completionGeometry.bottom < completionGeometry.pinnedTop, `Ending clears the pinned listening and navigation controls (${JSON.stringify(completionGeometry)})`);
     await page.locator('[data-nav=topics]').click(); await page.locator('.topics-page').waitFor();
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     // Exercise missing explanations with the real phone CSS and a fictional brief.

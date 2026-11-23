@@ -9,7 +9,7 @@ const { chromium } = require('playwright');
 const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8949';
 const episodes = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/episodes.json'), 'utf8')).episodes;
 const routes = [
-  { name:'Today', hash:'#today', ready:'.today-title', sizes:[['.today-title',28],['.today-top-story-copy strong',15],['.story-lead p',17],['.today-date',13]] },
+  { name:'Today', hash:'#today', ready:'.today-title', sizes:[['.today-title',28],['.today-chapter-title',19],['.story-lead p',17],['.today-date',13]] },
   { name:'Earlier', hash:'#library', ready:'main>h1', sizes:[['main>h1',28],['.library-briefing-link',17],['.library-date-meta',13]] },
   { name:'Topics', hash:'#topics', ready:'.topics-page h1', sizes:[['.topics-page h1',28],['.topic-label',18],['.topics-daily-summary',13]] },
   { name:'Ask', hash:'#ask-episode', ready:'.episode-request-page h1', sizes:[['.episode-request-page h1',28]] },

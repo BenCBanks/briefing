@@ -88,7 +88,8 @@ async function run() {
     const play = page.locator('.today-listen-pill');
     assert.equal(await play.count(), 1, 'pending recording has a working Listen control');
     const editionId = await play.getAttribute('data-edition-id');
-    await page.locator('.today-contents [data-read-section]').first().click();
+    const firstStoryId = (await page.locator('.today-story-row').first().getAttribute('id')).replace(/^story-/u, '');
+    await page.evaluate(({ id, sectionId }) => { location.hash = `#edition/daily/${encodeURIComponent(id)}/${encodeURIComponent(sectionId)}`; }, { id: editionId, sectionId: firstStoryId });
     await page.locator('body.is-reader .edition-section').waitFor();
     assert.equal(await page.locator('.story-listen-label').innerText(), 'Listen from here', 'story action is clearly labelled Listen from here');
     const storyParagraphs = page.locator('.edition-section p');

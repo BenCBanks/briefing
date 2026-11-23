@@ -33,7 +33,8 @@ const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8932';
       renderToday(host, {
         id: 'fictional-day', revision_id: 'fictional-r1', kind: 'daily', local_date: '2026-11-18',
         sections, coverage: sections.map((section, index) => ({ topic_id: `topic-${index}`, state: 'covered' })),
-      }, [], { sources, followedTopicCount: 3 });
+      }, [], { sources, followedTopicCount: 3, listeningAvailable: true });
+      host.querySelectorAll('.today-transcript').forEach(details => { details.open = true; });
       const rows = [...host.querySelectorAll('.today-story-row')];
       const toggles = [...host.querySelectorAll('.story-more-toggle')];
       const toggleState = button => ({
@@ -54,8 +55,8 @@ const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8932';
         sourceText: row.querySelector('.inline-story-sources')?.innerText || '',
         sourceLine: row.querySelector('.story-source-line > span')?.innerText.trim() || '',
         toggle: toggleState(row.querySelector('.story-more-toggle')),
-        topHeadline: host.querySelectorAll('.today-top-story-copy strong')[rows.indexOf(row)]?.innerText.trim() || '',
-        topHeadlineFits: (() => { const title = host.querySelectorAll('.today-top-story-copy strong')[rows.indexOf(row)]; return title.scrollHeight <= title.clientHeight + 1; })(),
+        topHeadline: host.querySelectorAll('.today-chapter-title')[rows.indexOf(row)]?.innerText.trim() || '',
+        topHeadlineFits: (() => { const title = host.querySelectorAll('.today-chapter-title')[rows.indexOf(row)]; return title.scrollHeight <= title.clientHeight + 1; })(),
         closedToggle: rows.indexOf(row) === 0 ? closedToggle : null,
       }));
     });

@@ -70,7 +70,7 @@ async function run() {
     await screenshot(page, 'first-run-building-dark-390.png');
     await page.emulateMedia({ colorScheme: 'light' });
     await page.getByRole('heading', { name: 'Your daily briefing' }).waitFor();
-    await page.locator('.today-story-row .story-row-link').waitFor();
+    await page.locator('.today-chapter-title').waitFor();
     assert.equal(await page.locator('.today-story-row').count(), 1, 'Today shows only the story built for this profile');
     assert.equal(await page.locator('.story-kicker').count(), 0, 'Single-topic editions omit the repeated kicker');
     await screenshot(page, 'first-run-today-390.png');
@@ -78,7 +78,8 @@ async function run() {
     await screenshot(page, 'first-run-today-dark-390.png');
     await page.emulateMedia({ colorScheme: 'light' });
 
-    await page.locator('.today-story-row .story-row-link').click();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await page.locator('.today-full-story-link').click();
     await page.locator('.reader-story-header h1').waitFor();
     assert.equal(await page.locator('.reader-back').innerText(), '‹ Today', 'The story names Today as its return parent');
     await screenshot(page, 'first-run-story-390.png');

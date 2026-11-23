@@ -178,6 +178,7 @@ export function renderEpisodePage(container, episode, { onListen = null, inDaily
     link.addEventListener('click', event => {
       event.preventDefault();
       const target = document.getElementById(`episode-chapter-${chapter.id}`);
+      if (target) target.open = true;
       target?.scrollIntoView({ behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth', block: 'start' });
       target?.querySelector('h3')?.focus({ preventScroll: true });
     });
@@ -192,13 +193,17 @@ export function renderEpisodePage(container, episode, { onListen = null, inDaily
   transcript.append(element('h2', '', 'Transcript'));
   if (!compactSources) transcript.append(element('p', 'episode-transcript-note', 'Tap a source number to see its publisher and date.'));
   if (withdrawnEpisode) {
+    const disclosure = element('details', 'episode-chapter-disclosure'); disclosure.open = true;
+    const summary = element('summary', '', 'Transcript'); disclosure.append(summary);
     const section = element('section', 'episode-chapter');
     const chapterHeading = element('h3', '', 'Story withdrawn'); chapterHeading.tabIndex = -1;
-    section.append(chapterHeading); transcript.append(section);
+    section.append(chapterHeading); disclosure.append(section); transcript.append(disclosure);
   }
   for (const chapter of withdrawnEpisode ? [] : currentChapters) {
+    const disclosure = element('details', 'episode-chapter-disclosure');
+    disclosure.id = `episode-chapter-${chapter.id}`;
+    const summary = element('summary', '', withdrawn(chapter) ? 'Story withdrawn' : chapter.title); disclosure.append(summary);
     const section = element('section', 'episode-chapter');
-    section.id = `episode-chapter-${chapter.id}`;
     const chapterHeading = element('h3', '', withdrawn(chapter) ? 'Story withdrawn' : chapter.title); chapterHeading.tabIndex = -1;
     section.append(chapterHeading);
     if (!withdrawn(chapter)) {
@@ -229,7 +234,7 @@ export function renderEpisodePage(container, episode, { onListen = null, inDaily
         }
       }
     }
-    transcript.append(section);
+    disclosure.append(section); transcript.append(disclosure);
   }
   page.append(transcript);
   if (!withdrawnEpisode && episode.could_not_confirm?.length && !episode.chapters?.some(chapter => chapter.id === 'evidence-notes')) {

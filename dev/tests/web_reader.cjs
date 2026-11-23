@@ -38,7 +38,8 @@ async function run() {
     }));
     assert.ok(layout.articleTop < 500, 'Article should begin in the first phone screen');
     assert.equal(layout.overflow, false);
-    await page.locator('.today-contents [data-read-section]').first().click();
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await page.locator('.today-full-story-link').first().click();
     await page.locator('body.is-reader .edition-section').waitFor();
     assert.equal(await page.locator('.edition-section').count(), 1, 'Reader routes show one story at a time');
     assert.equal(await page.locator('.story-progress').innerText(), 'Story 1 of 4');

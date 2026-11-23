@@ -12,6 +12,9 @@
 .episode-listen { min-width: 140px; min-height: 48px; }
 .episode-listen-group button:disabled { opacity: .65; }
 .episode-audio-unavailable { color: var(--muted); font-size: 13px; }
+.episode-transcript .episode-chapter-disclosure{border-top:1px solid var(--line)}
+.episode-transcript .episode-chapter-disclosure>summary{min-height:48px;display:flex;align-items:center;cursor:pointer;font-weight:600}
+.episode-transcript .episode-chapter-disclosure[open]>.episode-chapter{padding:0 0 14px}
 .episode-updated { display: inline-flex; flex: 0 0 auto; align-items: center; min-height: 44px; white-space: nowrap; border-radius: 999px; padding: 2px 9px; color: var(--warn); background: var(--warnbg); font-size: 12px; font-weight: 650; text-decoration: none; }
 .episode-updated-note { display: grid; grid-template-columns: max-content minmax(0, 1fr); align-items: center; gap: 4px 10px; margin: 0 0 16px; padding: 8px 10px; border-radius: 10px; background: var(--soft); color: var(--muted); font-size: 13px; line-height: 1.45; }
 .episode-updated-note > span:not(.episode-updated) { min-width: 0; }

@@ -270,7 +270,8 @@ async function run() {
     await player.close();
 
     const story = await visit(browser, viewports[0], 'today');
-    await story.locator('.today-contents [data-read-section]').first().click();
+    await story.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await story.locator('.today-full-story-link').first().click();
     await story.locator('.edition-section').first().waitFor();
     const trigger = story.locator('.why-story-trigger').first();
     await trigger.scrollIntoViewIfNeeded(); await trigger.click();

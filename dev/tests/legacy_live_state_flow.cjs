@@ -101,17 +101,14 @@ async function run() {
     }), 'Today requests the active-profile edition endpoint used by the phone client');
     assert.equal(await page.locator('.today-page h1').innerText(), 'Your daily briefing');
     assert.equal(await page.locator('.today-contents > ol > li').count(), 2, 'Both legacy generated stories appear on Today');
-    assert.deepEqual(await page.locator('.today-contents .story-row-copy strong').allTextContents(), [
+    assert.deepEqual(await page.locator('.today-chapter-title').allTextContents(), [
       'Confirm the payment before it moves', 'Make settlement status easier to follow',
     ]);
     assert.doesNotMatch(await page.locator('main').innerText(), /did not load/i, 'Today has no profile or edition load error');
 
-    await page.locator('.today-contents li .story-row-link').first().click();
-    await page.locator('body.is-reader .edition-section').waitFor();
-    assert.match(await page.locator('.edition-section').innerText(), /fictional checkout now shows the amount and payment route/i,
-      'Opening a legacy story renders its body, not only the headline');
-    await page.locator('.reader-back').click();
-    await page.locator('.today-page').waitFor();
+    await page.locator('.today-transcript').first().locator('summary').click();
+    assert.match(await page.locator('.today-transcript').first().innerText(), /fictional checkout makes the amount and route visible before confirmation/i,
+      'Opening a legacy chapter shows its transcript and sources');
 
     await page.locator('.today-earlier-briefings-link').click();
     await page.locator('.library-briefing-list').waitFor();

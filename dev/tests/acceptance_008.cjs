@@ -32,20 +32,21 @@ async function gotoRoot(page, root = 'today') {
 }
 
 function firstStoryRow(page) {
-  return page.locator('.today-contents button, [data-story-row], .story-row').first();
+  return page.locator('.today-full-story-link').first();
 }
 
 async function openFirstStory(page) {
   await gotoRoot(page);
+  const row = page.locator('.today-story-row').first();
+  const title = await row.locator('.today-chapter-title').innerText();
+  await row.locator('.today-transcript').evaluate(details => { details.open = true; });
   const opener = firstStoryRow(page);
   assert.ok(await opener.count(), 'Today has no story opening control');
-  await opener.scrollIntoViewIfNeeded();
-  const openingScroll = await page.evaluate(() => window.scrollY);
-  const lines = (await opener.innerText()).split('\n').map(value => value.trim()).filter(Boolean);
-  const title = await opener.locator('strong').first().textContent().catch(() => null) || lines[1] || lines[0];
+  await opener.evaluate(element => element.scrollIntoView({ block: 'center' }));
   const before = page.url();
   await opener.click();
   await page.waitForFunction(previous => location.href !== previous, before);
+  const openingScroll = await page.evaluate(() => history.state?.routeContext?.parentScroll ?? window.scrollY);
   await page.locator('body.is-reader .edition-section').waitFor({ state: 'visible' });
   await page.locator('.reader-sticky .story-progress').waitFor({ state: 'visible' });
   return { opener, openingScroll, title: title.trim(), hash: new URL(page.url()).hash };
@@ -357,7 +358,8 @@ async function run() {
         const storyCount = await page.locator('.today-story-row').count();
         assert.equal(await page.locator('.inline-story .edition-section').count(), storyCount, 'Every story is readable inline');
         assert.ok(await page.locator('.inline-story p').count() > storyCount);
-        await page.locator('.story-row-link').first().click();
+        await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+        await page.locator('.today-full-story-link').first().click();
         await page.waitForFunction(() => location.hash.startsWith('#edition/'));
         const progress = await page.locator('.story-progress').innerText();
         assert.match(progress, /^Story 1 of \d+$/, 'Story progress reflects the edition sections, even when profile matching hides a row');
@@ -452,8 +454,9 @@ async function run() {
         assert.match(await sample.locator('.today-date').innerText(), /^[A-Z][a-z]+ \d+ [A-Z][a-z]+$/, 'V3 date line contains only the date');
         assert.equal(await sample.locator('.today-title').innerText(), 'Your daily briefing', 'Today uses a fixed daily title instead of a long linked greeting');
         assert.equal(await sample.locator('.today-greeting').count(), 0, 'Today has no greeting paragraph wall');
-        assert.ok(await sample.locator('.today-top-stories li').count() > 0, 'Top stories appear as numbered rows');
-        await sample.locator('.story-row-link').first().click();
+        assert.ok(await sample.locator('.today-chapter-title').count() > 0, 'Today shows a chapter title for each story');
+        await sample.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+        await sample.locator('.today-full-story-link').first().click();
         await sample.locator('body.is-reader .edition-section').waitFor();
         assert.equal(await visibleSampleTag(sample), false, 'Story page keeps the header quiet without a Sample tag');
       } finally { await sample.close(); }

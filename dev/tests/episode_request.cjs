@@ -427,6 +427,7 @@ async function screenshot(page, name) {
     await screenshot(page, 'episode-ready-light');
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-ready-dark');
     await page.emulateMedia({ colorScheme: 'light' });
+    await page.locator('.episode-chapter-disclosure').first().evaluate(details => { details.open = true; });
     await page.locator('.episode-citation').first().locator('summary').click();
     assert.equal(await page.locator('.episode-citation-detail strong').first().innerText(), 'Civic Ledger · fictional', 'the ready transcript source list opens its details');
     await page.locator('.episode-citation[open]').first().locator('summary').click();
@@ -441,7 +442,7 @@ async function screenshot(page, name) {
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-play-dark');
     await page.emulateMedia({ colorScheme: 'light' });
     await requestedPlayer.getByRole('button', { name: 'Pause episode audio' }).click();
-    await requestedPlayer.locator('[data-player-phase]').filter({ hasText: /Paused/ }).waitFor();
+    await requestedPlayer.locator('[data-player-phase]').filter({ hasText: /Paused/ }).waitFor({ timeout: 15000 });
     await page.keyboard.press('Escape');
 
     episodeFailureMode = true;

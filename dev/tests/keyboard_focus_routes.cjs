@@ -156,7 +156,8 @@ async function run() {
     await ask.close();
 
     const today = await visit(browser, '#today');
-    await today.locator('.today-contents [data-read-section]').first().click();
+    await today.locator('.today-transcript').first().evaluate(details => { details.open = true; });
+    await today.locator('.today-full-story-link').first().click();
     await today.locator('.edition-section').first().waitFor();
     const why = today.locator('.why-story-trigger').first();
     await why.waitFor(); await why.click();

@@ -54,6 +54,7 @@ async function capture(page, name) {
       return { bottom: banner.bottom, mainTop: main.top, retryHeight: element.querySelector('button').getBoundingClientRect().height };
     });
     assert.ok(bannerGeometry.bottom <= bannerGeometry.mainTop && bannerGeometry.retryHeight >= 44, 'Network banner sits above the route with a reachable retry control');
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
     await page.emulateMedia({ colorScheme: 'light' }); await capture(page, 'network-offline-light-390');
     await page.emulateMedia({ colorScheme: 'dark' }); await capture(page, 'network-offline-dark-390');
     await page.emulateMedia({ colorScheme: 'light' });
@@ -67,6 +68,7 @@ async function capture(page, name) {
     assert.match(await page.locator('.today-listen-pill').innerText(), /Checking audio/);
     await page.locator('.network-banner').waitFor({ timeout: 7000 });
     assert.match(await page.locator('.network-banner').innerText(), /taking longer than usual.*saved briefing is still here/i, 'A slow refresh explains that cached reading remains available');
+    await page.locator('.today-transcript').first().evaluate(details => { details.open = true; });
     if (await page.locator('.story-more-toggle').first().getAttribute('aria-expanded') === 'false') await page.locator('.story-more-toggle').first().click();
     await page.locator('.inline-story-sources [data-source]').first().evaluate(button => button.focus({ preventScroll: true }));
     await page.evaluate(() => window.scrollTo({ top: 300, behavior: 'instant' }));
@@ -104,10 +106,10 @@ async function capture(page, name) {
     await page.locator('.today-page').waitFor();
     assert.equal(await page.locator('.today-listen-pill').isDisabled(), true);
     release();
-    await page.locator('.correction-notice').waitFor();
     assert.equal(await page.locator('.today-listen-pill').isDisabled(), true, 'Correction keeps the persistent audio control disabled');
-    await page.locator('.story-row-link').first().click();
+    await page.goto(`${baseURL}/#edition/daily/${encodeURIComponent(edition.id)}/${encodeURIComponent(edition.sections[0].id)}`);
     await page.locator('body.is-reader .edition-section').waitFor();
+    await page.locator('.correction-notice').waitFor({ state: 'visible' });
     assert.equal(await page.locator('.story-listen').isDisabled(), true, 'Linked reader also disables corrected audio');
     assert.equal(await page.evaluate(() => window.__spoken.length), 0);
     await page.locator('.reader-back').click();
