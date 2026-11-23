@@ -15,7 +15,6 @@ import unittest
 from unittest.mock import patch
 
 from dev.ingest.daily_audio import daily_episode_from_edition
-from dev.ingest.usage import UsageLedger
 from dev.ingest.daily_narration import (ENRICH_PROMPT, ENRICH_SCHEMA, NARRATION_MODEL_INPUT_TOKEN_LIMIT,
                                         SCRIPT_MODEL, SCRIPT_PROMPT, SCRIPT_SCHEMA, VERIFY_MODEL, VERIFY_PROMPT,
                                         VERIFY_SCHEMA,
@@ -23,7 +22,6 @@ from dev.ingest.daily_narration import (ENRICH_PROMPT, ENRICH_SCHEMA, NARRATION_
                                         _contains_read_takeaway, _has_high_read_takeaway_overlap,
                                         _review_writer_draft,
                                         _evidence_for_story,
-                                        _narration_budget_preflight,
                                         _select_story_evidence,
                                         _spoken_text_key, _spoken_topic_label,
                                         _story_word_range, _target_story_words,
@@ -179,13 +177,7 @@ class DailyNarrationTests(unittest.TestCase):
         self.sources = deepcopy(self.fixture['sources'])
         self.evidence = deepcopy(self.fixture['runtime_evidence'])
         self.calls = []
-        self.ledger_temp = tempfile.TemporaryDirectory(
-            prefix='daily-narration-ledger-', dir=os.environ['BRIEFING_TEST_LEDGER_DIR'])
-        self.addCleanup(self.ledger_temp.cleanup)
-        self.budget_ledger = UsageLedger(ledger_dir=self.ledger_temp.name)
-
     def narrate(self, *args, **kwargs):
-        kwargs.setdefault('budget_ledger', self.budget_ledger)
         return write_spoken_script(*args, **kwargs)
 
     def replay(self, *, writer=None, verifier=None, error=None):
@@ -205,48 +197,6 @@ class DailyNarrationTests(unittest.TestCase):
             return writer if kwargs.get('model') == SCRIPT_MODEL else verifier
         return call_json
 
-    def test_narration_preflight_uses_ledger_and_explicit_release_allowance(self):
-        class FixtureLedger:
-            def __init__(self, daily_remaining, other_available, monthly):
-                self.daily_remaining = daily_remaining
-                self.other_available = other_available
-                self.monthly = monthly
-
-            def summary(self):
-                return {'daily': {'remaining_usd': self.daily_remaining,
-                                  'available_to_other_callers_usd': self.other_available},
-                        'monthly': {'remaining_usd': self.monthly}}
-
-        estimate = '0.1012'
-        sufficient = FixtureLedger('0.434287', '0.034287', '4.00')
-        accepted = _narration_budget_preflight(
-            estimate, release_batch_allowance_usd='0.40', caller='daily', ledger=sufficient)
-        self.assertTrue(accepted['ok'], accepted)
-        self.assertEqual(accepted['estimated_usd'], estimate)
-
-        insufficient_allowance = _narration_budget_preflight(
-            estimate, release_batch_allowance_usd='0.10', caller='daily', ledger=sufficient)
-        self.assertFalse(insufficient_allowance['ok'], insufficient_allowance)
-        two_daily_runs = _narration_budget_preflight(
-            '0.2024', release_batch_allowance_usd='0.40', caller='daily', ledger=sufficient)
-        self.assertTrue(two_daily_runs['ok'], two_daily_runs)
-        other_caller_cannot_spend_reserve = _narration_budget_preflight(
-            estimate, release_batch_allowance_usd='0.40', caller='other', ledger=sufficient)
-        self.assertFalse(other_caller_cannot_spend_reserve['ok'], other_caller_cannot_spend_reserve)
-        two_on_demand_runs = _narration_budget_preflight(
-            '0.2024', release_batch_allowance_usd='0.40', caller='other', ledger=sufficient)
-        self.assertFalse(two_on_demand_runs['ok'], two_on_demand_runs)
-
-        calls = []
-        with patch('dev.ingest.daily_narration.narration_cost_estimate',
-                   return_value={'estimated_usd': estimate}):
-            result = self.narrate(
-                self.edition, self.profile, self.evidence, self.sources,
-                call_json=lambda *args, **kwargs: calls.append(args),
-                release_batch_allowance_usd='0.10', caller='daily')
-        self.assertEqual(result['status'], 'fallback', result)
-        self.assertEqual(result['reason'], 'budget_estimate', result)
-        self.assertEqual(calls, [], 'an insufficient allowance refuses before any provider call')
 
     def test_too_short_verified_narration_falls_back_after_retry(self):
         before = deepcopy(self.edition)
@@ -271,55 +221,6 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertEqual([row['id'] for row in after_chapters], [row['id'] for row in before_chapters])
         self.assertEqual(len(after_chapters), len(before_chapters), 'fallback preserves story and background chapters')
 
-    def test_opt_in_run_budget_refuses_retry_before_transport(self):
-        fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
-        edition = deepcopy(fixture['edition'])
-        profile = deepcopy(fixture['profile'])
-        evidence = deepcopy(fixture['runtime_evidence'])
-        sources = deepcopy(fixture['sources'])
-        before = deepcopy(edition)
-        reservations = []
-        calls = []
-        writer_responses = [
-            {'stories': []},
-            deepcopy(fixture['writer_response']),
-        ]
-
-        def reserve(system_prompt, user_text, kwargs):
-            reservations.append({'input_tokens': (len(system_prompt) + len(user_text) + 3) // 4,
-                                 'output_tokens': kwargs['max_output_tokens'],
-                                 'model': kwargs['model']})
-            if len(reservations) > 3:
-                raise RuntimeError('narration_budget_exhausted')
-
-        def call_json(system, user, schema, api_key, **kwargs):
-            calls.append({'system': system, 'user': user, 'schema': schema, **kwargs})
-            if schema == ENRICH_SCHEMA:
-                payload = json.loads(user)
-                return {'stories': [{'section_id': story['section_id'],
-                                     'evidence_ids': [row['id'] for row in story['evidence']]}
-                                    for story in payload['stories']]}
-            if schema == SCRIPT_SCHEMA:
-                return writer_responses.pop(0)
-            payload = json.loads(user)
-            return {'verdicts': [{'section_id': row['section_id'],
-                                  'sentence_index': row['sentence_index'], 'supported': True}
-                                 for row in payload['sentences']]}
-
-        result = self.narrate(edition, profile, evidence, sources,
-                              call_json=call_json, reserve_model_call=reserve)
-
-        self.assertEqual(result['status'], 'fallback', result)
-        self.assertEqual(result['reason'], 'narration_budget_exhausted')
-        self.assertEqual(len(calls), 3,
-                         'the retry is refused before its verifier transport')
-        self.assertEqual([row['output_tokens'] for row in reservations], [1800, 6500, 6500, 2500])
-        self.assertEqual(reservations[-1]['model'], VERIFY_MODEL,
-                         'the refused fourth reservation is the retry verifier')
-        self.assertTrue(all(row['input_tokens'] > 0 for row in reservations))
-        self.assertEqual(len(json.loads(calls[1]['user'])['stories']), 3)
-        self.assertEqual(edition, before,
-                         'an exhausted opt-in budget leaves the cited edition unchanged')
 
     def test_input_token_ceiling_rejects_each_narration_stage_before_transport(self):
         self.assertEqual(NARRATION_MODEL_INPUT_TOKEN_LIMIT, 1_048_576)
@@ -1550,7 +1451,7 @@ class DailyNarrationTests(unittest.TestCase):
             'story-cms': [{'text': 'evidence ' * 100}],
         })
         self.assertGreater(float(estimate['estimated_usd']), 0)
-        self.assertEqual(estimate['reserved_output_tokens'], 19_800)
+        self.assertEqual(estimate['max_output_tokens'], 19_800)
 
     def test_four_story_fixture_rejects_spoken_citations_headings_and_headline_repeats(self):
         self.assertTrue(FOUR_STORY_SPOKEN_CONTRACT['fixture_only'])

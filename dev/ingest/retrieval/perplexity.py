@@ -2,7 +2,7 @@
 from .config import RetrievalConfig
 from .provider import BaseProvider, ProviderUnavailable, candidate, read_key, request_json
 from .usage import DailyCounter
-from ..usage import UsageLedger, process_ledger
+from ..usage import UsageError, UsageLedger, process_ledger
 
 
 class PerplexitySearchProvider(BaseProvider):
@@ -28,12 +28,16 @@ class PerplexitySearchProvider(BaseProvider):
             raise ProviderUnavailable('usage counter unavailable') from None
         if not allowed:
             raise ProviderUnavailable('daily query cap reached')
-        self.usage_ledger.record_search(self.name)
+        try:
+            self.usage_ledger.preflight_episode()
+        except UsageError:
+            raise ProviderUnavailable('cost_cap_reached') from None
         payload = {'query': query, 'max_results': count, 'search_type': self.config.perplexity_search_type}
         if freshness:
             payload['search_recency_filter'] = freshness
         response = request_json('https://api.perplexity.ai/search', budget=budget, payload=payload,
                                 headers={'Authorization': f'Bearer {key}'}, opener=self.opener)
+        self.usage_ledger.record_search(self.name)
         if not isinstance(response.get('results'), list):
             raise ProviderUnavailable('invalid provider response')
         rows, seen = [], set()

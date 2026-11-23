@@ -40,7 +40,7 @@ class TryRealTests(unittest.TestCase):
             config_path.write_text(json.dumps(config), encoding='utf-8')
             ledger = UsageLedger(config_path=config_path, ledger_dir=Path(root) / 'ledger')
             with self.assertRaises(UsageCapReached):
-                ledger.preflight_episode('0')
+                ledger.preflight_episode()
 
 
 if __name__ == '__main__':
