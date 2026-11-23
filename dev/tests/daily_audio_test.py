@@ -847,6 +847,13 @@ class DailyAudioTests(unittest.TestCase):
         self.assertTrue(resumed['resumed'])
         self.assertEqual(len(provider.calls), 2, 'a repeated run reuses the verified stitched recording')
         self.assertEqual(resumed['file_size_bytes'], audio['file_size_bytes'])
+        expected_chapters = daily_episode_from_edition(EDITION)['chapters']
+        speech_chapters = [{key: row[key] for key in ('id', 'title', 'spoken_text')}
+                           for row in resumed['episode']['chapters']]
+        self.assertEqual(speech_chapters, expected_chapters,
+                         'the stitched recording must use the final edition speech chapter text')
+        self.assertEqual([text for text, _voice in provider.calls],
+                         [chapter['spoken_text'] for chapter in expected_chapters])
         saved = json.loads(text_path.read_text(encoding='utf-8'))['edition']
         self.assertEqual(len(saved['sections']), len(EDITION['sections']))
 

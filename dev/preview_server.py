@@ -164,16 +164,19 @@ def _health_snapshot():
     except (UsageError, OSError, ValueError, TypeError):
         usage = None
     daily_audio_status = 'unavailable'
+    daily_audio_duration_seconds = None
     try:
         edition_code, payload = edition_response(profile='active')
         edition = payload.get('edition') if edition_code == 200 and isinstance(payload, dict) else None
         audio = edition.get('audio') if isinstance(edition, dict) else None
         if isinstance(audio, dict):
             daily_audio_status = audio.get('audio_status', audio.get('state', 'unavailable'))
+            daily_audio_duration_seconds = audio.get('duration_seconds')
     except (OSError, ValueError, TypeError):
         pass
     return build_health_payload(status=status, feeds=feed_counts, jobs=job_counts,
                                 usage=usage, daily_audio_status=daily_audio_status,
+                                daily_audio_duration_seconds=daily_audio_duration_seconds,
                                 service_ok=status_code == 200)
 
 
