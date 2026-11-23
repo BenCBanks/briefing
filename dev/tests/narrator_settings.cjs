@@ -106,17 +106,17 @@ async function run() {
     assert.equal(await spending.getByText('Read only', { exact: true }).count(), 1);
     assert.equal(await spending.locator('input,button,select,a[href]').count(), 0, 'spending and budget settings cannot be edited from this row');
     fs.mkdirSync(captureDir, { recursive: true });
-    await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
-    await page.screenshot({ path: path.join(captureDir, 'voice-first-run-light.png') });
-    await page.emulateMedia({ colorScheme: 'dark' });
-    await page.screenshot({ path: path.join(captureDir, 'voice-first-run-dark.png') });
-    await page.emulateMedia({ colorScheme: 'light' });
     await assertFocusRing(page, '.settings-voice-row', 'Voice setting');
     await assertFocusRing(page, '.settings-about-row summary', 'About disclosure');
     await page.locator('.settings-about-row summary').click();
     assert.match(await page.locator('.settings-about-row').innerText(), /daily five-minute briefing.*ready by 6 am ET/i);
     await page.getByRole('button', { name: /Voice Choose a voice/ }).click();
     assert.ok(await page.locator('#settings-voice').isVisible(), 'the Voice row brings its controls into view');
+    await page.locator('.preferences-voice h2').evaluate(element => element.scrollIntoView({ block: 'start', behavior: 'instant' }));
+    await page.screenshot({ path: path.join(captureDir, 'voice-first-run-light.png') });
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await page.screenshot({ path: path.join(captureDir, 'voice-first-run-dark.png') });
+    await page.emulateMedia({ colorScheme: 'light' });
     assert.deepEqual(await page.locator('.narrator-sample>span').allTextContents(), ['Sample A', 'Sample B', 'Sample C', 'Sample D', 'Sample E', 'Sample F']);
     assert.equal(await page.locator('.narrator-sample button').count(), 12, 'each sample has Play and Use this voice actions');
     const sampleRows = await page.locator('.narrator-sample').evaluateAll(rows => rows.map(row => {
