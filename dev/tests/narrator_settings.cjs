@@ -8,7 +8,18 @@ const manifest = require('./fixtures/audition_manifest.json');
 const scheduleFixture = require('./fixtures/settings-next-run.json');
 const { chromium } = require('playwright');
 const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8932';
-const captureDir = process.env.BRIEFING_CAPTURE_DIR || '/tmp/briefing-shots/narrator-test';
+const captureDir = process.env.BRIEFING_SHOT_DIR || process.env.BRIEFING_CAPTURE_DIR || '/tmp/briefing-shots/narrator-test';
+
+async function capture(page, name) {
+  await page.evaluate(() => document.fonts.ready);
+  await page.evaluate(() => {
+    const voice = document.querySelector('.preferences-voice');
+    if (voice) window.scrollTo({ top: window.scrollY + voice.getBoundingClientRect().top, behavior: 'instant' });
+  });
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => document.activeElement?.blur());
+  await page.screenshot({ animations: 'disabled', caret: 'hide', path: path.join(captureDir, name) });
+}
 
 async function captureLargeText(page) {
   await page.evaluate(() => { document.documentElement.style.fontSize = '200%'; });
@@ -113,9 +124,9 @@ async function run() {
     await page.getByRole('button', { name: /Voice Choose a voice/ }).click();
     assert.ok(await page.locator('#settings-voice').isVisible(), 'the Voice row brings its controls into view');
     await page.locator('.preferences-voice h2').evaluate(element => element.scrollIntoView({ block: 'start', behavior: 'instant' }));
-    await page.screenshot({ path: path.join(captureDir, 'voice-first-run-light.png') });
+    await capture(page, 'voice-first-run-light.png');
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.screenshot({ path: path.join(captureDir, 'voice-first-run-dark.png') });
+    await capture(page, 'voice-first-run-dark.png');
     await page.emulateMedia({ colorScheme: 'light' });
     assert.deepEqual(await page.locator('.narrator-sample>span').allTextContents(), ['Sample A', 'Sample B', 'Sample C', 'Sample D', 'Sample E', 'Sample F']);
     assert.equal(await page.locator('.narrator-sample button').count(), 12, 'each sample has Play and Use this voice actions');
@@ -134,9 +145,9 @@ async function run() {
     await page.locator('.narrator-sample:nth-child(3) .narrator-use').click();
     await page.waitForFunction(() => localStorage.getItem('briefing:narrator-sample') === 'C');
     await page.locator('.preferences-voice h2').scrollIntoViewIfNeeded();
-    await page.screenshot({ path: path.join(captureDir, 'voice-selected-light.png') });
+    await capture(page, 'voice-selected-light.png');
     await page.emulateMedia({ colorScheme: 'dark' });
-    await page.screenshot({ path: path.join(captureDir, 'voice-selected-dark.png') });
+    await capture(page, 'voice-selected-dark.png');
     await page.emulateMedia({ colorScheme: 'light' });
     assert.equal(await page.locator('.settings-voice-row .settings-row-value').innerText(), 'Sample C', 'the summary row reflects the selected voice');
     assert.equal(await page.getByRole('heading', { name: 'Narrator' }).count(), 1, 'the first-run prompt ends after choosing a voice');
