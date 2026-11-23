@@ -21,7 +21,7 @@ from unittest.mock import patch
 from urllib.error import HTTPError
 
 from dev.ingest.episodes.generate import (EpisodeCancelled, EpisodeError, GeminiClient, InsufficientEvidence,
-                                         PLAN_PROMPT, SYSTEM_PROMPT, WEEKLY_SYNTHESIS_PROMPT,
+                                         PLAN_PROMPT, STYLE_TARGET_EXAMPLE, SYSTEM_PROMPT, WEEKLY_SYNTHESIS_PROMPT,
                                          VERIFY_PROMPT, deterministic_check,
                                          balance_chapter_targets, evidence_pack, generate_episode, transcript, _score_text,
                                          _chapter_schema_error)
@@ -428,6 +428,9 @@ class EpisodeGenerationTests(unittest.TestCase):
         self.assertEqual(set(payload['evidence']),
                          {f'E-S1-{index}' for index in range(1, len(payload['evidence']) + 1)})
         self.assertIn('complete episode as one coherent script', system)
+        self.assertIn('STYLE TARGET EXAMPLE (copy the qualities, never its sentences or facts)', system)
+        self.assertIn("Here's a question. When you pay someone from your bank account", system)
+        self.assertIn('I couldn\'t find solid evidence', STYLE_TARGET_EXAMPLE)
         self.assertTrue(result['verification']['passed'])
         self.assertIn("You're asking how a locker can deliver a package", result['transcript'])
         self.assertIn('That code only helps if staff can place the parcel', result['transcript'])
@@ -435,6 +438,8 @@ class EpisodeGenerationTests(unittest.TestCase):
         self.assertNotIn('Turning to', result['transcript'])
         self.assertNotIn('Here is your five-minute briefing', result['transcript'])
         self.assertNotIn("Next, what we couldn't confirm", result['transcript'])
+        self.assertNotIn('Automated Clearing House', result['transcript'],
+                         'the few-shot sample guides style without leaking its facts')
 
     def test_writer_and_verifier_prompts_enforce_ear_first_output(self):
         for phrase in ('podcast script, not an article read aloud',
