@@ -33,7 +33,8 @@ const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8932';
       renderToday(host, {
         id: 'fictional-day', revision_id: 'fictional-r1', kind: 'daily', local_date: '2026-11-18',
         sections, coverage: sections.map((section, index) => ({ topic_id: `topic-${index}`, state: 'covered' })),
-      }, [], { sources, followedTopicCount: 3 });
+      }, [], { sources, followedTopicCount: 3, listeningAvailable: true });
+      host.querySelectorAll('.today-transcript').forEach(details => { details.open = true; });
       const rows = [...host.querySelectorAll('.today-story-row')];
       const toggles = [...host.querySelectorAll('.story-more-toggle')];
       const toggleState = button => ({

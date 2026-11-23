@@ -112,8 +112,8 @@ async function checkContrast(page) {
   assert.deepEqual(await page.locator('.main-nav-label').allTextContents(), ['Today','On demand','Earlier','Topics']);
   const initialNav = await page.locator('.main-nav').boundingBox();
   assert.equal(await page.locator('.mini-player').count(),0,'Idle has no player bar');
-  assert.equal(await page.locator('.today-listen-pill').innerText(),'Listen · about 2 min');
-  assert.equal(await page.locator('.today-listen-pill').getAttribute('aria-label'), "Listen to today's briefing, about 2 minutes");
+  assert.equal(await page.locator('.today-listen-pill').innerText(),'Play · about 2 min');
+  assert.equal(await page.locator('.today-listen-pill').getAttribute('aria-label'), "Play today's briefing, about 2 minutes");
   for(const theme of ['light','dark']){
    await page.emulateMedia({colorScheme:theme});
    await capture(page,`nav-header-today-${theme}`);
@@ -134,7 +134,7 @@ async function checkContrast(page) {
   await page.reload({waitUntil:'domcontentloaded'}); await page.locator('.today-story-row').nth(5).waitFor();
   assert.equal(await page.locator('.today-story-row').count(),6,'six-story edition renders each story row');
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'six-story phone layout has no horizontal overflow');
-  assert.equal(await page.locator('.story-row-link strong').evaluateAll(items=>items.every(item=>item.scrollWidth<=item.clientWidth && item.scrollHeight<=item.clientHeight)),true,'six-story phone headlines wrap without clipping');
+  assert.equal(await page.locator('.inline-story-heading').evaluateAll(items=>items.every(item=>item.scrollWidth<=item.clientWidth && item.scrollHeight<=item.clientHeight)),true,'six-story phone headlines wrap without clipping');
   await page.evaluate(()=>scrollTo({top:0,behavior:'instant'})); await capture(page,'today-six-light');
   await page.evaluate(()=>scrollTo({top:document.documentElement.scrollHeight,behavior:'instant'}));
   assert.equal(await page.locator('.today-story-row').last().evaluate(row=>row.getBoundingClientRect().bottom<=document.querySelector('.main-nav').getBoundingClientRect().top),true,'six-story end state clears the bottom navigation');
@@ -142,6 +142,7 @@ async function checkContrast(page) {
   await capture(page,'today-six-end-dark'); await page.emulateMedia({colorScheme:'light'});
   edition.sections = originalSections; edition.audio = originalAudio; statusFixture.daily_run.daily_briefing = originalRunSummary;
   await page.reload({waitUntil:'domcontentloaded'}); await page.locator('.today-story-row').first().waitFor();
+  await page.locator('.today-transcript').first().locator('summary').click();
   assert.match(await page.locator('.story-lead').first().innerText(), /^U\.S\. payment network/);
   assert.equal(await page.locator('.today-page h1').innerText(), 'Your daily briefing');
   assert.deepEqual(await page.locator('.today-top-story-copy strong').allTextContents(), headlines, 'Top stories keep complete headlines');
@@ -164,19 +165,20 @@ async function checkContrast(page) {
   })),true,'Fixture rows show the complete outlet and headline on one line with no summary or clipping');
   assert.doesNotMatch(await page.locator('.today-quick-hits').innerText(),/Unfiltered item|Another unfiltered item/,'Raw quick_hits are withheld');
   assert.equal(await page.locator('.today-page').evaluate(el => /What happened|Why it matters|Things to consider|Helpful\?|Read:/.test(el.innerText)),false);
-  assert.deepEqual(await page.locator('.today-page').evaluate(el => [...el.children].map(x=>x.className).slice(0,6)), ['today-date','today-title','today-run-summary','today-listen-pill','today-top-stories','today-contents']);
+  assert.deepEqual(await page.locator('.today-page').evaluate(el => [...el.children].map(x=>x.className).slice(0,6)), ['today-date','today-title','today-run-summary','today-primary','today-top-stories','today-contents']);
   const topStoryStyle = await page.locator('.today-top-story-link').evaluateAll(links=>links.map(link=>{const s=getComputedStyle(link);return {decoration:s.textDecorationLine,color:s.color,titleColor:getComputedStyle(document.querySelector('.today-title')).color,height:link.getBoundingClientRect().height};}));
   assert.ok(topStoryStyle.every(item=>item.decoration==='none' && item.color===item.titleColor && item.height>=48),`Numbered story links use ink text without underlines and have 48px targets: ${JSON.stringify(topStoryStyle)}`);
   assert.match(await page.locator('.today-run-meta').innerText(), /^3 stories · about 2 min$/);
   assert.equal(await page.locator('.today-greeting').count(), 0, 'Today has no greeting paragraph or story-link wall');
   await page.locator('.today-top-story-link').first().click();
   assert.equal(await page.locator('.today-story-row').first().evaluate(el=>el.contains(document.activeElement)), true, 'Top-story links move focus to the story');
+  await page.locator('.today-transcript').evaluateAll(items=>items.forEach(details=>{details.open=true;}));
   const moreIconStyle = await page.locator('.story-more-toggle svg').first().evaluate(icon=>[icon.getBoundingClientRect().width,icon.getBoundingClientRect().height,getComputedStyle(icon).strokeWidth]);
   assert.deepEqual(moreIconStyle,[24,24,'1.8px'],'More disclosure uses the same icon box and stroke');
   await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
   for (const row of await page.locator('.today-story-row').all()) {
    assert.ok((await row.boundingBox()).height <= 640,'Collapsed story and its visible source list stay within the fixture content bound');
-   const headline = row.locator('.story-row-link strong');
+   const headline = row.locator('.inline-story-heading');
    assert.equal(await headline.evaluate(el=>getComputedStyle(el).textOverflow),'clip');
    assert.equal(await headline.evaluate(el=>el.scrollHeight <= el.clientHeight),true);
    assert.equal(await row.locator('.story-more-toggle').getAttribute('aria-expanded'),'false');
@@ -208,14 +210,14 @@ async function checkContrast(page) {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.locator('.today-run-summary').waitFor();
     const label = `about ${minutes} min`;
-    const ariaLabel = `Listen to today's briefing, about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+    const ariaLabel = `Play today's briefing, about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
     await page.waitForFunction(expected => document.querySelector('.today-run-meta')?.textContent === `3 stories · ${expected}`,
       label);
     assert.equal(await page.locator('.today-run-meta').innerText(), `3 stories · ${label}`,
       `Today uses the ${minutes}-minute recorded audio length over the script estimate`);
-    assert.equal(await page.locator('.today-listen-pill').innerText(), `Listen · ${label}`);
+    assert.equal(await page.locator('.today-listen-pill').innerText(), `Play · ${label}`);
     assert.equal(await page.locator('.today-listen-pill').getAttribute('aria-label'),
-      `Listen to today's briefing, about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`);
+      ariaLabel);
   }
   statusFixture.daily_run.daily_briefing.duration_seconds = 127;
   statusFixture.daily_run.daily_briefing.spoken_words = 318;
@@ -225,12 +227,16 @@ async function checkContrast(page) {
   await page.locator('.today-run-summary').waitFor();
   await page.emulateMedia({colorScheme:'light'});
   await page.evaluate(()=>scrollTo({top:0,behavior:'instant'}));
+  await page.locator('.today-transcript').first().locator('summary').click();
   const more=page.locator('.story-more-toggle').first(); await more.focus(); await page.keyboard.press('Enter'); assert.equal(await more.getAttribute('aria-expanded'),'true');
   assert.equal(await page.locator('.story-more').first().isVisible(),true); assert.equal(await page.locator('.inline-story-sources').first().locator('li').count(),2);
+  await page.locator('.today-transcript').nth(1).locator('summary').click();
   await page.locator('.story-more-toggle').nth(1).click(); assert.equal(await page.locator('.inline-story-sources').nth(1).locator('li').count(),1);
   await page.emulateMedia({colorScheme:'dark'}); await checkContrast(page); await capture(page,'today-dark-expanded'); await page.emulateMedia({colorScheme:'light'});
   await more.click();
   await page.reload({waitUntil:'domcontentloaded'});
+  await page.locator('.today-transcript').first().locator('summary').click();
+  await page.locator('.today-transcript').nth(1).locator('summary').click();
   await page.locator('.story-more-toggle').nth(1).waitFor();
   assert.equal(await page.locator('.story-more-toggle').first().getAttribute('aria-expanded'),'false','collapsed story sections stay collapsed after reload');
   assert.equal(await page.locator('.story-more-toggle').nth(1).getAttribute('aria-expanded'),'true','expanded story sections stay open after reload');
@@ -313,12 +319,12 @@ async function checkContrast(page) {
   // Known duration, available narration with unknown duration, and no playback.
   for (const [available,duration,label] of [[true,180,'Listen · about 3 min'],[true,undefined,'Listen · about 1 min'],[false,180,null]]) {
    await page.evaluate(async ({edition,sources,available,duration})=>{const {renderToday}=await import('/src/edition/edition.js');renderToday(document.querySelector('main'),{...edition,audio:{duration_seconds:duration}},[],{sources,listeningAvailable:available});},{edition,sources,available,duration});
-   if(label) assert.equal(await page.locator('.today-listen-pill').innerText(),label);
+   if(label) assert.equal(await page.locator('.today-listen-pill').innerText(),label.replace('Listen', 'Play'));
    else assert.equal(await page.locator('.today-listen-pill').count(),0);
   }
   await page.evaluate(async ({edition,sources})=>{const {renderToday}=await import('/src/edition/edition.js');renderToday(document.querySelector('main'),{...edition,audio:{duration_seconds:180}},[],{sources,listeningAvailable:true,deferListenDuration:true});},{edition,sources});
-  assert.equal(await page.locator('.today-listen-pill').innerText(),'Listen','The explicit deferred state does not show a provisional player duration');
-  assert.equal(await page.locator('.today-listen-pill').getAttribute('aria-label'),"Listen to today's briefing");
+  assert.equal(await page.locator('.today-listen-pill').innerText(),'Play','The explicit deferred state does not show a provisional player duration');
+  assert.equal(await page.locator('.today-listen-pill').getAttribute('aria-label'),"Play today's briefing");
   // Thin days open the one story without a separate banner.
   await page.evaluate(()=>localStorage.removeItem('briefing:story-more-open'));
   await page.evaluate(async ({edition,sources})=>{ const {renderToday}=await import('/src/edition/edition.js'); renderToday(document.querySelector('main'),{...edition,sections:edition.sections.slice(0,1),thin_day:true,sources},[],{sources}); },{edition,sources});
