@@ -6,7 +6,7 @@
     {
       "title": "A local delivery trial",
       "sentences": [
-        {"text": "Here is your three-minute briefing on Alder Bay's parcel locker trial.", "kind": "opening", "evidence_ids": []},
+        {"text": "Let's start with how residents get their packages.", "kind": "opening", "evidence_ids": []},
         {"text": "Alder Bay is testing parcel lockers at its public library.", "kind": "claim"},
         {"text": "Residents enter a collection code to open the assigned locker.", "kind": "claim"},
         {"text": "Library staff place parcels inside and send each code directly.", "kind": "claim"}
@@ -15,10 +15,10 @@
     {
       "title": "What happens next",
       "sentences": [
-        {"text": "Next, library review.", "kind": "navigation", "evidence_ids": []},
+        {"text": "That review is what will shape the next decision.", "kind": "navigation", "evidence_ids": []},
         {"text": "The town will review missed collections before deciding whether to continue.", "kind": "claim"},
         {"text": "Staff also record resident feedback during the trial period.", "kind": "claim"},
-        {"text": "The main takeaway is that the town will decide after reviewing missed collections and resident feedback.", "kind": "closing", "evidence_ids": ["e2"]}
+        {"text": "The decision will follow the town's review of missed collections and resident feedback.", "kind": "closing", "evidence_ids": ["e2"]}
       ]
     }
   ],

@@ -7,7 +7,7 @@
     {
       "title": "A shared battery for local power",
       "sentences": [
-        {"text": "Here's your five-minute briefing on Alder Bay's shared solar battery trial.", "kind": "opening", "evidence_ids": []},
+        {"text": "Let's start with how this shared battery can help a neighborhood use local power.", "kind": "opening", "evidence_ids": []},
         {"text": "Alder Bay is testing one neighborhood battery beside its public works building.", "kind": "claim", "evidence_ids": ["F-1"]},
         {"text": "The battery stores extra electricity from solar panels on the building's roof.", "kind": "claim", "evidence_ids": ["F-1"]},
         {"text": "That gives the town a way to move some solar power into the evening.", "kind": "claim", "evidence_ids": ["F-2"]},
@@ -25,7 +25,7 @@
     {
       "title": "Who can draw power, and when",
       "sentences": [
-        {"text": "Turning to access.", "kind": "navigation", "evidence_ids": []},
+        {"text": "That setup leaves another part of the process to explain.", "kind": "navigation", "evidence_ids": []},
         {"text": "The battery remains connected to the public works building's electrical system.", "kind": "claim", "evidence_ids": ["F-6"]},
         {"text": "A controller releases stored electricity when the building's demand crosses a set level.", "kind": "claim", "evidence_ids": ["F-6"]},
         {"text": "That arrangement gives the building first access during its own operating hours.", "kind": "claim", "evidence_ids": ["F-7"]},
@@ -45,7 +45,7 @@
     {
       "title": "What the local grid can tell us",
       "sentences": [
-        {"text": "Now, let's look at the grid connection.", "kind": "navigation", "evidence_ids": []},
+        {"text": "A different part of the story is how the town manages the shared supply.", "kind": "navigation", "evidence_ids": []},
         {"text": "Alder Bay's utility approved the pilot's connection after a safety review.", "kind": "claim", "evidence_ids": ["F-14"]},
         {"text": "The review set a limit on how much power can flow back to the local circuit.", "kind": "claim", "evidence_ids": ["F-14"]},
         {"text": "That limit reflects the capacity of the equipment serving this part of town.", "kind": "claim", "evidence_ids": ["F-15"]},
@@ -66,7 +66,7 @@
     {
       "title": "The decision after the trial",
       "sentences": [
-        {"text": "From there, we can consider the town's next decision.", "kind": "navigation", "evidence_ids": []},
+        {"text": "There is also a question about what happens after the trial.", "kind": "navigation", "evidence_ids": []},
         {"text": "The council approved the pilot for a year, with a public review scheduled afterward.", "kind": "claim", "evidence_ids": ["F-22"]},
         {"text": "The review will examine operating costs, maintenance calls, and energy delivered to the cooling center.", "kind": "claim", "evidence_ids": ["F-23"]},
         {"text": "It will also include the utility's findings on circuit conditions during transfers.", "kind": "claim", "evidence_ids": ["F-24"]},

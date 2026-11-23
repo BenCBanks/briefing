@@ -181,14 +181,12 @@ def _unexpanded_acronyms(text: str) -> list[str]:
 
 
 def _has_opening_signpost(text: str, requested_minutes: int | None) -> bool:
-    folded = text.casefold().replace("’", "'")
-    if not re.search(r"\b(?:briefing|episode)\b", folded) or not re.search(r"\b(?:on|about)\b", folded):
-        return False
-    minute_words = {3: "three", 5: "five", 10: "ten", 15: "fifteen"}
-    length_word = minute_words.get(requested_minutes)
-    duration = (re.search(r"\b(?:three|five|ten|fifteen)[ -]minute\b", folded)
-                if length_word is None else re.search(rf"\b{length_word}[ -]minute\b", folded))
-    return bool(duration and re.match(r"^(?:here is|here's|this is)\b", folded.strip()))
+    folded = text.casefold().replace("’", "'").strip()
+    stock_duration_open = re.match(
+        r"^(?:here is|here's|this is) your (?:three|five|ten|fifteen)[ -]minute "
+        r"(?:briefing|episode)\b", folded)
+    return (len(_WORD_RE.findall(folded)) >= 4 and not folded.endswith('?')
+            and stock_duration_open is None)
 
 
 _SOURCE_ABSENCE_RE = re.compile(
@@ -207,12 +205,17 @@ _HOST_TEMPLATE_PATTERNS = {
 
 
 def _valid_transition(text: str) -> bool:
-    return bool(re.fullmatch(
+    value = text.strip()
+    folded = value.casefold().replace("’", "'")
+    natural = (4 <= len(_WORD_RE.findall(value)) <= 28
+               and sum(bool(part.strip()) for part in _SENTENCE_SPLIT_RE.split(value)) == 1
+               and not value.endswith('?'))
+    compatible_legacy = bool(re.fullmatch(
         r"(?:Next,\s+[A-Za-z][A-Za-z' -]{0,42}|Turning to\s+[A-Za-z][A-Za-z' -]{0,42}|"
         r"Let(?:'|’)s turn to\s+[A-Za-z][A-Za-z' -]{0,42}|Now, let(?:'|’)s look at\s+[A-Za-z][A-Za-z' -]{0,42}|"
         r"From there, we can consider\s+[A-Za-z][A-Za-z' -]{0,42}|"
-        r"The next question concerns\s+[A-Za-z][A-Za-z' -]{0,42})\."
-        , text.strip(), re.I))
+        r"The next question concerns\s+[A-Za-z][A-Za-z' -]{0,42})\." , value, re.I))
+    return natural or compatible_legacy
 
 
 def _read_takeaways(episode: dict[str, Any]) -> list[str]:
@@ -373,10 +376,9 @@ def score_episode_script(episode: dict[str, Any]) -> dict[str, Any]:
 
     first_row = next(((text, kind) for rows in chapter_rows for text, kind in rows
                       if isinstance(text, str) and text.strip()), ("", ""))
-    opening_ok = (first_row[1] == "opening" and
-                  _has_opening_signpost(first_row[0], int(requested) if isinstance(requested, (int, float)) else None))
+    opening_ok = first_row[1] == "opening" and _has_opening_signpost(first_row[0], None)
     checks.append(_check("opening_signpost", opening_ok,
-                         "Start with the requested topic and spoken length" if not opening_ok else ""))
+                         "Start with a natural spoken opening, without a duration template or bare question" if not opening_ok else ""))
     transitions = [rows[0][0].strip() for rows in chapter_rows[1:]
                    if rows and rows[0][1] == "navigation" and isinstance(rows[0][0], str)]
     transitions_ok = bool(chapter_rows) and len(transitions) == max(0, len(chapter_rows) - 1) and all(
@@ -385,7 +387,7 @@ def score_episode_script(episode: dict[str, Any]) -> dict[str, Any]:
         for rows in chapter_rows[1:]
     )
     checks.append(_check("story_transitions", transitions_ok,
-                         "Start each later chapter with a short spoken transition" if not transitions_ok else ""))
+                         "Start each later chapter with a natural bridge, without reading its title" if not transitions_ok else ""))
     transition_families = [re.match(
         r"^(Next|Turning to|Let(?:'|’)s turn to|Now, let(?:'|’)s look at|From there|The next question)", text, re.I
     ).group(1).casefold() for text in transitions if re.match(
@@ -602,9 +604,10 @@ def episode_honest_uncertainty_check(
     missing = [str(value) for value in missing if isinstance(value, str) and value.strip()] if isinstance(missing, list) else []
     transcript_text = " ".join(text for text, _chapter in sentence_rows).casefold()
     gap_acknowledged = (not missing or (
-        all(question.casefold() in transcript_text for question in missing) and
         ("couldn't confirm" in transcript_text or "could not confirm" in transcript_text or
-         "not established" in transcript_text)))
+         "couldn't find solid evidence" in transcript_text or "not established" in transcript_text) and
+        ("leave it out" in transcript_text or "leave them out" in transcript_text or
+         "unanswered details" in transcript_text)))
     passed = certainty_ok and gap_acknowledged
     return {"name": "honest_uncertainty", "passed": passed,
             "detail": "Keep strong certainty tied to evidence and acknowledge unresolved questions."}

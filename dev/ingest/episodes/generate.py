@@ -29,7 +29,7 @@ from dev.ingest.retrieval.provider import read_key
 from dev.ingest.retrieval.safety import source_for
 from dev.ingest.write_edition import _sentences
 from .policy import WORDS_PER_MINUTE, length_policy
-from .script_checks import score_episode_script, _has_opening_signpost, _valid_transition
+from .script_checks import score_episode_script, _valid_transition
 
 MAX_SECONDS = 335
 MINUTE_WORDS = {3: 'three', 5: 'five', 10: 'ten', 15: 'fifteen'}
@@ -86,7 +86,7 @@ fabricated anecdotes, quotations, personal advice, invented causation or unsuppo
 Avoid promotional adjectives; distinguish an attributed opinion from a reported fact.
 If the listener asks to explain something “like a story,” keep the answer factual and label any
 hypothetical analogy as hypothetical; do not turn it into original fiction, invented dialogue or poetry.
-Open with one spoken signpost that names the requested topic and length. Use a short, plain
+Use a short, plain
 sentence for each idea. Aim for an average below twenty words and keep every sentence under
 twenty-eight words. Vary sentence rhythm. Avoid nested clauses, parentheses, bullets, headings,
 URLs and bureaucratic words such as utilize, facilitate and streamline. Expand an acronym
@@ -97,7 +97,7 @@ Specify the market and time period when they matter. Say numbers, dates and mone
 spoken words; round large figures for the ear. Use no more than three number details per chapter.
 Attribute a source in words sparingly,
 at most once per chapter. Lead with what happened, then why it matters, then what to watch.
-After the opening signpost, answer the exact user question in the first factual sentence. For an
+After the opening, answer the exact user question in the first factual sentence. For an
 explanation, state the mechanism or conclusion first; for a comparison, state the supported
 comparison first; for practical learning, state the useful action first. Follow that direct answer
 with supporting context, history and implications. Do not open with scene-setting that leaves the
@@ -108,9 +108,9 @@ all premises and meaningful implications must be supported. Never put citation m
 Include neighboring evidence IDs when they establish a pronoun's antecedent, country,
 date, attribution or other scope; a context-dependent passage alone is not sufficient.
 Every chapter title must be a short neutral label in sentence case, supported by title_evidence_ids.
-The opening signpost is the first spoken sentence of the first chapter, has kind “opening”,
-and has no evidence_ids. Say the requested length in words, then say what the episode covers.
-Do not add factual claims to the signpost. The final sentence of the final chapter has kind
+The spoken opening signpost is the first sentence of the first chapter and has kind “opening”. It should
+sound like a host beginning a conversation about the listener's question, not repeat that question
+or name the requested duration. It may make no factual claim. The final sentence of the final chapter has kind
 “closing”, includes its supporting evidence_ids, and states the main takeaway in one sentence.
 Each later chapter starts with one brief spoken bridge into its subject. Use natural, varied phrasing;
 do not repeat the same transition formula across chapters. Navigation carries no new facts and cannot
@@ -148,7 +148,10 @@ from the opening through the close, with context and reasoning that help the lis
 developments matter.
 Open with a direct, natural answer to the listener's question in plain words. Never repeat the raw
 question as a template, and never announce a duration or say “Here is your five-minute briefing.”
-Use short spoken transitions that state the connection to the next idea in ordinary language. Never
+Use short spoken transitions that state the connection to the next idea in ordinary language. Write
+the complete episode as one script from the full evidence pack; do not draft chapters independently
+or stitch their openings together. Transitions should explain how the next idea follows, without
+reading or paraphrasing a chapter title. Never
 read a chapter title, section title, or bare research question aloud. A connective such as “however”
 must refer to a contrast established by the immediately preceding sentence. Close with one concise
 takeaway drawn only from the episode's own supported claims; if there is no useful synthesis, omit it.
@@ -298,17 +301,8 @@ def transcript(chapters):
 
 
 def _ensure_spoken_closing(chapters):
-    """Keep a spoken recap if pruning removes the chapter that closed the script."""
-    if not chapters:
-        return
-    sentences = chapters[-1].get('sentences', [])
-    if sentences and sentences[-1].get('kind') == 'closing':
-        return
-    for row in reversed(sentences):
-        if row.get('kind') == 'claim' and row.get('evidence_ids'):
-            row['text'] = f"Overall, {row['text']}"
-            row['kind'] = 'closing'
-            return
+    """Do not manufacture a takeaway when pruning removes the writer's closing."""
+    return
 
 
 def _ensure_spoken_navigation(chapters, topic, length):
@@ -322,22 +316,19 @@ def _ensure_spoken_navigation(chapters, topic, length):
         first_sentences.insert(0, opening)
     else:
         first_sentences.insert(0, {
-            'text': f"Here is your {MINUTE_WORDS[length]}-minute briefing on {topic}.",
+            'text': 'Let us start with the part that answers your question.',
             'kind': 'opening', 'evidence_ids': []})
     for chapter_index, chapter in enumerate(chapters[1:], 1):
         sentences = chapter.setdefault('sentences', [])
-        title = ' '.join(re.findall(r"[A-Za-z][A-Za-z'’-]*", str(chapter.get('title') or 'this topic')))
-        while len(title) > 40 and ' ' in title:
-            title = title.rsplit(' ', 1)[0]
-        title = title or 'this topic'
         navigation = next((row for row in sentences if row.get('kind') == 'navigation'), None)
-        template = NAVIGATION[(chapter_index - 1) % len(NAVIGATION)]
+        bridge = ('That leaves another part of the process to explain.' if chapter_index == 1 else
+                  'A different detail helps connect those pieces.')
         if navigation:
             sentences.remove(navigation)
-            navigation['text'] = template.format(topic=title)
+            navigation['text'] = bridge
             navigation['evidence_ids'] = []
         else:
-            navigation = {'text': template.format(topic=title), 'kind': 'navigation', 'evidence_ids': []}
+            navigation = {'text': bridge, 'kind': 'navigation', 'evidence_ids': []}
         sentences.insert(0, navigation)
 
 
@@ -479,7 +470,7 @@ def deterministic_check(draft, evidence, sources):
                     or len(draft['chapters'][chapter_index - 1]['sentences']) < 2):
                 issues.append(row['id'])
         elif row['kind'] == 'opening':
-            if ids or row['id'] != 'c1-s1' or not _has_opening_signpost(text, None):
+            if ids or row['id'] != 'c1-s1' or len(words(text)) < 4:
                 issues.append(row['id'])
         elif row['kind'] == 'closing':
             if not ids or len(ids) > 8 or any(i not in evidence for i in ids):
@@ -856,80 +847,55 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                 chapter['sentences'] = [row for serial, row in enumerate(chapter['sentences'], 1)
                                         if f'c{index}-s{serial}' not in bad_ids and f'c{index}' not in bad_ids]
             draft['chapters'] = [chapter for chapter in draft['chapters'] if chapter['sentences']]
-            _ensure_spoken_navigation(draft['chapters'], topic, length)
-            _ensure_spoken_closing(draft['chapters'])
+            if not _is_gemini_client(client):
+                _ensure_spoken_navigation(draft['chapters'], topic, length)
+                _ensure_spoken_closing(draft['chapters'])
         else:
             stage('writing')
             if attempt == 0:
                 pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='episode-chapter')
-                chapter_payloads = [{**payload, 'chapter_assignment': {**question, 'index': index + 1,
-                                     'is_first_chapter': index == 0,
-                                     'is_last_chapter': index == len(research_plan) - 1},
-                                     'target_words': question['target_words'],
-                                     'evidence': {eid: row for eid, row in evidence.items()
-                                                  if (eid in question['evidence_ids'] if 'evidence_ids' in question
-                                                      else row['source_id'] in question['source_ids'])}}
-                                    for index, question in enumerate(research_plan)]
-                # A failed search/read is a missing answer, never an invitation
-                # to write from model memory or borrow an unrelated chapter.
-                unanswered.extend(part['chapter_assignment']['question'] for part in chapter_payloads
-                                  if not part['evidence'])
-                chapter_payloads = [part for part in chapter_payloads if part['evidence']]
-                # The planned final question may have no usable evidence. The
-                # last chapter that can actually be written still needs the
-                # spoken closing.
-                if chapter_payloads:
-                    # If the earliest planned chapter had no usable evidence,
-                    # the first surviving chapter becomes the spoken opening.
-                    chapter_payloads[0]['chapter_assignment']['is_first_chapter'] = True
-                    chapter_payloads[-1]['chapter_assignment']['is_last_chapter'] = True
-                futures = [pool.submit(copy_context().run, call, SYSTEM_PROMPT, part, SCRIPT_SCHEMA) for part in chapter_payloads]
-                try:
-                    done, _ = wait(futures, timeout=max(0, deadline - clock()))
-                    check()
-                    if len(done) != len(futures):
-                        raise EpisodeError('episode_deadline')
-                    parts = []
-                    chapter_assignments = []
-                    for assignment, future in zip(chapter_payloads, futures):
-                        chapter_index = assignment['chapter_assignment']['index']
-                        try:
-                            part = future.result()
-                            invalid_key = _chapter_schema_error(part)
-                            if invalid_key:
-                                diagnostic = {
-                                    'chapter_index': chapter_index, 'schema_key': invalid_key,
-                                    'json_parsed': True, 'finish_reason': 'STOP',
-                                    'prompt_tokens': None, 'candidate_tokens': None,
-                                    'http_status_class': None}
-                                logging.warning('episode_chapter_schema_failure %s',
-                                                json.dumps(diagnostic, sort_keys=True))
-                                raise EpisodeError('invalid_chapter', diagnostic)
-                        except EpisodeError as first_error:
-                            if first_error.diagnostics.get('max_tokens_retry_attempted'):
-                                # The proxy already used its one larger-cap retry;
-                                # do not follow it with the compact, lower-cap repair.
-                                logging.warning('episode_chapter_unanswered %s', json.dumps({
-                                    'chapter_index': chapter_index,
-                                    'reason': 'max_tokens_retry_exhausted',
-                                    'retry': 'larger_cap_failed'}, sort_keys=True))
-                                unanswered.append(assignment['chapter_assignment']['question'])
-                                failed_chapter_questions.add(assignment['chapter_assignment']['question'])
-                                failed_chapter_indexes.add(chapter_index)
-                                continue
-                            # One bounded repair for this chapter only. Keep
-                            # the requested index and evidence; ask for a smaller
-                            # JSON object and preserve the successful siblings.
-                            chapter_retry_count += 1
-                            retry_payload = {**assignment,
-                                'target_words': max(80, int(assignment['target_words'] * .7)),
-                                'chapter_assignment': {**assignment['chapter_assignment'],
-                                    'target_words': max(80, int(assignment['target_words'] * .7))},
-                                'repair_hint': 'Return compact valid JSON only. One chapter, at most six concise cited sentences. Do not include markdown or extra keys.'}
+                if _is_gemini_client(client):
+                    host_system = SYSTEM_PROMPT + ("\nHOST PASS: Write the complete episode as one coherent script "
+                        "from this full evidence pack. Open in plain words that address the listener's question without "
+                        "reading it back. Use natural transitions that explain the connection between ideas, never "
+                        "section-title bridges. Do not speak unanswered questions; state any evidence gap once in one "
+                        "plain sentence. End with a supported takeaway from this episode, or omit it if the evidence "
+                        "offers no useful synthesis. Do not add unrelated tangents.")
+                    draft = call(host_system, payload, SCRIPT_SCHEMA)
+                else:
+                    chapter_payloads = [{**payload, 'chapter_assignment': {**question, 'index': index + 1,
+                                         'is_first_chapter': index == 0,
+                                         'is_last_chapter': index == len(research_plan) - 1},
+                                         'target_words': question['target_words'],
+                                         'evidence': {eid: row for eid, row in evidence.items()
+                                                      if (eid in question['evidence_ids'] if 'evidence_ids' in question
+                                                          else row['source_id'] in question['source_ids'])}}
+                                        for index, question in enumerate(research_plan)]
+                    # A failed search/read is a missing answer, never an invitation
+                    # to write from model memory or borrow an unrelated chapter.
+                    unanswered.extend(part['chapter_assignment']['question'] for part in chapter_payloads
+                                      if not part['evidence'])
+                    chapter_payloads = [part for part in chapter_payloads if part['evidence']]
+                    # The planned final question may have no usable evidence. The
+                    # last chapter that can actually be written still needs the
+                    # spoken closing.
+                    if chapter_payloads:
+                        # If the earliest planned chapter had no usable evidence,
+                        # the first surviving chapter becomes the spoken opening.
+                        chapter_payloads[0]['chapter_assignment']['is_first_chapter'] = True
+                        chapter_payloads[-1]['chapter_assignment']['is_last_chapter'] = True
+                    futures = [pool.submit(copy_context().run, call, SYSTEM_PROMPT, part, SCRIPT_SCHEMA) for part in chapter_payloads]
+                    try:
+                        done, _ = wait(futures, timeout=max(0, deadline - clock()))
+                        check()
+                        if len(done) != len(futures):
+                            raise EpisodeError('episode_deadline')
+                        parts = []
+                        chapter_assignments = []
+                        for assignment, future in zip(chapter_payloads, futures):
+                            chapter_index = assignment['chapter_assignment']['index']
                             try:
-                                part = call(SYSTEM_PROMPT + '\nFor this retry, return compact JSON only; no markdown, no extra keys, '
-                                            'one chapter with at most six concise cited sentences.',
-                                            retry_payload, SCRIPT_SCHEMA)
+                                part = future.result()
                                 invalid_key = _chapter_schema_error(part)
                                 if invalid_key:
                                     diagnostic = {
@@ -940,115 +906,150 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                                     logging.warning('episode_chapter_schema_failure %s',
                                                     json.dumps(diagnostic, sort_keys=True))
                                     raise EpisodeError('invalid_chapter', diagnostic)
-                            except EpisodeError:
-                                logging.warning('episode_chapter_unanswered %s', json.dumps({
-                                    'chapter_index': chapter_index,
-                                    'reason': first_error.diagnostics.get('reason', first_error.args[0]),
-                                    'retry': 'failed'}, sort_keys=True))
+                            except EpisodeError as first_error:
+                                if first_error.diagnostics.get('max_tokens_retry_attempted'):
+                                    # The proxy already used its one larger-cap retry;
+                                    # do not follow it with the compact, lower-cap repair.
+                                    logging.warning('episode_chapter_unanswered %s', json.dumps({
+                                        'chapter_index': chapter_index,
+                                        'reason': 'max_tokens_retry_exhausted',
+                                        'retry': 'larger_cap_failed'}, sort_keys=True))
+                                    unanswered.append(assignment['chapter_assignment']['question'])
+                                    failed_chapter_questions.add(assignment['chapter_assignment']['question'])
+                                    failed_chapter_indexes.add(chapter_index)
+                                    continue
+                                # One bounded repair for this chapter only. Keep
+                                # the requested index and evidence; ask for a smaller
+                                # JSON object and preserve the successful siblings.
+                                chapter_retry_count += 1
+                                retry_payload = {**assignment,
+                                    'target_words': max(80, int(assignment['target_words'] * .7)),
+                                    'chapter_assignment': {**assignment['chapter_assignment'],
+                                        'target_words': max(80, int(assignment['target_words'] * .7))},
+                                    'repair_hint': 'Return compact valid JSON only. One chapter, at most six concise cited sentences. Do not include markdown or extra keys.'}
+                                try:
+                                    part = call(SYSTEM_PROMPT + '\nFor this retry, return compact JSON only; no markdown, no extra keys, '
+                                                'one chapter with at most six concise cited sentences.',
+                                                retry_payload, SCRIPT_SCHEMA)
+                                    invalid_key = _chapter_schema_error(part)
+                                    if invalid_key:
+                                        diagnostic = {
+                                            'chapter_index': chapter_index, 'schema_key': invalid_key,
+                                            'json_parsed': True, 'finish_reason': 'STOP',
+                                            'prompt_tokens': None, 'candidate_tokens': None,
+                                            'http_status_class': None}
+                                        logging.warning('episode_chapter_schema_failure %s',
+                                                        json.dumps(diagnostic, sort_keys=True))
+                                        raise EpisodeError('invalid_chapter', diagnostic)
+                                except EpisodeError:
+                                    logging.warning('episode_chapter_unanswered %s', json.dumps({
+                                        'chapter_index': chapter_index,
+                                        'reason': first_error.diagnostics.get('reason', first_error.args[0]),
+                                        'retry': 'failed'}, sort_keys=True))
+                                    unanswered.append(assignment['chapter_assignment']['question'])
+                                    failed_chapter_questions.add(assignment['chapter_assignment']['question'])
+                                    failed_chapter_indexes.add(chapter_index)
+                                    continue
+                            if not part['chapters']:
                                 unanswered.append(assignment['chapter_assignment']['question'])
-                                failed_chapter_questions.add(assignment['chapter_assignment']['question'])
-                                failed_chapter_indexes.add(chapter_index)
-                                continue
-                        if not part['chapters']:
-                            unanswered.append(assignment['chapter_assignment']['question'])
-                        parts.append(part)
-                        chapter_assignments.extend([assignment] * len(part['chapters']))
-                    draft = {'chapters': [ch for part in parts for ch in part['chapters']],
-                             'could_not_confirm': list(dict.fromkeys(q for part in parts
-                                                                     for q in part['could_not_confirm']))[:20]}
-                finally:
-                    pool.shutdown(wait=False, cancel_futures=True)
-                # One bounded second writer pass for each short chapter. It sees
-                # only that chapter's already-retrieved evidence; no new search
-                # or fetch path is available here. The normal call wrapper and
-                # usage ledger reserve/cap every expansion call.
-                short_chapters = []
-                for chapter_index, (chapter, assignment) in enumerate(
-                        zip(draft['chapters'], chapter_assignments)):
-                    target = int(assignment['chapter_assignment']['target_words'])
-                    spoken = ' '.join(row.get('text', '') for row in chapter.get('sentences', [])
-                                      if isinstance(row, dict) and row.get('kind') != 'navigation')
-                    if len(words(spoken)) < target * .60:
-                        expansion_attempts += 1
-                        short_chapters.append((chapter_index, chapter, assignment, target))
-                counts['chapter_expansion_attempts'] = expansion_attempts
-                if short_chapters:
-                    expansion_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='episode-expand')
-                    expansion_futures = []
-                    expanded_draft = deepcopy(draft)
-                    proposed_expansions = 0
-                    for chapter_index, chapter, assignment, target in short_chapters:
-                        expansion_payload = {**assignment,
-                            'target_words': target,
-                            'chapter_assignment': {**assignment['chapter_assignment'],
-                                                   'target_words': target},
-                            'previous_chapter': chapter,
-                            'expansion_pass': True,
-                            # Preserve the exact scoped evidence from the original
-                            # assignment, including evidence-id based fixture plans.
-                            'evidence': assignment['evidence']}
-                        system = SYSTEM_PROMPT + ('\nEXPANSION PASS: Expand only the assigned chapter toward its target_words. '
-                            'Retain supported existing details, add distinct relevant steps, comparisons or impacts only '
-                            'when this supplied evidence supports them, and cite exact evidence IDs. Return exactly one '
-                            'chapter. If evidence cannot support more detail, preserve the honest shorter answer.')
-                        expansion_futures.append((chapter_index, chapter, target, expansion_pool.submit(
-                            copy_context().run, call, system, expansion_payload, SCRIPT_SCHEMA)))
-                    try:
-                        done, _ = wait([future for *_rest, future in expansion_futures],
-                                       timeout=max(0, deadline - clock()))
-                        for chapter_index, original, target, future in expansion_futures:
-                            if future not in done:
-                                expansion_failures += 1
-                                logging.warning('episode_optional_pass_failed %s', json.dumps({
-                                    'call_name': 'chapter_expansion', 'stage': 'writing',
-                                    'chapter_index': chapter_index + 1, 'reason': 'timeout',
-                                    'previous_script_kept': True}, sort_keys=True))
-                                continue
-                            try:
-                                expanded = future.result()
-                                invalid = _chapter_schema_error(expanded)
-                                if invalid or len(expanded.get('chapters', [])) != 1:
+                            parts.append(part)
+                            chapter_assignments.extend([assignment] * len(part['chapters']))
+                        draft = {'chapters': [ch for part in parts for ch in part['chapters']],
+                                 'could_not_confirm': list(dict.fromkeys(q for part in parts
+                                                                         for q in part['could_not_confirm']))[:20]}
+                    finally:
+                        pool.shutdown(wait=False, cancel_futures=True)
+                    # One bounded second writer pass for each short chapter. It sees
+                    # only that chapter's already-retrieved evidence; no new search
+                    # or fetch path is available here. The normal call wrapper and
+                    # usage ledger reserve/cap every expansion call.
+                    short_chapters = []
+                    for chapter_index, (chapter, assignment) in enumerate(
+                            zip(draft['chapters'], chapter_assignments)):
+                        target = int(assignment['chapter_assignment']['target_words'])
+                        spoken = ' '.join(row.get('text', '') for row in chapter.get('sentences', [])
+                                          if isinstance(row, dict) and row.get('kind') != 'navigation')
+                        if len(words(spoken)) < target * .60:
+                            expansion_attempts += 1
+                            short_chapters.append((chapter_index, chapter, assignment, target))
+                    counts['chapter_expansion_attempts'] = expansion_attempts
+                    if short_chapters:
+                        expansion_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='episode-expand')
+                        expansion_futures = []
+                        expanded_draft = deepcopy(draft)
+                        proposed_expansions = 0
+                        for chapter_index, chapter, assignment, target in short_chapters:
+                            expansion_payload = {**assignment,
+                                'target_words': target,
+                                'chapter_assignment': {**assignment['chapter_assignment'],
+                                                       'target_words': target},
+                                'previous_chapter': chapter,
+                                'expansion_pass': True,
+                                # Preserve the exact scoped evidence from the original
+                                # assignment, including evidence-id based fixture plans.
+                                'evidence': assignment['evidence']}
+                            system = SYSTEM_PROMPT + ('\nEXPANSION PASS: Expand only the assigned chapter toward its target_words. '
+                                'Retain supported existing details, add distinct relevant steps, comparisons or impacts only '
+                                'when this supplied evidence supports them, and cite exact evidence IDs. Return exactly one '
+                                'chapter. If evidence cannot support more detail, preserve the honest shorter answer.')
+                            expansion_futures.append((chapter_index, chapter, target, expansion_pool.submit(
+                                copy_context().run, call, system, expansion_payload, SCRIPT_SCHEMA)))
+                        try:
+                            done, _ = wait([future for *_rest, future in expansion_futures],
+                                           timeout=max(0, deadline - clock()))
+                            for chapter_index, original, target, future in expansion_futures:
+                                if future not in done:
+                                    expansion_failures += 1
+                                    logging.warning('episode_optional_pass_failed %s', json.dumps({
+                                        'call_name': 'chapter_expansion', 'stage': 'writing',
+                                        'chapter_index': chapter_index + 1, 'reason': 'timeout',
+                                        'previous_script_kept': True}, sort_keys=True))
+                                    continue
+                                try:
+                                    expanded = future.result()
+                                    invalid = _chapter_schema_error(expanded)
+                                    if invalid or len(expanded.get('chapters', [])) != 1:
+                                        expansion_failures += 1
+                                        logging.warning('episode_optional_pass_failed %s', json.dumps({
+                                            'call_name': 'chapter_expansion', 'stage': 'writing',
+                                            'chapter_index': chapter_index + 1,
+                                            'reason': 'invalid_response', 'previous_script_kept': True}, sort_keys=True))
+                                        continue
+                                    candidate = expanded['chapters'][0]
+                                    candidate_text = ' '.join(row.get('text', '') for row in candidate['sentences']
+                                                              if row.get('kind') != 'navigation')
+                                    original_text = ' '.join(row.get('text', '') for row in original['sentences']
+                                                             if row.get('kind') != 'navigation')
+                                    if len(words(candidate_text)) > len(words(original_text)):
+                                        expanded_draft['chapters'][chapter_index] = candidate
+                                        proposed_expansions += 1
+                                except EpisodeError as error:
+                                    if isinstance(error, EpisodeCancelled):
+                                        raise
+                                    expansion_failures += 1
+                                    logging.warning('episode_optional_pass_failed %s', json.dumps({
+                                        'call_name': error.diagnostics.get('call_name', 'chapter_expansion'),
+                                        'stage': error.diagnostics.get('stage', 'writing'),
+                                        'chapter_index': chapter_index + 1,
+                                        'reason': error.diagnostics.get('reason',
+                                            error.args[0] if error.args else 'writer_error'),
+                                        'previous_script_kept': True}, sort_keys=True))
+                                except Exception as error:
                                     expansion_failures += 1
                                     logging.warning('episode_optional_pass_failed %s', json.dumps({
                                         'call_name': 'chapter_expansion', 'stage': 'writing',
                                         'chapter_index': chapter_index + 1,
-                                        'reason': 'invalid_response', 'previous_script_kept': True}, sort_keys=True))
-                                    continue
-                                candidate = expanded['chapters'][0]
-                                candidate_text = ' '.join(row.get('text', '') for row in candidate['sentences']
-                                                          if row.get('kind') != 'navigation')
-                                original_text = ' '.join(row.get('text', '') for row in original['sentences']
-                                                         if row.get('kind') != 'navigation')
-                                if len(words(candidate_text)) > len(words(original_text)):
-                                    expanded_draft['chapters'][chapter_index] = candidate
-                                    proposed_expansions += 1
-                            except EpisodeError as error:
-                                if isinstance(error, EpisodeCancelled):
-                                    raise
-                                expansion_failures += 1
-                                logging.warning('episode_optional_pass_failed %s', json.dumps({
-                                    'call_name': error.diagnostics.get('call_name', 'chapter_expansion'),
-                                    'stage': error.diagnostics.get('stage', 'writing'),
-                                    'chapter_index': chapter_index + 1,
-                                    'reason': error.diagnostics.get('reason',
-                                        error.args[0] if error.args else 'writer_error'),
-                                    'previous_script_kept': True}, sort_keys=True))
-                            except Exception as error:
-                                expansion_failures += 1
-                                logging.warning('episode_optional_pass_failed %s', json.dumps({
-                                    'call_name': 'chapter_expansion', 'stage': 'writing',
-                                    'chapter_index': chapter_index + 1,
-                                    'reason': type(error).__name__, 'previous_script_kept': True}, sort_keys=True))
-                    finally:
-                        expansion_pool.shutdown(wait=False, cancel_futures=True)
-                    # Validate expansions together. Checking each replacement
-                    # against the still-short siblings can reject a coherent
-                    # final script whose chapters are expanded in the same pass.
-                    if (proposed_expansions and
-                            deterministic_check(expanded_draft, evidence, sources)['passed']):
-                        draft = expanded_draft
-                        expansions_applied += proposed_expansions
-                counts['chapter_expansions_applied'] = expansions_applied
+                                        'reason': type(error).__name__, 'previous_script_kept': True}, sort_keys=True))
+                        finally:
+                            expansion_pool.shutdown(wait=False, cancel_futures=True)
+                        # Validate expansions together. Checking each replacement
+                        # against the still-short siblings can reject a coherent
+                        # final script whose chapters are expanded in the same pass.
+                        if (proposed_expansions and
+                                deterministic_check(expanded_draft, evidence, sources)['passed']):
+                            draft = expanded_draft
+                            expansions_applied += proposed_expansions
+                    counts['chapter_expansions_applied'] = expansions_applied
             else:
                 draft = call(SYSTEM_PROMPT, payload, SCRIPT_SCHEMA)
                 if failed_chapter_indexes and isinstance(draft, dict) and isinstance(draft.get('chapters'), list):
@@ -1153,20 +1154,11 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                 'sources_read': len(sources)})
     def materialize(script_draft):
         rendered, used_sources = [], set()
-        host_pass = _is_gemini_client(client)
         for index, chapter in enumerate(script_draft['chapters'], 1):
             sentences = []
             for serial, row in enumerate(chapter['sentences'], 1):
                 kind = row['kind']
                 text = row['text']
-                if host_pass and kind == 'opening':
-                    text = f'You asked about {topic.strip().rstrip("?")}. '
-                elif host_pass and kind == 'navigation':
-                    text = ''
-                elif host_pass and kind == 'closing':
-                    prior = next((item['text'] for item in reversed(sentences)
-                                  if item.get('kind') == 'claim' and item.get('text')), '')
-                    text = ('The takeaway is that ' + prior.lstrip(' .') if prior else '')
                 ids = list(dict.fromkeys(row['evidence_ids']))
                 numbers = sorted({evidence[i]['source_number'] for i in ids})
                 source_ids = [sources[n - 1]['id'] for n in numbers]
@@ -1271,27 +1263,25 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
     content_words = len(words(transcript(chapters)))
     shortfall = content_words < length * WORDS_PER_MINUTE * .90
     notices = []
-    if shortfall:
+    if shortfall and draft['could_not_confirm']:
+        notices.append("I couldn't find solid evidence for every part of the question, so this episode is shorter and I'll leave unanswered details out.")
+    elif shortfall:
         notices.append('This episode is shorter than requested because the available evidence is limited.')
-    if draft['could_not_confirm']:
-        notices.extend(draft['could_not_confirm'] if not _is_gemini_client(client) else
-                       ["I couldn't find solid evidence on the remaining details, so I'll leave them out."])
+    elif draft['could_not_confirm']:
+        notices.append("I couldn't find solid evidence for every part of the question, so I'll leave the unanswered details out.")
     if notices:
         closing = None
         if chapters and chapters[-1].get('sentences'):
             last = chapters[-1]['sentences'][-1]
             if last.get('kind') == 'closing':
                 closing = chapters[-1]['sentences'].pop()
-        notes = [{'id': 'notice-transition', 'text': "Next, what we couldn't confirm.",
-                  'kind': 'navigation', 'evidence_ids': [], 'source_ids': [], 'source_numbers': []}]
-        notes.extend({'id': f'notice-{i}', 'text': text, 'kind': 'editorial',
-                      'evidence_ids': [], 'source_ids': [], 'source_numbers': []}
-                     for i, text in enumerate(notices, 1))
+        notes = [{'id': f'notice-{i}', 'text': text, 'kind': 'editorial',
+                  'evidence_ids': [], 'source_ids': [], 'source_numbers': []}
+                 for i, text in enumerate(notices, 1)]
         if closing:
-            closing['id'] = 'closing-takeaway'
             notes.append(closing)
-        chapters.append({'id': 'evidence-notes', 'title': "What we couldn't confirm",
-                         'title_evidence_ids': [], 'sentences': notes})
+        if chapters:
+            chapters[-1].setdefault('sentences', []).extend(notes)
     for chapter in chapters:
         chapter['spoken_text'] = ' '.join(row['text'] for row in chapter['sentences'])
     script = transcript(chapters)
