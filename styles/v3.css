@@ -13,6 +13,7 @@ main,body.is-reader main,body.has-player main{width:100%;max-width:680px;padding
 .today-service-preparing{margin:12px 0 20px;padding:12px 14px;border-left:3px solid var(--line);background:var(--soft);color:var(--muted)}.today-service-preparing h2{margin:0 0 4px;color:var(--ink);font:600 16px/22px var(--ui)}.today-service-preparing p{margin:0;font:14px/20px var(--ui)}.today-service-check{min-height:48px;color:var(--muted);font:14px/20px var(--ui)}.today-service-check p{margin:0}
 .today-page .today-run-summary{margin:0 0 14px;padding:0;border:0;border-radius:0;background:transparent;color:var(--muted)}
 .today-page .today-run-meta{margin:0!important;font:400 14px/20px var(--ui);font-variant-numeric:tabular-nums}
+.today-page .today-availability-note{margin:4px 0 0!important;color:var(--ink);font:400 13px/19px var(--ui)}
 .today-top-stories{margin:18px 0 24px;font-family:var(--ui)}
 .today-top-stories h2{margin:0 0 4px;color:var(--ink);font:600 16px/22px var(--ui)}
 .today-top-stories ol{margin:0;padding:0;list-style:none}

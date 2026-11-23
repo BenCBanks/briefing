@@ -506,6 +506,9 @@ def _select_topic_sections(rows, topics, weights, limit, *, source_tiers=None):
     selected = []
     counts = {topic_id: 0 for topic_id in ordered_ids}
     per_topic_cap = max(1, int(limit * 0.5)) if len(ordered_ids) > 1 else limit
+    # Keep two slots per selected topic when the edition has room. If the
+    # edition limit is tighter, retain one per topic before weighted extras.
+    topic_floor = min(2, max(1, int(limit) // len(ordered_ids)))
 
     def take_for(topic_id):
         if counts.get(topic_id, 0) >= per_topic_cap:
@@ -529,12 +532,15 @@ def _select_topic_sections(rows, topics, weights, limit, *, source_tiers=None):
                 counts[covered_id] += 1
         return True
 
-    # The first pass provides a minimum item for each topic when a matching
-    # candidate exists; topics without news are covered by the background rung.
-    for topic_id in sorted(ordered_ids, key=lambda value: (-weights[value], ordered_ids.index(value))):
-        if len(selected) >= limit:
-            break
-        take_for(topic_id)
+    # Fill the topic floor in rounds so one high-weight topic cannot consume
+    # both slots before other selected topics get their first story.
+    topic_order = sorted(ordered_ids, key=lambda value: (-weights[value], ordered_ids.index(value)))
+    for _floor_index in range(topic_floor):
+        for topic_id in topic_order:
+            if len(selected) >= limit:
+                break
+            if counts[topic_id] < topic_floor:
+                take_for(topic_id)
     while remaining and len(selected) < limit:
         topic_id = min(ordered_ids, key=lambda value: (counts[value] / weights[value], -weights[value], ordered_ids.index(value)))
         if not take_for(topic_id):
@@ -922,9 +928,36 @@ def assemble(edition, profile, target=None, *, retrieval_fill=None, followup_fil
     }
     covered_topics = {topic_id for section in sections for topic_id in section.get('topic_ids', [])}
     covered_topics.update(row.get('topic_id') for row in backgrounds)
+    story_counts = {topic_id: sum(topic_id in section.get('topic_ids', []) for section in sections)
+                    for topic_id in selected_topics}
+    background_topics = {row.get('topic_id') for row in backgrounds}
+
+    def topic_gap_note(topic_id):
+        count = story_counts.get(topic_id, 0)
+        if count >= 2:
+            return ''
+        label = labels.get(topic_id, topic_id)
+        search_status = next((row['status'] for row in ladder if row['rung'] == 'open_web'), 'not_configured')
+        background_status = next((row['status'] for row in ladder if row['rung'] == 'background'), 'not_configured')
+        if search_status in {'available', 'exhausted', 'unavailable'}:
+            search_note = 'after feed and web search'
+        elif search_status == 'not_configured':
+            search_note = 'from feeds; web search was unavailable'
+        else:
+            search_note = 'from feeds and available search'
+        amount = 'one verified story' if count == 1 else 'no verified stories'
+        note = f'{label}: {amount} {search_note}'
+        if topic_id in background_topics:
+            note += '; Worth knowing context is included'
+        elif background_status in {'exhausted', 'unavailable'}:
+            note += '; no suitable background reference was available'
+        return note + '.'
+
     edition['daily_briefing']['topic_allocation']['coverage'] = [
         {'topic_id': row['topic_id'], 'has_item': row['topic_id'] in covered_topics,
-         'item_floor': 1,
+         'story_count': story_counts.get(row['topic_id'], 0),
+         'item_floor': 2,
+         'gap_note': topic_gap_note(row['topic_id']),
          'available_source_tiers': available_topic_tiers.get(row['topic_id'], []),
          'selected_source_tiers': sorted({tier for section in sections
                                           if row['topic_id'] in section.get('topic_ids', [])
@@ -986,6 +1019,12 @@ def assemble(edition, profile, target=None, *, retrieval_fill=None, followup_fil
         # supply rung must explicitly exhaust before thin_day is honest.
         edition['thin_day'] = False
         edition.pop('availability_note', None)
+    topic_gaps = [row['gap_note'] for row in edition['daily_briefing']['topic_allocation']['coverage']
+                  if row.get('gap_note')]
+    if topic_gaps:
+        gap_note = 'Supply note: ' + ' '.join(topic_gaps)
+        existing_note = str(edition.get('availability_note') or '').strip()
+        edition['availability_note'] = f'{existing_note} {gap_note}'.strip()
 
     quick_hits = edition.get('quick_hits')
     if isinstance(quick_hits, list):

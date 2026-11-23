@@ -861,7 +861,8 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(job['stories_written'], 1)
         published = json.loads((directory / 'current.json').read_text())['editions']['editions'][0]
         self.assertFalse(published['thin_day'])
-        self.assertNotIn('availability_note', published)
+        self.assertIn('Payments: one verified story from feeds; web search was unavailable',
+                      published['availability_note'])
         self.assertTrue(any(row['status'] == 'not_configured'
                             for row in published['daily_briefing']['supply_ladder']))
         self.assertEqual(json.loads(generation_api.STATUS_PATH.read_text())['stories_written'], 1)
@@ -1144,6 +1145,8 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual([row['id'] for row in edition['sections']], ['s1', 's3', 's4'])
         self.assertEqual([row['id'] for row in kept_sources], ['src1', 'src3', 'src4'])
         self.assertEqual(outcomes[1]['status'], 'dropped')
+        self.assertEqual(outcomes[1]['topic_ids'], ['payments'],
+                         'story rejection stays attributable to the topic supply funnel')
         self.assertEqual(edition['coverage'][0]['candidate_count'], 2)
         self.assertTrue(edition['coverage'][0]['few_results'])
         self.assertIn('2 fresh candidate(s)', edition['coverage'][0]['reason'])

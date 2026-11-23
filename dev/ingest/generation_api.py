@@ -686,12 +686,14 @@ def _score_and_filter_stories(edition, sources, registry, evidence, score_editio
         failed = report.get('failed_critical', []) if report.get('critical_failed') else []
         if failed:
             outcomes.append({'story': index, 'status': 'dropped', 'failed_critical': failed,
+                             'topic_ids': list(story.get('topic_ids', [])),
                              'checks': [{'number': check.get('number'), 'status': check.get('status'),
                                          'detail': check.get('detail')}
                                         for check in report.get('checks', []) if check.get('critical') and check.get('status') != 'PASS']})
         else:
             passed.append(story)
-            outcomes.append({'story': index, 'status': 'passed', 'failed_critical': [], 'checks': []})
+            outcomes.append({'story': index, 'status': 'passed', 'failed_critical': [], 'checks': [],
+                             'topic_ids': list(story.get('topic_ids', []))})
 
     keep_clusters = {row.get('cluster_id') for row in passed}
     kept_sections = [row for row in edition.get('sections', [])
@@ -1223,6 +1225,22 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
             report['candidate_results'] = detail.get('candidate_results', [])
             report['candidate_pool_diagnostics'] = detail.get('candidate_pool_diagnostics', {})
             report['funnel_drop_reasons'] = detail.get('funnel_drop_reasons', {})
+            selected_by_topic = {}
+            for story in edition.get('sections', []):
+                if not story.get('cluster_id'):
+                    continue
+                for topic_id in story.get('topic_ids', []):
+                    selected_by_topic[topic_id] = selected_by_topic.get(topic_id, 0) + 1
+            for topic_id, diagnostics in report['candidate_pool_diagnostics'].items():
+                diagnostics['selected'] = selected_by_topic.get(topic_id, 0)
+            for outcome in story_results:
+                if outcome.get('status') != 'dropped':
+                    continue
+                for topic_id in outcome.get('topic_ids', []):
+                    topic_reasons = report['funnel_drop_reasons'].setdefault(topic_id, {})
+                    for check in outcome.get('failed_critical', []):
+                        reason = f'scorecard:{check}'
+                        topic_reasons[reason] = topic_reasons.get(reason, 0) + 1
             report['source_quality_rejections'] = detail.get('source_quality_rejections', [])
             report['source_selection'] = detail.get('source_selection', {})
             report['also_today_source_selection'] = detail.get('also_today_source_selection', {})

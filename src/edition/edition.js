@@ -344,10 +344,11 @@ export function renderToday(container, edition, topics, actions = {}) {
   const duration = displayDuration ? ` · about ${displayDuration}` : '';
   const listenAriaDuration = displayDuration ? `, about ${esc(displayDuration)}` : '';
   const storyCount = storySections.length;
+  const availabilityNote = typeof edition.availability_note === 'string' ? edition.availability_note.trim() : '';
   container.innerHTML = `<article class="today-page">
     <p class="today-date">${esc(todayDate(edition.local_date))}</p>
     <h1 class="today-title">Your daily briefing</h1>
-    <section class="today-run-summary" aria-label="Daily briefing length"><p class="today-run-meta">${storyCount} ${storyCount === 1 ? 'story' : 'stories'}${spokenMinutes ? ` · about ${spokenMinutes} min` : ''}</p></section>
+    <section class="today-run-summary" aria-label="Daily briefing length"><p class="today-run-meta">${storyCount} ${storyCount === 1 ? 'story' : 'stories'}${spokenMinutes ? ` · about ${spokenMinutes} min` : ''}</p>${availabilityNote ? `<p class="today-availability-note" role="status">${esc(availabilityNote)}</p>` : ''}</section>
     <section class="today-primary" aria-label="Briefing player">${audio.available ? `<button class="today-listen-pill primary" data-listen-control="edition" data-edition-id="${esc(edition.id)}" data-revision-id="${esc(edition.revision_id)}" data-listen-estimate="${esc(displayDuration || '')}" data-duration-label="${esc(duration)}" aria-label="Play today's briefing${listenAriaDuration}"><span class="mode-icon">${playIcon}</span><span class="mode-label">Play${duration}</span></button>` : `<p class="today-audio-unavailable" role="status">Audio isn’t ready yet. Read the briefing below.</p>`}</section>
     ${rows ? `<section class="today-contents" aria-label="Chapters"><ol>${rows}</ol></section>` : ''}
     <section data-quick-hits-slot></section>

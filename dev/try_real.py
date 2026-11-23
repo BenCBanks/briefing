@@ -132,6 +132,29 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
         print('Inspect stage timing above; retrieval and provider calls are the usual bounded stages.')
 
 
+def _print_funnel(scorecard: dict, selected: dict) -> None:
+    diagnostics = scorecard.get('candidate_pool_diagnostics', {}) if isinstance(scorecard, dict) else {}
+    reasons = scorecard.get('funnel_drop_reasons', {}) if isinstance(scorecard, dict) else {}
+    if not diagnostics:
+        return
+    print('\nPer-topic supply funnel:')
+    print('| Topic | Fetched | Topic-matched | Relevance-passed | Unseen | Selected | Drop reasons |')
+    print('|---|---:|---:|---:|---:|---:|---|')
+    for topic_id, row in diagnostics.items():
+        drops = reasons.get(topic_id, {})
+        drop_text = ', '.join(f'{key}: {value}' for key, value in sorted(drops.items())) or 'none'
+        print(f"| {topic_id} | {row.get('fetched', 0)} | {row.get('topic_matched', 0)} | "
+              f"{row.get('relevance_passed', 0)} | {row.get('unseen', 0)} | "
+              f"{selected.get(topic_id, row.get('selected', 0))} | {drop_text} |")
+
+
+def _print_failed_daily_cost(before: dict, started: float) -> None:
+    after = ledger_snapshot()
+    cost = ledger_cost_delta(before, after)
+    print(f'Ledger cost: ${cost:.5f}')
+    print(f'Wall time: {round(time.monotonic() - started, 2):.2f}s')
+
+
 def run_episode(question: str, minutes: int) -> int:
     with isolated_run() as state:
         from dev.ingest.episodes.generate import generate_episode
@@ -237,7 +260,14 @@ def run_daily() -> int:
             job = _poll_daily(created['job_id'])
         except Exception as error:
             print(f'Daily generation failed: {type(error).__name__}')
+            _print_failed_daily_cost(before, started)
             return 1
+        scorecard_path = state / 'jobs' / f"{created['job_id']}.scorecard.json"
+        try:
+            scorecard = json.loads(scorecard_path.read_text(encoding='utf-8'))
+        except (OSError, ValueError):
+            scorecard = {}
+        selected = job.get('topic_story_counts', {})
         if job.get('status') != 'complete':
             print('Daily generation failed: ' + str(job.get('error') or job.get('failure_reason')))
             narration = job.get('daily_narration')
@@ -245,30 +275,17 @@ def run_daily() -> int:
                 print('Daily narration diagnostics: ' + json.dumps({key: narration.get(key)
                       for key in ('status', 'reason', 'retry_reason', 'stories', 'story_word_counts')
                       if key in narration}, sort_keys=True))
+            _print_failed_daily_cost(before, started)
+            _print_funnel(scorecard, selected)
             return 1
         edition = (job.get('edition_ready') or {}).get('edition')
         if not isinstance(edition, dict):
             print('Daily generation failed: edition missing')
+            _print_failed_daily_cost(before, started)
+            _print_funnel(scorecard, selected)
             return 1
         _print_result('daily', edition, before, started)
-        scorecard_path = state / 'jobs' / f"{created['job_id']}.scorecard.json"
-        try:
-            scorecard = json.loads(scorecard_path.read_text(encoding='utf-8'))
-        except (OSError, ValueError):
-            scorecard = {}
-        diagnostics = scorecard.get('candidate_pool_diagnostics', {})
-        reasons = scorecard.get('funnel_drop_reasons', {})
-        selected = job.get('topic_story_counts', {})
-        if diagnostics:
-            print('\nPer-topic supply funnel:')
-            print('| Topic | Fetched | Topic-matched | Relevance-passed | Unseen | Selected | Drop reasons |')
-            print('|---|---:|---:|---:|---:|---:|---|')
-            for topic_id, row in diagnostics.items():
-                drops = reasons.get(topic_id, {})
-                drop_text = ', '.join(f'{key}: {value}' for key, value in sorted(drops.items())) or 'none'
-                print(f"| {topic_id} | {row.get('fetched', 0)} | {row.get('topic_matched', 0)} | "
-                      f"{row.get('relevance_passed', 0)} | {row.get('unseen', 0)} | "
-                      f"{selected.get(topic_id, 0)} | {drop_text} |")
+        _print_funnel(scorecard, selected)
         return 0
 
 

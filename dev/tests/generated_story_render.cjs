@@ -132,7 +132,7 @@ async function run() {
       edition.generated = true;
       edition.title = 'Your briefing · Tuesday 17 November';
       edition.summary = 'A generated briefing about changes to important public services.';
-      edition.availability_note = 'Only 1 story met our checks today.';
+      edition.availability_note = 'Supply note: Payments: 1 verified story available.';
       edition.thin_day = true;
       edition.quick_hits = [{ title: 'Weekend settlement window announced', outlet: 'Federal Reserve',
         sentences: ['Payment transfers will use a revised settlement window.', 'The notice applies to participating institutions.'],
@@ -158,6 +158,16 @@ async function run() {
     });
     await seedInterestProfile(page, profile);
     await page.goto(`${baseURL}/#today`, { waitUntil: 'domcontentloaded' });
+    assert.equal(await page.locator('.today-availability-note').innerText(),
+      'Supply note: Payments: 1 verified story available.', 'an honest per-topic short-supply note is visible on Today');
+    if (shots) {
+      fs.mkdirSync(shots, { recursive: true });
+      await page.emulateMedia({ colorScheme: 'light' });
+      await page.screenshot({ path: path.join(shots, 'today-supply-gap-light.png') });
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await page.screenshot({ path: path.join(shots, 'today-supply-gap-dark.png') });
+      await page.emulateMedia({ colorScheme: 'light' });
+    }
     const row = page.locator('.today-story-row').first();
     const rowText = await row.locator('.today-chapter-title').innerText();
     assert.equal(/\[1\]|OFFICIAL|SOURCE-BACKED|Corrected/.test(rowText), false, 'Today omits citation syntax, confidence labels and unlinked correction tags');
@@ -165,7 +175,7 @@ async function run() {
     assert.equal(await row.locator('.today-chapter-kicker').innerText(), '1 · UPDATE: · PAYMENTS', 'Follow-up kicker stays in the chapter overline');
     assert.match(await page.locator('.today-date').innerText(), /^Tuesday 17 November$/);
     assert.ok(await page.locator('.today-chapter-title').count() >= 1);
-    assert.equal(await page.locator('.today-thin-day,.today-availability-note,.today-link-row').count(), 0, 'No banners or raw peripheral items');
+    assert.equal(await page.locator('.today-thin-day,.today-link-row').count(), 0, 'No banner or raw peripheral items');
     assert.equal(await page.locator('.today-quick-hits li').count(), 3, 'The server-filtered remainder renders as three compact quick hits');
     assert.deepEqual(await page.locator('.today-quick-hits li a span').allTextContents(), ['Federal Reserve','Cedar News','Harbor Journal']);
     assert.doesNotMatch(await page.locator('.today-quick-hits').innerText(), /Weekend settlement window announced|revised settlement window/, 'Raw quick hits and summaries stay hidden');
