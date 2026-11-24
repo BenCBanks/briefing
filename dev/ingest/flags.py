@@ -7,7 +7,6 @@ from .paths import checked_state_path
 
 
 DEFAULTS = {
-    'accounts': False,
     'retrieval_fill': False,
     'search_first': False,
     'freshness_days': 90,

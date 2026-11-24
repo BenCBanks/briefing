@@ -39,7 +39,6 @@ if __package__:
     from .ingest.paths import STATE_DIR, profile_identifier
     from .ingest.usage import UsageLedger, UsageError, process_ledger
     from .ingest.flags import effective_flags
-    from .ingest.flags import flag_enabled
     from . import accounts
     from .tools.status_report import build_health_payload
     from .interpreter_proxy import decode_json, interpret_request
@@ -60,7 +59,6 @@ else:
     from ingest.paths import STATE_DIR, profile_identifier
     from ingest.usage import UsageLedger, UsageError, process_ledger
     from ingest.flags import effective_flags
-    from ingest.flags import flag_enabled
     import accounts
     from tools.status_report import build_health_payload
     from interpreter_proxy import decode_json, interpret_request
@@ -91,6 +89,11 @@ POST_RATE_LIMITS = {
     '/api/profile/delete': 3, '/api/episodes': 10, '/api/corrections': 10,
     '/api/episode-action': 30, '/api/voice': 10,
 }
+
+
+def accounts_enabled():
+    """Accounts are enabled only by an explicit environment opt-in."""
+    return os.environ.get('BRIEFING_ACCOUNTS', '').strip().lower() == 'on'
 MAX_API_QUERY_BYTES = 4096
 MAX_API_QUERY_FIELDS = 64
 _post_rate_rows = {}
@@ -514,7 +517,7 @@ class Handler(BaseHTTPRequestHandler):
                 'POST', request_path, self.client_address[0]):
             self._send_json(403, {'error': 'local_only'})
             return
-        if flag_enabled('accounts') and request_path.startswith('/api/account/'):
+        if accounts_enabled() and request_path.startswith('/api/account/'):
             self._account_post(request_path)
             return
         rate_key = _post_rate_key(request_path)
@@ -625,11 +628,11 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Type', 'application/json; charset=utf-8')
         self.send_header('Cache-Control', 'no-store')
         if token is not None:
-            self.send_header('Set-Cookie', accounts.cookie(token))
+            self.send_header('Set-Cookie', accounts.cookie(token, secure=self._request_is_secure()))
         elif expired:
-            self.send_header('Set-Cookie', accounts.cookie('', 0))
+            self.send_header('Set-Cookie', accounts.cookie('', secure=self._request_is_secure(), max_age=0))
         body = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
-        self.send_header('Content-Length', str(len(body)))
+        self.send_header('Content-Length', '0' if status == 204 else str(len(body)))
         self.send_header('X-Content-Type-Options', 'nosniff')
         self.end_headers()
         if status != 204:
@@ -638,6 +641,13 @@ class Handler(BaseHTTPRequestHandler):
     def _account_error(self, error):
         self._account_reply(getattr(error, 'status', 500), {'error': getattr(error, 'code', 'request_failed')})
 
+    def _request_is_secure(self):
+        if getattr(self, 'server', None) and getattr(self.server, 'is_https', False):
+            return True
+        if os.environ.get('BRIEFING_TRUST_PROXY_HEADERS', '').strip().lower() == 'on':
+            return self.headers.get('X-Forwarded-Proto', '').split(',', 1)[0].strip().lower() == 'https'
+        return False
+
     def _account_post(self, path):
         try:
             if path == '/api/account/logout' and not self.headers.get('Content-Length'):
@@ -645,7 +655,7 @@ class Handler(BaseHTTPRequestHandler):
             else:
                 payload = self._account_body()
             if path == '/api/account/signup':
-                account, token, csrf = accounts.signup(payload.get('invite_code'), payload.get('account'), payload.get('password'))
+                account, token, csrf = accounts.signup(payload.get('invite_code'), payload.get('account'), payload.get('password'), self.client_address[0])
                 self._account_reply(201, {'account': accounts._public(account), 'csrf_token': csrf}, token=token)
                 return
             if path == '/api/account/login':
@@ -659,7 +669,9 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/account/delete':
                 if payload.get('confirm') != 'DELETE':
                     raise accounts.AccountError(400, 'confirmation_required')
-                accounts.delete_account(row[2]['id']); self._account_reply(204, {}, expired=True); return
+                accounts.delete_account(row[2]['id'])
+                self._account_reply(204, {}, expired=True)
+                return
             self._send_json(404, {'error': 'not_found'})
         except accounts.AccountError as error:
             self._account_error(error)
@@ -815,7 +827,7 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(400, {'error': 'invalid_query'})
                 return
         episode_path = unquote(request.path)
-        if flag_enabled('accounts') and request.path.startswith('/api/account/'):
+        if accounts_enabled() and request.path.startswith('/api/account/'):
             self._account_get(request.path)
             return
         if request.path == '/api/profile/export':

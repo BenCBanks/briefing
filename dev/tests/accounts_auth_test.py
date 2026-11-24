@@ -6,6 +6,7 @@ from dev.test_guard import enforce_test_environment as _enforce_test_environment
 _enforce_test_environment()
 
 import http.client
+import hashlib
 import json
 import os
 import tempfile
@@ -22,8 +23,12 @@ class AccountAuthTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.env = patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'on',
                                            'BRIEFING_STATE_DIR': self.temp.name,
-                                           'BRIEFING_INVITE_CODE': 'fictional-invite'}, clear=False)
+                                           'BRIEFING_INVITE_CODE_SHA256': hashlib.sha256(
+                                               b'fictional-invite').hexdigest()}, clear=False)
         self.env.start()
+        from dev import accounts
+        with accounts._lock:
+            accounts._attempts.clear()
         self.server = ThreadingHTTPServer(('127.0.0.1', 0), preview_server.Handler)
         self.thread = Thread(target=self.server.serve_forever, daemon=True)
         self.thread.start()
@@ -50,6 +55,7 @@ class AccountAuthTests(unittest.TestCase):
         return response.status, result, cookie_header
 
     def test_signup_cookie_flags_login_rotation_and_csrf(self):
+        self.server.is_https = True
         status, result, cookie = self.request('POST', '/api/account/signup',
                                                {'invite_code': 'fictional-invite', 'account': 'reader-a',
                                                 'password': 'correct horse battery staple'})
@@ -59,13 +65,42 @@ class AccountAuthTests(unittest.TestCase):
         csrf = result['csrf_token']
         status, me, _ = self.request('GET', '/api/account/me', cookie=old_cookie)
         self.assertEqual(status, 200); self.assertEqual(me['account']['name'], 'reader-a')
-        status, _, rotated = self.request('POST', '/api/account/login',
-                                           {'account': 'reader-a', 'password': 'correct horse battery staple'})
-        self.assertEqual(status, 200); self.assertNotEqual(rotated.split(';', 1)[0], old_cookie)
         status, result, _ = self.request('POST', '/api/account/logout', {}, cookie=old_cookie)
         self.assertEqual(status, 403); self.assertEqual(result['error'], 'csrf_required')
-        status, _, _ = self.request('POST', '/api/account/logout', {'csrf_token': csrf}, cookie=old_cookie)
+        status, login_result, rotated = self.request('POST', '/api/account/login',
+                                                     {'account': 'reader-a', 'password': 'correct horse battery staple'})
+        self.assertEqual(status, 200); self.assertNotEqual(rotated.split(';', 1)[0], old_cookie)
+        status, _, _ = self.request('POST', '/api/account/logout', {'csrf_token': login_result['csrf_token']}, cookie=rotated.split(';', 1)[0])
         self.assertEqual(status, 204)
+
+    def test_cookie_secure_only_for_https_or_explicit_trusted_proxy(self):
+        self.server.is_https = False
+        status, _, cookie = self.request('POST', '/api/account/signup',
+                                         {'invite_code': 'fictional-invite', 'account': 'reader-http',
+                                          'password': 'strong fictional passphrase'})
+        self.assertEqual(status, 201)
+        self.assertNotIn('Secure', cookie)
+        self.assertIn('HttpOnly', cookie); self.assertIn('SameSite=Lax', cookie)
+
+    def test_trusted_proxy_secure_cookie_requires_opt_in(self):
+        self.server.is_https = False
+        headers = {'X-Forwarded-Proto': 'https'}
+        with patch.dict(os.environ, {'BRIEFING_TRUST_PROXY_HEADERS': 'off'}):
+            _, _, cookie = self.request('POST', '/api/account/signup',
+                                         {'invite_code': 'fictional-invite', 'account': 'reader-proxy-a',
+                                          'password': 'strong fictional passphrase'}, headers=headers)
+            self.assertNotIn('Secure', cookie)
+        # A one-use invite was consumed by the first account; use a fresh fixture
+        # invite record for the trusted-proxy assertion.
+        from dev import accounts
+        digest = hashlib.sha256(b'fictional-proxy-invite').hexdigest()
+        accounts._write('invites.json', {digest: {'expires': 2**31, 'remaining': 1}})
+        headers['X-Forwarded-Proto'] = 'https'
+        with patch.dict(os.environ, {'BRIEFING_TRUST_PROXY_HEADERS': 'on'}):
+            _, _, cookie = self.request('POST', '/api/account/signup',
+                                         {'invite_code': 'fictional-proxy-invite', 'account': 'reader-proxy-b',
+                                          'password': 'strong fictional passphrase'}, headers=headers)
+        self.assertIn('Secure', cookie)
 
     def test_wrong_password_is_generic_and_locks_out(self):
         self.request('POST', '/api/account/signup', {'invite_code': 'fictional-invite', 'account': 'reader-b',
@@ -80,6 +115,38 @@ class AccountAuthTests(unittest.TestCase):
         with patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'off'}):
             status, result, _ = self.request('GET', '/api/account/me')
             self.assertEqual(status, 404)
+            status, _, _ = self.request('POST', '/api/account/signup', {'invite_code': 'x'})
+            self.assertEqual(status, 404)
+        self.assertFalse((__import__('pathlib').Path(self.temp.name) / 'accounts').exists())
+
+    def test_normalized_name_and_password_policy(self):
+        from dev import accounts
+        with self.assertRaises(accounts.AccountError) as common:
+            accounts.signup('fictional-invite', 'reader-a', 'password123', '127.0.0.1')
+        self.assertEqual(common.exception.code, 'password_too_common')
+        account, _, _ = accounts.signup('fictional-invite', '  Ｒｅａｄｅｒ-A  ',
+                                         'a long fictional passphrase', '127.0.0.1')
+        self.assertEqual(account['name'], 'reader-a')
+        digest = hashlib.sha256(b'fictional-invite').hexdigest()
+        accounts._write('invites.json', {digest: {'expires': 2**31, 'remaining': 1}})
+        with self.assertRaises(accounts.AccountError) as collision:
+            accounts.signup('fictional-invite', 'reader-a', 'another long passphrase', '127.0.0.1')
+        self.assertEqual(collision.exception.code, 'account_exists')
+
+    def test_delete_is_synchronous_and_invalidates_every_session(self):
+        from dev import accounts
+        _, body, cookie = self.request('POST', '/api/account/signup',
+                                       {'invite_code': 'fictional-invite', 'account': 'reader-delete',
+                                        'password': 'long fictional password'})
+        token_cookie = cookie.split(';', 1)[0]
+        accounts._root().joinpath('readers', body['account']['id']).mkdir(parents=True)
+        status, _, expired = self.request('POST', '/api/account/delete',
+                                          {'confirm': 'DELETE'},
+                                          headers={'X-CSRF-Token': body['csrf_token']}, cookie=token_cookie)
+        self.assertEqual(status, 204)
+        self.assertIn('Max-Age=0', expired)
+        self.assertIsNone(accounts.session(token_cookie.split('=', 1)[1]))
+        self.assertFalse((accounts._root() / 'readers' / body['account']['id']).exists())
 
 
 if __name__ == '__main__':

@@ -7,8 +7,16 @@ are unavailable and no account state is created.
 
 ## Threat and privacy boundaries
 
-- Signup uses an operator-provided invite code. The service sends no email and
-  contacts no external recipient.
+- Signup uses an operator-provided invite code whose SHA-256 digest is supplied
+  as `BRIEFING_INVITE_CODE_SHA256`; plaintext invite codes are never stored.
+  Invites expire after 24 hours and allow one successful signup. Signup attempts
+  are rate limited per IP. The service sends no email and contacts no external
+  recipient.
+- Passwords must be 10–256 characters and a common-password blocklist is
+  rejected before hashing. Scrypt work factors are versioned in each record;
+  successful login upgrades records when the configured factors change.
+- Account names are NFKC-normalized, stripped and case-folded, then restricted
+  to 3–32 ASCII letters, digits, dot, underscore or hyphen.
 - Passwords are stored only as `hashlib.scrypt` records with a per-account salt,
   explicit work parameters and a format version. Plain passwords never enter a
   log, response, job payload or ledger record.
@@ -43,7 +51,7 @@ password details.
 | `GET /api/account/me` | session cookie | `200 { "account": { "id": "...", "name": "..." }, "usage": { ... } }` |
 | `GET /api/account/csrf` | session cookie | `200 { "csrf_token": "..." }` |
 | `GET /api/account/export` | session cookie | `200 { "account": { ... }, "profile": { ... }, "episodes": [ ... ], "library": [ ... ], "corrections": [ ... ], "usage": { ... } }` |
-| `POST /api/account/delete` | `{ "confirm": "DELETE" }` plus CSRF header | `202 { "status": "deletion_scheduled" }`; the implementation must erase the account's state and invalidate every session before returning `204` or a final `200` status |
+| `POST /api/account/delete` | `{ "confirm": "DELETE" }` plus CSRF header | Synchronously erases the account, reader state and all sessions, then returns `204` with an expired session cookie |
 
 Account-scoped existing routes keep their current paths and JSON shapes. The
 authenticated reader context is selected from the session, never from a
@@ -53,9 +61,13 @@ continue to use today's single-reader context exactly as they do now.
 ## Session and cookie rules
 
 - Session IDs and CSRF tokens come from a cryptographically secure random
-  source, are single-use on rotation, and expire after a bounded idle and
-  absolute lifetime.
-- Set `Path=/; HttpOnly; SameSite=Lax; Secure` on the session cookie. Do not
+  source, are single-use on rotation, and expire after 7 days idle or 30 days
+  absolute. Session IDs are stored as SHA-256 digests; the store has a 10,000
+  session bound and expired rows are swept on access.
+- Set `Path=/; HttpOnly; SameSite=Lax` on session cookies and add `Secure` when
+  the request is HTTPS. `X-Forwarded-Proto` is trusted only when the operator
+  enables `BRIEFING_TRUST_PROXY_HEADERS=on`; otherwise only the direct HTTPS
+  connection determines cookie security. Do not
   expose the session ID to JavaScript or include it in URLs.
 - Logout, password failure lockout, expiry and account deletion invalidate the
   server-side record. Deletion invalidates all sessions for that account.
