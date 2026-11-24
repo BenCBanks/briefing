@@ -150,6 +150,8 @@ def fill_candidates(topic_candidates, topics, items, registry, history, now, *, 
     feed_prefilter_diagnostics = set()
     from .retrieval.planner import plan_queries
     slot_base, slot_remainder = divmod(MAX_GROUNDING_QUERIES, max(1, len(underfilled)))
+    global_search_limit = (min(MAX_TOPIC_FLOOR_QUERIES * len(underfilled), MAX_GROUNDING_QUERIES)
+                           if topic_floor_search else MAX_GROUNDING_QUERIES)
     for topic_index, topic in enumerate(underfilled):
         if end - time.monotonic() < 1:
             rejected['deadline'] += 1
@@ -186,8 +188,6 @@ def fill_candidates(topic_candidates, topics, items, registry, history, now, *, 
                     query = (planned_query + ' additional reporting and recent developments')[:500]
                 selected = [] if topic_floor_search else list(feed_providers)
                 if search_first:
-                    global_search_limit = (MAX_TOPIC_FLOOR_QUERIES * len(underfilled)
-                                           if topic_floor_search else MAX_GROUNDING_QUERIES)
                     if (external_providers and topic_external_slots > 0 and
                             search_slots < global_search_limit):
                         selected.append(external_providers[search_slots % len(external_providers)])

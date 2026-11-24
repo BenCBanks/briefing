@@ -270,6 +270,20 @@ class FillTests(unittest.TestCase):
         self.assertEqual(len(pool['ai-finance']), 1)
         self.assertEqual(len(bodies), 2)
 
+    def test_topic_floor_search_respects_global_grounding_query_ceiling(self):
+        topics = [
+            {'id': f'topic-{index}', 'label': f'Topic {index}',
+             'scope': f'Fictional topic {index} developments', 'include': []}
+            for index in range(4)
+        ]
+        empty = {topic['id']: [] for topic in topics}
+        fill.fill_candidates(empty, topics, [], self.registry, self.history, NOW,
+                             passed_candidates=empty, enabled=True, topic_floor_search=True)
+
+        search_requests = [provider for provider, _query in self.queries if provider != 'feeds']
+        self.assertEqual(len(search_requests), fill.MAX_GROUNDING_QUERIES)
+        self.assertLessEqual(len(search_requests), fill.MAX_GROUNDING_QUERIES)
+
     def test_quality_prefers_relevance_and_credibility_without_a_recency_gate(self):
         self.rows = [self.hint('Seven insights', host='blog'), self.hint('Top 7 payment tips', 'tips'),
                      self.hint('Earlier timetable', 'old', date='2026-11-16T11:00:00Z'),
