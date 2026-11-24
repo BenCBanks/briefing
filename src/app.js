@@ -36,7 +36,7 @@ import { episodeHistoryState, episodeHistoryDismissed, saveEpisodeHistoryDismiss
 import { EPISODE_STAGE_FIXTURES, announceEpisodeStage as announceEpisodeStageView, episodeStageIndex, episodeStageTitle, episodeHasReadyAudio, episodeLengthCopy, renderEpisodeMakingPage as renderEpisodeMakingScreen, updateEpisodeMakingView as updateEpisodeMakingScreen } from './screens/episode-making.js';
 import { renderEpisodeRoute as renderEpisodeRouteScreen, renderEpisodeRouteFailure as renderEpisodeRouteFailureScreen } from './screens/episode-route.js';
 import { createEditionReaderScreen } from './screens/edition-reader.js';
-import { describeRoute, restoreRouteView } from './screens/route-controller.js';
+import { createRouteLifecycleController } from './screens/route-lifecycle.js';
 import { createNavigationController } from './screens/navigation-controller.js';
 import { createDetailRouteController } from './screens/detail-routes.js';
 import { createEditionDataLoader } from './edition/data-loader.js';
@@ -840,87 +840,14 @@ async function cancelEpisodeJob() {
   navigate('#ask-episode', { root: 'today', parentHash: '#episode-making', parentScroll: 0 });
 }
 
-let restoringRoute = false;
-let renderedRouteHash = null;
-let historyEntrySequence = 0;
-history.scrollRestoration = 'manual';
-const routeRestoration = {
-  window, content, document, CSS,
-  revealStoryMore, paragraphAt, currentRevision, trackReadingPlace,
-  get pack() { return pack; },
-  get pendingScrollRestore() { return pendingScrollRestore; },
-  set pendingScrollRestore(value) { pendingScrollRestore = value; },
-  get pendingSourceFocusID() { return pendingSourceFocusID; },
-  set pendingSourceFocusID(value) { pendingSourceFocusID = value; },
-  get pendingReturnHeadingFocus() { return pendingReturnHeadingFocus; },
-  set pendingReturnHeadingFocus(value) { pendingReturnHeadingFocus = value; },
-  get pendingTranscriptPlacement() { return pendingTranscriptPlacement; },
-  set pendingTranscriptPlacement(value) { pendingTranscriptPlacement = value; },
-  get pendingPlayerReturnFocus() { return pendingPlayerReturnFocus; },
-  set pendingPlayerReturnFocus(value) { pendingPlayerReturnFocus = value; },
-  setRestoringRoute(value) { restoringRoute = value; },
-};
+function route(...args) { return routeLifecycleController.route(...args); }
 
-function route() {
-  if (!pack) return;
-  episodeDeckCleanup?.(); episodeDeckCleanup = null;
-  restoringRoute = true;
-  renderedRouteHash = location.hash || '#today';
-  invalidateMaterialCorrections();
-  const nextHash = location.hash || '#today';
-  finishStoryVisit(nextHash);
-  readingObserver?.disconnect(); readingObserver = null;
-  content.classList.remove('interests-page');
-  content.classList.remove('first-run-describe', 'interest-build-screen');
-  content.textContent = '';
-  const routeHash = location.hash || '#today';
-  const routeName = decodeURIComponent(routeHash.slice(1));
-  if (interestInterpretController && !routeName.startsWith('interests/')) {
-    interestInterpretController.abort();
-    interestInterpretController = null;
-    interestInterpretBusy = false;
-  }
-  const routeState = history.state || {};
-  if (pendingRouteContext) {
-    history.replaceState({ ...routeState, routeContext: pendingRouteContext }, '', location.href);
-    pendingRouteContext = null;
-  } else if (!routeState.routeContext) {
-    const directRoot = rootForHash(routeHash, null);
-    const directParent = routeName.startsWith('explanation/') ? '#topics' : routeName.startsWith('topic/') || routeName.startsWith('topic-detail/') ? '#topics' : null;
-    history.replaceState({ ...routeState, routeContext: { root: directRoot, parentHash: directParent, parentScroll: 0, parentFocus: null, direct: Boolean(directParent) } }, '', location.href);
-  }
-  if (!history.state?.viewKey) history.replaceState({ ...history.state, viewKey: `${Date.now()}-${++historyEntrySequence}` }, '', location.href);
-  const routeDescriptor = describeRoute(routeHash, history.state?.routeContext, rootForHash);
-  const { episodeRoute, onDemandRoute, group, editionKind, isReader, pageTitle } = routeDescriptor;
-  trackRouteSignals(routeHash, routeName);
-  if (history.state?.transcriptHash === routeHash && history.state?.transcriptOrigin) {
-    transcriptReturnTo = history.state.transcriptOrigin;
-    transcriptReturnHash = history.state.transcriptHash;
-  } else if (transcriptReturnHash && routeHash !== transcriptReturnHash && !routeName.startsWith('source/')) {
-    if (routeHash === transcriptReturnTo?.hash) {
-      pendingScrollRestore = transcriptReturnTo.scrollY;
-      pendingPlayerReturnFocus = true;
-    }
-    transcriptReturnTo = null; transcriptReturnHash = null;
-  }
-  if (!routeName.startsWith('topic/') && !routeName.startsWith('explanation/') && !routeName.startsWith('source/')) deepDiveReturnTo = null;
-  if (routeName.startsWith('topic/') && !deepDiveReturnTo) {
-    deepDiveReturnTo = { hash: '#topics', sectionId: null, scrollY: 0 };
-  }
-  document.body.classList.toggle('is-reader', isReader);
-  document.querySelector('[data-page-title]').textContent = pageTitle;
-  document.body.classList.toggle('is-today', routeName === 'today');
-  document.body.classList.toggle('is-topics', routeName === 'topics');
-  document.body.classList.toggle('is-episodes-list', routeName === 'episodes');
-  document.title = `${pageTitle} · Personal briefing`;
-  // Interface · pass 010 navigation: Settings is opened by the gear, so no reader tab is current there.
-  for (const item of nav) {
-    if (routeName === 'preferences') item.removeAttribute('aria-current');
-    else if (item.dataset.nav === group) item.setAttribute('aria-current', 'page');
-    else item.removeAttribute('aria-current');
-  }
-  renderRouteContent(routeName, {
-    episodeRoute, content, node, link, history, interestProfile, pendingTopicsUpdate, buildInProgress,
+const routeLifecycleController = createRouteLifecycleController({
+  window, content, document, CSS, nav, location, history, historyViews, player, sessionStorage,
+  invalidateMaterialCorrections, finishStoryVisit, trackRouteSignals, focusToken, navigate,
+  startBuildGeneration, showToast, rootForHash,
+  renderRouteContent: (routeName, descriptor) => renderRouteContent(routeName, {
+    episodeRoute: descriptor.episodeRoute, content, node, link, history, interestProfile, pendingTopicsUpdate, buildInProgress,
     todayListSkeleton, renderTodayScreen, getState: () => state, setState: value => { state = value; },
     FIRST_EDITION_WELCOME_KEY, profileBuildKey, BUILD_GENERAL_FALLBACK_KEY, currentEdition,
     filterGeneralEditionForProfile: (edition, profile) => filterGeneralEditionForProfile(edition, profile, pack.topics),
@@ -944,45 +871,28 @@ function route() {
     getLibraryFilter: () => libraryFilter, setLibraryFilter: value => { libraryFilter = value; },
     getLibrarySearchQuery: () => librarySearchQuery, setLibrarySearchQuery: value => { librarySearchQuery = value; },
     loadEpisodeCards, canListen, createPlayIcon, startListening, browserCanSpeak, loadEditionHistory,
-  });
-  if (firstRunPending && firstRunRecoveryAvailable && ['today', 'interests/build'].includes(routeName)) {
-    firstRunRecoveryAvailable = false;
-    const pending = firstRunPending;
-    const profile = interestProfile;
-    queueMicrotask(() => { if (profile) void startBuildGeneration(profile, null, {
-      firstRun: true, resumeJobId: pending.jobId, inline: routeName === 'today',
-    }); });
-  }
-  const settingsNotice = sessionStorage.getItem('briefing:settings-saved');
-  if (settingsNotice && ['today', 'topics', 'library'].includes(group) && !isReader) {
-    showToast(settingsNotice); sessionStorage.removeItem('briefing:settings-saved');
-  }
-  player.refresh();
-  const viewState = historyViews.get(history.state?.viewKey) || history.state?.viewState || history.state?.routeContext?.restore;
-  restoreRouteView(routeRestoration, routeName, viewState);
-}
-
-// Hash routes create real browser entries. Keep the outgoing entry current
-// even when the user presses browser Back instead of an in-app link.
-window.addEventListener('scroll', () => {
-  if (restoringRoute || renderedRouteHash !== (location.hash || '#today')) return;
-  const viewState = { scrollY: window.scrollY, focus: focusToken() || history.state?.viewState?.focus || null };
-  // Keep each history entry's latest position without rate-limited History API
-  // writes on every scroll frame (notably on mobile Safari).
-  historyViews.set(history.state?.viewKey, viewState);
-}, { passive: true });
-window.addEventListener('hashchange', route);
-document.addEventListener('click', event => {
-  if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  const anchor = event.target.closest?.('a[href^="#"]');
-  if (!anchor || anchor.target === '_blank') return;
-  const hash = anchor.getAttribute('href');
-  if (!hash || hash === '#content') return;
-  event.preventDefault();
-  const isRoot = ['#today', '#topics', '#ask', '#library', '#earlier'].includes(hash);
-  const root = isRoot ? hash.slice(1) : rootForHash(location.hash);
-  navigate(hash, { root, parentHash: isRoot ? null : (location.hash || '#today'), parentScroll: window.scrollY, parentFocus: focusToken() });
+  }),
+  get pack() { return pack; },
+  get episodeDeckCleanup() { return episodeDeckCleanup; }, set episodeDeckCleanup(value) { episodeDeckCleanup = value; },
+  get readingObserver() { return readingObserver; }, set readingObserver(value) { readingObserver = value; },
+  get interestInterpretController() { return interestInterpretController; }, set interestInterpretController(value) { interestInterpretController = value; },
+  set interestInterpretBusy(value) { interestInterpretBusy = value; },
+  get pendingRouteContext() { return pendingRouteContext; }, set pendingRouteContext(value) { pendingRouteContext = value; },
+  get transcriptReturnTo() { return transcriptReturnTo; }, set transcriptReturnTo(value) { transcriptReturnTo = value; },
+  get transcriptReturnHash() { return transcriptReturnHash; }, set transcriptReturnHash(value) { transcriptReturnHash = value; },
+  get pendingScrollRestore() { return pendingScrollRestore; }, set pendingScrollRestore(value) { pendingScrollRestore = value; },
+  get pendingPlayerReturnFocus() { return pendingPlayerReturnFocus; }, set pendingPlayerReturnFocus(value) { pendingPlayerReturnFocus = value; },
+  get deepDiveReturnTo() { return deepDiveReturnTo; }, set deepDiveReturnTo(value) { deepDiveReturnTo = value; },
+  get pendingSourceFocusID() { return pendingSourceFocusID; }, set pendingSourceFocusID(value) { pendingSourceFocusID = value; },
+  get pendingReturnHeadingFocus() { return pendingReturnHeadingFocus; }, set pendingReturnHeadingFocus(value) { pendingReturnHeadingFocus = value; },
+  get pendingTranscriptPlacement() { return pendingTranscriptPlacement; }, set pendingTranscriptPlacement(value) { pendingTranscriptPlacement = value; },
+  get firstRunPending() { return firstRunPending; }, set firstRunPending(value) { firstRunPending = value; },
+  get firstRunRecoveryAvailable() { return firstRunRecoveryAvailable; }, set firstRunRecoveryAvailable(value) { firstRunRecoveryAvailable = value; },
+  get interestProfile() { return interestProfile; },
+  getRouteRestorationHelpers: () => ({ revealStoryMore, paragraphAt, currentRevision, trackReadingPlace }),
 });
+routeLifecycleController.install();
+
 function cacheIdentity(...args) { return editionRefreshController.cacheIdentity(...args); }
 function keepReadingPosition(...args) { return editionRefreshController.keepReadingPosition(...args); }
 function cachedFailure(...args) { return editionRefreshController.cachedFailure(...args); }
