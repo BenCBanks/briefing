@@ -1131,6 +1131,7 @@ class GenerationApiTests(unittest.TestCase):
 
     def test_daily_narration_exceptions_short_scripts_and_empty_results_publish_text_only(self):
         from dev import content_check
+        from dev import interpreter_proxy
         from ingest import daily_briefing, daily_narration, score_edition, write_edition
         from ingest.daily_audio import daily_episode_from_edition, render_daily_audio
 
@@ -1149,6 +1150,9 @@ class GenerationApiTests(unittest.TestCase):
         detail = {'sentence_evidence': {}, 'candidate_results': [], 'candidate_attempts': 1,
                   'candidate_attempt_limit': 1}
         clean_score = {'critical_failed': False, 'failed_critical': [], 'checks': []}
+        fixture_key = self.root / 'fixture-narration-key'
+        fixture_key.write_text('fixture-only', encoding='utf-8')
+        fixture_key.chmod(0o600)
         outcomes = (
             ('type-error', TypeError('fixture-only broken call'), 'TypeError'),
             ('too-short', {'status': 'fallback',
@@ -1173,6 +1177,7 @@ class GenerationApiTests(unittest.TestCase):
                     }
 
                 with patch.dict('os.environ', {'BRIEFING_DAILY_NARRATION': 'on'}), \
+                     patch.object(interpreter_proxy, 'KEY_FILE', fixture_key), \
                      patch.object(generation_api.core, 'ingest_enabled', return_value={
                          'parsed_items': 1, 'fetched_sources': 1, 'errors': 0,
                          'source_results': {'source-fixture': 'ok'}}), \
