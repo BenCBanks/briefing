@@ -147,6 +147,8 @@ Sound like a calm, knowledgeable podcast host speaking to one listener in a flow
 not a headline list or compliance memo. Use contractions and varied phrasing. Carry one narrative
 from the opening through the close, with context and reasoning that help the listener understand why
 developments matter.
+Explain for an intelligent non-specialist: one idea per paragraph, with no equation-level detail
+unless the listener asks for it.
 Open with a direct, natural answer to the listener's question in plain words. Never repeat the raw
 question as a template, and never announce a duration or say “Here is your five-minute briefing.”
 Use short spoken transitions that state the connection to the next idea in ordinary language. Write
@@ -159,6 +161,9 @@ read a chapter title, section title, or bare research question aloud. A connecti
 must refer to a contrast established by the immediately preceding sentence. Close with one concise
 takeaway drawn only from the episode's own supported claims; if there is no useful synthesis, omit it.
 If evidence leaves gaps, state them once in one plain sentence without listing unanswered questions.
+Make that honest-gap sentence its own closing beat, after the supported explanation, never in the middle
+of a paragraph. Do not append “Watch for,” “Going forward,” “Keep an eye on,” or “Monitor” advice unless
+the evidence itself supports a concrete next step.
 Do not add a boilerplate “What we couldn't confirm” chapter or unrelated facts to fill time.
 Do not sound like alerts or compressed news copy. Use natural bridges between ideas, and explain
 each development before moving to its implications. Keep one host;
@@ -428,6 +433,14 @@ def _fallback_episode(topic, length, style, request_context, now, evidence, sour
 
 def digest(text):
     return hashlib.sha256(text.encode('utf-8')).hexdigest()
+
+
+def _is_explainer_request(topic):
+    """Classify evergreen how/why questions for the opt-in hybrid path."""
+    text = str(topic or '').strip().casefold()
+    if re.search(r'\b(current|latest|today|this week|recent|next|announced|changed|testing)\b', text):
+        return False
+    return bool(re.search(r'\b(how|why|what is|what are|explain|difference between|compare)\b', text))
 
 
 def transcript(chapters):
@@ -945,9 +958,12 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                          for index, (question, batch) in enumerate(zip(questions, batches))]
         all_reads.clear()
         del batches, research_result
-    if len(evidence) < 5 or not sources:
-        mode = 'thin_evidence' if evidence else 'general_background'
-        if os.environ.get('BRIEFING_EPISODE_FALLBACK_MODEL', '').strip().lower() in {'1', 'on', 'true'}:
+    hybrid_on = os.environ.get('BRIEFING_EPISODE_HYBRID', '').strip().lower() in {'1', 'on', 'true'}
+    hybrid_explainer = hybrid_on and _is_explainer_request(topic)
+    if len(evidence) < 5 or not sources or hybrid_explainer:
+        mode = 'general_background' if hybrid_explainer or not evidence else 'thin_evidence'
+        model_fallback_on = os.environ.get('BRIEFING_EPISODE_FALLBACK_MODEL', '').strip().lower() in {'1', 'on', 'true'}
+        if model_fallback_on or hybrid_explainer:
             fallback_payload = {
                 'topic': topic, 'mode': mode,
                 'target_words': length * WORDS_PER_MINUTE,
