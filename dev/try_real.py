@@ -24,6 +24,47 @@ if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 DEFAULT_MINUTES = 5
 MAX_WAIT_SECONDS = 600
+LIVE_STATE_DIR = (Path.home() / '.local' / 'state' / 'briefing').resolve()
+
+
+def assert_isolated_state(state_dir):
+    """Refuse any runner state that is, or contains, the live state root."""
+    state = Path(state_dir).expanduser().resolve()
+    live = LIVE_STATE_DIR
+    if state == live or state in live.parents or live in state.parents:
+        raise RuntimeError('try_real refuses live briefing state')
+    return state
+
+
+def _assert_imported_paths_are_isolated(state):
+    """Catch module constants captured before BRIEFING_STATE_DIR was set."""
+    import importlib
+    from dev.ingest import core, discover, flags, generation_api
+    from dev.ingest import paths
+    # Test modules may import these before entering ``isolated_run``. Reload
+    # their path constants after the temporary override so they cannot retain
+    # the live status/feed/discovery locations.
+    importlib.reload(paths)
+    importlib.reload(core)
+    importlib.reload(discover)
+    importlib.reload(flags)
+    importlib.reload(generation_api)
+    candidates = {
+        'paths.STATE_DIR': paths.STATE_DIR,
+        'core.STORE_PATH': core.STORE_PATH,
+        'generation_api.STATUS_PATH': generation_api.STATUS_PATH,
+        'generation_api.FEED_HEALTH_PATH': generation_api.FEED_HEALTH_PATH,
+        'discover.DISCOVERY_STATE': discover.DISCOVERY_STATE,
+        'flags.path': flags.flags_path(),
+    }
+    state = Path(state).resolve()
+    for name, value in candidates.items():
+        if value is None:
+            continue
+        path = Path(value).expanduser().resolve()
+        if path != state and state not in path.parents:
+            raise RuntimeError(f'try_real state path escaped temporary root: {name}')
+        assert_isolated_state(path)
 
 
 def fictional_profile() -> dict:
@@ -60,7 +101,7 @@ def isolated_run(*, search_first=False):
     keys = ['BRIEFING_STATE_DIR', 'BRIEFING_FLAGS_FILE', 'BRIEFING_TESTING', *flag_environment]
     previous = {key: os.environ.get(key) for key in keys}
     with tempfile.TemporaryDirectory(prefix='briefing-try-real-') as directory:
-        state = Path(directory)
+        state = assert_isolated_state(Path(directory))
         (state / 'profile.json').write_text(json.dumps(fictional_profile()), encoding='utf-8')
         os.environ['BRIEFING_STATE_DIR'] = str(state)
         # A real-run check must not borrow a live profile's feature flags.
@@ -72,6 +113,7 @@ def isolated_run(*, search_first=False):
         if search_first:
             os.environ['BRIEFING_SEARCH_FIRST'] = 'on'
         os.environ.pop('BRIEFING_TESTING', None)
+        _assert_imported_paths_are_isolated(state)
         try:
             yield state
         finally:

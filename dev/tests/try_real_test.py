@@ -8,11 +8,22 @@ from contextlib import redirect_stdout
 from io import StringIO
 from unittest.mock import patch
 
-from dev.try_real import _print_funnel, fictional_profile, isolated_run, ledger_cost_delta
+from dev.try_real import (_print_funnel, assert_isolated_state, fictional_profile,
+                          isolated_run, ledger_cost_delta)
 from dev.ingest.usage import UsageCapReached, UsageLedger
 
 
 class TryRealTests(unittest.TestCase):
+    def test_refuses_live_state_root_and_children(self):
+        live = Path.home() / '.local' / 'state' / 'briefing'
+        for path in (live, live / 'status.json'):
+            with self.subTest(path=path), self.assertRaisesRegex(RuntimeError, 'refuses live'):
+                assert_isolated_state(path)
+
+    def test_accepts_temporary_state_outside_live_root(self):
+        with tempfile.TemporaryDirectory() as root:
+            self.assertEqual(assert_isolated_state(root), Path(root).resolve())
+
     def test_profile_is_fictional_and_has_three_editorial_topics(self):
         profile = fictional_profile()
         self.assertEqual([row['label'] for row in profile['topics']],

@@ -3,6 +3,7 @@
 
 import json
 import hashlib
+import logging
 import math
 import os
 from pathlib import Path
@@ -384,8 +385,13 @@ def _one_profile(profile, wait_seconds, poll_seconds, start, get_job, sleep,
             if isinstance(edition, dict):
                 try:
                     audio = daily_audio_renderer(edition, profile=profile)
+                    if not isinstance(audio, dict) or audio.get('audio_status') != 'ready':
+                        logging.getLogger(__name__).warning(
+                            'Daily audio unavailable: %s',
+                            (audio.get('reason') if isinstance(audio, dict) else 'renderer_invalid_result'))
                     job['daily_audio'] = daily_audio_persister(profile, edition, audio)
                 except Exception as error:
+                    logging.getLogger(__name__).warning('Daily audio unavailable: %s', type(error).__name__)
                     # Keep the published text edition usable when a renderer
                     # fails outside its normal error boundary. Persist the
                     # explicit text-only state so the Today player can show

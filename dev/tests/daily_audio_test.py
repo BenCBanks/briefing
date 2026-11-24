@@ -886,7 +886,7 @@ class DailyAudioTests(unittest.TestCase):
         self.assertEqual(json.loads(status_path.read_text())['daily_run']['daily_audio']['audio_status'], 'pending')
         self.assertEqual(json.loads(text_path.read_text())['edition']['sections'], EDITION['sections'])
         logged = stream.getvalue()
-        self.assertIn('daily_audio_failure {"count":1,"reason":"render_failed"}', logged)
+        self.assertIn('Daily audio render failed: Chapter 1 failed after 3 attempts', logged)
         for private in ('fictional TTS failure', 'First fictional story', 'Kore'):
             self.assertNotIn(private, logged)
 
