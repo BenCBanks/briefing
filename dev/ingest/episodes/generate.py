@@ -305,7 +305,7 @@ def balance_chapter_targets(research_plan, target_words):
 
 def _fallback_episode(topic, length, style, request_context, now, evidence, sources,
                       timing, counts, query_count, read_attempts, discovered_count,
-                      retrieval_history, client, mode, draft=None):
+                      retrieval_history, client, mode, draft=None, *, hybrid=False):
     """Return a useful, explicitly labelled answer when retrieval is sparse.
 
     This path deliberately contains no model-written facts. Thin evidence can
@@ -391,6 +391,26 @@ def _fallback_episode(topic, length, style, request_context, now, evidence, sour
                               'title_evidence_ids': ([next(iter(evidence))] if evidence else []),
                               'sentences': rows,
                               'spoken_text': ' '.join(row['text'] for row in rows)}]
+    if hybrid and evidence_chapters:
+        first_rows = evidence_chapters[0]['sentences']
+        boundary = 'The broad explanation comes from general knowledge. Any specific details I could check are tied to the sources listed.'
+        if not any(row.get('text') == boundary for row in first_rows):
+            opening_index = next((index + 1 for index, row in enumerate(first_rows)
+                                  if row.get('kind') == 'opening'), 0)
+            first_rows.insert(opening_index, {'id': f'c1-s{len(first_rows) + 1}',
+                'text': boundary, 'kind': 'editorial', 'evidence_ids': [],
+                'source_ids': [], 'source_numbers': []})
+        if sensitive and not any(re.search(r'qualified professional',
+                                           row.get('text', ''), re.I)
+                                 for chapter in evidence_chapters for row in chapter['sentences']):
+            safety = ('For health, legal, or money decisions, use this as general background and check with a qualified professional.'
+                      if sensitive else '')
+            close = next((index for index, row in enumerate(first_rows)
+                          if row.get('kind') == 'closing'), len(first_rows))
+            first_rows.insert(close, {'id': f'c1-s{len(first_rows) + 1}', 'text': safety,
+                'kind': 'editorial', 'evidence_ids': [], 'source_ids': [], 'source_numbers': []})
+        for chapter in evidence_chapters:
+            chapter['spoken_text'] = ' '.join(row['text'] for row in chapter['sentences'])
     script = transcript(evidence_chapters)
     count = len(words(script))
     script_hash = digest(script)
@@ -417,7 +437,7 @@ def _fallback_episode(topic, length, style, request_context, now, evidence, sour
             'evidence_pack': {'version': 1, 'id': digest(json.dumps(
                 {k: digest(v['text']) for k, v in evidence.items()}, sort_keys=True)),
                 'sentence_count': len(evidence), 'retained_text': False},
-            'verification': {'passed': True, 'fallback': mode,
+            'verification': {'passed': True, 'fallback': mode, 'hybrid_background': hybrid,
                              'script_checks': {'passed': True, 'soft_warnings': ['fallback_mode']}},
             'soft_warnings': ['fallback_mode'], 'timing': timing,
             'quality_rubric': {'passed': False, 'partial': True, 'issues': ['fallback_mode']},
@@ -442,9 +462,67 @@ def digest(text):
 def _is_explainer_request(topic):
     """Classify evergreen how/why questions for the opt-in hybrid path."""
     text = str(topic or '').strip().casefold()
-    if re.search(r'\b(current|latest|today|this week|recent|next|announced|changed|testing)\b', text):
+    if re.search(r'\b(current|currently|latest|today|yesterday|tomorrow|this week|this month|this year|recent|next|announced|changed|testing|launching|launched|who|when|where|what happened|what did|how did|why did|will|has|have)\b', text):
         return False
-    return bool(re.search(r'\b(how|why|what is|what are|explain|difference between|compare)\b', text))
+    if re.search(r'\b(?:19|20)\d{2}\b|\b(?:jan(?:uary)?|feb(?:ruary)?|mar(?:ch)?|apr(?:il)?|may|jun(?:e)?|jul(?:y)?|aug(?:ust)?|sep(?:tember)?|oct(?:ober)?|nov(?:ember)?|dec(?:ember)?)\b', text):
+        return False
+    # A named person, organization, place, or project usually makes the request
+    # specific enough to keep on the researched path. Common subject acronyms
+    # remain available for evergreen explainers.
+    from .. import score_edition
+    generic_acronyms = {'ai', 'api', 'cpu', 'dna', 'gpu', 'gps', 'rna'}
+    likely_names = {name.casefold() for name in score_edition._likely_names(str(topic or ''))}
+    if any(name not in generic_acronyms for name in likely_names):
+        return False
+    return bool(re.search(r'\b(how|why|what is|what are|what does|what do|explain|difference between|compare)\b', text))
+
+
+def _hybrid_background_draft_valid(draft, evidence):
+    """Check source claims and keep unsourced remembered background evergreen."""
+    try:
+        normalized = deepcopy(draft)
+        for chapter in normalized.get('chapters', []):
+            for sentence in chapter.get('sentences', []):
+                if isinstance(sentence, dict) and sentence.get('kind') == 'editorial':
+                    sentence['kind'] = 'claim'
+        rows = _rows(normalized)
+    except EpisodeError:
+        return False
+    if not rows:
+        return False
+    sentences = [row for row in rows if row['kind'] != 'heading']
+    if not sentences or sentences[0]['kind'] != 'opening' or not re.match(
+            r'^this is general background, not current reporting\b',
+            sentences[0]['text'].strip(), re.I):
+        return False
+    from .. import score_edition
+    evergreen_names = {'ai', 'api', 'cpu', 'dna', 'earth', 'gpu', 'gps', 'internet', 'moon', 'rna', 'sun'}
+    evergreen_acronyms = {'AI', 'API', 'CPU', 'DNA', 'GPU', 'GPS', 'RNA'}
+    current_claim = re.compile(r'\b(?:recently|today|yesterday|tomorrow|currently|latest|this week|this month|this year|last week|last month|last year|as of)\b', re.I)
+    unsourced_number = re.compile(r'\b(?:\d|zero|one|two|three|four|five|six|seven|eight|nine|ten|hundred|thousand|million|billion|percent|percentage|dollars?|euros?|pounds?)\b', re.I)
+    for row in sentences:
+        ids = row.get('evidence_ids')
+        if not isinstance(ids, list) or any(not isinstance(ident, str) or ident not in evidence for ident in ids):
+            return False
+        if ids:
+            cited = ' '.join(evidence[ident].get('text', '') for ident in ids)
+            if row['kind'] in {'opening', 'navigation'} or not score_edition._sentence_supported(
+                    row['text'], ids, evidence):
+                return False
+            if any(not score_edition._name_supported(cited, name)
+                   for name in score_edition._likely_names(row['text'], cited)):
+                return False
+            continue
+        if row['kind'] == 'opening':
+            continue
+        if (re.search(r'[\d"“”]', row['text']) or current_claim.search(row['text']) or
+                unsourced_number.search(row['text'])):
+            return False
+        names = {name.casefold() for name in score_edition._likely_names(row['text'])}
+        acronyms = set(re.findall(r'\b[A-Z]{2,8}\b', row['text'])) - evergreen_acronyms
+        if names - evergreen_names or acronyms:
+            return False
+    return True
 
 
 def transcript(chapters):
@@ -970,6 +1048,26 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
         mode = 'general_background' if hybrid_explainer or not evidence else 'thin_evidence'
         model_fallback_on = os.environ.get('BRIEFING_EPISODE_FALLBACK_MODEL', '').strip().lower() in {'1', 'on', 'true'}
         if model_fallback_on or hybrid_explainer:
+            if mode == 'general_background' and hybrid_explainer:
+                fallback_rules = (
+                    'Open with exactly: “This is general background, not current reporting.” Explain evergreen '
+                    'principles in a natural host voice. Specific facts, statistics, dates, names, organisations and quotes '
+                    'must be tied to exact evidence_ids from the supplied pack. Without a citation, do not state numbers, '
+                    'dates, named people or organisations, quotes, or recent/current claims. Include one plain sentence '
+                    'that separates general knowledge from specific details checked against the listed sources. For '
+                    'uncited general knowledge, use kind claim with an empty evidence_ids list; use citations for checked specifics. '
+                    'sensitive health, legal or money topics, include a plain safety note. Aim for the requested length '
+                    'when the evidence supports it; do not add details just to fill time.')
+            elif mode == 'general_background':
+                fallback_rules = (
+                    'Open by saying this is general background, not current reporting. Explain only evergreen '
+                    'principles and well-known structure. Do not use statistics, dates, named people or organisations, '
+                    'quotes, or recent claims unless supplied in evidence. For sensitive topics, include a plain safety note. '
+                    'Use a host voice and aim for the requested length.')
+            else:
+                fallback_rules = (
+                    'Write a short host answer using only the supplied evidence. Do not quote or copy sentences verbatim; '
+                    'paraphrase only what those sentences support. State once what could not be confirmed.')
             fallback_payload = {
                 'topic': topic, 'mode': mode,
                 'target_words': length * WORDS_PER_MINUTE,
@@ -978,13 +1076,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                 'research_plan': ([{'question': topic, 'target_words': length * WORDS_PER_MINUTE,
                                     'source_ids': [s['id'] for s in sources],
                                     'evidence_ids': list(evidence)}] if mode == 'thin_evidence' else []),
-                'fallback_rules': (
-                    'Open by saying this is general background, not current reporting. Explain only evergreen '
-                    'principles and well-known structure. Do not use statistics, dates, named people or organisations, '
-                    'quotes, or recent claims unless supplied in evidence. For sensitive topics, include a plain safety note. '
-                    'Use a host voice and aim for the requested length.' if mode == 'general_background' else
-                    'Write a short host answer using only the supplied evidence. Do not quote or copy sentences verbatim; '
-                    'paraphrase only what those sentences support. State once what could not be confirmed.')}
+                'fallback_rules': fallback_rules}
             try:
                 modeled = call(SYSTEM_PROMPT + '\nFALLBACK HOST PASS: Follow fallback_rules exactly. Return one coherent script.',
                                fallback_payload, SCRIPT_SCHEMA, call_name='fallback_writer')
@@ -992,7 +1084,29 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                 if valid:
                     text_rows = [sentence for chapter in modeled['chapters'] if isinstance(chapter, dict)
                                  for sentence in chapter.get('sentences', []) if isinstance(sentence, dict)]
-                    if mode == 'general_background':
+                    if mode == 'general_background' and hybrid_explainer:
+                        valid = _hybrid_background_draft_valid(modeled, evidence)
+                        if valid:
+                            normalized_for_check = deepcopy(modeled)
+                            for chapter in normalized_for_check.get('chapters', []):
+                                for sentence in chapter.get('sentences', []):
+                                    if isinstance(sentence, dict) and sentence.get('kind') == 'editorial':
+                                        sentence['kind'] = 'claim'
+                            source_rows = [row for row in _rows(normalized_for_check)
+                                           if row['kind'] in {'claim', 'closing'} and row['evidence_ids']]
+                            if source_rows:
+                                checked = call(VERIFY_PROMPT, {
+                                    'topic': topic, 'script': source_rows, 'evidence': evidence,
+                                    'could_not_confirm': modeled.get('could_not_confirm', [])},
+                                    VERIFY_SCHEMA, call_name='script_verifier')
+                                verdicts = checked.get('verdicts', []) if isinstance(checked, dict) else []
+                                verdict_map = {row.get('id'): row.get('supported') for row in verdicts
+                                               if isinstance(row, dict) and isinstance(row.get('id'), str)}
+                                expected = {row['id'] for row in source_rows}
+                                valid = (all(sum(row.get('id') == ident for row in verdicts
+                                                 if isinstance(row, dict)) == 1 for ident in expected) and
+                                         all(verdict_map.get(ident) is True for ident in expected))
+                    elif mode == 'general_background':
                         forbidden = re.compile(r'\d|["“”]|\b(?:recent|today|yesterday|last week)\b', re.I)
                         valid = bool(text_rows) and all(not sentence.get('evidence_ids') and
                                                          sentence.get('kind') in {'opening', 'editorial', 'navigation', 'closing'} and
@@ -1003,7 +1117,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                 if valid:
                     return _fallback_episode(topic, length, style, request_context, now, evidence, sources,
                                              timing, counts, query_count, read_attempts, discovered_count,
-                                             retrieval_history, client, mode, modeled)
+                                             retrieval_history, client, mode, modeled,
+                                             hybrid=hybrid_explainer)
             except (EpisodeError, TypeError, KeyError, ValueError):
                 pass
         return _fallback_episode(topic, length, style, request_context, now, evidence, sources,
