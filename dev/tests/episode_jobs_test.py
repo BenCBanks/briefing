@@ -64,6 +64,13 @@ class EpisodeJobStoreTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_streaming_fields_remain_absent_by_default(self):
+        self.assertFalse(self.store.streaming_enabled)
+        _status, created = self.store.submit(PROFILE, REQUEST, start=False)
+        self.assertNotIn('streaming', created)
+        self.store.run_pending(PROFILE, created['job_id'])
+        self.assertNotIn('streaming', self.store.get(PROFILE, created['job_id']))
+
     def _approval_replace_fixture(self, operation_id, profile=PROFILE):
         _status, created = self.store.submit(profile, REQUEST, start=False)
         job_id = created['job_id']
