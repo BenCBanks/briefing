@@ -22,7 +22,7 @@ The refill path now preserves untried feed clusters after the first 24 candidate
 
 ## Search-first comparison run
 
-One additional real daily was run with `search_first=on` through `dev/try_real.py daily --search-first`, using the same fresh temporary state and fictional profile. It stopped during the refill round with `RecursionError` in composed article-prefetch callbacks, before story selection. **No stories were selected; no script or first-100-word excerpt was produced.** Ledger cost was **$0.04850** and wall time was **120.82 seconds**. The callback composition is now covered by a fixture regression test; no second provider run was made.
+One additional real daily was run with `search_first=on` through `dev/try_real.py daily --search-first`, using the same fresh temporary state and fictional profile. It stopped during the refill round with `RecursionError` in composed article-prefetch callbacks, before story selection. **No stories were selected; no script or first-100-word excerpt was produced.** Ledger cost was **$0.04850** and wall time was **120.82 seconds**. The callback composition and 90-day search-result window now have fixture regression tests; no second provider run was made.
 
 ## Fixture verification
 

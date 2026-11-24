@@ -1,5 +1,6 @@
 """Opt-in, transient daily supply. No writer, registry or rights-policy overrides."""
 from collections import Counter
+from datetime import timedelta
 import math
 import re
 import time
@@ -17,7 +18,7 @@ REASONS = ('low_tier', 'listicle', 'source_risk', 'source_policy', 'rights_regis
            'missing_title', 'no_evidence', 'topic_scope', 'deadline', 'invalid_url',
            'denied_publisher', 'affiliate_promo', 'consumer_card_offer',
            'press_release_url', 'press_release_title',
-           'insufficient_full_text_evidence', 'semantic_irrelevance', 'scorecard_dropped',
+           'insufficient_full_text_evidence', 'semantic_irrelevance', 'outside_window', 'scorecard_dropped',
            'no_verified_story', 'writer_error', 'extraction_error', 'time_limit', 'gemini_call_limit')
 
 
@@ -259,6 +260,10 @@ def fill_candidates(topic_candidates, topics, items, registry, history, now, *, 
             source = source_for(hint, registry)
             identity = repeats.canonical_url(hint.url)
             item['source_id'] = source.get('id')
+            published = core.parse_date(item.get('published'))
+            if search_first and published and published < now - timedelta(days=90):
+                rejected['outside_window'] += 1
+                continue
             reason = _feed_candidate_rejection(
                 item, source, topic, now=now, prior=prior, seen=seen,
                 maps=maps, rights_doc=rights_doc, cluster_items_fn=cluster_items)

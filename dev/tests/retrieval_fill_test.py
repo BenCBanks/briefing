@@ -218,6 +218,18 @@ class FillTests(unittest.TestCase):
         self.assertEqual(safe['guarded_reads'], 2)
         self.assertNotIn('http', json.dumps(safe))
 
+    def test_search_first_rejects_articles_older_than_ninety_days(self):
+        old_date = (NOW - timedelta(days=91)).isoformat()
+        self.rows = [self.hint('Payment network adopts new settlement timetable',
+                               'outside-search-window', date=old_date)]
+        merged, bodies, report = fill.fill_candidates(
+            {'payments': []}, TOPICS, [], self.registry, self.history, NOW,
+            enabled=True, search_first=True)
+        self.assertEqual(merged, {'payments': []})
+        self.assertEqual(bodies, {})
+        self.assertEqual(report['rejected']['outside_window'], 1)
+        self.assertEqual(self.reads, [])
+
     def test_quality_prefers_relevance_and_credibility_without_a_recency_gate(self):
         self.rows = [self.hint('Seven insights', host='blog'), self.hint('Top 7 payment tips', 'tips'),
                      self.hint('Earlier timetable', 'old', date='2026-11-16T11:00:00Z'),
