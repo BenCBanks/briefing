@@ -50,13 +50,17 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
     : section(historySource, 'function episodeHistoryState(', 'function episodeHistoryDismissed(');
   const makingPath = path.join(root, 'src/screens/episode-making.js');
   const makingSource = fs.existsSync(makingPath) ? fs.readFileSync(makingPath, 'utf8') : source;
+  const routePath = path.join(root, 'src/screens/episode-route.js');
+  const routeSource = fs.existsSync(routePath)
+    ? fs.readFileSync(routePath, 'utf8').replace(/^import .*;\s*$/gm, '').replace(/^export /gm, '')
+    : source;
   const renderers = section(source, 'async function loadEpisodeCards(', 'function episodeProfileTopic(')
     + stateHelper
     + (fs.existsSync(makingPath)
       ? section(makingSource, 'function appendDoneCard(', 'export function updateEpisodeMakingView(') +
         'function appendEpisodeDoneCard(page, job) { appendDoneCard(page, job, node, episodeHasReadyAudio, navigate); }'
       : section(source, 'function appendEpisodeDoneCard(', 'async function cancelEpisodeJob('))
-    + section(source, 'async function renderEpisodeRoute(', 'function renderEpisodeRouteFailure(');
+    + (fs.existsSync(routePath) ? routeSource : section(source, 'async function renderEpisodeRoute(', 'function renderEpisodeRouteFailure('));
   const readyHelpers = fs.existsSync(makingPath)
     ? section(makingSource, 'export function episodeHasReadyAudio(', 'function failureCopy(')
     : source.includes('function episodeHasReadyAudio(') ? section(source, 'function episodeHasReadyAudio(', 'async function pollEpisodeJob(') : '';
@@ -92,6 +96,10 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
       player: { playRecording: episode => played.push(episode) },
       isEpisodeInDailyBriefing: () => false, setEpisodeDailyBriefing: async () => {},
       renderEpisodeRouteFailure: (title, message) => assert.fail(`${title}: ${message}`),
+      renderEpisodeHistory: () => assert.fail('unexpected episode history route'),
+      renderEpisodeMakingFromHistory: () => assert.fail('unexpected episode making route'),
+      renderMissing: () => assert.fail('unexpected missing episode route'),
+      setEpisodeDeckCleanup: () => {},
       node: (tag, text, className = '') => Object.assign(new FixtureNode(tag, text ?? ''), { className }),
       link: (text, href, className = '') => Object.assign(new FixtureNode('a', text), { href, className }),
       window: { scrollY: 0 }, navigate: hash => navigations.push(hash), episodeHistorySnapshot: null,
@@ -110,7 +118,12 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
     assert.ok(action, `${control.name}: the completed transcript has an opening action`);
     action.listeners.click[0]();
     assert.deepEqual(navigations, [`#episode/${id}`], 'the reading action still opens the current episode route');
-    await vm.runInContext(`renderEpisodeRoute('episode/${id}')`, context);
+    await vm.runInContext(`renderEpisodeRoute('episode/${id}', {
+      content, node, location, episodeHistorySnapshot, renderEpisodeHistory,
+      renderEpisodeMakingFromHistory, renderRouteFailure: renderEpisodeRouteFailure,
+      renderMissing, navigate, player, isEpisodeInDailyBriefing,
+      setEpisodeDailyBriefing, setEpisodeDeckCleanup,
+    })`, context);
     assert.deepEqual(fetched, ['/api/episodes', `/api/episodes/${id}`], 'actual API detail route executes');
     assert.equal(projected.asked, job.topic, 'API projection preserves exact original request including whitespace');
     assert.equal(projected.requested_minutes, 10, 'requested length survives API projection separately');
