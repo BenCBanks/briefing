@@ -640,7 +640,10 @@ class Handler(BaseHTTPRequestHandler):
 
     def _account_post(self, path):
         try:
-            payload = self._account_body()
+            if path == '/api/account/logout' and not self.headers.get('Content-Length'):
+                payload = {}
+            else:
+                payload = self._account_body()
             if path == '/api/account/signup':
                 account, token, csrf = accounts.signup(payload.get('invite_code'), payload.get('account'), payload.get('password'))
                 self._account_reply(201, {'account': accounts._public(account), 'csrf_token': csrf}, token=token)
