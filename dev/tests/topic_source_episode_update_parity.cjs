@@ -22,7 +22,7 @@ async function run() {
   const [{ renderTopicDetail }, { renderEpisodePage }, exporter] = await Promise.all([
     import('../../src/topics/topic-detail.js'), import('../../src/episodes/episodes.js'), import('../../src/episodes/export.js'),
   ]);
-  const appSource = fs.readFileSync(path.join(__dirname, '../../src/app.js'), 'utf8');
+  const detailSource = fs.readFileSync(path.join(__dirname, '../../src/screens/detail-routes.js'), 'utf8');
   const current = { id: 'source-update-parity-r2', publisher: 'Fictional Notice Desk', outlet: 'Fictional Notice Desk', title: 'Current fictional notice with an update date only', updated_at: '2026-11-22', url: 'https://fictional.example.test/update-parity' };
   const old = { id: 'source-update-parity-old-r1', publisher: 'Fictional Archive Desk', outlet: 'Fictional Archive Desk', title: 'Superseded fictional closure report', date: 'Nov 18, 2026', status: 'withdrawn', url: 'https://fictional.example.test/old-closure' };
   const topicContainer = new FixtureNode('main');
@@ -42,8 +42,8 @@ async function run() {
   const transcript = exporter.buildPlainTranscript(episode);
   assert.match(transcript, /\[1\] Fictional Notice Desk — Current fictional notice with an update date only \(Updated Nov 22, 2026\)/);
   assert.doesNotMatch(transcript, /Published Nov 22, 2026|Superseded fictional closure report|old-closure/u);
-  assert.match(appSource, /const sourceDateLabel = sourcePublication \? `Document date · \$\{sourceDate\}`\s+: sourceUpdate \? `Updated · \$\{sourceDate\}`/u, 'source detail labels an update-only date as Updated');
-  assert.match(appSource, /external\.setAttribute\('aria-label', `Open original: \$\{publisher\}, \$\{source\.title \|\| 'current source'\}`\);/u, 'source detail action names current publisher and title');
+  assert.match(detailSource, /const sourceDateLabel = sourcePublication \? `Document date · \$\{sourceDate\}`\s+: sourceUpdate \? `Updated · \$\{sourceDate\}`/u, 'source detail labels an update-only date as Updated');
+  assert.match(detailSource, /external\.setAttribute\('aria-label', `Open original: \$\{publisher\}, \$\{source\.title \|\| 'current source'\}`\);/u, 'source detail action names current publisher and title');
   console.log('Topic/source-detail/Episode update parity: Updated labels, current title/HTTPS action and withdrawn suppression passed.');
 }
 run().catch(error => { console.error(error); process.exitCode = 1; });
