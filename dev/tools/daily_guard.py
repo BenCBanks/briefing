@@ -4,11 +4,13 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime
 import json
 import os
 from pathlib import Path
 import re
 import sys
+from zoneinfo import ZoneInfo
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -20,6 +22,12 @@ from dev.ingest.paths import STATE_DIR, checked_state_path
 
 DEFAULT_STATE_DIR = STATE_DIR
 READY_AUDIO_STATES = {'ready', 'recorded'}
+ET = ZoneInfo('America/New_York')
+
+
+def today_et_date():
+    """Return today's calendar date at the edition's Eastern Time boundary."""
+    return datetime.now(ET).date().isoformat()
 
 
 def read_json(path):
@@ -45,6 +53,39 @@ def load_edition_bundle(state_dir):
         if edition:
             return value, edition
     return None, None
+
+
+def edition_bundle_for_date(state_dir, local_date):
+    """Find a persisted daily edition and its sources for an ET calendar date."""
+    generated = Path(state_dir) / 'generated'
+    candidates = (generated / 'default' / 'current.json',
+                  generated / 'default' / 'editions.json',
+                  generated / 'current.json')
+    for path in candidates:
+        value = read_json(path)
+        if not isinstance(value, dict):
+            continue
+        rows = value.get('editions')
+        if isinstance(rows, dict):
+            rows = rows.get('editions')
+        if isinstance(rows, list):
+            editions = rows
+        else:
+            editions = [value.get('edition', value)]
+        for edition in editions:
+            if (isinstance(edition, dict) and edition.get('kind', 'daily') == 'daily' and
+                    edition.get('local_date') == local_date and isinstance(edition.get('sections'), list)):
+                sources = value.get('sources', edition.get('sources', []))
+                return {'edition': edition, 'sources': sources}, edition
+    return None, None
+
+
+def edition_for_date(state_dir, local_date):
+    return edition_bundle_for_date(state_dir, local_date)[1]
+
+
+def has_edition_for_date(state_dir, local_date):
+    return edition_for_date(state_dir, local_date) is not None
 
 
 def _history(state_dir, bundle):
@@ -76,13 +117,12 @@ def _audio_available(edition):
     return state in READY_AUDIO_STATES and isinstance(url, str) and bool(url.strip())
 
 
-def decide(*, status, content_checks, edition, audio_budget_allows):
+def decide(*, status, content_checks, edition, audio_budget_allows, today=None):
     """Return retry decision and fixed reason labels from already-read values."""
-    status = status if isinstance(status, dict) else {}
-    run = status.get('daily_run') if isinstance(status.get('daily_run'), dict) else {}
     reasons = []
-    if status.get('ok') is not True or run.get('status') in {'failed', 'timeout'}:
-        reasons.append('status_not_ok')
+    today = today or today_et_date()
+    if not isinstance(edition, dict) or edition.get('local_date') != today:
+        reasons.append('today_edition_missing')
     if (not isinstance(content_checks, list) or not content_checks or
             any(not isinstance(row, dict) or row.get('passed') is not True
                 for row in content_checks)):
@@ -115,7 +155,11 @@ def inspect_state(state_dir, budget_checker=audio_budget_allows):
     state_dir = Path(state_dir)
     status = read_json(state_dir / 'status.json')
     status = status if isinstance(status, dict) else {}
-    bundle, edition = load_edition_bundle(state_dir)
+    today = today_et_date()
+    today_bundle, edition = edition_bundle_for_date(state_dir, today)
+    bundle, _current_edition = load_edition_bundle(state_dir)
+    if today_bundle is not None:
+        bundle = today_bundle
     profile = read_json(state_dir / 'profile.json')
     history = _history(state_dir, bundle) if bundle else []
     try:
@@ -131,7 +175,7 @@ def inspect_state(state_dir, budget_checker=audio_budget_allows):
             # An unreadable ledger is never evidence that the reserve can cover audio.
             within_audio_cap = False
     retry, reasons = decide(status=status, content_checks=checks, edition=edition,
-                            audio_budget_allows=within_audio_cap)
+                            audio_budget_allows=within_audio_cap, today=today)
     return retry, reasons
 
 

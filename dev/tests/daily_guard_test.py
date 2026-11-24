@@ -5,6 +5,7 @@ from dev.test_guard import enforce_test_environment as _enforce_test_environment
 _enforce_test_environment()
 
 import contextlib
+from datetime import datetime, timezone
 import io
 import json
 from pathlib import Path
@@ -19,7 +20,7 @@ sys.path.insert(0, str(ROOT))
 from dev.tools import daily_guard
 
 
-def bundle(*, words=900, audio_status='ready'):
+def bundle(*, words=900, audio_status='ready', local_date=None):
     stories = []
     sources = []
     for index in range(1, 4):
@@ -34,7 +35,8 @@ def bundle(*, words=900, audio_status='ready'):
         stories.append(story)
         sources.append({'id': source_id, 'url': f'https://fictional-{index}.example.test/story',
                         'published_at': '2026-11-18T10:00:00Z', 'source_class': 'primary'})
-    edition = {'id': 'fictional-edition', 'kind': 'daily', 'local_date': '2026-11-18',
+    edition = {'id': 'fictional-edition', 'kind': 'daily',
+               'local_date': local_date or daily_guard.today_et_date(),
                'sections': stories, 'sources': sources,
                'daily_briefing': {'spoken_words': words, 'target_spoken_words': 750},
                'audio': {'audio_status': audio_status,
@@ -43,14 +45,13 @@ def bundle(*, words=900, audio_status='ready'):
 
 
 class DailyGuardTests(unittest.TestCase):
-    def test_retries_each_content_health_and_short_runtime_failure(self):
+    def test_retry_follows_today_edition_and_content_health_not_ok_flag(self):
         ok_status = {'ok': True, 'daily_run': {'status': 'complete'}}
         good_checks = [{'name': 'quality', 'passed': True}]
         _bundle, full_edition = bundle()
         short = dict(full_edition)
         short['daily_briefing'] = {'spoken_words': 250}
         cases = [
-            (dict(ok=False), good_checks, full_edition, False, 'status_not_ok'),
             (ok_status, [{'passed': False}], full_edition, False, 'content_check_failed'),
             (ok_status, good_checks, short, False, 'spoken_under_3_minutes'),
         ]
@@ -60,6 +61,17 @@ class DailyGuardTests(unittest.TestCase):
                                                     edition=edition, audio_budget_allows=cap)
                 self.assertTrue(retry)
                 self.assertIn(reason, reasons)
+
+        retry, reasons = daily_guard.decide(status={'ok': False}, content_checks=good_checks,
+            edition=full_edition, audio_budget_allows=False, today=full_edition['local_date'])
+        self.assertFalse(retry)
+        self.assertEqual(reasons, [])
+
+        retry, reasons = daily_guard.decide(status=ok_status, content_checks=good_checks,
+            edition=dict(full_edition, local_date='2000-01-01'), audio_budget_allows=False,
+            today=full_edition['local_date'])
+        self.assertTrue(retry)
+        self.assertIn('today_edition_missing', reasons)
 
     def test_missing_audio_retries_only_when_estimate_fits_daily_reserve(self):
         status = {'ok': True, 'daily_run': {'status': 'complete'}}
@@ -107,8 +119,54 @@ class DailyGuardTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             retry, reasons = daily_guard.inspect_state(temp, budget_checker=lambda _edition: True)
         self.assertTrue(retry)
-        self.assertIn('status_not_ok', reasons)
+        self.assertIn('today_edition_missing', reasons)
         self.assertIn('content_check_failed', reasons)
+
+    def test_recent_ok_status_does_not_skip_when_no_today_edition_exists(self):
+        with tempfile.TemporaryDirectory() as temp:
+            state = Path(temp)
+            payload, edition = bundle(local_date='2000-01-01')
+            generated = state / 'generated' / 'default'
+            generated.mkdir(parents=True)
+            (generated / 'current.json').write_text(json.dumps(payload), encoding='utf-8')
+            (state / 'profile.json').write_text(json.dumps({'topics': [
+                {'id': 'payments', 'label': 'Fictional banking and payments'}]}), encoding='utf-8')
+            (state / 'status.json').write_text(json.dumps({'ok': True,
+                'last_run_at': datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'),
+                'daily_run': {'status': 'complete'}}), encoding='utf-8')
+            with patch.object(daily_guard, 'check_content', return_value=[{'passed': True}]), \
+                    patch.dict('os.environ', {'BRIEFING_TTS': 'disabled'}):
+                retry, reasons = daily_guard.inspect_state(temp, budget_checker=lambda _edition: False)
+        self.assertTrue(retry)
+        self.assertIn('today_edition_missing', reasons)
+
+    def test_editions_snapshot_can_supply_today_when_current_pointer_is_old(self):
+        with tempfile.TemporaryDirectory() as temp:
+            state = Path(temp)
+            old_payload, old = bundle(local_date='2000-01-01')
+            today_payload, today = bundle(local_date=daily_guard.today_et_date())
+            generated = state / 'generated' / 'default'
+            generated.mkdir(parents=True)
+            (generated / 'current.json').write_text(json.dumps(old_payload), encoding='utf-8')
+            (generated / 'editions.json').write_text(json.dumps({
+                'editions': {'editions': [today, old]},
+                'sources': today_payload['sources'],
+            }), encoding='utf-8')
+            (state / 'profile.json').write_text(json.dumps({'topics': [
+                {'id': 'payments', 'label': 'Fictional banking and payments'}]}), encoding='utf-8')
+            (state / 'status.json').write_text(json.dumps({'ok': True}), encoding='utf-8')
+            checked_dates = []
+
+            def check(bundle_value, _history, _profile):
+                checked_dates.append(daily_guard.unpack(bundle_value)[0]['local_date'])
+                return [{'passed': True}]
+
+            with patch.object(daily_guard, 'check_content', side_effect=check), \
+                    patch.dict('os.environ', {'BRIEFING_TTS': 'disabled'}):
+                retry, reasons = daily_guard.inspect_state(temp, budget_checker=lambda _edition: False)
+        self.assertFalse(retry)
+        self.assertEqual(reasons, [])
+        self.assertEqual(checked_dates, [daily_guard.today_et_date()])
 
 
 if __name__ == '__main__':

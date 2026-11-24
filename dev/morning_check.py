@@ -95,6 +95,48 @@ def flag_summary_line(flags=None):
     return 'Non-default flags: ' + summary
 
 
+def daily_audio_line(edition, expected_date, health=None, status=None):
+    """Describe today's recorded daily audio, or why it is still pending."""
+    audio = edition.get('audio') if isinstance(edition, dict) else None
+    is_today = isinstance(edition, dict) and edition.get('local_date') == expected_date.isoformat()
+    if not is_today:
+        return "Audio: unavailable (today's edition unavailable)"
+    if not isinstance(audio, dict):
+        audio = {}
+    daily_run = status.get('daily_run') if isinstance(status, dict) else {}
+    status_audio = daily_run.get('daily_audio') if isinstance(daily_run, dict) else {}
+    health_audio = health.get('audio') if isinstance(health, dict) else {}
+    state = audio.get('audio_status') or (status_audio.get('audio_status')
+        if isinstance(status_audio, dict) else None)
+    if not state and isinstance(health_audio, dict):
+        state = health_audio.get('daily_status')
+    duration = audio.get('duration_seconds')
+    if duration is None and isinstance(health_audio, dict):
+        duration = health_audio.get('daily_duration_seconds')
+    if state in {'ready', 'recorded'}:
+        if isinstance(duration, (int, float)) and not isinstance(duration, bool) and duration >= 0:
+            minutes = max(1, round(duration / 60))
+            return f'Audio: recorded {minutes}m'
+        return 'Audio: recorded (duration unavailable)'
+    reason = audio.get('reason') or (status_audio.get('reason')
+        if isinstance(status_audio, dict) else None)
+    reason_labels = {
+        'daily_budget': 'daily audio budget was used',
+        'tts_disabled': 'audio is turned off',
+        'no_spoken_stories': 'no spoken stories were available',
+        'synthesis_failed': 'audio synthesis failed',
+        'pending_human_listening': 'awaiting a listener check',
+        'superseded': 'audio was replaced',
+    }
+    state_label = state if state in {'pending', 'failed', 'disabled', 'unavailable'} else 'unavailable'
+    if state_label == 'unavailable' and not reason:
+        return 'Audio: unavailable'
+    plain_reason = reason_labels.get(reason)
+    if not plain_reason and isinstance(reason, str) and re.fullmatch(r'[A-Za-z][A-Za-z0-9_ -]{0,80}', reason):
+        plain_reason = re.sub(r'(?<=[a-z])(?=[A-Z])', ' ', reason).replace('_', ' ').lower()
+    return f'Audio: {state_label} ({plain_reason or "reason unavailable"})'
+
+
 def get_json(url):
     request = Request(url, headers={'Accept': 'application/json', 'User-Agent': 'BriefingMorningCheck/1.0'})
     try:
@@ -210,6 +252,7 @@ def summarize(base_url, smoke_runner=run_checks, json_fetch=get_json, today=None
     # counts and failure totals; source labels stay in this existing private
     # morning report only.
     health_lines = format_status_report(health)
+    health_lines[-1] = daily_audio_line(edition, expected, health, status)
     local_feed_lines = feed_health_lines(health_reader())
     if status.get('feed_health_event') == 'outage':
         local_feed_lines[0] += '; outage (health unchanged)'
