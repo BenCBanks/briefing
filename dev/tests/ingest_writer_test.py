@@ -16,7 +16,10 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ingest.write_edition import (_needs_daily_retrieval_fill, _publisher_for, _source_maps,
-                                  _candidate_queue_key, generate_edition)
+                                  _candidate_queue_key, _daily_coverage_target_met,
+                                  _daily_first_attempt_limit, _daily_refill_candidates,
+                                  _daily_refill_pool_limit,
+                                  generate_edition)
 from ingest.score_edition import score_edition
 from ingest import core
 
@@ -108,6 +111,30 @@ class WriterTests(unittest.TestCase):
                              for index in range(3)]
         self.assertFalse(_needs_daily_retrieval_fill(
             260, True, sections=one_topic_covered, topics=[{'id': 'payments'}]))
+
+    def test_daily_target_requires_topic_coverage_and_reserves_fallback_attempts(self):
+        topics = [{'id': topic} for topic in ('chips', 'climate', 'space')]
+        self.assertTrue(_daily_coverage_target_met(3, 3,
+                                                  {'chips': 1, 'climate': 1, 'space': 1}, topics))
+        self.assertFalse(_daily_coverage_target_met(3, 3,
+                                                    {'chips': 2, 'climate': 1, 'space': 0}, topics),
+                         'three stories do not meet the target while one selected topic is empty')
+        self.assertFalse(_daily_coverage_target_met(2, 3,
+                                                    {'chips': 1, 'climate': 1, 'space': 0}, topics))
+        self.assertEqual(_daily_first_attempt_limit(30, 3), 24,
+                         'six writer attempts remain available for fallback supply')
+        self.assertEqual(_daily_first_attempt_limit(6, 3), 4)
+        self.assertEqual(_daily_first_attempt_limit(4, 4), 4,
+                         'a small fixture budget still tries one feed candidate per topic')
+        self.assertEqual(_daily_refill_pool_limit(30, 24), 36,
+                         'fallback results survive selection with room for all six reserved attempts')
+        feed = {'ai': [{'id': 'read-once'}, {'id': 'unreadable-once'}, {'id': 'untried-feed'}]}
+        searched = {'ai': [{'id': 'search-result'}, {'id': 'read-once'}]}
+        refill = _daily_refill_candidates(feed, searched, [{'id': 'ai'}], {'read-once', 'unreadable-once'})
+        self.assertEqual([row['id'] for row in refill['ai']], ['search-result', 'untried-feed'],
+                         'untried feed clusters remain available after initial readable candidates fail')
+        self.assertEqual(_daily_first_attempt_limit(6, 1), 6,
+                         'single-topic daily generation does not reserve unused coverage slots')
 
     def test_saved_story_is_removed_before_article_extraction_and_model_writing(self):
         previous_time = NOW.isoformat()
@@ -524,6 +551,9 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(funnel['unseen'], funnel['after_repeat_suppression'])
         self.assertEqual(funnel['unseen'], funnel['clustered'],
                          'fresh history suppresses no source-valid story clusters')
+        self.assertEqual(result['funnel_drop_reasons']['payments'].get('duplicate_cluster', 0),
+                         funnel['relevance_passed'] - funnel['clustered'],
+                         'the funnel distinguishes duplicate source rows from reader repeats')
         self.assertGreaterEqual(funnel['unseen'], funnel['candidate_clusters'])
         self.assertEqual(funnel['selected'], 0)
         self.assertIn('funnel_drop_reasons', result)
@@ -925,8 +955,8 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(uncovered['state'], 'limited')
         self.assertEqual(uncovered['candidate_count'], 1)
         self.assertIn('none of 1 candidate(s) passed', uncovered['reason'])
-        self.assertEqual(provider_builds, [True],
-                         'the only provider setup is for the genuinely uncovered topic, not word count')
+        self.assertEqual(provider_builds, [],
+                         'do not open retrieval when no writer attempt remains for its candidates')
         self.assertEqual(len(sources['sources']), 3)
         self.assertEqual(len([row for row in result['candidate_results'] if row['status'] == 'passed']), 3)
         self.assertTrue(any(row['status'] == 'scorecard_dropped' and row['topic_id'] == 'housing'

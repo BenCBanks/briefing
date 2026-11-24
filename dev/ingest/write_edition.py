@@ -411,6 +411,46 @@ def _candidate_queue_key(candidate, topic_counts, attempts_by_topic):
             candidate['topic_round'], -candidate.get('topic_match', 0))
 
 
+def _daily_coverage_target_met(selected_count, target, topic_counts, topics):
+    topic_ids = [row['id'] for row in topics if isinstance(row, dict) and row.get('id')]
+    required = min(len(topic_ids), target)
+    covered = sum(topic_counts.get(topic_id, 0) > 0 for topic_id in topic_ids)
+    return selected_count >= target and covered >= required
+
+
+def _daily_first_attempt_limit(max_candidate_attempts, topic_count):
+    """Keep a bounded portion of the writer budget available for missing topics."""
+    maximum = max(0, int(max_candidate_attempts))
+    if topic_count <= 1:
+        return maximum
+    reserve = min(6, maximum // 3)
+    return max(min(maximum, int(topic_count)), maximum - reserve)
+
+
+def _daily_refill_pool_limit(max_candidate_attempts, candidate_attempts):
+    remaining = max(0, int(max_candidate_attempts) - int(candidate_attempts))
+    return MAX_TOPIC_ITEMS + remaining
+
+
+def _daily_refill_candidates(feed_candidates, fallback_candidates, topics, attempted_cluster_ids):
+    """Try newly found sources first, then untried feed events for uncovered topics."""
+    attempted = set(attempted_cluster_ids)
+    result = {}
+    for topic in topics:
+        topic_id = topic['id']
+        ordered = [*(cluster for cluster in fallback_candidates.get(topic_id, [])
+                     if cluster['id'] not in attempted),
+                   *(cluster for cluster in feed_candidates.get(topic_id, [])
+                     if cluster['id'] not in attempted)]
+        seen, unique = set(), []
+        for cluster in ordered:
+            if cluster['id'] not in seen:
+                seen.add(cluster['id'])
+                unique.append(cluster)
+        result[topic_id] = unique
+    return result
+
+
 def extract_source_sentences(cluster, article_fetcher, sports=False, *, now=None):
     """Build an ephemeral sentence-ID evidence bundle; never serialize article text."""
     from .credibility import assess_bundle
@@ -1118,7 +1158,8 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                      extraction_deadline=None,
                      before_model_call=None, max_candidate_attempts=None,
                      story_scorer=None, recent_history=None, on_fill_start=None, writer_workers=None,
-                     retrieval_fill_enabled=None, search_first_enabled=None, daily_word_target=None):
+                     retrieval_fill_enabled=None, search_first_enabled=None, daily_word_target=None,
+                     daily_coverage_fallback_enabled=None):
     if core.KILL_SWITCH_PATH.exists():
         raise RuntimeError(f'Edition generation disabled by kill switch: {core.KILL_SWITCH_PATH}')
     now = now or core.utc_now()
@@ -1127,6 +1168,8 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                               else max(0, int(max_candidate_attempts)))
     writer_workers = (setting('story_writer_workers') if writer_workers is None
                       else max(1, min(4, int(writer_workers))))
+    if daily_coverage_fallback_enabled is None:
+        daily_coverage_fallback_enabled = os.environ.get('BRIEFING_TESTING') != '1'
     if daily_word_target is not None and (type(daily_word_target) is not int or
                                           not 675 <= daily_word_target <= 825):
         raise ValueError('daily_word_target must be between 675 and 825')
@@ -1204,7 +1247,13 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         def drop(reason):
             dropped[reason] = dropped.get(reason, 0) + 1
         fresh_source_item_count = 0
-        ranked = _rank_profile_topic_items(items, profile, topic)
+        feed_tags = set(topic.get('feed_topic_ids') or [topic_id])
+        topic_feed_items = [item for item in items
+                            if (source := registry_by_id.get(item.get('source_id'))) and
+                            source.get('enabled') is True and source.get('robots_ok') is True and
+                            not source.get('ai_bots_disallowed') and
+                            set(source.get('topics') or []) & feed_tags]
+        ranked = _rank_profile_topic_items(topic_feed_items, profile, topic)
         for rank, item in enumerate(ranked):
             current_source = registry_by_id.get(item.get('source_id'))
             if (not current_source or current_source.get('enabled') is not True or
@@ -1241,7 +1290,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         topic_only_fallback = False
         if not eligible:
             # Retry after semantic filtering; publication age only affects ranking.
-            broad_ranked = _rank_profile_topic_items(items, profile, topic, topic_only=True)
+            broad_ranked = _rank_profile_topic_items(topic_feed_items, profile, topic, topic_only=True)
             for rank, item in enumerate(broad_ranked):
                 current_source = registry_by_id.get(item.get('source_id'))
                 if (not current_source or current_source.get('enabled') is not True or
@@ -1265,6 +1314,9 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                     drop('topic_scope_mismatch')
             topic_only_fallback = bool(eligible)
         clusters = cluster_items(eligible, by_host)
+        duplicate_clusters = max(0, len(eligible) - len(clusters))
+        if duplicate_clusters:
+            drop('duplicate_cluster')
         # rank_items already sorts by profile token relevance, topic match and
         # publication recency. Keep that order while promoting independent
         # corroboration only as a tie-breaker.
@@ -1299,10 +1351,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         # applying it here can discard readable alternatives before evidence
         # extraction has a chance to test them.
         topic_cluster_pools[topic_id] = clusters
-        topic_fetched = sum(1 for item in items
-                            if (source := registry_by_id.get(item.get('source_id'))) and
-                            source.get('enabled') is True and
-                            set(source.get('topics') or []) & set(topic.get('feed_topic_ids') or []))
+        topic_fetched = len(topic_feed_items)
         candidate_pool_diagnostics[topic_id] = {
             'fetched': topic_fetched,
             'topic_matched': len(ranked), 'relevance_passed': len(eligible),
@@ -1436,7 +1485,8 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                 original_fetcher, 'has_prefetch', lambda _url: False)(url)
             article_fetcher.diagnostics = getattr(original_fetcher, 'diagnostics', [])
             article_fetcher.worker_count = getattr(original_fetcher, 'worker_count', 0)
-    prefetch_plan = plan_round(topic_candidates)
+    first_attempt_limit = _daily_first_attempt_limit(max_candidate_attempts, len(topic_profiles))
+    prefetch_plan = plan_round(topic_candidates, first_attempt_limit)
     extraction_end = extraction_deadline if extraction_deadline is not None else deadline
     article_diagnostics = getattr(article_fetcher, 'diagnostics', None)
     if not isinstance(article_diagnostics, list):
@@ -1481,13 +1531,18 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                                       'status': 'insufficient_full_text_evidence',
                                       'reason': 'insufficient_full_text_evidence',
                                       'evidence_depth': evidence_stats})
-    candidate_attempt_limit = min(max_candidate_attempts, len(prefetch_plan))
+    candidate_attempt_limit = len(prefetch_plan)
     if progress:
         progress(0, candidate_attempt_limit)
     topic_counts = {topic['id']: 0 for topic in topic_profiles}
     requested_story_target = min(DAILY_MAX_STORIES, max(1, int(max_stories)))
     coverage_story_target = min(3, requested_story_target)
     target_passing_stories = min(requested_story_target, coverage_story_target)
+
+    def target_met():
+        return _daily_coverage_target_met(selected_count, target_passing_stories,
+                                          topic_counts, topic_profiles)
+
     stop_writing = threading.Event()
 
     def write_candidate(candidate, round_stop, end):
@@ -1640,10 +1695,10 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         topic_counts[topic_id] += 1
         for alias_id in candidate['also_topic_ids']:
             topic_counts[alias_id] += 1
-        if selected_count >= target_passing_stories:
+        if target_met():
             stop_writing.set()
 
-    def run_round(prefetch_plan):
+    def run_round(prefetch_plan, attempt_limit=max_candidate_attempts):
         nonlocal candidate_attempts, budget_exhausted, stop_writing
         writer_queue.clear()
         stop_writing = threading.Event()
@@ -1658,7 +1713,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         pending = {}
         next_candidate = 0
         try:
-            while selected_count < target_passing_stories and not budget_exhausted:
+            while not target_met() and not budget_exhausted:
                 if round_deadline is not None and time.monotonic() >= round_deadline:
                     budget_exhausted = True
                     break
@@ -1669,7 +1724,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                 while next_candidate < len(writer_queue) and len(pending) < writer_workers:
                     candidate = writer_queue[next_candidate]
                     next_candidate += 1
-                    if candidate_attempts >= max_candidate_attempts:
+                    if candidate_attempts >= attempt_limit:
                         break
                     candidate_attempts += 1
                     attempts_by_topic[candidate['topic']['id']] += 1
@@ -1698,11 +1753,11 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                 for future in sorted(completed, key=lambda item: pending[item]['number']):
                     candidate = pending.pop(future)
                     collect_story(candidate, future)
-                    if selected_count >= target_passing_stories:
+                    if target_met():
                         break
         finally:
             stop_writing.set()
-            if selected_count < target_passing_stories:
+            if not target_met():
                 reason = ('cost_cap_reached' if any(row.get('reason') == 'cost_cap_reached'
                                                      for row in candidate_results) else 'time_limit')
                 for future, candidate in pending.items():
@@ -1714,32 +1769,45 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
 
     # Keep recovery inside the original job deadline; reserve half for fill + writing.
     round_deadline = deadline
-    if fill_report['enabled'] and deadline is not None:
+    if (fill_report['enabled'] or len(topic_profiles) > 1) and deadline is not None:
         round_deadline = time.monotonic() + max(0, deadline - time.monotonic()) / 2
-    run_round(prefetch_plan)
+    run_round(prefetch_plan, first_attempt_limit)
     first_round_passed, first_round_readable = selected_count, candidate_attempts
-    if (not budget_exhausted and
-            _needs_daily_retrieval_fill(_daily_spoken_words(sections), fill_report['enabled'], deadline,
-                                        sections=sections, topics=topic_profiles)):
+    uncovered_topics = [topic for topic in topic_profiles if topic_counts.get(topic['id'], 0) < 1]
+    fallback_topics = uncovered_topics if daily_coverage_fallback_enabled else []
+    needs_word_fill = _needs_daily_retrieval_fill(
+        _daily_spoken_words(sections), fill_report['enabled'], deadline,
+        sections=sections, topics=topic_profiles)
+    writer_capacity_remains = candidate_attempts < max_candidate_attempts
+    within_deadline = deadline is None or time.monotonic() < deadline
+    if (not budget_exhausted and within_deadline and writer_capacity_remains and
+            (fallback_topics or needs_word_fill)):
         if on_fill_start:
             on_fill_start()
         accepted = {topic['id']: [cluster for cluster in topic_candidates.get(topic['id'], [])
                                   if cluster['id'] in story_by_cluster] for topic in topic_profiles}
+        search_for_uncovered = bool(fallback_topics) and not search_first_report.get('triggered')
         filled, fill_bodies, fill_report = fill_candidates(
-            topic_candidates, topic_profiles, items, registry, recent_history, now,
+            topic_candidates, fallback_topics or topic_profiles, items, registry, recent_history, now,
             deadline=deadline, passed_candidates=accepted, before_model_call=before_model_call,
-            enabled=fill_enabled)
+            enabled=True if fallback_topics else fill_enabled,
+            search_first=search_for_uncovered)
         old_candidates = topic_candidates
         from .source_selection import select_daily_clusters
         filtered_fill = {}
+        refill_pool_limit = _daily_refill_pool_limit(max_candidate_attempts, candidate_attempts)
         for topic in topic_profiles:
             key = topic['id']
             filtered_fill[key], source_selection_reports[key] = select_daily_clusters(
-                filled.get(key, []), registry_by_id, topic, limit=MAX_TOPIC_ITEMS,
-                max_per_outlet=MAX_TOPIC_ITEMS, now=now)
-        new_pool = {key: [cluster for cluster in rows if cluster['id'] not in
-                         {old['id'] for old in old_candidates.get(key, [])}]
-                    for key, rows in filtered_fill.items()}
+                filled.get(key, []), registry_by_id, topic, limit=refill_pool_limit,
+                max_per_outlet=refill_pool_limit, now=now)
+        fallback_pool = {key: [cluster for cluster in rows if cluster['id'] not in
+                               {old['id'] for old in old_candidates.get(key, [])}]
+                         for key, rows in filtered_fill.items()}
+        first_round_cluster_ids = {candidate['cluster']['id'] for candidate in prefetch_plan}
+        new_pool = _daily_refill_candidates(old_candidates, fallback_pool,
+                                            fallback_topics or topic_profiles,
+                                            first_round_cluster_ids)
         topic_candidates = filtered_fill
         if fill_bodies:
             original_fetcher = article_fetcher
@@ -1753,9 +1821,10 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
             budget_exhausted = False
             second_plan = plan_round(new_pool, max_candidate_attempts - candidate_attempt_limit,
                                      supply_origin='open-web')
-            candidate_attempt_limit += len(second_plan)
-            run_round(second_plan)
-        for key, clusters in filled.items():
+            candidate_attempt_limit = min(max_candidate_attempts,
+                                          candidate_attempt_limit + len(second_plan))
+            run_round(second_plan, max_candidate_attempts)
+        for key, clusters in filtered_fill.items():
             candidate_pool_diagnostics[key]['candidate_clusters'] = len(clusters)
     fill_report.update(first_round_passed=first_round_passed,
                        first_round_readable=first_round_readable,
@@ -1771,6 +1840,11 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         merged_statuses = Counter(fill_report.get('provider_statuses', {}))
         merged_statuses.update(search_first_report.get('provider_statuses', {}))
         fill_report['provider_statuses'] = dict(merged_statuses)
+        merged_providers = {name: Counter(counts) for name, counts in
+                            fill_report.get('providers', {}).items()}
+        for name, counts in search_first_report.get('providers', {}).items():
+            merged_providers.setdefault(name, Counter()).update(counts)
+        fill_report['providers'] = {name: dict(counts) for name, counts in merged_providers.items()}
         merged_rejections = Counter(fill_report.get('rejected', {}))
         merged_rejections.update(search_first_report.get('rejected', {}))
         fill_report['rejected'] = dict(merged_rejections)

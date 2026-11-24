@@ -55,10 +55,19 @@ class TryRealTests(unittest.TestCase):
             _print_funnel({'candidate_pool_diagnostics': {'ai': {
                 'fetched': 255, 'topic_matched': 255, 'relevance_passed': 58,
                 'clustered': 15, 'unseen': 14, 'candidate_clusters': 10}},
-                'funnel_drop_reasons': {'ai': {'repeat_suppressed_cluster': 1}}}, {'ai': 0})
+                'funnel_drop_reasons': {'ai': {'repeat_suppressed_cluster': 1}},
+                'retrieval_fill': {'triggered': True, 'search_first': True,
+                                   'topics_searched': 1, 'candidates_added': 2,
+                                   'rejected': {'no_evidence': 1},
+                                   'providers': {'gdelt': {'unavailable': 1},
+                                                 'private-provider': {'ok': 5}}}}, {'ai': 0})
         report = output.getvalue()
         self.assertIn('| Fetched | Topic-matched | Relevance-passed | Clustered | Unseen | Candidate pool | Selected |', report)
         self.assertIn('| ai | 255 | 255 | 58 | 15 | 14 | 10 | 0 | repeat_suppressed_cluster: 1 |', report)
+        self.assertIn('Open-web fallback:', report)
+        self.assertIn('"candidates_added": 2', report)
+        self.assertIn('"gdelt": {"unavailable": 1}', report)
+        self.assertNotIn('private-provider', report)
 
     def test_ledger_refuses_only_after_recorded_total_reaches_cap(self):
         with tempfile.TemporaryDirectory() as root:

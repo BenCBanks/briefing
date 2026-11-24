@@ -139,6 +139,7 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
 def _print_funnel(scorecard: dict, selected: dict) -> None:
     diagnostics = scorecard.get('candidate_pool_diagnostics', {}) if isinstance(scorecard, dict) else {}
     reasons = scorecard.get('funnel_drop_reasons', {}) if isinstance(scorecard, dict) else {}
+    retrieval = scorecard.get('retrieval_fill', {}) if isinstance(scorecard, dict) else {}
     if not diagnostics:
         return
     print('\nPer-topic supply funnel:')
@@ -151,6 +152,14 @@ def _print_funnel(scorecard: dict, selected: dict) -> None:
               f"{row.get('relevance_passed', 0)} | {row.get('clustered', 0)} | "
               f"{row.get('unseen', 0)} | {row.get('candidate_clusters', 0)} | "
               f"{selected.get(topic_id, row.get('selected', 0))} | {drop_text} |")
+    if isinstance(retrieval, dict) and retrieval.get('triggered'):
+        from dev.ingest.retrieval_fill import safe_report
+        retrieval = safe_report(retrieval)
+        summary = {key: retrieval.get(key, 0) for key in (
+            'search_first', 'topics_searched', 'grounding_requests', 'search_requests',
+            'candidates_considered', 'candidates_added', 'guarded_reads', 'quality_passed',
+            'novelty_passed', 'rejected', 'provider_statuses', 'providers')}
+        print('Open-web fallback: ' + json.dumps(summary, sort_keys=True))
 
 
 def _print_failed_daily_cost(before: dict, started: float) -> None:
