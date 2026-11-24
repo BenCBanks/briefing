@@ -164,9 +164,9 @@ def _quick_hit_quality(hit, topic_ids):
         host = (urlsplit(hit.get('url') or '').hostname or '').casefold().removeprefix('www.')
     except ValueError:
         return False
-    tiers_path = Path(__file__).resolve().parents[2] / 'content/source-tiers.json'
     try:
-        tiers = json.loads(tiers_path.read_text(encoding='utf-8')).get('domains', {})
+        from .credibility import load_tiers
+        tiers = load_tiers()
         tier_row = tiers.get(host, {}) if isinstance(tiers, dict) else {}
         low_tier = isinstance(tier_row, dict) and str(tier_row.get('tier', '')).casefold() in {'low', 'low-tier'}
     except (OSError, ValueError, TypeError):

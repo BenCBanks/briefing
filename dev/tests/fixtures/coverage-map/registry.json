@@ -45,7 +45,7 @@
       "reuse_terms": "UNVERIFIED: fictional note."
     },
     {
-      "id": "fictional-charlotte-tv",
+      "id": "fictional-fernvale-tv",
       "name": "Fictional local feed",
       "url": "https://local.example.test/feed",
       "format": "rss",
@@ -59,7 +59,7 @@
       "reuse_terms": "UNVERIFIED: fictional note."
     },
     {
-      "id": "fictional-upstate-tv",
+      "id": "fictional-lakeside-tv",
       "name": "Disabled fictional source",
       "url": "https://disabled.example.test/feed",
       "format": "rss",

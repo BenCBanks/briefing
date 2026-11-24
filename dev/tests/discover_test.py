@@ -246,7 +246,7 @@ class DiscoveryTests(unittest.TestCase):
             pages = [
                 {'id': 'zillow-test', 'name': 'Zillow values', 'url': 'https://files.zillowstatic.com/data.csv',
                  'allowed_domains': ['files.zillowstatic.com'], 'format': 'csv', 'data_kind': 'zillow',
-                 'regions': ['Charlotte-Concord'], 'interval_seconds': 604800, 'topics': ['housing-market']},
+                 'regions': ['Asterwick-Redwillow'], 'interval_seconds': 604800, 'topics': ['housing-market']},
                 {'id': 'fred-test', 'name': 'FRED mortgage', 'url': 'https://fred.stlouisfed.org/data.csv',
                  'allowed_domains': ['fred.stlouisfed.org'], 'format': 'csv', 'data_kind': 'fred',
                  'series_id': 'MORTGAGE30US', 'interval_seconds': 604800, 'topics': ['housing-market']},
@@ -254,7 +254,7 @@ class DiscoveryTests(unittest.TestCase):
             registry.write_text(json.dumps({'version': 1, 'sources': [], 'watched_pages': pages}))
             state_path = root / 'state.json'
             csv_rows = iter([
-                ('https://files.zillowstatic.com/data.csv', b'RegionName,2025-12-31,2026-01-31\n"Charlotte-Concord-Gastonia, NC-SC",350000,355000\nOther Metro,200000,201000\n'),
+                ('https://files.zillowstatic.com/data.csv', b'RegionName,2025-12-31,2026-01-31\n"Asterwick-Redwillow-Mistvale",350000,355000\nOther Metro,200000,201000\n'),
             ])
             def fetcher(url, _opener):
                 final, body = next(csv_rows)
@@ -265,34 +265,54 @@ class DiscoveryTests(unittest.TestCase):
             self.assertEqual([row['status'] for row in results], ['ok', 'transient_only'])
             saved = json.loads(state_path.read_text())
             self.assertEqual(saved['zillow-test']['data_points'], [
-                {'region': 'Charlotte-Concord-Gastonia, NC-SC', 'observed_on': '2026-01-31', 'value': '355000'}])
+                {'region': 'Asterwick-Redwillow-Mistvale', 'observed_on': '2026-01-31', 'value': '355000'}])
             self.assertEqual(saved['fred-test'], {'checked_at': core.iso_date(NOW), 'status': 'transient_only'})
             self.assertNotIn('body', saved['zillow-test'])
             self.assertLessEqual(len(saved['zillow-test']['snippet']), 280)
 
-    def test_real_registry_has_weekly_watches_where_north_carolina_and_rates_feeds_are_missing(self):
+    def test_default_registry_keeps_general_watches_without_local_entries(self):
         registry = json.loads(core.REGISTRY_PATH.read_text(encoding='utf-8'))
-        sources = core.load_registry()
         watches = {row['id']: row for row in registry['watched_pages']}
-        source_ids = {row['id'] for row in sources}
-        # NCDHHS has a dated headline-only feed but stays disabled pending
-        # reuse review; NCDOI has no feed, and FDIC rates use a weekly watch.
-        ncdhhs = next(row for row in sources if row['id'] == 'ncdhhs-news-feed')
-        self.assertFalse(ncdhhs['enabled'])
-        self.assertIn('reuse terms', ncdhhs['disable_reason'])
-        self.assertEqual(ncdhhs['tier'], 'probation')
-        self.assertNotIn('ncdoi-news-feed', source_ids)
-        self.assertNotIn('fdic-national-rates-feed', source_ids)
-        self.assertEqual(len(watches), 11)
-        self.assertTrue({'fdic-national-rates', 'ncdoi-press-releases', 'ncdhhs-news'} <= set(watches))
+        self.assertEqual(len(watches), 6)
+        self.assertIn('fdic-national-rates', watches)
         self.assertTrue(all(row['interval_seconds'] == 604800 for row in watches.values()))
-        data_watches = [row for row in watches.values() if row.get('format') == 'csv']
-        self.assertEqual(len(data_watches), 8)
-        self.assertTrue(all(row['robots_ok'] == 'unknown' for row in data_watches))
         for watch in watches.values():
             self.assertEqual(watch['interval_seconds'], 7 * 24 * 60 * 60)
             self.assertTrue(watch['url'].startswith('https://'))
             self.assertIn(watch['url'].split('/')[2], watch['allowed_domains'])
+
+    def test_reader_selected_local_watch_is_polled_from_external_file(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            state = root / 'watch-state.json'
+            registry = root / 'registry.json'
+            registry.write_text(json.dumps({'version': 1, 'sources': [], 'watched_pages': []}))
+            local_path = root / 'local-sources.json'
+            local_path.write_text(json.dumps({'version': 1, 'sources': [], 'watched_pages': [{
+                'id': 'fictional-watch', 'name': 'Fictional public update',
+                'url': 'https://watch.example.test/updates', 'allowed_domains': ['watch.example.test'],
+                'format': 'html', 'topics': ['local-news'], 'enabled': True,
+                'interval_seconds': 604800, 'robots_ok': True,
+            }]}))
+            html = b'<html><title>Asterwick update</title><h1>Fictional service change</h1></html>'
+            with patch.object(discover.core, '_robots_policy', return_value=(True, None)):
+                results = discover.run_weekly_watches(
+                    registry, state, now=NOW, local_source_ids=['fictional-watch'],
+                    local_sources_path=local_path,
+                    fetcher=lambda url, _opener: (200, url, 'text/html', html))
+            self.assertIn('fictional-watch', [row['id'] for row in results])
+            self.assertEqual(json.loads(state.read_text())['fictional-watch']['status'], 'ok')
+
+    def test_missing_external_local_watch_file_is_harmless(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp)
+            state = root / 'watch-state.json'
+            registry = root / 'registry.json'
+            registry.write_text(json.dumps({'version': 1, 'sources': [], 'watched_pages': []}))
+            results = discover.run_weekly_watches(
+                registry, state, now=NOW, local_source_ids=['fictional-watch'],
+                local_sources_path=root / 'missing-local-sources.json')
+            self.assertEqual(results, [])
 
 
 if __name__ == '__main__':

@@ -145,6 +145,10 @@ export function validateProfile(value) {
   if (!DURATIONS.has(value.minutes)) throw new TypeError('Interest profile minutes must be 10, 12, or 15.');
   if (value.background !== null && (typeof value.background !== 'string' || value.background.length > 120)) throw new TypeError('Interest profile background is invalid.');
   if (!Array.isArray(value.topics) || value.topics.length > 12) throw new TypeError('Interest profile topics must be an array of at most 12 items.');
+  if (value.local_sources !== undefined && (!Array.isArray(value.local_sources) || value.local_sources.length > 40 ||
+      value.local_sources.some(id => typeof id !== 'string' || !/^[a-z0-9][a-z0-9-]{0,63}$/.test(id)))) {
+    throw new TypeError('Interest profile local source choices are invalid.');
+  }
   if (value.behavior_weights !== undefined && (!value.behavior_weights || typeof value.behavior_weights !== 'object' || Array.isArray(value.behavior_weights) ||
       Object.entries(value.behavior_weights).length > 12 || Object.entries(value.behavior_weights).some(([id, weight]) =>
         !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id) || !Number.isFinite(weight) || weight < 0.5 || weight > 1.5))) {
@@ -156,6 +160,7 @@ export function validateProfile(value) {
     if (!topic || typeof topic !== 'object' || Array.isArray(topic) || !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(topic.id || '') || ids.has(topic.id)) throw new TypeError('Interest profile topic IDs must be unique slugs.');
     ids.add(topic.id);
     if (typeof topic.label !== 'string' || !topic.label.trim() || topic.label.length > 60 || typeof topic.scope !== 'string' || topic.scope.length > 180) throw new TypeError('Interest profile topic label or scope is invalid.');
+    if (topic.location !== undefined && (typeof topic.location !== 'string' || topic.location.length > 120)) throw new TypeError('Interest profile topic location is invalid.');
     if (!['include', 'exclude'].every(key => Array.isArray(topic[key]) && topic[key].length <= 8 && topic[key].every(phrase => typeof phrase === 'string' && phrase.length <= 240))) throw new TypeError('Interest profile topic phrases are invalid.');
     if (!DEPTHS.has(topic.depth) || !CADENCES.has(topic.cadence) || typeof topic.mustFollow !== 'boolean' || typeof topic.sourcePhrase !== 'string' || topic.sourcePhrase.length > 500) throw new TypeError('Interest profile topic preferences are invalid.');
   }
@@ -190,10 +195,13 @@ export function interpret(words, context = {}) {
     label: catalog.get(item.id)?.label || titleCase(item.id), phrase: item.source || item.phrase || item.id
   }));
   excludedItems.push(...unknown.filter(item => item.excluded).map(item => ({ label: muteLabel(item.phrase), phrase: item.phrase })));
-  const allDetected = [...detected.values()].filter(item => !item.excluded).map(item => ({ ...item, id: item.id, label: catalog.get(item.id)?.label || titleCase(item.id), scope: catalog.get(item.id)?.scope || 'A topic you named that is not in this sample edition yet.' }));
+  const allDetected = [...detected.values()].filter(item => !item.excluded).map(item => ({ ...item, id: item.id,
+    label: catalog.get(item.id)?.label || titleCase(item.source || item.phrase || item.id),
+    scope: catalog.get(item.id)?.scope || item.source || item.phrase || 'A topic you named that is not in this sample edition yet.' }));
   for (const item of unknown.filter(item => !item.excluded)) {
     const id = item.id;
-    if (!allDetected.some(topic => topic.id === id)) allDetected.push({ ...item, label: titleCase(item.phrase), scope: 'A topic you named that is not in this sample edition yet.', excluded: item.excluded === true });
+    if (!allDetected.some(topic => topic.id === id)) allDetected.push({ ...item, label: titleCase(item.phrase),
+      scope: item.source || item.phrase || 'A topic you named that is not in this sample edition yet.', excluded: item.excluded === true });
   }
   const positiveText = safeNormalized.replace(/\b(?:skip|ignore|mute|leave out|not interested in|not keen on|don't want(?: updates)? on|do not want(?: updates)? on|don't follow|do not follow)\s+[^.!?;]+/gi, ' ');
   const addCombined = (pattern, id, label, scope, includeIds) => {
@@ -206,9 +214,9 @@ export function interpret(words, context = {}) {
   };
   addCombined(/\bpayments?\s+(?:and|&)\s+bank(?:s|ing)?\s+news\b/i, 'custom-payments-banking',
     'Payments and banking', 'Payments and banking news and developments.', new Set(['payments', 'banking']));
-  addCombined(/\b(?:NC|North Carolina)\s+health\s+insurance\s+and\s+finance\s+policy\b/i,
-    'custom-nc-health-finance-policy', 'NC health insurance and finance policy',
-    'North Carolina health insurance and finance policy.', new Set(['insurance']));
+  addCombined(/\bhealth\s+insurance\s+and\s+finance\s+policy\b/i,
+    'custom-health-insurance-finance-policy', 'Health insurance and finance policy',
+    'Health insurance coverage, policy and financial developments.', new Set(['insurance']));
   addCombined(/\b(?:AI|artificial intelligence)\s+in\s+finance\b/i, 'custom-ai-in-finance',
     'AI in finance', 'Artificial intelligence in financial services.', new Set());
   allDetected.sort((a, b) => a.start - b.start);

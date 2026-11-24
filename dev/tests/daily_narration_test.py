@@ -1159,11 +1159,11 @@ class DailyNarrationTests(unittest.TestCase):
 
     def test_topic_labels_are_pronounceable_and_each_topic_is_introduced_once(self):
         self.assertEqual(_spoken_topic_label('ai in finance'), 'A I in finance')
-        self.assertEqual(_spoken_topic_label('nc health insurance'),
-                         'North Carolina health insurance')
+        self.assertEqual(_spoken_topic_label('Pinevale health insurance'),
+                         'Pinevale health insurance')
         sections = [
             {'cluster_id': 'ai-1', 'topic_ids': ['ai'], 'heading': 'First AI update'},
-            {'cluster_id': 'nc', 'topic_ids': ['nc'], 'heading': 'Health update'},
+            {'cluster_id': 'health', 'topic_ids': ['health'], 'heading': 'Health update'},
             {'cluster_id': 'ai-2', 'topic_ids': ['ai'], 'heading': 'Second AI update'},
         ]
         story_body = ('The update describes the decision and gives readers immediate context. '
@@ -1181,7 +1181,7 @@ class DailyNarrationTests(unittest.TestCase):
                    'daily_briefing': {'briefing_script': script, 'narrator_words_per_minute': 150,
                                       'maximum_spoken_words': 1000, 'background_segments': []}}
         profile = {'topics': [{'id': 'ai', 'label': 'ai in finance'},
-                              {'id': 'nc', 'label': 'nc health insurance'}]}
+                              {'id': 'health', 'label': 'Pinevale health insurance'}]}
         stories = {row['cluster_id']: [{'text': story_body, 'evidence_ids': ['e-' + row['cluster_id']],
                                         'general_context': False}] for row in sections}
         evidence = {row['cluster_id']: [{'id': 'e-' + row['cluster_id'], 'citation_numbers': [1],

@@ -125,14 +125,14 @@ class TopicProfileTests(unittest.TestCase):
 
     def test_edit_is_idempotent_across_reload_and_keeps_topic_scope_local(self):
         rural = next(topic for topic in self.topics if topic['id'] == 'rural-broadband')
-        charlotte = next(topic for topic in self.topics if topic['id'] == 'charlotte-housing')
+        local_topic = next(topic for topic in self.topics if topic['id'] == 'fernvale-housing')
         rural_profile = follow_topic(rural, self.retriever(rural), store=self.store,
                                      tiers=self.tiers, today='2026-11-18T12:00:00Z')
-        charlotte_profile = follow_topic(charlotte, self.retriever(charlotte), store=self.store,
+        local_profile = follow_topic(local_topic, self.retriever(local_topic), store=self.store,
                                          tiers=self.tiers, today='2026-11-18T12:00:00Z')
 
         changes = {
-            'scope': 'Rural fiber coverage and funding in North Carolina',
+            'scope': 'Rural fiber coverage and funding in Pinevale',
         }
         edited = self.store.edit(rural_profile['topic_id'], changes, now='2026-11-18T13:00:00Z')
         reloaded_store = TopicProfileStore(self.store.path)
@@ -141,18 +141,18 @@ class TopicProfileTests(unittest.TestCase):
 
         self.assertEqual(repeated, edited, 'reapplying the same edit after reload is idempotent')
         self.assertEqual(edited['topic_id'], rural_profile['topic_id'])
-        self.assertEqual(edited['scope'], 'Rural fiber coverage and funding in North Carolina')
+        self.assertEqual(edited['scope'], 'Rural fiber coverage and funding in Pinevale')
         self.assertEqual(edited['exclusions'], rural_profile['exclusions'])
         self.assertEqual(len(next_edition_snapshot), 2)
         self.assertEqual(next_edition_snapshot[rural['id']], edited)
-        self.assertEqual(next_edition_snapshot[charlotte['id']], charlotte_profile)
-        self.assertEqual(next_edition_snapshot[charlotte['id']]['scope'],
-                         'Home building and affordability in Charlotte')
-        self.assertNotIn('North Carolina', next_edition_snapshot[charlotte['id']]['scope'])
+        self.assertEqual(next_edition_snapshot[local_topic['id']], local_profile)
+        self.assertEqual(next_edition_snapshot[local_topic['id']]['scope'],
+                         'Home building and affordability in Fernvale')
+        self.assertNotIn('Pinevale', next_edition_snapshot[local_topic['id']]['scope'])
 
-        charlotte_query = next(query for topic_id, query in self.calls if topic_id == charlotte['id'])
-        self.assertIn('Charlotte', charlotte_query)
-        self.assertNotIn('North Carolina', charlotte_query)
+        local_query = next(query for topic_id, query in self.calls if topic_id == local_topic['id'])
+        self.assertIn('Fernvale', local_query)
+        self.assertNotIn('Pinevale', local_query)
 
     def test_following_existing_topic_reuses_its_saved_starter_without_retrieval(self):
         topic = self.topics[0]

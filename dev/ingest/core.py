@@ -22,6 +22,7 @@ import time
 import threading
 import xml.etree.ElementTree as ET
 from .paths import STATE_DIR, checked_state_path
+from . import local_sources
 
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY_PATH = ROOT / 'content' / 'sources-registry.json'
@@ -79,12 +80,26 @@ def parse_date(value):
     return parsed.astimezone(timezone.utc)
 
 
-def load_registry(path=REGISTRY_PATH):
+def load_registry(path=REGISTRY_PATH, *, local_source_ids=None, local_sources_path=None):
     data = json.loads(Path(path).read_text(encoding='utf-8'))
     if not isinstance(data, dict) or data.get('version') != 1 or not isinstance(data.get('sources'), list):
         raise ValueError('Source registry must have version 1 and a sources list.')
+    sources = list(data['sources'])
+    selected = list(dict.fromkeys(local_source_ids or []))
+    if selected:
+        local_data = local_sources.load(local_sources_path)
+        if local_data is not None:
+            if not isinstance(local_data, dict) or local_data.get('version') != 1 or not isinstance(local_data.get('sources'), list):
+                raise ValueError('Optional local sources must have version 1 and a sources list.')
+            local_by_id = {source.get('id'): source for source in local_data['sources'] if isinstance(source, dict)}
+            known_ids = set(local_by_id)
+            known_ids.update(page.get('id') for page in local_data.get('watched_pages', []) if isinstance(page, dict))
+            unknown = [source_id for source_id in selected if source_id not in known_ids]
+            if unknown:
+                raise ValueError('Unknown optional local source ID.')
+            sources.extend(local_by_id[source_id] for source_id in selected if source_id in local_by_id)
     identifiers = set()
-    for source in data['sources']:
+    for source in sources:
         if not isinstance(source, dict):
             raise ValueError('Each registry source must be an object.')
         required = {'id', 'name', 'url', 'format', 'topics', 'enabled'}
@@ -113,7 +128,7 @@ def load_registry(path=REGISTRY_PATH):
             raise ValueError('minimum_interval_seconds must be a positive integer.')
         if source.get('article_access', 'headline') not in {'full-text', 'transient-read', 'feed-full', 'headline'}:
             raise ValueError('Source article_access must be full-text, transient-read, feed-full, or headline.')
-    return data['sources']
+    return sources
 
 
 def canonical_link(link):

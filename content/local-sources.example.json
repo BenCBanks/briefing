@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "sources": [
+    {
+      "id": "fictional-asterwick-feed",
+      "name": "Fictional Asterwick Civic Updates",
+      "url": "https://asterwick.example.test/feed.xml",
+      "allowed_domains": ["asterwick.example.test"],
+      "format": "rss",
+      "topics": ["local-news", "housing-market"],
+      "enabled": true,
+      "robots_ok": true,
+      "minimum_interval_seconds": 86400,
+      "article_access": "headline"
+    },
+    {
+      "id": "fictional-velmora-feed",
+      "name": "Fictional Velmora Planning Notes",
+      "url": "https://velmora.example.test/updates.xml",
+      "allowed_domains": ["velmora.example.test"],
+      "format": "atom",
+      "topics": ["housing-market", "construction"],
+      "enabled": true,
+      "robots_ok": true,
+      "minimum_interval_seconds": 86400,
+      "article_access": "headline"
+    },
+    {
+      "id": "fictional-dunlune-feed",
+      "name": "Fictional Dunlune Public Data",
+      "url": "https://dunlune.example.test/data.json",
+      "allowed_domains": ["dunlune.example.test"],
+      "format": "json",
+      "topics": ["energy", "local-news"],
+      "enabled": false,
+      "robots_ok": true,
+      "minimum_interval_seconds": 604800,
+      "article_access": "headline"
+    }
+  ],
+  "watched_pages": [],
+  "domains": {
+    "asterwick.example.test": {
+      "tier": "primary",
+      "origin": "asterwick.example.test",
+      "reason": "Fictional public source.",
+      "reviewed_at": "2026-11-24",
+      "basis": ["fictional-example"],
+      "evidence_url": "https://asterwick.example.test/",
+      "rights_status": "unverified"
+    },
+    "velmora.example.test": {
+      "tier": "trade",
+      "origin": "velmora.example.test",
+      "reason": "Fictional trade source.",
+      "reviewed_at": "2026-11-24",
+      "basis": ["fictional-example"],
+      "evidence_url": "https://velmora.example.test/",
+      "rights_status": "unverified"
+    },
+    "dunlune.example.test": {
+      "tier": "primary",
+      "origin": "dunlune.example.test",
+      "reason": "Fictional data publisher.",
+      "reviewed_at": "2026-11-24",
+      "basis": ["fictional-example"],
+      "evidence_url": "https://dunlune.example.test/",
+      "rights_status": "unverified"
+    }
+  }
+}

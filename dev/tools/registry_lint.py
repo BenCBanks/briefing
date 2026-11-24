@@ -10,10 +10,10 @@ from urllib.parse import urlsplit
 ROOT = Path(__file__).resolve().parents[2]
 REGISTRY = ROOT / 'content/sources-registry.json'
 KNOWN_TOPICS = {
-    'affordable-housing', 'ai', 'banking', 'charlotte', 'construction', 'cooking', 'design',
+    'affordable-housing', 'ai', 'banking', 'construction', 'cooking', 'design',
     'digital', 'finance', 'fintech', 'gaming', 'gardening', 'health', 'homebuilding',
     'housing-market', 'insurance', 'materials', 'mlb', 'nba', 'nfl', 'nhl', 'payments',
-    'premier-league', 'science', 'security', 'sports', 'travel', 'upstate-sc', 'us', 'world',
+    'premier-league', 'science', 'security', 'sports', 'travel', 'us', 'world',
     'energy', 'local-news', 'sports-business', 'privacy', 'running', 'books',
 }
 ACCESS = {'feed-full', 'full-text', 'headline', 'transient-read'}

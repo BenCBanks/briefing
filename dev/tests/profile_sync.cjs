@@ -13,9 +13,9 @@ const legacyProfile = { version: 1, words: 'I follow payments and banking.', min
   { id: 'payments', label: 'Payments', scope: 'Payment systems', include: ['payment rails'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'I follow payments' },
   { id: 'banking', label: 'Banking', scope: 'Deposits and stability', include: ['deposits'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'and banking' },
 ] };
-const serverProfile = { version: 1, words: 'Payments and banking news, NC health insurance and finance policy, AI in finance. Skip crypto hype.', minutes: 12, background: null, muted: [{ label: 'Crypto hype' }], topics: [
+const serverProfile = { version: 1, words: 'Payments and banking news, health insurance and finance policy, AI in finance. Skip crypto hype.', minutes: 12, background: null, muted: [{ label: 'Crypto hype' }], topics: [
   { id: 'custom-payments-and-banking-news', label: 'Payments and banking', scope: 'Payments and banking news', include: ['payments and banking news'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'Payments and banking news' },
-  { id: 'custom-nc-health-insurance-and-finance-policy', label: 'NC health insurance and finance policy', scope: 'North Carolina health insurance and finance policy', include: ['NC health insurance and finance policy'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'NC health insurance and finance policy' },
+  { id: 'custom-health-insurance-finance-policy', label: 'health insurance and finance policy', scope: 'Pinevale health insurance and finance policy', include: ['health insurance and finance policy'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'health insurance and finance policy' },
   { id: 'custom-ai-in-finance', label: 'AI in finance', scope: 'AI in finance', include: ['AI in finance'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'AI in finance' },
 ] };
 const profileKey = profile => JSON.stringify({ words: profile?.words || '', minutes: profile?.minutes || 12,

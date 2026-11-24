@@ -64,7 +64,7 @@ class NarrationNormalizerTests(unittest.TestCase):
     def test_audio_path_synthesizes_normalized_text_but_keeps_transcript_and_offsets(self):
         episode = copy.deepcopy(read_fixture())
         raw = ('The SEC reported $2.5 billion on Nov 12 '
-               '[1](https://example.test/fictional-source).\n\nAI and NC rates rose 3–5%.')
+               '[1](https://example.test/fictional-source).\n\nAI and PV rates rose 3–5%.')
         episode['chapters'][0]['spoken_text'] = raw
         provider = FixtureProvider()
         with tempfile.TemporaryDirectory() as temp:
@@ -72,7 +72,7 @@ class NarrationNormalizerTests(unittest.TestCase):
                                           state_dir=Path(temp) / 'state')
         self.assertEqual(provider.calls[0][0],
                          'The S-E-C reported two and a half billion dollars on November twelfth.\n\n'
-                         'A-I and N-C rates rose three to five percent.')
+                         'A-I and P-V rates rose three to five percent.')
         self.assertEqual(result['episode']['chapters'][0]['spoken_text'], raw,
                          'on-screen transcript stays separate from the synthesis-only normalization')
         self.assertEqual(result['manifest']['chapters'][1]['start_seconds'], 0.1,

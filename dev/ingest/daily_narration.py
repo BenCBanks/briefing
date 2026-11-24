@@ -810,7 +810,6 @@ def _spoken_topic_label(label):
     """Keep profile labels readable aloud without flattening proper names."""
     value = re.sub(r'\s+', ' ', str(label or '').strip())
     value = re.sub(r'\bAI\b', 'A I', value, flags=re.I)
-    value = re.sub(r'\bNC\b', 'North Carolina', value, flags=re.I)
     value = re.sub(r'\bCMS\b', 'C-M-S', value, flags=re.I)
     return value[:1].upper() + value[1:]
 
