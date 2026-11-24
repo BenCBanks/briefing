@@ -116,9 +116,16 @@ def _token_key(token):
 
 
 def _sweep_sessions(sessions, now):
-    return {key: row for key, row in sessions.items()
-            if isinstance(row, dict) and now < int(row.get('absolute_expires', 0))
-            and now < int(row.get('idle_expires', 0))}
+    valid = {}
+    for key, row in sessions.items():
+        try:
+            if (isinstance(key, str) and isinstance(row, dict) and
+                    now < int(row.get('absolute_expires', 0)) and
+                    now < int(row.get('idle_expires', 0))):
+                valid[key] = row
+        except (TypeError, ValueError, OverflowError):
+            continue
+    return valid
 
 
 def _new_session(account_id):

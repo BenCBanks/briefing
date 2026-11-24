@@ -115,6 +115,16 @@ class AccountAuthTests(unittest.TestCase):
         status, result, _ = self.request('POST', '/api/account/login', {'account': 'reader-b', 'password': 'correct horse battery staple'})
         self.assertEqual(status, 429); self.assertEqual(result['error'], 'login_temporarily_locked')
 
+    def test_unknown_account_and_wrong_password_share_login_response(self):
+        self.request('POST', '/api/account/signup', {'invite_code': 'fictional-invite', 'account': 'reader-c',
+                                                     'password': 'long fictional password'})
+        existing = self.request('POST', '/api/account/login',
+                                 {'account': 'reader-c', 'password': 'different password'})
+        unknown = self.request('POST', '/api/account/login',
+                               {'account': 'missing-reader', 'password': 'different password'})
+        self.assertEqual(existing[:2], unknown[:2])
+        self.assertEqual(existing[1], {'error': 'invalid_credentials'})
+
     def test_accounts_are_unavailable_when_flag_is_off(self):
         with patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'off'}):
             status, result, _ = self.request('GET', '/api/account/me')
@@ -164,6 +174,15 @@ class AccountAuthTests(unittest.TestCase):
             accounts.login('reader-rehash', 'long fictional password phrase', '127.0.0.2')
         stored = accounts._read('accounts.json', {})['reader-rehash']['password']
         self.assertEqual(stored['n'], 2**15)
+
+    def test_expiry_sweep_drops_expired_and_malformed_sessions(self):
+        from dev import accounts
+        swept = accounts._sweep_sessions({
+            'valid': {'absolute_expires': 200, 'idle_expires': 150},
+            'expired': {'absolute_expires': 90, 'idle_expires': 200},
+            'malformed': {'absolute_expires': 'bad', 'idle_expires': 200},
+        }, 100)
+        self.assertEqual(list(swept), ['valid'])
 
 
 if __name__ == '__main__':
