@@ -89,6 +89,7 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
     const route = new FixtureNode('main');
     const played = []; const fetched = []; let projected;
     const context = vm.createContext({ cards, done, job, hasCurrentEpisodeRecording,
+      episodeJob: null, episodeUnheardIds: () => [], syncOnDemandBadge: () => {},
       content: route, location: { hash: `#episode/${id}`, search: '' },
       renderEpisodePage: (container, episode, actions) => {
         projected = episode; renderEpisodePage(container, episode, actions);
@@ -197,7 +198,8 @@ async function checkRequestCardStates(hasCurrentEpisodeRecording) {
   ];
   const cards = new FixtureNode('div');
   const context = vm.createContext({
-    cards, hasCurrentEpisodeRecording, episodeHistorySnapshot: null,
+    cards, hasCurrentEpisodeRecording, episodeHistorySnapshot: null, episodeJob: null,
+    episodeUnheardIds: () => [], syncOnDemandBadge: () => {},
     node: (tag, text, className = '') => Object.assign(new FixtureNode(tag, text ?? ''), { className }),
     link: (text, href, className = '') => Object.assign(new FixtureNode('a', text), { href, className }),
     fetch: async (url, options) => {

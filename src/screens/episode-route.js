@@ -14,7 +14,7 @@ export function renderEpisodeRouteFailure({ content, node, link, title, message,
 export async function renderEpisodeRoute(routeName, {
   content, node, location, episodeHistorySnapshot, renderEpisodeHistory,
   renderEpisodeMakingFromHistory, renderRouteFailure, renderMissing, navigate, player,
-  isEpisodeInDailyBriefing, setEpisodeDailyBriefing, setEpisodeDeckCleanup,
+  isEpisodeInDailyBriefing, setEpisodeDailyBriefing, onEpisodeHeard = () => {}, setEpisodeDeckCleanup,
 }) {
   const loading = node('section', null, 'episode-loading');
   loading.setAttribute('role', 'status'); loading.append(node('h1', 'Loading episode'), node('div', null, 'edition-skeleton'));
@@ -61,7 +61,7 @@ export async function renderEpisodeRoute(routeName, {
           duration_minutes: result.episode.duration_minutes, requested_minutes: result.length || result.episode.requested_minutes,
           audio_status: audioReady ? 'recorded' : 'pending',
           made_date: String(result.finished_at || result.updated_at || '').slice(0, 10), audio_recorded: audioReady }, {
-          onListen: episode => player.playRecording(episode),
+          onListen: episode => { onEpisodeHeard(result.job_id || id); player.playRecording(episode); },
           compactSources: true,
           inDailyBriefing: isEpisodeInDailyBriefing({ ...result.episode, topic_label: result.topic || result.episode.topic_label }),
           onDailyBriefingChange: setEpisodeDailyBriefing,
