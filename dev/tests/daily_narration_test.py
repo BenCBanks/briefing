@@ -1534,12 +1534,12 @@ class DailyNarrationTests(unittest.TestCase):
             lint = lint_spoken_text(story, general_context_words=context_words, require_context=True)
             self.assertTrue(lint['ok'], lint)
             self.assertLessEqual(lint['general_context_ratio'], 0.40)
-        self.assertIn('S-N-B Bancshares', story_texts[0])
+        self.assertIn('S N B Bancshares', story_texts[0])
         self.assertIn('Eufaula, Oklahoma', story_texts[0])
         self.assertIn('two years', story_texts[0])
         self.assertIn('binding supervisory', story_texts[0])
-        self.assertIn('C-M-S', story_texts[1])
-        self.assertIn('The Centers for Medicare and Medicaid Services, or C-M-S, has given states six more months before work requirements begin, moving the deadline to June thirtieth.',
+        self.assertIn('C M S', story_texts[1])
+        self.assertIn('The Centers for Medicare and Medicaid Services, or C M S, has given states six more months before work requirements begin, moving the deadline to June thirtieth.',
                       story_texts[1])
         self.assertIn('ten point one million', story_texts[1])
         self.assertNotRegex(' '.join(story_texts),
