@@ -39,6 +39,8 @@ if __package__:
     from .ingest.paths import STATE_DIR, profile_identifier
     from .ingest.usage import UsageLedger, UsageError, process_ledger
     from .ingest.flags import effective_flags
+    from .ingest.flags import flag_enabled
+    from . import accounts
     from .tools.status_report import build_health_payload
     from .interpreter_proxy import decode_json, interpret_request
 else:
@@ -58,6 +60,8 @@ else:
     from ingest.paths import STATE_DIR, profile_identifier
     from ingest.usage import UsageLedger, UsageError, process_ledger
     from ingest.flags import effective_flags
+    from ingest.flags import flag_enabled
+    import accounts
     from tools.status_report import build_health_payload
     from interpreter_proxy import decode_json, interpret_request
 
@@ -510,6 +514,9 @@ class Handler(BaseHTTPRequestHandler):
                 'POST', request_path, self.client_address[0]):
             self._send_json(403, {'error': 'local_only'})
             return
+        if flag_enabled('accounts') and request_path.startswith('/api/account/'):
+            self._account_post(request_path)
+            return
         rate_key = _post_rate_key(request_path)
         if rate_key and _post_rate_limited(self.client_address[0], rate_key):
             self._send_json(429, {'error': 'rate_limited'})
@@ -586,6 +593,73 @@ class Handler(BaseHTTPRequestHandler):
                 status, result = start_generation(
                     payload.get('profile') if isinstance(payload, dict) else None)
         self._json(status, result)
+
+    def _account_body(self, limit=8192):
+        try:
+            length = int(self.headers.get('Content-Length', '0'))
+        except ValueError:
+            raise accounts.AccountError(400, 'invalid_content_length')
+        if length <= 0 or length > limit:
+            raise accounts.AccountError(413 if length > limit else 400, 'invalid_request_size')
+        try:
+            value = decode_json(self.rfile.read(length))
+        except (ValueError, UnicodeDecodeError, RecursionError):
+            raise accounts.AccountError(400, 'invalid_json')
+        if not isinstance(value, dict):
+            raise accounts.AccountError(400, 'invalid_request')
+        return value
+
+    def _account_token(self):
+        raw = self.headers.get('Cookie', '')
+        for part in raw.split(';'):
+            key, _, value = part.strip().partition('=')
+            if key == accounts.SESSION_COOKIE:
+                return value
+        return None
+
+    def _account_csrf(self, payload=None):
+        return self.headers.get('X-CSRF-Token') or (payload or {}).get('csrf_token')
+
+    def _account_reply(self, status, payload, token=None, expired=False):
+        self.send_response(status)
+        self.send_header('Content-Type', 'application/json; charset=utf-8')
+        self.send_header('Cache-Control', 'no-store')
+        if token is not None:
+            self.send_header('Set-Cookie', accounts.cookie(token))
+        elif expired:
+            self.send_header('Set-Cookie', accounts.cookie('', 0))
+        body = json.dumps(payload, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        self.send_header('Content-Length', str(len(body)))
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        self.end_headers()
+        if status != 204:
+            self.wfile.write(body)
+
+    def _account_error(self, error):
+        self._account_reply(getattr(error, 'status', 500), {'error': getattr(error, 'code', 'request_failed')})
+
+    def _account_post(self, path):
+        try:
+            payload = self._account_body()
+            if path == '/api/account/signup':
+                account, token, csrf = accounts.signup(payload.get('invite_code'), payload.get('account'), payload.get('password'))
+                self._account_reply(201, {'account': accounts._public(account), 'csrf_token': csrf}, token=token)
+                return
+            if path == '/api/account/login':
+                account, token, csrf = accounts.login(payload.get('account'), payload.get('password'), self.client_address[0])
+                self._account_reply(200, {'account': accounts._public(account), 'csrf_token': csrf}, token=token)
+                return
+            token = self._account_token()
+            row = accounts.require(token, self._account_csrf(payload), mutate=True)
+            if path == '/api/account/logout':
+                accounts.logout(token); self._account_reply(204, {}, expired=True); return
+            if path == '/api/account/delete':
+                if payload.get('confirm') != 'DELETE':
+                    raise accounts.AccountError(400, 'confirmation_required')
+                accounts.delete_account(row[2]['id']); self._account_reply(204, {}, expired=True); return
+            self._send_json(404, {'error': 'not_found'})
+        except accounts.AccountError as error:
+            self._account_error(error)
 
     def _mark_edition_seen(self):
         try:
@@ -738,6 +812,9 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(400, {'error': 'invalid_query'})
                 return
         episode_path = unquote(request.path)
+        if flag_enabled('accounts') and request.path.startswith('/api/account/'):
+            self._account_get(request.path)
+            return
         if request.path == '/api/profile/export':
             profile_status, profile_result = profile_response()
             if profile_status != 200:
@@ -903,6 +980,7 @@ class Handler(BaseHTTPRequestHandler):
             filename = raw_path.removeprefix('/audition-audio/')
             if not filename or filename in {'.', '..'} or '/' in filename or '\\' in filename:
                 self.send_error(404)
+
                 return
             audition_root = AUDITION_AUDIO_ROOT.resolve()
             file = (audition_root / filename).resolve()
@@ -999,6 +1077,35 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; img-src 'self' data:; media-src 'self'; object-src 'none'; base-uri 'none'")
         self.end_headers()
         self.wfile.write(encoded)
+
+    def _account_get(self, path):
+        try:
+            row = accounts.require(self._account_token())
+            account = accounts._public(row[2])
+            if path == '/api/account/me':
+                self._send_json(200, {'account': account, 'usage': {}})
+                return
+            if path == '/api/account/csrf':
+                self._send_json(200, {'csrf_token': row[1]['csrf']})
+                return
+            if path == '/api/account/export':
+                reader = accounts._root() / 'readers' / row[2]['id']
+                export = {'account': account, 'profile': None, 'episodes': [], 'library': [],
+                          'corrections': [], 'usage': {}}
+                for key, target in (('profile.json', 'profile'), ('episodes.json', 'episodes'),
+                                    ('library.json', 'library'), ('corrections.json', 'corrections'),
+                                    ('usage.json', 'usage')):
+                    try:
+                        value = json.loads((reader / key).read_text(encoding='utf-8'))
+                        if isinstance(value, (dict, list)):
+                            export[target] = value
+                    except (OSError, ValueError, TypeError):
+                        pass
+                self._send_json(200, export)
+                return
+            self._send_json(404, {'error': 'not_found'})
+        except accounts.AccountError as error:
+            self._account_error(error)
 
     def _get_episode_audio(self, episode_id):
         if not re.fullmatch(r'[a-f0-9]{32}', episode_id):
