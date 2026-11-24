@@ -510,6 +510,9 @@ async function screenshot(page, name) {
     assert.equal(new URL(page.url()).hash, '#episode-making', 'the episode row returns to its active making screen');
     assert.equal(await page.locator('.episode-making-quote').innerText(), '“Fictional ferry schedule changes”');
     assert.equal(await page.locator('.main-nav-badge[data-state="making"]').count(), 1);
+    await screenshot(page, 'leave-return-returned-light');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'leave-return-returned-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
     leaveReturnReadyMode = true;
     await page.locator('.main-nav-badge[data-state="ready"]').waitFor();
     assert.equal(await page.locator('[data-nav="on-demand"]').getAttribute('aria-label'), 'On demand, episode ready to play');
