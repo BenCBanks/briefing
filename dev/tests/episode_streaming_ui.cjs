@@ -101,7 +101,7 @@ async function openFlow(browser, streamingEnabled) {
   const browser = await chromium.launch({ headless: true, args: ['--no-sandbox'] });
   try {
     const off = await openFlow(browser, false);
-    await off.page.waitForTimeout(1200);
+    await off.page.locator('.episode-stage-row[data-index="3"][data-state="active"]').waitFor();
     assert.equal(await off.page.locator('.episode-streaming-chapters').count(), 0,
       'the ordinary non-streaming job shows no early chapter controls');
     assert.equal(await off.page.locator('[data-on-demand-badge]').getAttribute('data-state'), 'making',
