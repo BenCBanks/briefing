@@ -143,9 +143,9 @@ flowchart TD
     Repair --> Result{Verified script?}
     Result -- no --> Failed[Persist safe failure]
     Result -- yes --> Text[Persist verified episode]
+    Text --> Audio[Record chapter audio]
     Fake --> FixtureDone[Persist done with fictional text]
-    Text -. separate invocation .-> Audio[episodes_audio.py]
-Text -. streaming flag on .-> Stream[Publish each recorded chapter]
+    Audio -. streaming flag on .-> Stream[Publish each recorded chapter]
 ```
 
 Requests contain exactly `topic`, `length` (5, 10 or 15 minutes) and `style`
@@ -168,8 +168,9 @@ flag is off by default; the ordinary complete-audio flow is unchanged.
 Job stages are `queued`, `researching`, `reading`, `checking`, `writing`,
 `recording`; terminal states are `done`, `failed`, `cancelled`. Fake jobs simulate
 stages with a four-second delay and at most three attempts. Real jobs have one
-attempt and share a process-local semaphore of size one. They generate text,
-not an audio recording: `done` does not imply playable audio. Cancellation is
+attempt and share a process-local semaphore of size one. With streaming off,
+the established job and audio behavior applies. With streaming on, the API
+reports playable chapter WAVs during recording. Cancellation is
 checked around expensive work; it cannot undo a provider charge already incurred.
 JSON survives a restart, but daemon threads, cancellation events and the
 semaphore do not. Startup does not resume interrupted jobs; there are no leases,
