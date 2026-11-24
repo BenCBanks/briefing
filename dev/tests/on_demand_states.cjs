@@ -128,7 +128,7 @@ async function captureThemes(page, name, anchor) {
     requestState = 'cost-cap';
     await page.getByRole('button', { name: 'Create episode' }).click();
     const capNotice = page.locator('.episode-request-error');
-    await page.getByText('The current cost limit has been reached. Your request is still here; try again later.', { exact: true }).waitFor();
+    await page.getByText('We cannot make this episode right now. Your request is saved here; try again later.', { exact: true }).waitFor();
     assert.equal(await prompt.inputValue(), 'Fictional harbor transit schedules', 'A cost cap keeps the request intact');
     assert.equal(await page.locator('.episode-making-page').count(), 0, 'A cost refusal does not open a making screen');
     assert.equal(await page.locator('#episode-request-start').isDisabled(), true, 'A reached cost limit does not invite an immediate repeat request');
@@ -166,14 +166,14 @@ async function captureThemes(page, name, anchor) {
       {
         reason: 'insufficient_evidence',
         diagnostic: 'Private source diagnostic: fictional full-text coverage is insufficient.',
-        publicCopy: 'We could not find enough verified information to finish this episode. Try a narrower question.',
+        publicCopy: 'We could not find enough reliable information to finish this episode. Try a more specific question.',
         kickerCopy: 'Ready to try again',
         retryCount: 1,
       },
       {
         reason: 'cost_cap_reached',
         diagnostic: 'Private cost diagnostic: fictional reservation details must stay hidden.',
-        publicCopy: 'The cost limit was reached while preparing this episode. Your request is still here; try again later.',
+        publicCopy: 'We cannot make this episode right now. Your request is saved here; try again later.',
         kickerCopy: 'Try again later',
         retryCount: 0,
       },

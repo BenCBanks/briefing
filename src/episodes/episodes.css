@@ -123,5 +123,5 @@ body.is-episodes-list .site-header { display:none; }
 .episode-history-making > .episode-back { margin-bottom:20px; }
 .episode-history-making > h1 { font:400 clamp(1.65rem,7vw,2rem)/1.2 var(--read,Georgia,serif); }
 .episode-history-making .episode-status-chip { min-height:44px; margin:6px 0; }
-.episode-history-making .episode-job-card-status { margin-top:10px; text-transform:capitalize; }
+.episode-history-making .episode-job-card-status { margin-top:10px; }
 @media (prefers-reduced-motion:reduce) { .episode-status-chip[data-state="active"] .episode-stage-ring { animation:none; } }

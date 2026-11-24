@@ -494,22 +494,19 @@ def _failure_reason(error, stage='initialization'):
 
 def _failure_message(reason):
     messages = {
-        'ingestion_disabled_by_kill_switch': 'Generation is paused because the ingestion kill switch is enabled.',
-        'generation_in_progress': 'Another edition generation is already running.',
-        'generation_timeout': 'Generation exceeded its time limit.',
-        'gemini_call_limit': 'Generation reached the configured Gemini call limit.',
+        'ingestion_disabled_by_kill_switch': 'The daily briefing is temporarily paused. Please try again later.',
+        'generation_in_progress': 'Your daily briefing is already being prepared.',
+        'generation_timeout': 'The daily briefing took too long to prepare. Please try again later.',
+        'gemini_call_limit': 'We could not finish the daily briefing just now. Please try again later.',
     }
     if reason.startswith('scorecard_critical_failed'):
-        return 'The edition did not pass its critical quality checks.'
+        return 'Your daily briefing is not ready yet. Please try again later.'
     if reason == 'generation_failed:thread_capacity:RuntimeError':
-        return 'Generation could not start another worker within the service thread limit.'
+        return 'The daily briefing could not start just now. Please try again later.'
     parts = reason.split(':')
     if len(parts) == 3 and parts[0] == 'generation_failed':
-        label = {'initialization': 'preparation', 'feed_fetch': 'feed fetching',
-                 'edition_writer': 'edition writing', 'scorecard': 'quality scoring',
-                 'edition_publish': 'edition publishing'}.get(parts[1], 'generation')
-        return f'{label.capitalize()} failed unexpectedly ({parts[2]}).'
-    return messages.get(reason, 'Generation could not be completed.')
+        return 'The daily briefing could not be prepared just now. Please try again later.'
+    return messages.get(reason, 'The daily briefing could not be completed. Please try again later.')
 
 
 def _safe_exception_detail(error):

@@ -877,7 +877,8 @@ class GenerationApiTests(unittest.TestCase):
                 time.sleep(0.01)
         self.assertEqual(job['status'], 'failed')
         self.assertEqual(job['failure_reason'], 'ingestion_disabled_by_kill_switch')
-        self.assertIn('kill switch is enabled', job['progress']['message'])
+        self.assertEqual(job['progress']['message'],
+                         'The daily briefing is temporarily paused. Please try again later.')
         status = json.loads((self.root / 'status.json').read_text())
         self.assertEqual(status['reason'], 'ingestion_disabled_by_kill_switch')
 
@@ -893,7 +894,8 @@ class GenerationApiTests(unittest.TestCase):
                     break
                 time.sleep(0.01)
         self.assertEqual(job['failure_reason'], 'generation_failed:edition_writer:RuntimeError')
-        self.assertEqual(job['progress']['message'], 'Edition writing failed unexpectedly (RuntimeError).')
+        self.assertEqual(job['progress']['message'],
+                         'The daily briefing could not be prepared just now. Please try again later.')
         self.assertNotIn('private words', json.dumps(job))
 
     def test_runtime_failure_logging_includes_traceback_without_exception_text(self):
@@ -915,7 +917,12 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(generation_api._failure_reason(RuntimeError("can't start new thread"), 'feed_fetch'),
                          'generation_failed:thread_capacity:RuntimeError')
         self.assertEqual(generation_api._failure_message('generation_failed:thread_capacity:RuntimeError'),
-                         'Generation could not start another worker within the service thread limit.')
+                         'The daily briefing could not start just now. Please try again later.')
+        for reason in ('ingestion_disabled_by_kill_switch', 'gemini_call_limit',
+                       'generation_failed:feed_fetch:ValueError', 'scorecard_critical_failed:too_few_stories'):
+            message = generation_api._failure_message(reason)
+            self.assertNotRegex(message.lower(), r'kill switch|gemini|runtimeerror|service thread|scorecard|critical quality')
+            self.assertTrue(message.endswith('.') or message.endswith('later.'))
 
     def test_unknown_job_is_not_found(self):
         self.assertEqual(generation_api.job_response('x'), (404, {'error': 'job_not_found'}))

@@ -25,7 +25,7 @@ export function renderSettingsScreen({
   const spendingRow = node('div', null, 'settings-quick-row settings-spending-row');
   spendingRow.setAttribute('aria-readonly', 'true');
   spendingRow.append(node('span', 'Spending', 'settings-row-title'), node('span', 'Read only', 'settings-row-value'));
-  spendingRow.append(node('p', 'Budget settings are managed outside this app.', 'settings-row-note')); quickSettings.append(spendingRow);
+  spendingRow.append(node('p', 'Episode limits help keep the service available.', 'settings-row-note')); quickSettings.append(spendingRow);
   const aboutRow = document.createElement('details'); aboutRow.className = 'settings-about-row';
   aboutRow.append(node('summary', 'About', 'settings-row-title'));
   aboutRow.append(node('p', 'A daily five-minute briefing on your topics, ready by 6 am ET. On demand briefings let you explore any topic and choose the length.', 'settings-row-note'));
