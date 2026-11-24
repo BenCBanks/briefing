@@ -240,9 +240,9 @@ def render_daily_audio(edition: dict, *, provider=None, voice_file: Path | str =
             try:
                 result = renderer(episode, profile_id, provider=provider, voice_name=voice,
                                   voice_file=voice_file, state_dir=state_dir)
-            except EpisodeAudioError:
+            except EpisodeAudioError as error:
                 logging.getLogger(__name__).warning(
-                    'daily_audio_failure {"count":1,"reason":"render_failed"}')
+                    'Daily audio render failed: %s', str(error)[:240] or 'unknown audio error')
                 late_result = _late_audio_result(
                     edition, episode, initial_audio, profile_id=profile_id,
                     state_dir=state_dir, provider_name=provider_name, model_name=model_name)
@@ -316,7 +316,7 @@ def render_daily_audio(edition: dict, *, provider=None, voice_file: Path | str =
             return late_result
         # Audio is optional for this run; provider details never enter the daily report.
         logging.getLogger(__name__).warning(
-            'daily_audio_failure {"count":1,"reason":"render_failed"}')
+            'Daily audio render failed: %s', type(error).__name__)
         return {'audio_status': 'failed', 'audio_url': None, 'duration_seconds': None,
                 'file_size_bytes': None, 'ready_at': None, 'resumed': False,
                 'chapter_offsets': [], 'reason': type(error).__name__}
