@@ -149,7 +149,7 @@ async function run() {
     await page.emulateMedia({ colorScheme: 'dark' });
     await capture(page, 'voice-selected-dark.png');
     await page.emulateMedia({ colorScheme: 'light' });
-    assert.equal(await page.locator('.settings-voice-row .settings-row-value').innerText(), 'Sample C', 'the summary row reflects the selected voice');
+    assert.equal(await page.locator('.settings-voice-row .settings-row-value').innerText(), 'Kore', 'the summary row shows the selected narrator name');
     assert.equal(await page.getByRole('heading', { name: 'Narrator' }).count(), 1, 'the first-run prompt ends after choosing a voice');
     assert.deepEqual(posts[0], { voice_name: 'FixtureVoiceC' }, 'selection POST sends the manifest voice name');
     assert.equal(await page.locator('.narrator-use[aria-pressed=true]').innerText(), 'Selected');
@@ -157,7 +157,7 @@ async function run() {
     await page.reload({ waitUntil: 'networkidle' });
     await page.locator('.narrator-use[aria-pressed=true]').waitFor();
     assert.equal(await page.locator('.narrator-use[aria-pressed=true]').innerText(), 'Selected', 'saved voice loads from the API after reload');
-    assert.equal(await page.locator('.settings-voice-row .settings-row-value').innerText(), 'Sample C');
+    assert.equal(await page.locator('.settings-voice-row .settings-row-value').innerText(), 'Kore');
     await assertFocusRing(page, '.narrator-sample-actions button', 'Narrator sample action');
     assert.deepEqual(capWrites, [], 'Settings sends no requests that change spending or budget caps');
     assert.ok(await contrast(page, '.narrator-sample-actions button') >= 3, 'light action contrast meets control minimum');

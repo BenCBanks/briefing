@@ -66,7 +66,7 @@ async function run() {
         link: findNodes(markers[0], node => node.tagName === 'A')[0],
       },
       markers,
-      listen: findNodes(container, node => node.tagName === 'BUTTON' && node.textContent.trim() === 'Listen'),
+      listen: findNodes(container, node => node.tagName === 'BUTTON' && node.textContent.trim() === 'Play episode'),
     };
   };
   const current = capture(corrected); const removed = capture(withdrawn);
@@ -76,7 +76,7 @@ async function run() {
   assert.equal(current.marker.date, currentSource.date, 'Current source date remains truthful');
   assert.equal(current.marker.link.href, currentSource.url, 'Current citation keeps the HTTPS URL');
   assert.doesNotMatch(current.text, /Superseded harbor closure claim|earlier fictional notice said service had ended|old-harbor/u, 'Corrected view excludes withdrawn history');
-  assert.equal(current.listen.length, 1, 'Corrected recorded Episode keeps Listen');
+  assert.equal(current.listen.length, 1, 'Corrected recorded Episode offers Play episode');
   assert.equal(removed.markers.length, 0, 'Withdrawn Episode has no actionable citation');
   assert.equal(removed.listen.length, 0, 'Withdrawn Episode has no Listen action');
   assert.doesNotMatch(removed.text, /Did the harbor close|Superseded fictional harbor episode title|superseded fictional claim said|old-harbor/u, 'Withdrawn view excludes old Asked, title, claim and source URL');
