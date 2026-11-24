@@ -43,11 +43,15 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
     assert.ok(first >= 0 && last > first, `production boundaries exist: ${start}`);
     return text.slice(first, last).replace(/^export /u, '');
   };
-  const historySource = fs.readFileSync(path.join(root, 'src/screens/episode-history.js'), 'utf8');
+  const historyPath = path.join(root, 'src/screens/episode-history.js');
+  const historySource = fs.existsSync(historyPath) ? fs.readFileSync(historyPath, 'utf8') : source;
+  const stateHelper = fs.existsSync(historyPath)
+    ? section(historySource, 'export function episodeHistoryState(', 'export function episodeHistoryDismissed(')
+    : section(historySource, 'function episodeHistoryState(', 'function episodeHistoryDismissed(');
   const makingPath = path.join(root, 'src/screens/episode-making.js');
   const makingSource = fs.existsSync(makingPath) ? fs.readFileSync(makingPath, 'utf8') : source;
   const renderers = section(source, 'async function loadEpisodeCards(', 'function episodeProfileTopic(')
-    + section(historySource, 'export function episodeHistoryState(', 'export function episodeHistoryDismissed(')
+    + stateHelper
     + (fs.existsSync(makingPath)
       ? section(makingSource, 'function appendDoneCard(', 'export function updateEpisodeMakingView(') +
         'function appendEpisodeDoneCard(page, job) { appendDoneCard(page, job, node, episodeHasReadyAudio, navigate); }'
@@ -150,8 +154,11 @@ async function checkRequestCardStates(hasCurrentEpisodeRecording) {
     return text.slice(first, last).replace(/^export /u, '');
   };
   const renderers = section(source, 'async function loadEpisodeCards(', 'function episodeProfileTopic(');
-  const historySource = fs.readFileSync(path.join(root, 'src/screens/episode-history.js'), 'utf8');
-  const stateHelper = section(historySource, 'export function episodeHistoryState(', 'export function episodeHistoryDismissed(');
+  const historyPath = path.join(root, 'src/screens/episode-history.js');
+  const historySource = fs.existsSync(historyPath) ? fs.readFileSync(historyPath, 'utf8') : source;
+  const stateHelper = fs.existsSync(historyPath)
+    ? section(historySource, 'export function episodeHistoryState(', 'export function episodeHistoryDismissed(')
+    : section(historySource, 'function episodeHistoryState(', 'function episodeHistoryDismissed(');
   const makingPath = path.join(root, 'src/screens/episode-making.js');
   const makingSource = fs.existsSync(makingPath) ? fs.readFileSync(makingPath, 'utf8') : source;
   const audioSource = makingSource;
