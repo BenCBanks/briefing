@@ -139,12 +139,12 @@ class HousingRelevanceTests(unittest.TestCase):
 
     def test_fixture_contains_requested_profile_and_known_distractors(self):
         words = self.data['profile']['words'].casefold()
-        for phrase in ('charlotte nc', 'upstate sc', 'home building', 'construction', 'affordable housing'):
+        for phrase in ('fernvale pv', 'northpines sp', 'home building', 'construction', 'affordable housing'):
             self.assertIn(phrase, words)
         titles = {candidate['title'] for candidate in self.data['candidates']}
         self.assertTrue({'Building a Permanent Home for a Space Shuttle',
                          'CMS parents push for play-based kindergarten',
-                         'Brooklyn Building Collapse'} <= titles)
+                         'Stonebridge Building Collapse'} <= titles)
         self.assertGreater(sum(row['expected_relevant'] for row in self.data['candidates']), 0)
 
 

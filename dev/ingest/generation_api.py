@@ -60,10 +60,15 @@ def validate_profile(profile):
     for topic in profile['topics']:
         if not isinstance(topic, dict):
             raise ValueError('invalid_profile')
-        for field, limit in (('id', 80), ('label', 120), ('scope', 400)):
+        for field, limit in (('id', 80), ('label', 120), ('scope', 400), ('location', 120)):
             value = topic.get(field, '')
             if not isinstance(value, str) or len(value) > limit:
                 raise ValueError('invalid_profile')
+    local_sources = profile.get('local_sources', [])
+    if (not isinstance(local_sources, list) or len(local_sources) > 40 or
+            any(not isinstance(source_id, str) or not re.fullmatch(r'[a-z0-9][a-z0-9-]{0,63}', source_id)
+                for source_id in local_sources)):
+        raise ValueError('invalid_profile')
     weights = profile.get('behavior_weights')
     if weights is not None:
         topic_ids = {topic['id'] for topic in profile['topics'] if isinstance(topic.get('id'), str)}
@@ -1090,8 +1095,8 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
             watch_results = []
             if registry is None:
                 from .discover import run_weekly_watches
-                watch_results = run_weekly_watches()
-                registry = core.load_registry()
+                watch_results = run_weekly_watches(local_source_ids=profile.get('local_sources'))
+                registry = core.load_registry(local_source_ids=profile.get('local_sources'))
             health = _read_feed_health()
             ready = _ready_sources(registry, health)
             def feed_progress(done, total):

@@ -24,7 +24,7 @@ from dev.ingest.episodes.generate import (EpisodeCancelled, EpisodeError, Gemini
                                          PLAN_PROMPT, STYLE_TARGET_EXAMPLE, SYSTEM_PROMPT, WEEKLY_SYNTHESIS_PROMPT,
                                          VERIFY_PROMPT, deterministic_check,
                                          balance_chapter_targets, evidence_pack, generate_episode, transcript, _score_text,
-                                         _chapter_schema_error)
+                                         _chapter_schema_error, _fallback_episode)
 from dev.ingest.episodes.policy import WORDS_PER_MINUTE
 from dev.ingest.jobs import EpisodeJobStore
 from dev.ingest.retrieval import Candidate
@@ -137,6 +137,16 @@ class Client:
     def __call__(self, system, payload, schema, timeout):
         self.calls += 1
         self.payloads.append(deepcopy(payload))
+        if payload.get('mode') == 'general_background':
+            return {'chapters': [{'title': 'General background', 'title_evidence_ids': [],
+                                  'sentences': [
+                                      {'text': 'This is general background, not current reporting.',
+                                       'kind': 'opening', 'evidence_ids': []},
+                                      {'text': 'The concept can be understood by looking at its basic purpose, moving parts, and usual trade-offs.',
+                                       'kind': 'editorial', 'evidence_ids': []},
+                                      {'text': 'That structure gives you a useful starting point without pretending to answer a specific current question.',
+                                       'kind': 'closing', 'evidence_ids': []}]}],
+                    'could_not_confirm': []}
         if 'question_count' in payload:
             return {'questions': ['How does the fictional parcel locker trial work?',
                                   'When can residents use the fictional parcel lockers?',
@@ -716,11 +726,40 @@ class EpisodeGenerationTests(unittest.TestCase):
         self.assertEqual(episode['quality_rubric']['issues'], ['rubric_unavailable'])
 
 
-    def test_empty_reads_fail_without_model_call(self):
+    def test_empty_reads_publish_general_background_without_extra_model_call(self):
         self.kwargs['fetcher'] = lambda *a, **k: None
-        with self.assertRaisesRegex(InsufficientEvidence, 'insufficient_evidence'):
-            generate_episode(TOPIC, **self.kwargs)
+        with patch.dict('os.environ', {'BRIEFING_EPISODE_FALLBACK_MODEL': 'off'}):
+            episode = generate_episode(TOPIC, **self.kwargs)
+        self.assertEqual(episode['verification']['fallback'], 'general_background')
+        self.assertIn('general background', episode['transcript'])
         self.assertEqual(self.client.calls, 1)
+
+    def test_fallback_uses_plain_broad_and_sensitive_reader_wording(self):
+        self.kwargs['fetcher'] = lambda *a, **k: None
+        broad = generate_episode('AI', **self.kwargs)
+        self.assertIn('broad introduction', broad['transcript'])
+        sensitive = generate_episode('What should I ask my doctor about headaches?', **self.kwargs)
+        self.assertIn('qualified professional', sensitive['transcript'])
+        self.assertNotIn('script_checks_failed', sensitive['transcript'])
+
+    def test_flagged_general_background_uses_host_pass_and_keeps_stub_as_fallback(self):
+        self.kwargs['fetcher'] = lambda *a, **k: None
+        with patch.dict('os.environ', {'BRIEFING_EPISODE_FALLBACK_MODEL': 'on'}):
+            episode = generate_episode('What is a fictional parcel locker?', **self.kwargs)
+        self.assertEqual(episode['verification']['fallback'], 'general_background')
+        self.assertIn('general background, not current reporting', episode['transcript'])
+        self.assertGreaterEqual(self.client.calls, 2)
+
+    def test_thin_evidence_fallback_repeats_only_extracted_sentence(self):
+        evidence = {'E-1': {'id': 'E-1', 'text': 'A fictional source describes a parcel locker trial.',
+                            'source_id': 'source-1', 'source_number': 1}}
+        episode = _fallback_episode(TOPIC, 5, 'explainer', {'question': TOPIC},
+                                    '2026-11-24T00:00:00Z', evidence,
+                                    [{'id': 'source-1'}], {}, {}, 1, 1, 1, [], self.client,
+                                    'thin_evidence')
+        self.assertEqual(episode['verification']['fallback'], 'thin_evidence')
+        self.assertIn(evidence['E-1']['text'], episode['transcript'])
+        self.assertIn('small amount of usable evidence', episode['transcript'])
 
     def test_questions_search_separately_and_duplicate_pages_are_read_once(self):
         queries, fetches = [], []

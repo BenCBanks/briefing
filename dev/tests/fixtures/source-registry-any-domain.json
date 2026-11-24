@@ -1,5 +1,5 @@
 {
-  "description": "Offline manifest for the forty 18 Nov any-domain feed additions; no feed was fetched by the test.",
+  "description": "Offline manifest for the general feed additions; no feed was fetched by the test.",
   "added_ids": [
     "acasignups",
     "paymentsjournal",
@@ -37,8 +37,6 @@
     "front-office-sports",
     "sportico",
     "sports-business-journal",
-    "wunc-local",
-    "wsoc-local",
     "gardenista",
     "justonecookbook"
   ],
@@ -53,5 +51,5 @@
     "science",
     "sports-business"
   ],
-  "curated_source": "great-sources-2026-11-17.md plus explicitly disabled candidate endpoints"
+  "curated_source": "curated general-source batch and disabled endpoint candidates"
 }

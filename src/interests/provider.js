@@ -18,7 +18,7 @@ function normalizeRemote(result, words, options) {
   const comboFor = topic => {
     const text = key(`${topic.id || ''} ${topic.label || ''} ${topic.sourcePhrase || ''} ${(topic.include || []).join(' ')}`);
     if (/\bpayments?\s+and\s+banking\s+news\b/.test(text)) return { id: 'custom-payments-banking', label: 'Payments and banking' };
-    if (/\bhealth insurance\b/.test(text) && /\bfinance policy\b/.test(text)) return { id: 'custom-nc-health-finance-policy', label: 'NC health insurance and finance policy' };
+    if (/\bhealth insurance\b/.test(text) && /\bfinance policy\b/.test(text)) return { id: 'custom-health-insurance-finance-policy', label: 'Health insurance and finance policy' };
     if (/\bai in finance\b|\bartificial intelligence in finance\b/.test(text)) return { id: 'custom-ai-in-finance', label: 'AI in finance' };
     return null;
   };

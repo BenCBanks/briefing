@@ -1,10 +1,11 @@
 import { readEditionCache, writeEditionCache, clearEditionCache } from './edition/cache.js';
 import { renderEdition, renderToday, renderWeeklyRecap, editionDateRange, visibleSections, hasMaterialCorrection } from './edition/edition.js';
-// Reed · generated editions: only corrections tied to the current revision affect playback and Corrected labels.
+import { revisionNumber, revisionDate, revisionGroup, compareRevision, currentRevision, currentItems, latestGeneratedDaily, newerEdition, includeNewerCachedEdition, displayDate, plainDate, briefingDate, firstReadableSection, dailyBriefings } from './edition/selectors.js';
+// Narration · generated editions: only corrections tied to the current revision affect playback and Corrected labels.
 import { renderTopics, renderDeepDive } from './topics/topics.js';
 import { renderTopicDetail } from './topics/topic-detail.js';
-// Mica · episode pages and the API-backed request flow.
-import { renderEpisodeDeck, renderEpisodePage, hasCurrentEpisodeRecording } from './episodes/episodes.js';
+// Interface · episode pages and the API-backed request flow.
+import { renderEpisodeDeck, renderEpisodePage } from './episodes/episodes.js';
 import { loadState, saveState, resetState, invalidateAudioProgress } from './storage.js';
 import { NARRATOR_KEY } from './player.js';
 import { createAppPlayer } from './player/integration.js';
@@ -21,8 +22,13 @@ import { clearProfile, getProfile, saveProfile, syncProfile } from './interests/
 import { renderCorrections } from './corrections/corrections.js';
 import { renderTopicsScreen } from './screens/topics.js';
 import { renderOnDemandScreen, episodeTopicSuggestions } from './screens/on-demand.js';
+import { renderSettingsScreen } from './screens/settings.js';
 import { renderTodayScreen } from './screens/today.js';
 import { renderEarlierScreen } from './screens/earlier.js';
+import { renderInterestDescribe as renderInterestDescribeScreen, renderInterestConfirm as renderInterestConfirmScreen, renderInterestBuild as renderInterestBuildScreen } from './screens/interests.js';
+import { episodeHistoryState, episodeHistoryDismissed, saveEpisodeHistoryDismissed, renderEpisodeHistory as renderEpisodeHistoryScreen, renderEpisodeMakingFromHistory as renderEpisodeMakingFromHistoryScreen } from './screens/episode-history.js';
+import { EPISODE_STAGE_FIXTURES, announceEpisodeStage as announceEpisodeStageView, episodeStageIndex, episodeStageTitle, episodeHasReadyAudio, episodeLengthCopy, renderEpisodeMakingPage as renderEpisodeMakingScreen, updateEpisodeMakingView as updateEpisodeMakingScreen } from './screens/episode-making.js';
+import { renderEpisodeRoute as renderEpisodeRouteScreen, renderEpisodeRouteFailure as renderEpisodeRouteFailureScreen } from './screens/episode-route.js';
 
 const app = document.querySelector('#app');
 const content = document.querySelector('#content');
@@ -42,7 +48,6 @@ document.addEventListener('focusout', () => window.setTimeout(syncVirtualKeyboar
 window.addEventListener('resize', syncVirtualKeyboard);
 window.visualViewport?.addEventListener('resize', syncVirtualKeyboard);
 window.visualViewport?.addEventListener('scroll', syncVirtualKeyboard);
-let episodeFixturePromise = null;
 let episodeDeckCleanup = null;
 const invalidatedEditionAudio = new Set();
 const seenEditionMarksInFlight = new Set();
@@ -130,14 +135,7 @@ let firstRunPending = readFirstRunBuild();
 let firstRunRecoveryAvailable = false;
 if (firstRunPending && (!interestProfile || firstRunPending.profileKey !== profileBuildKey(interestProfile))) clearFirstRunBuild();
 if (firstRunPending) { buildInProgress = true; interestDraft = { profile: interestProfile }; firstRunRecoveryAvailable = true; }
-const EPISODE_STAGE_FIXTURES = [
-  { title: 'Finding sources', detail: 'Searching for useful, relevant sources.' },
-  { title: 'Reading', detail: 'Reading sources and checking claims against them.' },
-  { title: 'Writing', detail: 'Turning checked material into chapters.' },
-  { title: 'Recording', detail: 'Preparing the narrated episode.' },
-  { title: 'Ready', detail: 'Your episode is ready to play.' },
-];
-const EPISODE_LONG_WAIT_MS = 2 * 60 * 1000;
+
 const EPISODE_MODES = [
   { id: 'brief', label: 'Brief', detail: 'The key points, quickly.' },
   { id: 'deep-dive', label: 'Deep dive', detail: 'More context and connections.' },
@@ -428,7 +426,7 @@ function validatePack(data) {
     const coverageIds = edition.coverage.map(row => row.topic_id);
     const uniqueCoverage = new Set(coverageIds).size === coverageIds.length;
     if (edition.generated === true) {
-      // Reed · generated editions can contain profile-defined topic IDs beyond the sample catalog.
+      // Narration · generated editions can contain profile-defined topic IDs beyond the sample catalog.
       const validGeneratedIds = coverageIds.every(id => typeof id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id));
       const sectionTopicIds = new Set(edition.sections.flatMap(section => section.topic_ids || []));
       if (!uniqueCoverage || !validGeneratedIds ||
@@ -518,7 +516,7 @@ function navigateTranscript(hash, placement) {
 function openSource(id) {
   const parent = remember(document.activeElement?.closest('.edition-section')?.id || null);
   parent.focus = { type: 'source', id }; parent.sourceID = id;
-  // Reed · preserve the source page's actual immediate parent for its Back label.
+  // Narration · preserve the source page's actual immediate parent for its Back label.
   navigate(`#source/${encodeURIComponent(id)}`, { root: rootForHash(parent.hash), parentHash: parent.hash, parentLabel: immediateParentLabel(parent.hash, history.state?.routeContext || {}), parentScroll: parent.scrollY, parentFocus: parent.focus, sectionId: parent.sectionId, parentType: parent.hash.startsWith('#explanation/') || parent.hash.startsWith('#topic/') || parent.hash.startsWith('#topic-detail/') ? 'explanation' : 'briefing' });
 }
 function openDeepDive(id, sectionId = null) {
@@ -713,47 +711,7 @@ function setFeedback(id, category) {
   if (type) signalCurrent(type, id);
   route();
 }
-function revisionNumber(item) {
-  const matches = [...String(item.revision_id || '').matchAll(/(?:^|[-._])r(\d+)/gi)];
-  return matches.length ? Number(matches[matches.length - 1][1]) : 0;
-}
-
-function revisionDate(item) {
-  return String(item.published_at || item.reviewed_at || item.local_date || item.week_start || item.created_at || '');
-}
-function displayDate(value) {
-  const date = new Date(`${String(value || '').slice(0, 10)}T12:00:00Z`);
-  return Number.isNaN(date.getTime()) ? String(value || '') : new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', timeZone: 'UTC' }).format(date);
-}
-function plainDate(value) {
-  const date = new Date(`${String(value || '').slice(0, 10)}T12:00:00Z`);
-  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date);
-}
-function briefingDate(value) {
-  const date = new Date(`${String(value || '').slice(0, 10)}T12:00:00Z`);
-  return Number.isNaN(date.getTime()) ? '' : new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' }).format(date);
-}
-
-function firstReadableSection(edition) {
-  return visibleSections(edition).find(section => section.kind !== 'link') || null;
-}
-
-function dailyBriefings() {
-  const rows = currentItems(pack?.editions || [], edition => edition.kind === 'daily');
-  const generated = rows.filter(edition => edition.generated === true);
-  const available = generated.length ? generated : rows;
-  // Live generation can publish more than one ID for the same local date.
-  // Earlier briefings are date-based, so keep only the newest edition per day.
-  const newestByDate = new Map();
-  for (const edition of available) {
-    const date = String(edition.local_date || revisionDate(edition)).slice(0, 10);
-    const previous = newestByDate.get(date);
-    if (!previous || compareRevision(edition, previous) > 0) newestByDate.set(date, edition);
-  }
-  return [...newestByDate.values()].sort((a, b) => revisionDate(b).localeCompare(revisionDate(a)));
-}
-
-// Mica · pass 010: shared read/listen estimates for Mica-owned surfaces.
+// Interface · pass 010: shared read/listen estimates for Interface-owned surfaces.
 function listenText(item) {
   if (typeof item === 'string') return item;
   const sections = item?.sections || [];
@@ -787,80 +745,11 @@ function startListening(item) {
   }
 }
 
-function revisionGroup(items, id, predicate = () => true) {
-  const candidates = items.filter(item => item.id === id && predicate(item));
-  if (!candidates.length) return { candidates: [], current: [] };
-  const superseded = new Set(candidates.flatMap(item => (item.corrections || []).map(correction => correction.previous_revision_id).filter(Boolean)));
-  const current = candidates.filter(item => !superseded.has(item.revision_id) &&
-    !['superseded', 'withdrawn'].includes(item.status) && item.superseded !== true && item.withdrawn !== true &&
-    !item.superseded_by && !item.withdrawn_at);
-  return { candidates, current };
-}
-
-function compareRevision(a, b) {
-  return revisionDate(a).localeCompare(revisionDate(b)) ||
-    String(a.generated_at || a.updated_at || a.created_at || '').localeCompare(String(b.generated_at || b.updated_at || b.created_at || '')) ||
-    revisionNumber(a) - revisionNumber(b) || String(a.revision_id).localeCompare(String(b.revision_id));
-}
-
-function currentRevision(items, id, predicate = () => true) {
-  const group = revisionGroup(items, id, predicate);
-  if (group.current.length === 1) return group.current[0];
-  const sameGeneratedEdition = group.current.length > 1 && group.current.every(item =>
-    item.generated === true && ['daily', 'weekly'].includes(item.kind)
-  );
-  return sameGeneratedEdition ? group.current.sort(compareRevision).at(-1) : null;
-}
-
-function currentItems(items, predicate = () => true) {
-  const groups = new Map();
-  for (const item of items.filter(predicate)) {
-    const type = item.kind || (item.topic_id ? 'deep-dive' : 'item');
-    groups.set(`${type}\u0000${item.id}`, { id: item.id, type });
-  }
-  return [...groups.values()].map(({ id, type }) => currentRevision(items, id, item =>
-    predicate(item) && (item.kind || (item.topic_id ? 'deep-dive' : 'item')) === type
-  )).filter(Boolean);
-}
-
 function currentEdition(kind) {
   const ids = [...new Set(pack.editions.filter(item => item.kind === kind).map(item => item.id))];
   const editions = ids.map(id => currentRevision(pack.editions, id, item => item.kind === kind)).filter(Boolean);
   const latest = editions.sort(compareRevision).at(-1);
   return latest ? personalized(latest) : null;
-}
-
-function latestGeneratedDaily(editions = []) {
-  return editions.filter(item => item?.kind === 'daily' && item.generated === true)
-    .sort(compareRevision).at(-1) || null;
-}
-
-function newerEdition(candidate, previous) {
-  if (!candidate) return false;
-  if (!previous) return true;
-  const candidateDate = String(candidate.local_date || '').slice(0, 10);
-  const previousDate = String(previous.local_date || '').slice(0, 10);
-  if (candidateDate && previousDate && candidateDate !== previousDate) return candidateDate > previousDate;
-  const candidateTime = Date.parse(candidate.generated_at || candidate.updated_at || '');
-  const previousTime = Date.parse(previous.generated_at || previous.updated_at || '');
-  if (Number.isFinite(candidateTime) && Number.isFinite(previousTime) && candidateTime !== previousTime) return candidateTime > previousTime;
-  return candidate.id !== previous.id || candidate.revision_id !== previous.revision_id;
-}
-
-function includeNewerCachedEdition(data, previousPack, serverProfileChanged) {
-  if (!previousPack || serverProfileChanged) return data;
-  const cached = latestGeneratedDaily(previousPack.editions);
-  const server = latestGeneratedDaily(data.editions);
-  if (!cached || !server) return data;
-  const cachedDate = String(cached.local_date || '').slice(0, 10);
-  const serverDate = String(server.local_date || '').slice(0, 10);
-  const cachedTime = Date.parse(cached.generated_at || cached.updated_at || '');
-  const serverTime = Date.parse(server.generated_at || server.updated_at || '');
-  const cacheIsAhead = cachedDate && serverDate && cachedDate > serverDate ||
-    cachedDate === serverDate && Number.isFinite(cachedTime) && Number.isFinite(serverTime) && cachedTime > serverTime;
-  if (!cacheIsAhead || data.editions.some(item => item.id === cached.id && item.revision_id === cached.revision_id)) return data;
-  const sources = [...new Map([...data.sources, ...previousPack.sources].map(source => [source.id, source])).values()];
-  return { ...data, sources, editions: [...data.editions, cached] };
 }
 
 function stopCorrectedEditionAudio(id) {
@@ -1181,7 +1070,7 @@ function renderWeeklyRecapPage(edition) {
       if (!topicIds.size) return null;
       const weekStart = String(edition.week_start || '').slice(0, 10);
       const weekEnd = String(edition.week_end || '').slice(0, 10);
-      const candidates = dailyBriefings();
+      const candidates = dailyBriefings(pack?.editions || []);
       const inWeek = candidates.filter(item => {
         const date = String(item.local_date || '').slice(0, 10);
         return date && (!weekStart || date >= weekStart) && (!weekEnd || date <= weekEnd);
@@ -1753,115 +1642,17 @@ function renderInterestTopbar(step) {
 }
 
 function renderInterestDescribe() {
-  document.querySelector('[data-page-title]').textContent = 'Interests';
-  content.classList.add('first-run-describe');
-  content.append(node('h1', 'What do you want to follow?', 'describe-title'));
-  content.append(node('p', 'Say it like you would tell a friend. Topics, what to skip, how often.', 'interest-intro'));
-  const delivery = node('div', null, 'interest-delivery-note');
-  delivery.append(
-    node('p', 'Your daily 5-minute briefing is ready by 6 am ET.', 'interest-delivery-daily'),
-    node('p', 'Ask for an episode on anything, any time.', 'interest-delivery-episodes'),
-  );
-  content.append(delivery);
-  const form = node('form', null, 'interest-describe-form');
-  form.id = 'interest-describe-form';
-  const field = node('div', null, 'interest-word-field');
-  const label = node('label', 'Add any topic or describe what matters to you', 'interest-text-label'); label.htmlFor = 'interest-words';
-  const words = node('textarea'); words.id = 'interest-words'; words.name = 'words'; words.maxLength = 2000; words.rows = 6;
-  words.placeholder = 'For example: I follow local transit and water policy. Skip celebrity coverage.';
-  words.setAttribute('aria-label', 'Add any topic or describe what matters to you');
-  words.setAttribute('aria-describedby', 'interest-guidance interest-counter');
-  words.value = interestDraft?.profile.words || interestProfile?.words || '';
-  field.append(label, words);
-  form.append(field);
-  const timeField = node('div', null, 'interest-time-field');
-  const dailyTimeLabel = node('label', 'Preferred time', 'interest-time-label'); dailyTimeLabel.htmlFor = 'interest-daily-time';
-  const dailyTime = node('input'); dailyTime.id = 'interest-daily-time'; dailyTime.name = 'daily-time'; dailyTime.type = 'time'; dailyTime.value = dailyTimeValue();
-  dailyTime.setAttribute('aria-describedby', 'interest-time-note');
-  dailyTime.addEventListener('change', () => { try { localStorage.setItem(DAILY_TIME_KEY, dailyTime.value); } catch { /* Keep this visit's choice. */ } });
-  const timeNote = node('p', 'Your briefing is ready by 6 am ET. Your preferred time is saved on this device.', 'interest-time-note'); timeNote.id = 'interest-time-note';
-  timeField.append(dailyTimeLabel, dailyTime, timeNote); form.append(timeField);
-  const guidance = node('p', '', 'interest-guidance'); guidance.id = 'interest-guidance'; guidance.setAttribute('role', 'status'); guidance.setAttribute('aria-live', 'polite');
-  form.append(guidance);
-  const counter = node('p', '', 'interest-counter'); counter.id = 'interest-counter';
-  form.append(counter);
-  const examples = node('div', null, 'interest-examples');
-  examples.append(node('p', 'Try a suggestion, then edit it in your own words.'));
-  const examplesRow = node('div', null, 'interest-example-chips');
-  const sampleWords = [
-    ['Payments & banking', 'I follow payments and banking, especially real-time payment rules and savings rates.'],
-    ['Tech & privacy', 'I follow technology and privacy, with practical changes explained clearly.'],
-    ['Premier League', 'I follow Premier League matches and news on weekends.'],
-  ];
-  sampleWords.forEach(([title, sentence]) => {
-    const chip = node('button', title, 'interest-example-chip'); chip.type = 'button';
-    chip.addEventListener('click', () => { words.value = `${words.value.trim()}${words.value.trim() ? ' ' : ''}${sentence}`; words.dispatchEvent(new Event('input')); words.focus(); });
-    examplesRow.append(chip);
+  renderInterestDescribeScreen({
+    content, node, draft: interestDraft, profile: interestProfile, dailyTime: dailyTimeValue(),
+    onDailyTimeChange: value => { try { localStorage.setItem(DAILY_TIME_KEY, value); } catch { /* Keep this visit's choice. */ } },
+    interpret, topics: pack.topics, minutes: state.durationMinutes, errorMessage: interestInterpretError,
+    onBuild: words => {
+      interestInterpretError = '';
+      interestDraft = { profile: { ...(interestProfile || {}), words } };
+      navigate('#interests/build', { root: 'today', parentHash: '#interests/describe', firstRun: true });
+      void runFirstBuild(words);
+    },
   });
-  examples.append(examplesRow); form.append(examples);
-  const starterPreview = node('section', null, 'interest-starter-preview');
-  starterPreview.setAttribute('aria-label', 'Starter profile preview');
-  starterPreview.append(node('h2', 'Starter profile preview'));
-  const starterSummary = node('p', 'Your topics will appear here as you type.', 'interest-starter-summary');
-  starterSummary.setAttribute('role', 'status'); starterSummary.setAttribute('aria-live', 'polite');
-  starterPreview.append(starterSummary);
-  const starterTopics = node('ul', null, 'interest-starter-topics');
-  starterPreview.append(starterTopics);
-  const starterNote = node('p', '', 'interest-starter-note'); starterPreview.append(starterNote);
-  const clarifyTopic = node('button', 'Add a little detail', 'interest-starter-clarify'); clarifyTopic.type = 'button'; clarifyTopic.hidden = true;
-  clarifyTopic.addEventListener('click', () => { words.focus(); words.setSelectionRange(words.value.length, words.value.length); });
-  starterPreview.append(clarifyTopic); form.append(starterPreview);
-  const error = node('p', '', 'error interest-form-error'); error.setAttribute('role', 'alert'); form.append(error);
-  error.textContent = interestInterpretError || '';
-  const actions = node('div', null, 'interest-form-actions');
-  const stickyActions = node('div', null, 'interest-sticky-actions');
-  const interpretButton = node('button', 'Build my briefing', 'primary'); interpretButton.type = 'submit'; interpretButton.setAttribute('form', 'interest-describe-form');
-  actions.append(interpretButton);
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (typeof SpeechRecognition === 'function') {
-    const dictate = node('button', null, 'interest-dictate-icon'); dictate.type = 'button'; dictate.setAttribute('aria-label', 'Dictate'); dictate.title = 'Dictate';
-    dictate.innerHTML = '<svg aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><rect x="9" y="3" width="6" height="12" rx="3"/><path d="M5 11a7 7 0 0 0 14 0M12 18v3m-4 0h8"/></svg>';
-    dictate.addEventListener('click', () => { const recognition = new SpeechRecognition(); recognition.lang = 'en-US'; recognition.interimResults = false; recognition.onresult = event => { const spoken = event.results?.[0]?.[0]?.transcript || ''; words.value = `${words.value.trim()}${words.value.trim() ? ' ' : ''}${spoken}`; words.dispatchEvent(new Event('input')); }; recognition.onerror = () => { guidance.textContent = 'Dictation could not start. You can type instead.'; }; recognition.start(); });
-    actions.append(dictate);
-  }
-  stickyActions.append(actions); content.append(stickyActions);
-  const updateInputState = () => {
-    const length = words.value.length;
-    counter.textContent = `${length.toLocaleString()} / 2,000 characters`;
-    counter.hidden = length < 1800;
-    words.rows = Math.min(10, Math.max(6, (words.value.match(/\n/g) || []).length + 6));
-    guidance.textContent = length > 2000 ? 'Please shorten this to 2,000 characters or fewer.' : '';
-    const starter = interpret(words.value, { topics: pack.topics, minutes: state.durationMinutes });
-    starterTopics.replaceChildren(); starterNote.textContent = ''; clarifyTopic.hidden = true;
-    const count = starter.profile.topics.length;
-    starterSummary.textContent = !words.value.trim() ? 'Your topics will appear here as you type.' : count
-      ? `${count} topic${count === 1 ? '' : 's'} in your starter profile. Repeated mentions are combined.`
-      : 'We have not picked out a topic yet. Try naming a field, place, team, or question.';
-    starter.profile.topics.forEach(topic => {
-      const row = node('li', null, 'interest-starter-topic');
-      row.append(node('strong', topic.label), node('span', topic.scope)); starterTopics.append(row);
-    });
-    if (starter.profile.muted.length) {
-      starterNote.textContent = `Not covering: ${starter.profile.muted.map(item => item.label).join(', ')}.`;
-    }
-    const unsupported = starter.profile.topics.find(topic => topic.id.startsWith('custom-'));
-    if (unsupported) {
-      starterNote.textContent = `${starterNote.textContent ? starterNote.textContent + ' ' : ''}${unsupported.label} is not in the sample edition yet. Add a little context if you mean a specific place, league, or field.`;
-      clarifyTopic.hidden = false;
-    }
-  };
-  words.addEventListener('input', () => { error.textContent = ''; updateInputState(); });
-  form.addEventListener('submit', event => {
-    event.preventDefault();
-    if (!words.value.trim()) { guidance.textContent = 'Add a few words first'; words.focus(); return; }
-    if (words.value.trim().split(/\s+/).length < 3) { guidance.textContent = 'Tell me a little more, for example a topic and how often.'; words.focus(); return; }
-    if (words.value.length > 2000) { updateInputState(); words.focus(); return; }
-    error.textContent = ''; interestInterpretError = ''; interestDraft = { profile: { ...(interestProfile || {}), words: words.value } };
-    navigate('#interests/build', { root: 'today', parentHash: '#interests/describe', firstRun: true });
-    void runFirstBuild(words.value);
-  });
-  content.append(form);
-  updateInputState();
 }
 
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -1881,57 +1672,16 @@ function buildChipLabel(topic) {
 }
 
 function renderInterestBuild() {
-  content.replaceChildren();
-  document.querySelector('[data-page-title]').textContent = 'Building';
-  const profile = interestDraft?.profile || interestProfile;
-  content.classList.add('interest-build-screen');
-  content.append(node('h1', 'Building your briefing'));
-  const from = node('section', null, 'build-profile'); from.append(node('h2', 'From your words'));
-  if (profile?.words) from.append(node('p', profile.words, 'build-original-words'));
-  const chips = node('div', null, 'build-interest-chips');
-  const includedChips = [];
-  const excludedChips = [];
-  (profile?.topics || []).forEach(topic => {
-    const chip = node('span', null, 'build-interest-chip');
-    chip.append(node('span', buildChipLabel(topic)));
-    const remove = node('button', '×', 'build-chip-remove'); remove.type = 'button'; remove.setAttribute('aria-label', `Remove ${topic.label}`);
-    remove.addEventListener('click', () => removeBuildTopic(topic.id));
-    chip.append(remove); includedChips.push(chip);
+  renderInterestBuildScreen({
+    content, node, profile: interestDraft?.profile || interestProfile, question: buildQuestion, buildChipLabel,
+    onRemoveTopic: removeBuildTopic,
+    onEditWords: () => { clearFirstRunBuild(); buildInProgress = false; navigate('#interests/describe', { root: 'today', parentHash: '#interests/build', firstRun: true }); },
+    onGoToday: () => navigate('#today', { root: 'today', parentHash: null }),
+    scheduleTimeout: callback => {
+      if (buildTimeoutHandle) return;
+      buildTimeoutHandle = setTimeout(() => { buildTimeoutHandle = null; callback(); }, 20000);
+    },
   });
-  const mutedByKey = new Map();
-  for (const item of profile?.muted || []) {
-    const label = String(item?.label || '').trim();
-    if (label && !mutedByKey.has(label.toLocaleLowerCase())) mutedByKey.set(label.toLocaleLowerCase(), label);
-  }
-  const mutedLabels = [...mutedByKey.values()];
-  mutedLabels.forEach(label => {
-    const chip = node('span', null, 'build-interest-chip is-excluded');
-    chip.append(node('span', label)); excludedChips.push(chip);
-  });
-  includedChips.forEach(chip => chips.append(chip));
-  if (excludedChips.length) {
-    const excluded = node('section', null, 'build-excluded-group'); excluded.append(node('h3', 'Not covering'));
-    const excludedRow = node('div', null, 'build-interest-chips'); excludedChips.forEach(chip => excludedRow.append(chip)); excluded.append(excludedRow); chips.append(excluded);
-  }
-  from.append(chips);
-  if (buildQuestion) { const question = node('p', buildQuestion, 'build-clarifying-question'); from.append(question); }
-  const edit = node('button', 'Edit my words', 'build-edit-words'); edit.type = 'button';
-  edit.addEventListener('click', () => { clearFirstRunBuild(); buildInProgress = false; navigate('#interests/describe', { root: 'today', parentHash: '#interests/build', firstRun: true }); });
-  from.append(edit); content.append(from);
-  const progress = node('ol', null, 'build-progress'); progress.setAttribute('aria-label', 'Briefing progress');
-  ['Understanding your words', 'Finding today’s stories', 'Writing your briefing'].forEach((label, index) => {
-    const row = node('li', label, 'build-progress-step'); row.dataset.step = String(index); row.setAttribute('aria-current', index === 0 ? 'step' : 'false'); progress.append(row);
-  });
-  progress.setAttribute('role', 'status'); progress.setAttribute('aria-live', 'polite'); content.append(progress);
-  if (!buildTimeoutHandle) {
-    buildTimeoutHandle = setTimeout(() => {
-      buildTimeoutHandle = null;
-      if (location.hash === '#interests/build') {
-        const note = node('p', 'Still working. It will be on Today when ready.', 'build-still-working');
-        const go = node('button', 'Go to Today', 'button-link'); go.type = 'button'; go.addEventListener('click', () => navigate('#today', { root: 'today', parentHash: null })); note.append(go); content.append(note);
-      }
-    }, 20000);
-  }
 }
 
 function setBuildStep(index, found = null, writingMessage = null) {
@@ -2164,110 +1914,20 @@ function persistInterestDraft(profile) {
 }
 
 function renderInterestConfirm() {
-  content.replaceChildren();
-  document.querySelector('[data-page-title]').textContent = 'Interests';
   if (!interestDraft) {
     const words = interestProfile?.words || '';
     interestDraft = interpret(words, { topics: pack.topics, minutes: state.durationMinutes });
   }
-  const draft = interestDraft;
-  renderInterestTopbar('2 of 2');
-  content.append(node('p', 'YOUR BRIEFING', 'eyebrow'), node('h1', 'What I heard'));
-  content.append(node('p', 'These are suggestions from your words. Change anything, or edit the words and start again.', 'interest-intro'));
-  if (interestInterpretBusy) {
-    const progress = node('div', 'Interpreting…', 'interest-progress');
-    progress.setAttribute('role', 'status'); progress.setAttribute('aria-live', 'polite');
-    const cancel = node('button', 'Cancel', 'interest-cancel'); cancel.type = 'button'; cancel.addEventListener('click', cancelInterestInterpretation);
-    progress.append(cancel); content.append(progress);
-  }
-  if (interestInterpretError) {
-    const notice = node('aside', null, 'interest-interpreter-error');
-    notice.setAttribute('role', 'alert');
-    notice.append(node('p', interestInterpretError));
-    const retry = node('button', 'Retry', 'interest-retry'); retry.type = 'button';
-    retry.addEventListener('click', () => void runInterestInterpretation(draft.profile.words, 'confirm'));
-    const basic = node('button', 'Use basic matching', 'interest-basic'); basic.type = 'button';
-    basic.addEventListener('click', () => void runInterestInterpretation(draft.profile.words, 'confirm', true));
-    notice.append(retry, basic); content.append(notice);
-  }
-  if (draft.flags?.length) {
-    const flags = node('aside', null, 'interest-interpreter-flags');
-    flags.setAttribute('role', 'status');
-    flags.append(node('p', `Interpretation note: ${draft.flags.join('; ')}`));
-    content.append(flags);
-  }
-  const quote = node('blockquote', draft.profile.words || 'No words entered yet.', 'interest-original-words');
-  content.append(quote);
-  const list = node('div', null, 'interest-topic-list');
-  for (const topic of draft.profile.topics) {
-    const card = node('section', null, 'interest-topic');
-    const title = node('div', null, 'interest-topic-title');
-    const heading = node('div', null, 'interest-topic-heading');
-    heading.append(node('h2', topic.label));
-    title.append(heading, node('button', 'Remove', 'interest-remove')); title.lastChild.type = 'button';
-    title.lastChild.setAttribute('aria-label', `Remove ${topic.label}`);
-    title.lastChild.addEventListener('click', () => {
-      draft.profile.topics = draft.profile.topics.filter(item => item.id !== topic.id);
-      persistInterestDraft(draft.profile); renderInterestConfirm();
-    });
-    card.append(title, node('p', `You said: “${topic.sourcePhrase}”`, 'interest-source-phrase'));
-    card.append(node('p', topic.scope, 'interest-scope'));
-    const include = !(topic.exclude.length && !topic.mustFollow);
-    const choices = node('div', null, 'interest-include-choices');
-    for (const [value, text] of [[true, 'Include'], [false, 'Skip']]) {
-      const button = node('button', text, value ? 'interest-choice' : 'interest-choice'); button.type = 'button';
-      button.setAttribute('aria-pressed', String(include === value));
-      button.addEventListener('click', () => {
-        topic.include = value ? [topic.sourcePhrase] : [];
-        topic.exclude = value ? [] : [topic.sourcePhrase];
-        if (!value) topic.mustFollow = false;
-        persistInterestDraft(draft.profile); renderInterestConfirm();
-      });
-      choices.append(button);
-    }
-    card.append(choices);
-    const depths = node('div', null, 'interest-depth-choices');
-    depths.setAttribute('role', 'group'); depths.setAttribute('aria-label', `${topic.label} depth`);
-    for (const [value, text] of [['headline', 'Headlines'], ['standard', 'Standard'], ['deeper', 'Deeper']]) {
-      const button = node('button', text, 'interest-depth-chip'); button.type = 'button';
-      button.setAttribute('aria-pressed', String(topic.depth === value));
-      button.addEventListener('click', () => { topic.depth = value; renderInterestConfirm(); });
-      depths.append(button);
-    }
-    card.append(depths);
-    const cadence = node('p', `Cadence · ${topic.cadence === 'change' ? 'Only when it changes' : topic.cadence === 'weekends' ? 'Weekends' : topic.cadence === 'weekly' ? 'Weekly' : 'Every day'}`, 'interest-cadence');
-    card.append(cadence);
-    if (topic.mustFollow) card.append(node('p', 'Must follow', 'interest-must-follow'));
-    list.append(card);
-  }
-  content.append(list);
-  if (draft.profile.muted.length) {
-    const muted = node('section', null, 'interest-muted-list'); muted.append(node('h2', 'Muted topics'));
-    for (const item of draft.profile.muted) {
-      const row = node('div', null, 'interest-muted-row'); row.append(node('span', item.label));
-      const restore = node('button', 'Include', 'interest-choice'); restore.type = 'button';
-      restore.addEventListener('click', () => {
-        const topic = draft.profile.topics.find(candidate => candidate.label === item.label);
-        if (topic) { topic.exclude = []; topic.include = [topic.sourcePhrase]; }
-        persistInterestDraft(draft.profile); renderInterestConfirm();
-      });
-      row.append(restore); muted.append(row);
-    }
-    content.append(muted);
-  }
-  if (draft.question) {
-    const question = node('aside', null, 'interest-question'); question.append(node('h2', 'One question'), node('p', draft.question)); content.append(question);
-  }
-  const edit = node('button', 'Edit words', 'interest-edit-words'); edit.type = 'button';
-  edit.addEventListener('click', () => navigateInterest('#interests/describe'));
-  content.append(edit);
-  const save = node('button', 'Save interests', 'primary interest-save'); save.type = 'button';
-  save.addEventListener('click', () => {
-    persistInterestDraft(draft.profile);
-    interestDraft = null;
-    navigate(interestOriginHash());
+  renderInterestConfirmScreen({
+    content, node, draft: interestDraft, busy: interestInterpretBusy, errorMessage: interestInterpretError,
+    flags: interestDraft.flags, renderTopbar: renderInterestTopbar,
+    onCancel: cancelInterestInterpretation,
+    onRetry: () => void runInterestInterpretation(interestDraft.profile.words, 'confirm'),
+    onBasic: () => void runInterestInterpretation(interestDraft.profile.words, 'confirm', true),
+    onUpdate: (update, persist = true) => { update(); if (persist) persistInterestDraft(interestDraft.profile); renderInterestConfirm(); },
+    onEdit: () => navigateInterest('#interests/describe'),
+    onSave: profile => { persistInterestDraft(profile); interestDraft = null; navigate(interestOriginHash()); },
   });
-  content.append(save);
 }
 
 function formatLastUpdated(value) {
@@ -2395,176 +2055,6 @@ async function refreshLastUpdated(line) {
   } catch {
     line.textContent = 'Updated unavailable';
   }
-}
-
-function renderPreferences() {
-  document.querySelector('[data-page-title]').textContent = '';
-  content.append(node('h1', 'Settings'));
-  const quickSettings = node('section', null, 'settings-quick-rows');
-  quickSettings.setAttribute('aria-label', 'Briefing settings');
-  const dailyRow = node('div', null, 'settings-quick-row settings-daily-row');
-  dailyRow.setAttribute('aria-readonly', 'true');
-  dailyRow.append(node('span', 'Daily briefing time (ET)', 'settings-row-title'), node('span', formatEasternTime(dailyTimeValue()), 'settings-row-value'));
-  quickSettings.append(dailyRow);
-  const nextRunRow = node('div', null, 'settings-quick-row settings-next-run-row');
-  nextRunRow.setAttribute('aria-readonly', 'true');
-  nextRunRow.append(node('span', 'Next run', 'settings-row-title'), node('span', nextDailyRunTime(dailyTimeValue()), 'settings-row-value settings-next-run-value'));
-  quickSettings.append(nextRunRow);
-  let selectedNarrator = /^[A-F]$/.test(localStorage.getItem(NARRATOR_KEY) || '')
-    ? localStorage.getItem(NARRATOR_KEY) : 'A';
-  let hasVoicePreference = /^[A-F]$/.test(localStorage.getItem(NARRATOR_KEY) || '');
-  const voiceRow = node('button', null, 'settings-quick-row settings-voice-row'); voiceRow.type = 'button';
-  voiceRow.append(node('span', 'Voice', 'settings-row-title'));
-  const voiceValue = node('span', hasVoicePreference ? `Sample ${selectedNarrator}` : 'Choose a voice', 'settings-row-value');
-  voiceRow.append(voiceValue); quickSettings.append(voiceRow);
-  const spendingRow = node('div', null, 'settings-quick-row settings-spending-row');
-  spendingRow.setAttribute('aria-readonly', 'true');
-  spendingRow.append(node('span', 'Spending', 'settings-row-title'), node('span', 'Read only', 'settings-row-value'));
-  spendingRow.append(node('p', 'Budget settings are managed outside this app.', 'settings-row-note')); quickSettings.append(spendingRow);
-  const aboutRow = document.createElement('details'); aboutRow.className = 'settings-about-row';
-  aboutRow.append(node('summary', 'About', 'settings-row-title'));
-  aboutRow.append(node('p', 'A daily five-minute briefing on your topics, ready by 6 am ET. On demand briefings let you explore any topic and choose the length.', 'settings-row-note'));
-  quickSettings.append(aboutRow); content.append(quickSettings);
-  const interests = node('section', null, 'preferences-interests');
-  interests.append(node('h2', 'Your interests'));
-  interests.append(node('p', interestProfile?.topics?.length ? interestProfile.topics.filter(topic => !topic.exclude.length).map(topic => topic.label).join(' · ') || 'No active topics yet.' : 'Describe what you want to follow in your own words.'));
-  interests.append(link('Edit in my own words →', '#interests', 'button-link'));
-  const rebuild = node('button', 'Update my briefing', 'button-link'); rebuild.type = 'button'; rebuild.addEventListener('click', () => { navigate('#topics', { root: 'topics' }); });
-  interests.append(rebuild);
-  content.append(interests);
-  const behavior = node('section', null, 'preferences-behavior');
-  behavior.append(node('h2', 'Daily topic balance'));
-  behavior.append(node('p', 'Recent listening, saves and skips can shift each topic’s share. Raw reading signals stay on this device; only a bounded topic weight is synced for the scheduled briefing.'));
-  const resetBehavior = node('button', 'Reset topic balance'); resetBehavior.type = 'button';
-  resetBehavior.addEventListener('click', () => {
-    resetBehaviorWeighting();
-    const status = node('p', 'Topic balance reset to even shares.', 'local-note');
-    status.setAttribute('role', 'status');
-    behavior.querySelector('[role="status"]')?.remove();
-    behavior.append(status);
-  });
-  behavior.append(resetBehavior);
-  content.append(behavior);
-  const voice = node('section', null, 'preferences-voice'); voice.id = 'settings-voice'; voice.tabIndex = -1;
-  const voiceHeading = node('h2', hasVoicePreference ? 'Narrator' : 'Choose your voice');
-  voice.append(voiceHeading);
-  voiceRow.addEventListener('click', () => { voice.scrollIntoView({ behavior: 'smooth', block: 'start' }); });
-  const voiceStatus = node('p', '', 'narrator-status'); voiceStatus.setAttribute('role', 'status'); voiceStatus.setAttribute('aria-live', 'polite');
-  const retrySamples = node('button', 'Try again', 'narrator-retry'); retrySamples.type = 'button'; retrySamples.hidden = true;
-  retrySamples.addEventListener('click', () => { retrySamples.hidden = true; void loadAuditionSamples(); });
-  const sampleList = node('ol', null, 'narrator-samples');
-  const preview = document.createElement('audio'); preview.preload = 'none'; preview.hidden = true; preview.setAttribute('aria-label', 'Narrator sample audio');
-  let auditionSamples = [];
-  let activePreviewButton = null;
-  async function loadVoicePreference() {
-    try {
-      const response = await fetch('/api/voice', { cache: 'no-store' });
-      if (!response.ok) return;
-      const preference = await response.json();
-      if (!/^[A-F]$/.test(preference?.letter || '')) return;
-      selectedNarrator = preference.letter;
-      if (player.narratorSample !== selectedNarrator) player.setNarratorSample(selectedNarrator);
-      if (!hasVoicePreference && selectedNarrator !== 'A') hasVoicePreference = true;
-      voiceHeading.textContent = hasVoicePreference ? 'Narrator' : 'Choose your voice';
-      voiceValue.textContent = hasVoicePreference ? `Sample ${selectedNarrator}` : 'Choose a voice';
-    } catch { /* Keep the default when the saved setting cannot load. */ }
-  }
-  const voicePreferenceReady = loadVoicePreference();
-  async function loadAuditionSamples() {
-    voiceStatus.textContent = 'Loading voice samples…';
-    try {
-      await voicePreferenceReady;
-      const response = await fetch('/audition-audio/manifest.json', { cache: 'no-store' });
-      if (!response.ok) throw Error('samples unavailable');
-      const manifest = await response.json();
-      auditionSamples = (Array.isArray(manifest.samples) ? manifest.samples : [])
-        .filter(sample => /^[A-F]$/.test(sample?.label || '') && typeof sample.voice === 'string' && /^[a-z0-9][a-z0-9._-]*\.wav$/i.test(sample.file || ''))
-        .sort((a, b) => a.label.localeCompare(b.label)).slice(0, 6);
-      if (auditionSamples.length !== 6 || new Set(auditionSamples.map(sample => sample.label)).size !== 6 || auditionSamples.map(sample => sample.label).join('') !== 'ABCDEF') throw Error('samples unavailable');
-      if (!voice.isConnected) return;
-      sampleList.replaceChildren();
-      auditionSamples.forEach(sample => {
-        const row = node('li', null, 'narrator-sample');
-        const name = node('span', `Sample ${sample.label}`);
-        const actions = node('div', null, 'narrator-sample-actions');
-        const play = node('button', 'Play'); play.type = 'button'; play.setAttribute('aria-label', `Play sample ${sample.label}`);
-        play.addEventListener('click', async () => {
-          if (activePreviewButton === play && !preview.paused) { preview.pause(); preview.currentTime = 0; play.textContent = 'Play'; play.setAttribute('aria-label', `Play sample ${sample.label}`); activePreviewButton = null; return; }
-          if (activePreviewButton) { activePreviewButton.textContent = 'Play'; activePreviewButton.setAttribute('aria-label', `Play sample ${activePreviewButton.closest('.narrator-sample').querySelector('span').textContent.at(-1)}`); }
-          preview.pause(); preview.src = `/audition-audio/${encodeURIComponent(sample.file)}`; preview.currentTime = 0;
-          activePreviewButton = play; play.textContent = 'Pause'; play.setAttribute('aria-label', `Pause sample ${sample.label}`);
-          try { await preview.play(); voiceStatus.textContent = `Playing sample ${sample.label}.`; }
-          catch { play.textContent = 'Play'; play.setAttribute('aria-label', `Play sample ${sample.label}`); activePreviewButton = null; voiceStatus.textContent = `Sample ${sample.label} could not be played.`; }
-        });
-        const use = node('button', 'Use this voice', 'narrator-use'); use.type = 'button';
-        const selected = hasVoicePreference && selectedNarrator === sample.label;
-        use.setAttribute('aria-pressed', String(selected));
-        if (selected) { use.textContent = 'Selected'; use.disabled = true; }
-        use.addEventListener('click', async () => {
-          use.disabled = true; voiceStatus.textContent = `Saving sample ${sample.label}…`;
-          try {
-            const result = await fetch('/api/voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice_name: sample.voice }) });
-            if (!result.ok) throw Error('voice could not be saved');
-            hasVoicePreference = true;
-            selectedNarrator = sample.label;
-            localStorage.setItem(NARRATOR_KEY, sample.label);
-            player.setNarratorSample(sample.label);
-            voiceHeading.textContent = 'Narrator';
-            voiceValue.textContent = `Sample ${sample.label}`;
-            sampleList.querySelectorAll('.narrator-use').forEach(button => { button.disabled = false; button.textContent = 'Use this voice'; button.setAttribute('aria-pressed', 'false'); });
-            use.disabled = true; use.textContent = 'Selected'; use.setAttribute('aria-pressed', 'true');
-            voiceStatus.textContent = `Sample ${sample.label} selected.`;
-          } catch {
-            use.disabled = false; voiceStatus.textContent = 'Voice could not be saved. Try again.';
-          }
-        });
-        actions.append(play, use); row.append(name, actions); sampleList.append(row);
-      });
-      voiceStatus.textContent = '';
-    } catch {
-      if (voice.isConnected) { voiceStatus.textContent = 'Voice samples are unavailable right now.'; retrySamples.hidden = false; }
-    }
-  }
-  preview.addEventListener('ended', () => { if (activePreviewButton) { activePreviewButton.textContent = 'Play'; activePreviewButton.setAttribute('aria-label', `Play sample ${activePreviewButton.closest('.narrator-sample').querySelector('span').textContent.at(-1)}`); } activePreviewButton = null; });
-  preview.addEventListener('error', () => { if (activePreviewButton) { activePreviewButton.textContent = 'Play'; activePreviewButton.setAttribute('aria-label', `Play sample ${activePreviewButton.closest('.narrator-sample').querySelector('span').textContent.at(-1)}`); } activePreviewButton = null; voiceStatus.textContent = 'That voice sample could not be played.'; });
-  const speedLabel = node('label', 'Listening speed'); speedLabel.htmlFor = 'voice-speed';
-  const speedChoice = node('select'); speedChoice.id = 'voice-speed'; speedChoice.setAttribute('aria-label', 'Listening speed');
-  for (const value of [0.75, 1, 1.25, 1.5, 2]) { const option = node('option', `${value}×`); option.value = String(value); speedChoice.append(option); }
-  speedLabel.append(speedChoice);
-  const voiceControls = node('div', null, 'voice-settings'); voiceControls.append(speedLabel);
-  player.configureVoiceSettings(null, speedChoice, null);
-  const disclosure = document.createElement('details'); disclosure.className = 'narrator-disclosure';
-  disclosure.append(node('summary', 'About the AI voice'), node('p', 'The narration uses an AI-generated voice. You can listen to each sample before choosing one.'));
-  voice.append(voiceStatus, retrySamples, sampleList, preview, voiceControls, disclosure);
-  content.append(voice);
-  loadAuditionSamples();
-  const lastUpdated = node('p', 'Updated not yet', 'local-note');
-  lastUpdated.classList.add('settings-last-updated');
-  content.append(lastUpdated);
-  refreshLastUpdated(lastUpdated);
-  content.append(link('Corrections', '#corrections', 'settings-corrections-link'));
-  const form = node('form', null, 'settings-list');
-  const timezone = node('fieldset'); timezone.append(node('legend', 'Time zone'));
-  const zoneLabel = node('label', 'Your IANA time zone');
-  const zone = node('input'); zone.type = 'text'; zone.name = 'timezone'; zone.value = state.timezone; zone.setAttribute('aria-label', 'Time zone'); zone.autocomplete = 'off';
-  timezone.append(zoneLabel, zone);
-  const message = node('p', '', 'error'); message.setAttribute('role', 'status');
-  const submit = node('button', 'Save time zone', 'primary'); submit.type = 'submit';
-  form.append(timezone, message, submit);
-  form.addEventListener('submit', event => {
-    event.preventDefault();
-    try { new Intl.DateTimeFormat('en-US', { timeZone: zone.value.trim() }); }
-    catch { message.textContent = 'Enter a valid time zone, such as America/New_York.'; return; }
-    state = saveState({ ...state, timezone: zone.value.trim() });
-    sessionStorage.setItem('briefing:settings-saved', 'Time zone saved.');
-    const parent = history.state?.routeContext?.parentHash;
-    if (parent && history.length > 1) history.back();
-    else navigate(history.state?.routeContext?.root === 'library' ? '#library' : history.state?.routeContext?.root === 'topics' ? '#topics' : '#today', { root: history.state?.routeContext?.root || 'today', parentHash: null });
-  });
-  content.append(form);
-  const reset = node('button', 'Reset this browser’s choices'); reset.type = 'button';
-  reset.addEventListener('click', () => { player.close(); clearEditionCache(); state = resetState(); clearProfile(); clearFirstRunBuild(); localStorage.removeItem(DAILY_TIME_KEY); localStorage.removeItem(TOPICS_PENDING_KEY); sessionStorage.removeItem(TOPICS_DRAFT_KEY); topicsDraft = null; topicsProgress = ''; topicsError = ''; topicsUpdating = false; buildInProgress = false; buildAttempt++; interestProfile = null; navigate('#preferences'); });
-  content.append(node('hr', null, 'rule'), reset, node('p', 'Reset clears local choices, saves and listening progress. It does not affect another device.', 'local-note'));
 }
 
 
@@ -2706,231 +2196,29 @@ async function setEpisodeDailyBriefing(episode, included) {
 }
 
 async function renderEpisodeRoute(routeName) {
-  const loading = node('section', null, 'episode-loading');
-  loading.setAttribute('role', 'status'); loading.append(node('h1', 'Loading episode'), node('div', null, 'edition-skeleton'));
-  content.replaceChildren(loading);
-  try {
-    if (routeName === 'episodes' && new URLSearchParams(location.search).get('episodes') !== '1') {
-      const [response, correctionsResponse] = await Promise.all([
-        fetch('/api/episodes', { cache: 'no-store' }),
-        fetch('/api/corrections?target_type=episode', { cache: 'no-store' }).catch(() => null),
-      ]);
-      const result = await response.json().catch(() => ({}));
-      const correctionData = await correctionsResponse?.json().catch(() => ({})) || {};
-      if (location.hash !== '#episodes') return;
-      const jobs = Array.isArray(result?.jobs) ? result.jobs.filter(job => job && typeof job === 'object' && !Array.isArray(job) && typeof (job.job_id || job.id) === 'string') : [];
-      const listAvailable = response.ok && Array.isArray(result?.jobs) && (!result.jobs.length || jobs.length > 0);
-      renderEpisodeHistory(result, listAvailable, Array.isArray(correctionData.corrections) ? correctionData.corrections : []);
-      return;
-    }
-    if (routeName.startsWith('episode-making/')) {
-      const id = routeName.slice('episode-making/'.length);
-      let job = episodeHistorySnapshot?.jobs.find(item => (item.job_id || item.id) === id) || null;
-      if (!job && /^[a-f0-9]{32}$/.test(id)) {
-        const response = await fetch(`/api/episodes/${encodeURIComponent(id)}`, { cache: 'no-store' });
-        job = await response.json().catch(() => null);
-        if (!response.ok || !job || typeof job !== 'object' || Array.isArray(job) || !(job.status || job.stage || job.topic)) job = null;
-      }
-      if (location.hash !== `#${routeName}`) return;
-      if (job) renderEpisodeMakingFromHistory(job); else renderEpisodeRouteFailure('Episode unavailable', 'This episode could not be loaded right now.');
-      return;
-    }
-    if (routeName.startsWith('episode/')) {
-      const id = routeName.slice('episode/'.length);
-      if (/^[a-f0-9]{32}$/.test(id)) {
-        const response = await fetch(`/api/episodes/${encodeURIComponent(id)}`, { cache: 'no-store' });
-        const result = await response.json().catch(() => ({}));
-        if (location.hash !== `#${routeName}`) return;
-        if (!response.ok || result.status !== 'done' || !result.episode || typeof result.episode !== 'object' || Array.isArray(result.episode) || !Array.isArray(result.episode.chapters)) {
-          renderEpisodeRouteFailure('Episode unavailable', 'This episode could not be loaded right now. Try again in a moment.');
-          return;
-        }
-        const audioReady = episodeHasReadyAudio(result);
-        renderEpisodePage(content, { ...result.episode, kind: 'episode', id: result.job_id || id,
-          topic_label: result.topic || result.episode.topic_label, asked: result.topic || result.episode.asked,
-          duration_minutes: result.episode.duration_minutes, requested_minutes: result.length || result.episode.requested_minutes,
-          audio_status: audioReady ? 'recorded' : 'pending',
-          made_date: String(result.finished_at || result.updated_at || '').slice(0, 10), audio_recorded: audioReady }, {
-          onListen: episode => player.playRecording(episode),
-          compactSources: true,
-          inDailyBriefing: isEpisodeInDailyBriefing({ ...result.episode, topic_label: result.topic || result.episode.topic_label }),
-          onDailyBriefingChange: setEpisodeDailyBriefing,
-        });
-        return;
-      }
-    }
-    if (routeName.startsWith('episode/') && new URLSearchParams(location.search).get('episodes') !== '1') {
-      if (location.hash === `#${routeName}`) renderMissing();
-      return;
-    }
-    if (!episodeFixturePromise) episodeFixturePromise = fetch('/dev/tests/fixtures/episodes.json', { cache: 'no-store' }).then(response => {
-      if (!response.ok) throw new Error('fixture unavailable');
-      return response.json();
-    }).then(data => {
-      if (!Array.isArray(data.episodes)) throw new Error('invalid episode fixture');
-      return data.episodes;
-    }).catch(error => { episodeFixturePromise = null; throw error; });
-    const episodes = await episodeFixturePromise;
-    if (location.hash !== `#${routeName}`) return;
-    if (routeName === 'episodes') {
-      episodeDeckCleanup = renderEpisodeDeck(content, episodes, {
-        onClose: () => navigate('#today', { root: 'today', parentHash: null, returnFocus: { type: 'nav', id: 'today' } }),
-        onOpen: id => navigate(`#episode/${encodeURIComponent(id)}`, { root: 'today', parentHash: '#episodes', parentLabel: 'Episodes' }),
-        onListen: item => player.playRecording({ ...item, kind: 'episode' }),
-      });
-      return;
-    }
-    const id = routeName.slice('episode/'.length);
-    const episode = episodes.find(item => item.id === id);
-    if (episode) renderEpisodePage(content, { ...episode, kind: 'episode' }, {
-      onListen: item => player.playRecording(item),
-      inDailyBriefing: isEpisodeInDailyBriefing(episode),
-      onDailyBriefingChange: setEpisodeDailyBriefing,
-    });
-    else renderMissing();
-  } catch {
-    if (location.hash !== `#${routeName}`) return;
-    renderEpisodeRouteFailure('Episodes are unavailable', 'This screen could not be loaded right now. Try again in a moment.');
-  }
-}
-
-function renderEpisodeRouteFailure(title, message) {
-  const page = node('section', null, 'episode-route-error');
-  page.setAttribute('role', 'status');
-  page.append(node('h1', title), node('p', message));
-  const retry = node('button', 'Try again', 'episode-route-retry'); retry.type = 'button'; retry.addEventListener('click', route);
-  page.append(retry, link('Return to today', '#today', 'button-link'));
-  content.replaceChildren(page);
-}
-
-function episodeHistoryState(job) {
-  const status = String(job.status || job.stage || 'queued').toLowerCase();
-  if (['done', 'ready', 'complete', 'completed'].includes(status)) return { key: 'ready', label: 'Ready', ring: 'done' };
-  if (['failed', 'error'].includes(status)) return { key: 'failed', label: 'Failed', ring: 'failed' };
-  if (['cancelled', 'canceled'].includes(status)) return { key: 'cancelled', label: 'Cancelled', ring: 'cancelled' };
-  return { key: 'making', label: 'Making', ring: 'active' };
-}
-
-function episodeHistoryDismissed() {
-  try {
-    const value = JSON.parse(localStorage.getItem('briefing:v1:episode-list-dismissed') || '[]');
-    return Array.isArray(value) ? value.filter(id => typeof id === 'string').slice(0, 100) : [];
-  } catch { return []; }
-}
-
-function saveEpisodeHistoryDismissed(ids) {
-  try { localStorage.setItem('briefing:v1:episode-list-dismissed', JSON.stringify([...new Set(ids)].slice(-100))); }
-  catch { /* The visible list still works for this visit if storage is blocked. */ }
+  await renderEpisodeRouteScreen(routeName, {
+    content, node, location, episodeHistorySnapshot, renderEpisodeHistory, renderEpisodeMakingFromHistory,
+    renderRouteFailure: (title, message) => renderEpisodeRouteFailureScreen({ content, node, link, title, message, onRetry: route }),
+    renderMissing, navigate, player, isEpisodeInDailyBriefing, setEpisodeDailyBriefing,
+    setEpisodeDeckCleanup: cleanup => { episodeDeckCleanup = cleanup; },
+  });
 }
 
 function renderEpisodeMakingFromHistory(job) {
-  const page = node('section', null, 'episode-history-making');
-  page.append(link('‹ Episodes', '#episodes', 'episode-back'));
-  const view = episodeHistoryState(job);
-  const heading = view.key === 'failed' ? 'This episode could not be completed' : view.key === 'cancelled' ? 'This episode was cancelled' : 'Your episode is being made';
-  page.append(node('h1', heading));
-  if (job.topic) page.append(node('p', job.topic, 'episode-topic'));
-  const chip = node('span', null, `episode-status-chip episode-status-${view.key}`);
-  chip.dataset.state = view.ring;
-  const ring = node('span', null, 'episode-stage-ring'); ring.setAttribute('aria-hidden', 'true');
-  ring.dataset.check = view.ring === 'done' ? '✓' : view.ring === 'failed' ? '!' : view.ring === 'cancelled' ? '–' : '';
-  chip.append(ring, node('span', view.label));
-  page.append(chip);
-  const detail = view.key === 'making' ? (job.stage || job.status || 'queued').replaceAll('_', ' ') :
-    view.key === 'failed' ? 'You can ask for another episode when you’re ready.' : 'This request will stay in your episode history.';
-  page.append(node('p', detail, 'episode-job-card-status'));
-  content.replaceChildren(page);
+  renderEpisodeMakingFromHistoryScreen({ content, node, link, job });
 }
 
 function renderEpisodeHistory(result, available, corrections = []) {
   const jobs = Array.isArray(result?.jobs) ? result.jobs.filter(job => job && typeof job === 'object' && !Array.isArray(job) && typeof (job.job_id || job.id) === 'string') : [];
   episodeHistorySnapshot = { result: result && typeof result === 'object' ? result : {}, corrections, jobs };
-  document.querySelector('[data-page-title]').textContent = '';
-  const page = node('section', null, 'episode-list-page');
-  page.append(node('h1', 'Episodes'));
-  if (!available) {
-    page.append(node('p', 'Your episode list is not available right now.', 'episode-list-empty'));
-    const retry = node('button', 'Try again', 'episode-list-retry'); retry.type = 'button'; retry.addEventListener('click', () => void renderEpisodeRoute('episodes'));
-    page.append(retry);
-    content.replaceChildren(page); return;
-  }
-  const safeResult = episodeHistorySnapshot.result;
-  if (jobs.length) page.append(link('Ask for an episode', '#ask-episode', 'button-link'));
-  if (Number.isInteger(safeResult.left_today)) page.append(node('p', `${safeResult.left_today} left today`, 'episode-list-allowance'));
-  const dismissed = episodeHistoryDismissed();
-  const correctionIDs = new Set(corrections.filter(item => item?.target_type === 'episode').map(item => item.target_id).filter(Boolean));
-  const visibleJobs = jobs.filter(job => !dismissed.includes(job.job_id || job.id));
-  const byNewest = [...visibleJobs].sort((a, b) => String(b.created_at || b.updated_at || b.finished_at || '').localeCompare(String(a.created_at || a.updated_at || a.finished_at || '')));
-  const filters = [
-    ['all', 'All'], ['making', 'Making'], ['ready', 'Ready'], ['saved', 'Saved'], ['corrected', 'Corrected'],
-  ];
-  const filterBar = node('div', null, 'episode-history-filters');
-  filterBar.setAttribute('role', 'group'); filterBar.setAttribute('aria-label', 'Filter episodes');
-  for (const [key, label] of filters) {
-    const button = node('button', label, 'episode-history-filter'); button.type = 'button';
-    button.dataset.episodeFilter = key;
-    button.setAttribute('aria-pressed', String(episodeHistoryFilter === key));
-    button.addEventListener('click', () => { episodeHistoryFilter = key; renderEpisodeHistory(result, available, corrections); content.querySelector(`[data-episode-filter="${key}"]`)?.focus({ preventScroll: true }); });
-    filterBar.append(button);
-  }
-  page.append(filterBar);
-  const searchLabel = node('label', 'Search episodes', 'episode-history-search-label');
-  const search = node('input'); search.type = 'search'; search.placeholder = 'Search titles or topics'; search.value = episodeHistorySearch; search.setAttribute('aria-label', 'Search episodes');
-  search.addEventListener('input', () => { episodeHistorySearch = search.value; renderEpisodeHistory(result, available, corrections); const next = content.querySelector('.episode-history-search-label input'); next?.focus(); next?.setSelectionRange(episodeHistorySearch.length, episodeHistorySearch.length); });
-  searchLabel.append(search); page.append(searchLabel);
-  const filtered = byNewest.filter(job => {
-    const id = job.job_id || job.id;
-    const status = episodeHistoryState(job);
-    const corrected = Boolean(job.updated || job.corrected || job.episode?.updated || correctionIDs.has(id));
-    const saved = state.savedIds.includes(id) || (job.episode?.id && state.savedIds.includes(job.episode.id));
-    if (episodeHistoryFilter === 'making' && status.key !== 'making') return false;
-    if (episodeHistoryFilter === 'ready' && status.key !== 'ready') return false;
-    if (episodeHistoryFilter === 'saved' && !saved) return false;
-    if (episodeHistoryFilter === 'corrected' && !corrected) return false;
-    const query = episodeHistorySearch.trim().toLocaleLowerCase();
-    if (query && ![job.topic, job.asked, job.episode?.title, job.episode?.asked, job.episode?.topic_label].some(value => String(value || '').toLocaleLowerCase().includes(query))) return false;
-    return true;
-  });
-  const count = node('p', `${filtered.length} ${filtered.length === 1 ? 'episode' : 'episodes'}`, 'episode-history-count');
-  count.setAttribute('aria-live', 'polite'); page.append(count);
-  const list = node('div', null, 'episode-job-list');
-  for (const job of filtered) {
-    const id = job.job_id || job.id;
-    const status = episodeHistoryState(job);
-    const episode = job.episode || {};
-    const corrected = Boolean(job.updated || job.corrected || episode.updated || correctionIDs.has(id));
-    const saved = state.savedIds.includes(id) || (episode.id && state.savedIds.includes(episode.id));
-    const card = node('article', null, 'episode-job-card');
-    card.dataset.jobId = id || '';
-    const title = episode.title || job.topic || 'Episode request';
-    const hash = status.key === 'ready' ? `#episode/${encodeURIComponent(id)}` : `#episode-making/${encodeURIComponent(id)}`;
-    const titleLink = link(title, hash, 'episode-job-title');
-    const heading = node('h2'); heading.append(titleLink); card.append(heading);
-    if (episode.topic_label && episode.topic_label !== title) card.append(node('p', episode.topic_label, 'episode-job-topic'));
-    const chip = node('span', null, `episode-status-chip episode-status-${status.key}`); chip.dataset.state = status.ring;
-    const ring = node('span', null, 'episode-stage-ring'); ring.setAttribute('aria-hidden', 'true');
-    ring.dataset.check = status.ring === 'done' ? '✓' : status.ring === 'failed' ? '!' : status.ring === 'cancelled' ? '–' : '';
-    chip.append(ring, node('span', status.label));
-    const statusLine = node('div', null, 'episode-job-status-line'); statusLine.append(chip);
-    if (corrected) {
-      const updated = link('Updated', '#corrections', 'episode-updated');
-      updated.setAttribute('aria-label', 'Updated · view corrections'); statusLine.append(updated);
-    }
-    card.append(statusLine);
-    const date = job.created_at || job.finished_at || job.updated_at || '';
-    const parsedDate = date ? new Date(date) : null;
-    const dateText = parsedDate && !Number.isNaN(parsedDate.getTime()) ? new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(parsedDate) : '';
-    card.append(node('p', `${job.length || episode.duration_minutes || 5} min${dateText ? ` · ${dateText}` : ''}`, 'episode-job-card-status'));
-    const actions = node('div', null, 'episode-job-actions');
-    const save = node('button', saved ? 'Saved' : 'Save', 'episode-job-save'); save.type = 'button';
-    save.setAttribute('aria-label', `${saved ? 'Remove' : 'Save'} ${title}${saved ? ' from saved episodes' : ''}`); save.setAttribute('aria-pressed', String(saved));
-    save.addEventListener('click', () => {
-      toggleSave(id, episode.revision_id || job.revision_id || null, false);
-      renderEpisodeHistory(result, available, corrections);
-      const next = content.querySelector(`[data-job-id="${CSS.escape(id)}"] .episode-job-save`); next?.focus({ preventScroll: true });
-    });
-    const remove = node('button', 'Delete', 'episode-job-delete'); remove.type = 'button'; remove.setAttribute('aria-label', `Delete ${title} from this list`);
-    remove.addEventListener('click', () => {
+  renderEpisodeHistoryScreen({
+    content, node, link, result: episodeHistorySnapshot.result, available, corrections,
+    filter: episodeHistoryFilter, searchQuery: episodeHistorySearch, savedIds: state.savedIds,
+    onRetry: () => void renderEpisodeRoute('episodes'),
+    onFilter: key => { episodeHistoryFilter = key; renderEpisodeHistory(result, available, corrections); },
+    onSearch: value => { episodeHistorySearch = value; renderEpisodeHistory(result, available, corrections); },
+    onSave: (id, revisionId) => { toggleSave(id, revisionId, false); renderEpisodeHistory(result, available, corrections); },
+    onDelete: (id, title) => {
       saveEpisodeHistoryDismissed([...episodeHistoryDismissed(), id]);
       episodeHistoryUndo = { id, title };
       if (episodeHistoryUndoTimer) clearTimeout(episodeHistoryUndoTimer);
@@ -2945,28 +2233,8 @@ function renderEpisodeHistory(result, available, corrections = []) {
         renderEpisodeHistory(result, available, corrections);
       } }).querySelector('.app-toast-action')?.focus({ preventScroll: true });
       episodeHistoryUndoTimer = setTimeout(() => { episodeHistoryUndo = null; episodeHistoryUndoTimer = null; }, 4000);
-    });
-    actions.append(save, remove); card.append(actions);
-    list.append(card);
-  }
-  if (filtered.length) page.append(list);
-  else {
-    const empty = node('section', null, 'episode-history-empty');
-    const query = episodeHistorySearch.trim();
-    const messages = {
-      all: ['Ask for your first episode', 'Episodes you request will appear here.'],
-      making: ['No episodes being made', 'When an episode is in progress, it will appear here.'],
-      ready: ['No ready episodes yet', 'Completed episodes will appear here.'],
-      saved: ['No saved episodes', 'Save an episode to keep it close at hand.'],
-      corrected: ['No corrected episodes', 'Corrections to an episode will appear here.'],
-    };
-    if (query) empty.append(node('h2', 'No matching episodes'), node('p', `No episodes match “${query}”.`));
-    else if (!visibleJobs.length && episodeHistoryFilter === 'all') {
-      empty.append(node('h2', messages.all[0]), node('p', messages.all[1]), link('Ask for your first episode', '#ask-episode', 'button-link'));
-    } else empty.append(node('h2', messages[episodeHistoryFilter][0]), node('p', messages[episodeHistoryFilter][1]));
-    page.append(empty);
-  }
-  content.replaceChildren(page);
+    },
+  });
 }
 
 function openEpisodeStyleSheet(opener) {
@@ -3061,34 +2329,7 @@ async function startEpisodeJob(mode) {
 }
 
 function announceEpisodeStage(job, message) {
-  const region = content.querySelector('.episode-stage-announcement');
-  if (region) region.textContent = message;
-  job.announcedStage = job.stageIndex;
-}
-
-function episodeStageIndex(stage) {
-  if (stage === 'done') return 4;
-  if (stage === 'evidence' || stage === 'checking') return 1;
-  const index = ['researching', 'reading', 'writing', 'recording'].indexOf(stage);
-  return index < 0 ? 0 : index;
-}
-
-function episodeStageTitle(_job, index) {
-  return EPISODE_STAGE_FIXTURES[index]?.title || 'Finding sources';
-}
-
-function episodeHasReadyAudio(job) {
-  return (!job?.audio_status || job.audio_status === 'recorded') && hasCurrentEpisodeRecording(job?.episode);
-}
-
-function episodeLengthCopy(job) {
-  const episode = job?.episode || {};
-  const minutes = Number(episode.duration_minutes);
-  if (episodeHasReadyAudio(job) && episode.duration_basis === 'measured rendered audio'
-      && Number.isFinite(minutes) && minutes > 0) return `${minutes} min of audio`;
-  const requested = job?.length ?? job?.minutes ?? episode.requested_minutes;
-  return Number.isFinite(Number(requested)) && Number(requested) > 0
-    ? `Requested: ${Number(requested)} min` : 'Requested length not listed';
+  announceEpisodeStageView(content, job, message);
 }
 
 async function pollEpisodeJob(job) {
@@ -3128,139 +2369,29 @@ async function pollEpisodeJob(job) {
   if (!job.done && !job.failed) episodeJobTimer = setTimeout(() => void pollEpisodeJob(job), 1000);
 }
 
-function renderEpisodeMakingPage() {
-  if (!episodeJob) {
-    content.append(node('h1', 'No episode is being made'), link('Return to episode request', '#ask-episode', 'button-link'));
-    return;
-  }
-  const job = episodeJob;
-  const sticky = node('div', null, 'reader-sticky');
-  const back = node('button', '‹ On demand', 'reader-back'); back.type = 'button';
-  back.addEventListener('click', () => navigate('#ask-episode', { root: 'today', parentHash: '#episode-making', parentScroll: 0 }));
-  sticky.append(back); content.append(sticky);
-
-  const announcement = node('p', '', 'episode-stage-announcement episode-visually-hidden');
-  announcement.setAttribute('role', 'status'); announcement.setAttribute('aria-live', 'polite'); announcement.setAttribute('aria-atomic', 'true');
-  const page = node('section', null, 'episode-making-page');
-  page.append(node('p', job.done ? 'Ready' : job.failed ? 'Not finished' : 'Making your episode', 'episode-making-kicker'));
-  page.append(node('blockquote', `“${job.request}”`, 'episode-making-quote'));
-  page.append(node('p', `You chose ${job.minutes} min`, 'episode-making-meta'));
-  const longWait = node('p', 'This is taking a little longer. Your briefing will stay in the On demand list if you leave this page.', 'episode-long-wait');
-  longWait.setAttribute('role', 'status'); longWait.hidden = true;
-  page.append(longWait);
-
-  const stages = node('ol', null, 'episode-stage-list');
-  EPISODE_STAGE_FIXTURES.forEach((stage, index) => {
-    const row = node('li', null, 'episode-stage-row'); row.dataset.index = String(index);
-    const ring = node('span', '', 'episode-stage-ring'); ring.setAttribute('aria-hidden', 'true');
-    const copy = node('div', null, 'episode-stage-copy');
-    copy.append(node('strong', stage.title), node('small', stage.detail, 'episode-stage-status'));
-    row.append(ring, copy); stages.append(row);
-  });
-  page.append(stages);
-
-  const activity = node('p', null, 'episode-progress-note');
-  page.append(activity);
-
-  const actions = node('div', null, 'episode-making-actions');
-  if (!job.done && !job.failed) {
-    const cancel = node('button', 'Cancel this episode', 'episode-cancel-button'); cancel.type = 'button';
-    cancel.addEventListener('click', cancelEpisodeJob);
-    actions.append(cancel); page.append(actions);
-  }
-  if (job.pollError) { const notice = node('p', job.pollError, 'episode-job-status'); notice.setAttribute('role', 'status'); page.append(notice); }
-  content.append(announcement, page);
-  if (job.announcedStage < 0) announceEpisodeStage(job, `${episodeStageTitle(job, job.stageIndex)}. ${EPISODE_STAGE_FIXTURES[job.stageIndex].detail}`);
-  if (job.done) announceEpisodeStage(job, 'Your episode is ready.');
-  updateEpisodeMakingView(job, Date.now() - job.stageStartedAt, Date.now() - job.startedAt);
-  if (job.done) appendEpisodeDoneCard(page, job);
-}
-
-function episodeFailureCopy(job) {
-  if (job.status === 'cancelled') return 'This episode was canceled. You can start a new one from On demand.';
-  if (job.failureReason === 'cost_cap_reached') return 'The cost limit was reached while preparing this episode. Your request is still here; try again later.';
-  if (job.failureReason === 'insufficient_evidence') return 'We could not find enough verified information to finish this episode. Try a narrower question.';
-  return 'We could not finish this episode this time. You can try again.';
+function episodeMakingRetry(job) {
+  episodeDraft.prompt = job.request; rememberEpisodeLength(job.minutes);
+  navigate('#ask-episode', { root: 'today', parentHash: '#episode-making', parentScroll: 0 });
+  void startEpisodeJob(job.mode);
 }
 
 function updateEpisodeMakingView(job, elapsed, totalElapsed = elapsed) {
-  const page = content.querySelector('.episode-making-page');
-  if (!page) return;
-  const kicker = page.querySelector('.episode-making-kicker');
-  const longWait = !job.done && !job.failed && totalElapsed >= EPISODE_LONG_WAIT_MS;
-  const failureKicker = job.failureReason === 'cost_cap_reached' ? 'Try again later' : 'Ready to try again';
-  if (kicker) kicker.textContent = job.done ? 'Episode ready' : job.failed ? failureKicker : longWait ? 'Still working' : 'Making your episode';
-  const longWaitNote = page.querySelector('.episode-long-wait');
-  if (longWaitNote) longWaitNote.hidden = !longWait;
-  if (job.done || job.failed) page.querySelector('.episode-making-actions')?.remove();
-  if (job.failed) renderEpisodeFailureState(page, job);
-  const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
-  const progress = job.done ? 1 : Math.min(.94, Math.max(.08, elapsed / 4000));
-  page.querySelectorAll('.episode-stage-row').forEach((row, index) => {
-    const stateName = job.done || index < job.stageIndex ? 'done' : index === job.stageIndex ? 'active' : 'upcoming';
-    row.dataset.state = stateName;
-    if (stateName === 'active') row.setAttribute('aria-current', 'step'); else row.removeAttribute('aria-current');
-    const ring = row.querySelector('.episode-stage-ring');
-    row.querySelector('.episode-stage-copy strong').textContent = episodeStageTitle(job, index);
-    ring.textContent = '';
-    ring.dataset.check = stateName === 'done' ? '✓' : '';
-    const fill = stateName === 'done' ? 360 : stateName === 'active' ? (reducedMotion ? 90 : Math.round(progress * 360)) : 0;
-    ring.style.setProperty('--episode-ring-fill', `${fill}deg`);
-    const read = Number(job.counts?.sources_read ?? (index === 1 ? job.counts?.sources : 0)) || 0;
-    const detail = index === 1 && read ? `${read} ${read === 1 ? 'source' : 'sources'} read; checking claims.` : EPISODE_STAGE_FIXTURES[index].detail;
-    row.querySelector('.episode-stage-status').textContent = stateName === 'done' ? 'Complete.' : stateName === 'active' && job.status === 'queued' ? 'Waiting to start.' : detail;
-  });
-  const activityKey = `${job.done ? 'done' : job.stageIndex}:${JSON.stringify(job.counts)}`;
-  if (job.activityKey !== activityKey) {
-    job.activityKey = activityKey;
-    renderEpisodeActivityPanel(page.querySelector('.episode-progress-note'), job);
-  }
-  if (job.done && !page.querySelector('.episode-done-card')) appendEpisodeDoneCard(page, job);
+  updateEpisodeMakingScreen({ content, node, job, elapsed, totalElapsed, navigate, onRetry: episodeMakingRetry });
 }
 
-function renderEpisodeFailureState(page, job) {
-  page.querySelector('.episode-stage-list')?.remove();
-  page.querySelector('.episode-progress-note')?.remove();
-  let notice = page.querySelector('.episode-job-error');
-  if (!notice) {
-    notice = node('p', '', 'episode-job-error'); notice.setAttribute('role', 'status');
-    page.append(notice);
-  }
-  notice.textContent = episodeFailureCopy(job);
-  if (job.status === 'cancelled' || job.failureReason === 'cost_cap_reached' || page.querySelector('.episode-retry-button')) return;
-  const retry = node('button', 'Try again', 'primary episode-retry-button'); retry.type = 'button';
-  retry.addEventListener('click', () => {
-    episodeDraft.prompt = job.request; rememberEpisodeLength(job.minutes);
-    navigate('#ask-episode', { root: 'today', parentHash: '#episode-making', parentScroll: 0 });
-    void startEpisodeJob(job.mode);
-  });
-  page.append(retry);
+function renderEpisodeMakingPage() {
+  renderEpisodeMakingScreen({ content, node, link, job: episodeJob, navigate,
+    onCancel: cancelEpisodeJob, onRetry: episodeMakingRetry });
 }
 
-function renderEpisodeActivityPanel(panel, job) {
-  if (!panel) return;
-  const counts = job.counts || {};
-  const episodeSources = Array.isArray(job.episode?.sources) ? job.episode.sources.length : 0;
-  const found = Number(counts.sources_found) || Number(counts.sources) || episodeSources;
-  const read = Number(counts.sources_read) || 0;
-  panel.textContent = found ? `${found} ${found === 1 ? 'source' : 'sources'} found${read ? `, ${read} read` : ''}` : '';
+function resetBrowserChoices() {
+  player.close(); clearEditionCache(); state = resetState(); clearProfile(); clearFirstRunBuild();
+  localStorage.removeItem(DAILY_TIME_KEY); localStorage.removeItem(TOPICS_PENDING_KEY);
+  sessionStorage.removeItem(TOPICS_DRAFT_KEY);
+  topicsDraft = null; topicsProgress = ''; topicsError = ''; topicsUpdating = false;
+  buildInProgress = false; buildAttempt++; interestProfile = null; navigate('#preferences');
 }
 
-function appendEpisodeDoneCard(page, job) {
-  const audioReady = episodeHasReadyAudio(job);
-  const card = node('section', null, 'episode-done-card');
-  card.append(node('p', audioReady ? 'Episode ready' : 'Transcript ready', 'episode-done-kicker'),
-    node('h2', audioReady ? 'Your episode is ready' : 'Your transcript is ready'));
-  card.append(node('p', `You chose ${job.minutes} min`, 'episode-done-meta'));
-  if (!audioReady) card.append(node('p', 'Audio is not recorded yet. The transcript is ready to read.', 'episode-audio-pending-note'));
-  if (job.shorterThanRequested || job.episode?.shortfall_notice) card.append(node('p', 'We found limited coverage; here is a shorter episode.', 'episode-done-notice episode-thin-evidence'));
-  const actions = node('div', null, 'episode-done-actions');
-  const open = node('button', audioReady ? 'Open episode' : 'Open transcript', 'episode-read-button'); open.type = 'button';
-  open.addEventListener('click', () => navigate(`#episode/${encodeURIComponent(job.jobId)}`, { root: 'today', parentHash: '#episode-making', parentScroll: window.scrollY }));
-  const another = node('button', 'Ask for another episode', 'episode-back-button'); another.type = 'button';
-  another.addEventListener('click', () => navigate('#ask-episode', { root: 'today', parentHash: '#episode-making', parentScroll: 0 }));
-  actions.append(open, another); card.append(actions); page.append(card);
-}
 
 async function cancelEpisodeJob() {
   const job = episodeJob;
@@ -3337,7 +2468,7 @@ function route() {
   document.body.classList.toggle('is-topics', routeName === 'topics');
   document.body.classList.toggle('is-episodes-list', routeName === 'episodes');
   document.title = `${pageTitle} · Personal briefing`;
-  // Mica · pass 010 navigation: Settings is opened by the gear, so no reader tab is current there.
+  // Interface · pass 010 navigation: Settings is opened by the gear, so no reader tab is current there.
   for (const item of nav) {
     if (routeName === 'preferences') item.removeAttribute('aria-current');
     else if (item.dataset.nav === group) item.setAttribute('aria-current', 'page');
@@ -3386,11 +2517,16 @@ function route() {
   else if (routeName === 'interests/describe') renderInterestDescribe();
   else if (routeName === 'interests/build') renderInterestBuild();
   else if (routeName === 'interests/confirm') renderInterestBuild();
-  else if (routeName === 'preferences') renderPreferences();
+  else if (routeName === 'preferences') renderSettingsScreen({
+    content, node, link, dailyTimeValue, formatEasternTime, nextDailyRunTime,
+    interestProfile, navigate, resetBehaviorWeighting, player, NARRATOR_KEY, refreshLastUpdated,
+    getState: () => state, setState: value => { state = value; }, saveState,
+    localStorage, sessionStorage, resetChoices: resetBrowserChoices,
+  });
   else if (routeName === 'interests') renderInterestsPage();
   else if (routeName === 'library' || routeName === 'earlier') renderEarlierScreen({
     content, node, link, currentItems, visibleSections, editionDateRange, hasMaterialCorrection,
-    getState: () => state, interestProfile, editionHistoryLoaded, pack, dailyBriefings, firstReadableSection,
+    getState: () => state, interestProfile, editionHistoryLoaded, pack, dailyBriefings: () => dailyBriefings(pack?.editions || []), firstReadableSection,
     revisionDate, briefingDate, displayDate,
     getLibraryFilter: () => libraryFilter, setLibraryFilter: value => { libraryFilter = value; },
     getLibrarySearchQuery: () => librarySearchQuery, setLibrarySearchQuery: value => { librarySearchQuery = value; },

@@ -1,15 +1,15 @@
 {
   "version": 1,
-  "words": "Charlotte NC and Upstate SC housing market, home building, construction, design trends, affordable housing",
+  "words": "Fernvale PV and Northpines SP housing market, home building, construction, design trends, affordable housing",
   "minutes": 12,
   "background": null,
   "muted": [],
   "topics": [
     {
-      "id": "custom-charlotte-upstate-housing",
-      "label": "Charlotte NC and Upstate SC housing market",
-      "scope": "Housing prices, rents, inventory, permits, and affordability in Charlotte and Upstate South Carolina",
-      "include": ["Charlotte housing", "Upstate South Carolina housing", "home prices", "rents", "inventory"],
+      "id": "custom-fernvale-northpines-housing",
+      "label": "Fernvale PV and Northpines SP housing market",
+      "scope": "Housing prices, rents, inventory, permits, and affordability in Fernvale and Northpines Southpine",
+      "include": ["Fernvale housing", "Northpines Southpine housing", "home prices", "rents", "inventory"],
       "exclude": [],
       "mustFollow": true
     },

@@ -39,12 +39,12 @@ async function main() {
   assert.equal(await page.locator('#interest-counter').isVisible(), false, 'counter stays hidden at 1,799 characters');
   await page.locator('#interest-words').fill('a'.repeat(1800));
   assert.equal(await page.locator('#interest-counter').isVisible(), true, 'counter appears at 1,800 characters');
-  const onboardingWords = 'Payments and banking news, NC health insurance and finance policy, AI in finance. Skip crypto hype.';
+  const onboardingWords = 'Payments and banking news, health insurance and finance policy, AI in finance. Skip crypto hype.';
   await page.locator('#interest-words').fill(onboardingWords);
   await page.route('**/api/interpret', route => route.fulfill({ json: { profile: {
     version: 1, words: onboardingWords, minutes: 12, background: null, muted: [{ label: 'Crypto' }, { label: 'Crypto' }], topics: [
       { id: 'payments-banking', label: 'Payments and Banking News', scope: 'Payment and banking news', include: ['payments', 'banking'], exclude: ['crypto hype'], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'Payments and banking news' },
-      { id: 'nc-health-finance-policy', label: 'NC Health Insurance and Finance Policy', scope: 'NC insurance policy', include: ['health insurance', 'finance policy'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'NC health insurance and finance policy' },
+      { id: 'health-insurance-finance-policy', label: 'Health Insurance and Finance Policy', scope: 'insurance policy', include: ['health insurance', 'finance policy'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'health insurance and finance policy' },
       { id: 'ai-in-finance', label: 'AI in Finance', scope: 'Artificial intelligence in finance', include: ['AI', 'finance'], exclude: ['crypto hype'], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'AI in finance' },
       { id: 'crypto-hype', label: 'Crypto Hype', scope: 'Promotion', include: [], exclude: ['Skip crypto hype'], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'Skip crypto hype' },
     ] }, question: null } }));
@@ -53,11 +53,11 @@ async function main() {
   await button.click();
   await page.getByRole('heading', { name: 'Building your briefing' }).waitFor();
   await page.getByText('Payments and banking', { exact: true }).waitFor();
-  await page.getByText('NC health insurance and finance policy', { exact: true }).waitFor();
+  await page.getByText('Health insurance and finance policy', { exact: true }).waitFor();
   await page.getByText('AI in finance', { exact: true }).waitFor();
   await page.getByText('Crypto', { exact: true }).waitFor();
   assert.deepEqual(await page.locator('.build-interest-chip > span').allTextContents(), [
-    'Payments and banking', 'NC health insurance and finance policy', 'AI in finance', 'Crypto']);
+    'Payments and banking', 'Health insurance and finance policy', 'AI in finance', 'Crypto']);
   assert.equal(await page.getByRole('heading', { name: 'Not covering' }).count(), 1);
   for (const label of ['Understanding your words', 'Finding today’s stories', 'Writing your briefing']) await page.getByText(label, { exact: true }).waitFor();
   assert.equal(await page.getByRole('button', { name: 'Edit my words' }).isVisible(), true);

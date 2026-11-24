@@ -150,6 +150,7 @@ developments matter.
 Open with a direct, natural answer to the listener's question in plain words. Never repeat the raw
 question as a template, and never announce a duration or say “Here is your five-minute briefing.”
 Use short spoken transitions that state the connection to the next idea in ordinary language. Write
+Never use robotic signposts such as “Next up,” “Moving on,” “First up,” “Now to,” or “Turning to.”
 the complete episode as one script from the full evidence pack; do not draft chapters independently
 or stitch their openings together. Transitions should explain how the next idea follows, without
 reading or paraphrasing a chapter title. Never
@@ -290,6 +291,138 @@ def balance_chapter_targets(research_plan, target_words):
         row['target_words'] = 0
         row['merged_into'] = research_plan[nearest]['question']
     return research_plan
+
+
+def _fallback_episode(topic, length, style, request_context, now, evidence, sources,
+                      timing, counts, query_count, read_attempts, discovered_count,
+                      retrieval_history, client, mode, draft=None):
+    """Return a useful, explicitly labelled answer when retrieval is sparse.
+
+    This path deliberately contains no model-written facts. Thin evidence can
+    repeat only the extracted source sentences; an empty pack gets general
+    background wording with no names, dates, numbers, quotes or claims.
+    """
+    broad = len(words(topic)) <= 2 or str(topic).strip().casefold() in {
+        'explain the court case.', 'is it safe now?', 'should i switch?'}
+    sensitive = re.search(r'\b(health|medical|doctor|medicine|medication|legal|law|lawyer|court|money|credit|debt|invest|financial)\b',
+                          str(topic), re.I)
+    rows = []
+    title = 'What the available evidence shows' if evidence else 'General background'
+    if isinstance(draft, dict) and isinstance(draft.get('chapters'), list):
+        chapters = []
+        for chapter in draft['chapters']:
+            if not isinstance(chapter, dict):
+                continue
+            chapter_rows = []
+            for index, sentence in enumerate(chapter.get('sentences', []), 1):
+                if not isinstance(sentence, dict) or not isinstance(sentence.get('text'), str):
+                    continue
+                ids = [ident for ident in sentence.get('evidence_ids', []) if ident in evidence]
+                source_ids = list(dict.fromkeys(evidence[ident]['source_id'] for ident in ids))
+                numbers = list(dict.fromkeys(evidence[ident]['source_number'] for ident in ids))
+                chapter_rows.append({'id': sentence.get('id', f'c1-s{index}'),
+                                     'text': sentence['text'].strip(),
+                                     'kind': sentence.get('kind', 'editorial'),
+                                     'evidence_ids': ids, 'source_ids': source_ids,
+                                     'source_numbers': numbers})
+            if chapter_rows:
+                chapters.append({'id': f'chapter-{len(chapters) + 1}',
+                                 'title': chapter.get('title') or title,
+                                 'title_evidence_ids': [ident for ident in chapter.get('title_evidence_ids', [])
+                                                        if ident in evidence],
+                                 'sentences': chapter_rows,
+                                 'spoken_text': ' '.join(row['text'] for row in chapter_rows)})
+        if chapters:
+            rows = chapters[0]['sentences']
+            title = chapters[0]['title']
+            evidence_chapters = chapters
+        else:
+            evidence_chapters = None
+    else:
+        evidence_chapters = None
+    if evidence_chapters is None and evidence:
+        for item in list(evidence.values())[:8]:
+            text = item.get('text')
+            if not isinstance(text, str) or not text.strip():
+                continue
+            rows.append({'id': f'c1-s{len(rows) + 1}', 'text': text.strip(), 'kind': 'claim',
+                         'evidence_ids': [item['id']], 'source_ids': [item['source_id']],
+                         'source_numbers': [item['source_number']]})
+        if rows:
+            rows.append({'id': f'c1-s{len(rows) + 1}',
+                         'text': "I found only a small amount of usable evidence, so I’m keeping this answer short and leaving the rest unconfirmed.",
+                         'kind': 'editorial', 'evidence_ids': [], 'source_ids': [], 'source_numbers': []})
+    elif mode == 'thin_evidence':
+        rows = [{'id': 'c1-s1',
+                 'text': "I found only a small amount of usable evidence, and it does not support a specific answer yet.",
+                 'kind': 'editorial', 'evidence_ids': [], 'source_ids': [], 'source_numbers': []},
+                {'id': 'c1-s2',
+                 'text': "I couldn't confirm the remaining details, so I'll leave them out rather than guess.",
+                 'kind': 'closing', 'evidence_ids': [], 'source_ids': [], 'source_numbers': []}]
+    else:
+        opening = (f"I’ll take {topic} as a broad introduction and keep this at the general-background level."
+                   if broad else f"This is general background on {topic}.")
+        rows = [{'id': 'c1-s1', 'text': opening, 'kind': 'opening', 'evidence_ids': [],
+                 'source_ids': [], 'source_numbers': []},
+                {'id': 'c1-s2',
+                 'text': "I couldn’t find usable sources for specific facts, so I won’t add names, dates, numbers, or quotes.",
+                 'kind': 'editorial', 'evidence_ids': [], 'source_ids': [], 'source_numbers': []}]
+        if sensitive:
+            rows.append({'id': 'c1-s3',
+                         'text': 'For a health, legal, or money decision, use this only as a starting point and check a qualified professional.',
+                         'kind': 'editorial', 'evidence_ids': [], 'source_ids': [], 'source_numbers': []})
+        rows.append({'id': f'c1-s{len(rows) + 1}',
+                     'text': 'If you want a specific answer, add the place, time period, or decision you have in mind.',
+                     'kind': 'closing', 'evidence_ids': [], 'source_ids': [], 'source_numbers': []})
+    for row in rows:
+        row['text'] = row['text'].replace('I’m', "I'm").replace('couldn’t', "couldn't")
+    if evidence_chapters is None:
+        evidence_chapters = [{'id': 'chapter-1', 'title': title,
+                              'title_evidence_ids': ([next(iter(evidence))] if evidence else []),
+                              'sentences': rows,
+                              'spoken_text': ' '.join(row['text'] for row in rows)}]
+    script = transcript(evidence_chapters)
+    count = len(words(script))
+    script_hash = digest(script)
+    from ..usage import process_ledger
+    ledger = process_ledger()
+    usage = dict(getattr(client, 'usage', {}))
+    input_rate, output_rate = ledger._text_rates(getattr(client, 'model', 'injected'))
+    estimated = (usage.get('input_tokens', 0) * float(input_rate) +
+                 usage.get('output_tokens', 0) * float(output_rate)) / 1e6
+    return {'id': uuid4().hex, 'topic': topic, 'topic_label': topic,
+            'asked': request_context['question'], 'style': style, 'title': topic,
+            'made_date': now[:10], 'created_at': now, 'requested_minutes': length,
+            'duration_minutes': round(count / WORDS_PER_MINUTE, 2),
+            'spoken_minutes': round(count / WORDS_PER_MINUTE, 2),
+            'duration_basis': f'estimated at {WORDS_PER_MINUTE} words per minute; no audio rendered',
+            'target_words': length * WORDS_PER_MINUTE, 'content_word_count': count,
+            'shorter_than_requested': True, 'shortfall_notice': True, 'narrator_count': 1,
+            'chapters': evidence_chapters, 'sources': sources, 'source_count': len(sources),
+            'sources_read': len(sources), 'could_not_confirm': [{'question': topic}],
+            'transcript': script, 'word_count': count,
+            'revision_id': f'episode-{script_hash[:16]}', 'script_hash': script_hash,
+            'audio': {'status': 'not_recorded', 'script_hash': script_hash,
+                      'revision_id': f'episode-{script_hash[:16]}'},
+            'evidence_pack': {'version': 1, 'id': digest(json.dumps(
+                {k: digest(v['text']) for k, v in evidence.items()}, sort_keys=True)),
+                'sentence_count': len(evidence), 'retained_text': False},
+            'verification': {'passed': True, 'fallback': mode,
+                             'script_checks': {'passed': True, 'soft_warnings': ['fallback_mode']}},
+            'soft_warnings': ['fallback_mode'], 'timing': timing,
+            'quality_rubric': {'passed': False, 'partial': True, 'issues': ['fallback_mode']},
+            'request_context': request_context, 'partial': True,
+            'partial_reasons': [mode], 'quality_repair_attempts': 0,
+            'chapter_expansion': {'threshold_fraction': 0.60, 'attempts': 0, 'applied': 0, 'failed': 0},
+            'retry_counts': {'chapter': 0, 'verification': 0},
+            'source_selection': {'considered': 0, 'kept': len(sources), 'dropped': 0, 'items': []},
+            'timing_basis': 'fallback response; no model writing pass',
+            'research_plan': [], 'retrieval': {'queries': query_count,
+                                                'attempts': retrieval_history,
+                                                'read_attempts': read_attempts},
+            'cost_estimate': {'usd': round(estimated, 5), 'model': getattr(client, 'model', 'injected'),
+                              'model_calls': getattr(client, 'calls', 0), **usage,
+                              'basis': 'Text tokens priced from usage.py price list.'}}
 
 
 def digest(text):
@@ -812,9 +945,47 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
         all_reads.clear()
         del batches, research_result
     if len(evidence) < 5 or not sources:
-        raise InsufficientEvidence('insufficient_evidence', {
-            'retrieval': retrieval_history, 'discovered': discovered_count,
-            'sources_read': len(sources), 'evidence_sentences': len(evidence)})
+        mode = 'thin_evidence' if evidence else 'general_background'
+        if os.environ.get('BRIEFING_EPISODE_FALLBACK_MODEL', '').strip().lower() in {'1', 'on', 'true'}:
+            fallback_payload = {
+                'topic': topic, 'mode': mode,
+                'target_words': length * WORDS_PER_MINUTE,
+                'requested_minutes': length, 'evidence': evidence,
+                'source_metadata': [{k: s.get(k) for k in ('id', 'outlet', 'date')} for s in sources],
+                'research_plan': ([{'question': topic, 'target_words': length * WORDS_PER_MINUTE,
+                                    'source_ids': [s['id'] for s in sources],
+                                    'evidence_ids': list(evidence)}] if mode == 'thin_evidence' else []),
+                'fallback_rules': (
+                    'Open by saying this is general background, not current reporting. Explain only evergreen '
+                    'principles and well-known structure. Do not use statistics, dates, named people or organisations, '
+                    'quotes, or recent claims unless supplied in evidence. For sensitive topics, include a plain safety note. '
+                    'Use a host voice and aim for the requested length.' if mode == 'general_background' else
+                    'Write a short host answer using only the supplied evidence. Do not quote or copy sentences verbatim; '
+                    'paraphrase only what those sentences support. State once what could not be confirmed.')}
+            try:
+                modeled = call(SYSTEM_PROMPT + '\nFALLBACK HOST PASS: Follow fallback_rules exactly. Return one coherent script.',
+                               fallback_payload, SCRIPT_SCHEMA, call_name='fallback_writer')
+                valid = isinstance(modeled, dict) and isinstance(modeled.get('chapters'), list)
+                if valid:
+                    text_rows = [sentence for chapter in modeled['chapters'] if isinstance(chapter, dict)
+                                 for sentence in chapter.get('sentences', []) if isinstance(sentence, dict)]
+                    if mode == 'general_background':
+                        forbidden = re.compile(r'\d|["“”]|\b(?:recent|today|yesterday|last week)\b', re.I)
+                        valid = bool(text_rows) and all(not sentence.get('evidence_ids') and
+                                                         sentence.get('kind') in {'opening', 'editorial', 'navigation', 'closing'} and
+                                                         not forbidden.search(sentence.get('text', '')) for sentence in text_rows)
+                    else:
+                        valid = bool(text_rows) and all(all(ident in evidence for ident in sentence.get('evidence_ids', []))
+                                                         for sentence in text_rows)
+                if valid:
+                    return _fallback_episode(topic, length, style, request_context, now, evidence, sources,
+                                             timing, counts, query_count, read_attempts, discovered_count,
+                                             retrieval_history, client, mode, modeled)
+            except (EpisodeError, TypeError, KeyError, ValueError):
+                pass
+        return _fallback_episode(topic, length, style, request_context, now, evidence, sources,
+                                 timing, counts, query_count, read_attempts, discovered_count,
+                                 retrieval_history, client, mode)
     research_plan = balance_chapter_targets(research_plan, length * WORDS_PER_MINUTE)
     payload = {'topic': topic, 'style': style, 'target_words': length * WORDS_PER_MINUTE,
                'requested_minutes': length, 'spoken_length': MINUTE_WORDS[length],
@@ -859,6 +1030,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                     host_system = SYSTEM_PROMPT + ("\nHOST PASS: Write the complete episode as one coherent script "
                         "from this full evidence pack. Open in plain words that address the listener's question without "
                         "reading it back. Use natural transitions that explain the connection between ideas, never "
+                        "using ‘Next up’, ‘Moving on’, ‘First up’, ‘Now to’, or ‘Turning to’. "
                         "section-title bridges. Do not speak unanswered questions; state any evidence gap once in one "
                         "plain sentence. End with a supported takeaway from this episode, or omit it if the evidence "
                         "offers no useful synthesis. Do not add unrelated tangents.\n\nSTYLE TARGET EXAMPLE "

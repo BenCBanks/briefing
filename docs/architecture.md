@@ -352,26 +352,38 @@ state; see the runbook for safe credential checks.
 
 ## Configuration defaults
 
-| Environment variable | Unset default / enabling value | Scope |
+These are the environment variables read by the application or its supported
+developer tools. Variables used only by old runbooks or abandoned experiments
+are intentionally absent. Test-only paths are marked so they are not mistaken
+for production settings.
+
+| Variable | Default / enabling value | Read by |
 | --- | --- | --- |
-| `BRIEFING_STATE_DIR` | Home-local `briefing` state as described above | Most backend state; import-time binding |
-| `BRIEFING_EPISODES` | Fake; only exact `real` enables real jobs | Does not disable daily generation, interpretation, correction TTS or direct renderer calls |
-| `BRIEFING_EXTRACTION` | Off; exact `on` | New byte extractor in article fetching |
-| `BRIEFING_CREDIBILITY` | Off; exact `1` | Retrieval ranking; metadata assessment still exists when off |
-| `BRIEFING_RETRIEVAL_RESILIENCE` | Off; exact `1` | Shared process-local search health/cache/backoff |
-| `BRIEFING_RELEVANCE` | Off; trimmed, case-insensitive `on` | Additional daily semantic relevance check |
-| `BRIEFING_EVIDENCE_PACKS` | Off; trimmed, case-insensitive `on` | Daily runtime evidence-pack format |
-| `BRIEFING_TIMEZONE` | `America/New_York` | `morning_report.py` date comparison only, not scheduling or writer timezone |
-| `BRIEFING_LIVE_URL`, `BRIEFING_URL` | No URL | Morning check: explicit positional URL wins, then LIVE_URL, then URL |
-| `BRIEFING_SHOT_DIR`, `BRIEFING_CAPTURE_DIR` | Test-specific | Browser evidence output; release gate removes inherited overrides |
+| `BRIEFING_STATE_DIR` | Home-local state path | Backend state and test isolation |
+| `BRIEFING_DATA_DIR` | `~/.local/share/briefing` | Local sources, backups and audio |
+| `BRIEFING_LOCAL_SOURCES` | Unset | Optional local source catalog |
+| `BRIEFING_FLAGS_FILE` | State `flags.json` | Runtime feature flags |
+| `BRIEFING_EPISODES` | `real` in production; `fake` in tests | Episode job mode |
+| `BRIEFING_TTS` | Enabled; `0`/`off` disables | Audio jobs and guards |
+| `BRIEFING_DAILY_NARRATION`, `BRIEFING_DAILY_AUDIO` | Disabled unless enabled | Daily narration/audio |
+| `BRIEFING_DAILY_TARGET_MIN` | Five minutes | Daily writer |
+| `BRIEFING_EPISODE_THINKING` | `off` | Episode model client |
+| `BRIEFING_EPISODE_FALLBACK_MODEL` | Off; `on` enables guarded sparse-evidence host pass | Episode fallback writer |
+| `BRIEFING_EXTRACTION`, `BRIEFING_EVIDENCE_PACKS` | Off; `on` enables | Retrieval and daily evidence |
+| `BRIEFING_CREDIBILITY`, `BRIEFING_RELEVANCE`, `BRIEFING_RELEVANCE_TUNE` | Off; `1`/`on` enables | Retrieval and daily scoring |
+| `BRIEFING_RETRIEVAL_FILL`, `BRIEFING_RETRIEVAL_RESILIENCE` | Off; `on` enables | Retrieval controls |
+| `BRIEFING_FRESHNESS_DAYS`, `BRIEFING_CANDIDATE_ATTEMPT_LIMIT` | 90 / 30 | Validated runtime flags |
+| `BRIEFING_TIMEZONE` | `America/New_York` | Morning report date comparison |
+| `BRIEFING_LIVE_URL`, `BRIEFING_URL` | Unset | Status and morning checks |
+| `BRIEFING_SHOT_DIR`, `BRIEFING_CAPTURE_DIR` | Test-specific temporary paths | Browser evidence (test-only) |
+| `BRIEFING_TESTING`, `BRIEFING_TEST_LEDGER_DIR` | Unset | Fixture test guard and ledger (test-only) |
 
 Model choice is a code constant, not a supported model environment variable:
 text defaults to `gemini-3.5-flash` in `interpreter_proxy.py`; named fallback and
 alternate constants do not provide automatic failover. Grounding defaults to
 `gemini-3-flash-preview` in `RetrievalConfig`. Provider order, result caps and
 key-file overrides are configuration objects or CLI arguments, not environment
-flags. There is no implemented global fixture/no-network switch or
-`BRIEFING_RETRIEVAL_FILL` switch at this baseline.
+flags.
 
 [usage-prices.json](../dev/ingest/usage-prices.json) defaults to estimated caps of
 $2/day and $30/month, bucketed in Eastern time. Reservations precede instrumented

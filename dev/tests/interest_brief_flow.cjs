@@ -7,9 +7,9 @@ const path = require('node:path');
 const { chromium } = require('playwright');
 const { builtProfileKey } = require('./helpers/profile.cjs');
 const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8941';
-const profile = { version: 1, words: 'Follow Charlotte housing, local transport and savings rates. Skip celebrity news.', minutes: 12, background: null, muted: [], topics: [
-  { id: 'custom-housing', label: 'Housing', scope: 'Housing in Charlotte', include: ['housing'], exclude: ['celebrity news'], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'Charlotte housing' },
-  { id: 'custom-transport', label: 'Local transport', scope: 'Buses and rail in Charlotte', include: ['local transport'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'local transport' },
+const profile = { version: 1, words: 'Follow Fernvale housing, local transport and savings rates. Skip celebrity news.', minutes: 12, background: null, muted: [], topics: [
+  { id: 'custom-housing', label: 'Housing', scope: 'Housing in Fernvale', include: ['housing'], exclude: ['celebrity news'], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'Fernvale housing' },
+  { id: 'custom-transport', label: 'Local transport', scope: 'Buses and rail in Fernvale', include: ['local transport'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'local transport' },
   { id: 'banking', label: 'Savings rates', scope: 'Deposit rates and changes', include: ['savings rates'], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'savings rates' },
 ] };
 const sample = JSON.parse(fs.readFileSync(path.join(__dirname, '../../content/editions.json'))).editions.find(e => e.kind === 'daily');
@@ -48,7 +48,7 @@ async function run() {
    await page.route('**/api/interpret', async route => {
      while (!allowInterpret) await new Promise(resolve => setTimeout(resolve, 20));
      if (scenario === 'interpret-failure' && !recovering) return route.fulfill({ status: 503, json: { error: 'unavailable' } });
-     return route.fulfill({ json: { question: null, profile: { ...profile, words: 'Follow Charlotte housing and local transport. Skip celebrity news.' } } });
+     return route.fulfill({ json: { question: null, profile: { ...profile, words: 'Follow Fernvale housing and local transport. Skip celebrity news.' } } });
    });
    await page.route('**/api/generate', route => { jobs++; return route.fulfill({ json: { job_id: 'topics-job' } }); });
    await page.route('**/api/generate/topics-job', async route => {
@@ -71,7 +71,7 @@ async function run() {
    const text = await page.locator('.topics-page').innerText();
    assert.doesNotMatch(text, /interest brief|evergreen|Rebuild from my words|Edit your interests|being prepared|custom-housing/);
    assert.equal(await page.locator('.topic-row').count(), 3, 'Topics with exclusions remain visible');
-   assert.equal(await page.locator('.topic-description').first().innerText(), 'Charlotte housing');
+   assert.equal(await page.locator('.topic-description').first().innerText(), 'Fernvale housing');
    assert.equal(await page.locator('.topics-skipping').count(), 0, 'Topics keeps exclusions in the editor without negative summary copy');
    assert.equal(await page.locator('.topic-dive-link').count(), 1, 'Only the real banking explanation has Learn more');
    assert.equal(await page.locator('.topic-coverage-note').first().innerText(), 'Plenty');
@@ -88,7 +88,7 @@ async function run() {
      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
      await page.setViewportSize({ width: 390, height: 844 });
    }
-   const words = 'Follow Charlotte housing and local transport. Skip celebrity news.';
+   const words = 'Follow Fernvale housing and local transport. Skip celebrity news.';
    if (scenario === 'pause') {
      await page.getByRole('switch', { name: 'Housing daily updates', exact: true }).click();
    } else {

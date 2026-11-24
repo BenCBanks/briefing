@@ -45,3 +45,9 @@ The same suite runs in GitHub Actions on every pull request.
 More detail: [architecture](docs/architecture.md), [runbook](docs/runbook.md),
 [cost control](docs/cost-control.md), [privacy](docs/privacy.md),
 [sources](docs/sources.md).
+
+Reader profiles may opt into local sources by listing their IDs in `local_sources`. Define those sources
+outside this public repository with `BRIEFING_LOCAL_SOURCES`, or place `local-sources.json` in
+`BRIEFING_DATA_DIR` (default: `~/.local/share/briefing/local-sources.json`). When no file exists, the app
+loads no local sources. [The fictional example](content/local-sources.example.json) shows the format.
+Each reader's topic definition supplies its own place and subject.

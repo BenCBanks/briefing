@@ -398,14 +398,13 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(citations[0]['evidence_depth'], 'headline')
         self.assertEqual([row['text'] for row in evidence.values()], ['Housing permits advanced.'])
 
-    def test_free_text_housing_interests_map_to_housing_registry_tags(self):
+    def test_free_text_housing_interests_map_by_subject_not_by_place(self):
         from ingest.write_edition import _feed_topic_ids
-        available = {'housing-market', 'affordable-housing', 'homebuilding', 'construction', 'materials',
-                     'charlotte', 'upstate-sc'}
+        available = {'housing-market', 'affordable-housing', 'homebuilding', 'construction', 'materials'}
         cases = [
-            ({'id': 'custom-housing', 'label': 'Home building and housing in Charlotte NC and Upstate SC',
+            ({'id': 'custom-housing', 'label': 'Home building and housing in Fernvale PV and Northpines SP',
               'scope': '', 'include': [], 'sourcePhrase': ''},
-             {'housing-market', 'homebuilding', 'construction', 'materials', 'charlotte', 'upstate-sc'}),
+             {'housing-market', 'homebuilding', 'construction', 'materials'}),
             ({'id': 'custom-rent', 'label': 'Affordable rent and housing',
               'scope': '', 'include': [], 'sourcePhrase': ''}, {'housing-market', 'affordable-housing'}),
         ]
@@ -566,7 +565,7 @@ class WriterTests(unittest.TestCase):
 
     def test_exact_first_run_interpret_to_generation_has_three_topics_no_crypto_row_and_four_stories(self):
         import interpreter_proxy
-        words = 'Payments and banking news, NC health insurance and finance policy, AI in finance. Skip crypto hype.'
+        words = 'Payments and banking news, health insurance and finance policy, AI in finance. Skip crypto hype.'
         def model_topic(topic_id, label, source_phrase, include):
             return {'id': topic_id, 'label': label, 'scope': label + ' updates', 'include': include,
                     'exclude': ['crypto hype'], 'depth': 'standard', 'cadence': 'daily',
@@ -575,7 +574,7 @@ class WriterTests(unittest.TestCase):
                 'topics': [
                     model_topic('payments', 'Payments', 'Payments', ['payments']),
                     model_topic('banking', 'Banking', 'banking news', ['banking']),
-                    model_topic('insurance', 'NC health insurance', 'NC health insurance', ['health insurance']),
+                    model_topic('insurance', 'Health insurance and finance policy', 'health insurance and finance policy', ['health insurance', 'finance policy']),
                     model_topic('ai-in-finance', 'AI in Finance', 'AI in finance', ['AI', 'finance']),
                     model_topic('crypto-hype', 'Crypto Hype', 'Skip crypto hype', [])],
                 'muted': [{'label': 'Crypto hype'}, {'label': 'Crypto'}]}, 'question': None}
@@ -586,14 +585,14 @@ class WriterTests(unittest.TestCase):
                                                         post_json=lambda *_args: envelope)
         profile = interpreted['profile']
         self.assertEqual([topic['label'] for topic in profile['topics']], [
-            'Payments and banking', 'NC health insurance and finance policy', 'AI in finance'])
+            'Payments and banking', 'Health insurance and finance policy', 'AI in finance'])
         self.assertEqual(profile['muted'], [{'label': 'Crypto'}])
         self.assertTrue(all(not topic['exclude'] for topic in profile['topics']))
 
         source_specs = [
             ('fictional-payments', 'Fictional Payments Office', ['payments']),
             ('fictional-banking', 'Fictional Banking Office', ['banking']),
-            ('fictional-health', 'Fictional NC Coverage Office', ['health']),
+            ('fictional-health', 'Fictional PV Coverage Office', ['health']),
             ('fictional-ai', 'Fictional Financial Technology Office', ['ai']),
         ]
         registry = [{'id': source_id, 'name': name, 'url': f'https://{source_id}.example.test/feed',
@@ -612,8 +611,8 @@ class WriterTests(unittest.TestCase):
                  'Fictional Payments Office said payment network changes were announced.', ['payments']),
             item('fictional-banking', 2, 'Fictional banking update',
                  'Fictional Banking Office said banking service changes were announced.', ['banking']),
-            item('fictional-health', 3, 'Fictional NC health insurance policy update',
-                 'Fictional NC Coverage Office said health insurance policy details were announced.', ['health']),
+            item('fictional-health', 3, 'Fictional Pinevale health insurance policy update',
+                 'Fictional PV Coverage Office said health insurance policy details were announced.', ['health']),
             item('fictional-ai', 4, 'Fictional AI finance update',
                  'Fictional Financial Technology Office said AI finance service changes were announced.', ['ai']),
             item('fictional-payments', 5, 'Crypto hype payment promotion',
@@ -638,7 +637,7 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(len(story_rows), 3, 'The first edition pass stops after three passing stories')
         self.assertNotIn('availability_note', edition, 'Three stories meet the initial publication target')
         self.assertEqual([row['topic_id'] for row in edition['coverage']], [
-            'payments-banking', 'nc-health-finance-policy', 'ai-in-finance'])
+            'payments-banking', 'health-insurance-finance-policy', 'ai-in-finance'])
         self.assertEqual(len(edition['coverage']), 3, 'Unselected catalog topics do not become quiet rows')
         self.assertFalse(any('Crypto Hype' in row.get('heading', '') for row in edition['sections']))
         self.assertFalse(any('crypto hype' in row.get('body', '').lower() for row in edition['sections']))
@@ -951,7 +950,7 @@ class WriterTests(unittest.TestCase):
         from ingest.write_edition import _canonical_profile, _feed_topic_ids, _rank_profile_topic_items
         profile = {'version': 1, 'minutes': 12, 'topics': [
             {'id': 'payments', 'label': 'Payments', 'scope': 'Payment rails', 'include': ['payments'], 'exclude': []},
-            {'id': 'health', 'label': 'NC health insurance', 'scope': 'North Carolina insurance coverage',
+            {'id': 'health', 'label': 'Pinevale health insurance', 'scope': 'Pinevale insurance coverage',
              'include': ['Medicaid', 'insurance'], 'exclude': []},
             {'id': 'ai', 'label': 'AI in finance', 'scope': 'Artificial intelligence in financial services',
              'include': ['AI', 'financial services'], 'exclude': []},
@@ -963,7 +962,7 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(canonical['topics'][1]['feed_topic_ids'], ['insurance', 'health'])
         self.assertEqual(canonical['topics'][2]['feed_topic_ids'], ['ai', 'finance', 'digital', 'payments'])
         self.assertTrue(set(canonical['topics'][3]['feed_topic_ids']))
-        health_item = {**ITEM, 'title': 'North Carolina Medicaid health insurance update',
+        health_item = {**ITEM, 'title': 'Pinevale Medicaid health insurance update',
                        'snippet': 'State officials describe a change to Medicaid coverage.',
                        'source_id': REGISTRY[0]['id'], 'topics': ['health']}
         ranked = _rank_profile_topic_items([health_item], canonical, canonical['topics'][1])
@@ -1333,11 +1332,11 @@ class WriterTests(unittest.TestCase):
 
     def test_health_and_ai_relevance_prompt_uses_expanded_related_terms(self):
         from ingest.write_edition import SYSTEM_PROMPT, _matches_topic_scope
-        self.assertIn('federal ACA, Medicare or Medicaid policy', SYSTEM_PROMPT)
-        self.assertIn('do not require every relevant item to name the state', SYSTEM_PROMPT)
+        self.assertIn('broader policy', SYSTEM_PROMPT)
+        self.assertIn('do not infer a place the reader did not name', SYSTEM_PROMPT)
         self.assertIn('space-shuttle home exhibit', SYSTEM_PROMPT)
         self.assertIn('CMS kindergarten story', SYSTEM_PROMPT)
-        self.assertIn('Brooklyn building collapse', SYSTEM_PROMPT)
+        self.assertIn('unrelated building collapse', SYSTEM_PROMPT)
         self.assertIn('at most one short paragraph', SYSTEM_PROMPT)
         self.assertIn('Do not make forecasts', SYSTEM_PROMPT)
 
@@ -1358,7 +1357,7 @@ class WriterTests(unittest.TestCase):
 
     def test_gemini_relevance_gate_drops_known_false_positive_housing_candidates(self):
         from ingest.write_edition import _cluster_story, _matches_topic_scope
-        housing_topic = {'id': 'housing', 'label': 'Charlotte housing market',
+        housing_topic = {'id': 'housing', 'label': 'Fernvale housing market',
                          'scope': 'home building, rents, prices, zoning and permits',
                          'include': ['housing'], 'exclude': []}
         source = {**REGISTRY[0], 'id': 'housing-test', 'name': 'Fictional Housing Feed',
@@ -1366,7 +1365,7 @@ class WriterTests(unittest.TestCase):
         false_positive_titles = [
             'Building a Permanent Home for a Space Shuttle',
             'CMS parents push for play-based kindergarten',
-            'Brooklyn Building Collapse'
+            'Stonebridge Building Collapse'
         ]
         for title in false_positive_titles:
             cluster = {'id': title, 'rows': [{'item': {**ITEM, 'source_id': source['id'],

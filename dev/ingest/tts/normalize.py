@@ -68,8 +68,7 @@ _NUMBER = re.compile(
 _ACRONYMS = {
     'AI': 'A-I', 'API': 'A-P-I', 'ATM': 'A-T-M', 'CDC': 'C-D-C', 'CEO': 'C-E-O',
     'CFO': 'C-F-O', 'CPI': 'C-P-I', 'CMS': 'C-M-S', 'FDA': 'F-D-A', 'FBI': 'F-B-I',
-    'GDP': 'G-D-P', 'IRS': 'I-R-S', 'NASA': 'NASA', 'ACH': 'ACH', 'NC': 'N-C', 'SEC': 'S-E-C',
-    'UN': 'U-N',
+    'GDP': 'G-D-P', 'IRS': 'I-R-S', 'NASA': 'NASA', 'SEC': 'S-E-C', 'UN': 'U-N',
     'UK': 'U-K', 'US': 'U-S', 'WHO': 'W-H-O',
 }
 

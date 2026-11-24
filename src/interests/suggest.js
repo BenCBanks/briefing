@@ -28,7 +28,7 @@ const depthOrder = ['headline', 'standard', 'deeper'];
 const occurredWithin = (event, days, now) => event.ts >= now - days * 86400000;
 
 export function generateSuggestions({ profile, catalog = [], snoozes = readSnoozes(), now = Date.now() }) {
-  // Read signal events and aggregate counts through Tern's shared local signal API.
+  // Read signal events and aggregate counts through Player's shared local signal API.
   const recent = signalEvents().filter(event => event.ts <= now && occurredWithin(event, SUGGESTION_THRESHOLDS.recentDays, now));
   const count = (topicId, type) => countBy(topicId, type, SUGGESTION_THRESHOLDS.recentDays, now);
   const suggestions = [];

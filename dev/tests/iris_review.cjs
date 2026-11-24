@@ -12,12 +12,12 @@ const baseURL = process.env.BRIEFING_URL;
     const result = await page.evaluate(async () => {
       const { renderTopics } = await import('/src/topics/topics.js');
       const host = document.createElement('div'); host.className = 'topics-page'; document.querySelector('main').replaceChildren(host);
-      const words = 'Follow payments, AI in finance, and health insurance in North Carolina. Skip crypto hype.';
-      const topics = ['payments', 'AI in finance', 'health insurance in North Carolina'].map((phrase, i) => ({
-        id: String(i), label: phrase, sourcePhrase: phrase, scope: 'Invented scope in North Carolina', include: [phrase], exclude: ['crypto hype'],
+      const words = 'Follow payments, AI in finance, and health insurance in Pinevale. Skip crypto hype.';
+      const topics = ['payments', 'AI in finance', 'health insurance in Pinevale'].map((phrase, i) => ({
+        id: String(i), label: phrase, sourcePhrase: phrase, scope: 'Invented scope in Pinevale', include: [phrase], exclude: ['crypto hype'],
       }));
       renderTopics(host, topics, [], topics.map(t => t.id), [], { words, savedWords: words,
-        interestBrief: { geography: 'North Carolina', exclusions: ['crypto hype'] } });
+        interestBrief: { geography: 'Pinevale', exclusions: ['crypto hype'] } });
       return { descriptions: [...host.querySelectorAll('.topic-description')].map(p => p.textContent),
         exclusionCopy: host.querySelector('.topics-skipping')?.textContent || '',
         targets: [...host.querySelectorAll('.topic-pause')].map(b => ({ w: b.getBoundingClientRect().width, h: b.getBoundingClientRect().height })) };

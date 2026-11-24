@@ -175,7 +175,7 @@ class EditionApiTests(unittest.TestCase):
             self.assertEqual(default_body['edition']['id'], 'scheduled-default')
             self.assertEqual(active_body['edition']['id'], 'private-profile')
 
-    def test_changed_active_profile_never_inherits_legacy_edition(self):
+    def test_changed_active_profile_keeps_last_edition_visible_as_stale(self):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp)
             generated = root / 'generated'
@@ -185,8 +185,8 @@ class EditionApiTests(unittest.TestCase):
             old_profile = {'version': 1, 'words': 'Payments headlines', 'minutes': 12,
                            'topics': [{'id': 'payments', 'label': 'Payments', 'scope': '',
                                        'include': ['payments'], 'exclude': []}]}
-            changed_profile = {**old_profile, 'words': 'Payments and NC insurance policy',
-                               'topics': [{**old_profile['topics'][0], 'scope': 'North Carolina insurance policy'}]}
+            changed_profile = {**old_profile, 'words': 'Payments and insurance policy',
+                               'topics': [{**old_profile['topics'][0], 'scope': 'Pinevale insurance policy'}]}
             bundle = {'editions': {'editions': [legacy]}, 'sources': {'sources': [{'id': 'old-source'}]}}
             (generated / 'current.json').write_text(json.dumps(bundle))
             (generated / 'editions.json').write_text(json.dumps(bundle['editions']))
@@ -202,10 +202,50 @@ class EditionApiTests(unittest.TestCase):
                 status, body = edition_api.edition_response(profile='active')
                 default_body = edition_api.edition_response(profile='default')[1]
             self.assertEqual(status, 200)
-            self.assertFalse(body['generated'])
-            self.assertIsNone(body['edition'])
+            self.assertTrue(body['generated'])
+            self.assertTrue(body['stale'])
+            self.assertEqual(body['edition']['id'], 'legacy-headline-only')
             self.assertFalse((generation_api.profile_generated_dir(changed_profile, generated) / 'current.json').exists())
             self.assertEqual(default_body['edition']['id'], 'legacy-headline-only')
+
+    def test_saved_profile_edit_keeps_generated_edition_readable(self):
+        with tempfile.TemporaryDirectory() as temp:
+            state = Path(temp)
+            generated = state / 'generated'
+            profile_file = state / 'profile.json'
+            original = {'version': 1, 'words': 'Payments headlines', 'minutes': 12,
+                        'topics': [{'id': 'payments', 'label': 'Payments', 'scope': '',
+                                    'include': ['payments'], 'exclude': []}]}
+            edited = {**original, 'words': 'Payments and policy', 'local_sources': ['fictional-source']}
+            self.assertEqual(profile_identifier(original),
+                             profile_identifier({**original, 'local_sources': ['fictional-source']}))
+            with patch.object(generation_api, 'PROFILE_PATH', profile_file), \
+                 patch.object(generation_api, 'GENERATED_DIR', generated), \
+                 patch.object(edition_api, 'GENERATED_DIR', generated / 'default'), \
+                 patch.object(edition_api, 'LEGACY_GENERATED_DIR', generated):
+                self.assertEqual(generation_api.save_profile(original, profile_file)[0], 200)
+                self.assertTrue(edition_api.edition_response(profile='active')[1]['generated'] is False)
+                edition = {'id': 'generated-before-edit', 'revision_id': 'r1', 'kind': 'daily',
+                           'generated': True, 'generated_at': '2026-11-24T00:00:00Z',
+                           'profile_id': profile_identifier(original), 'sections': []}
+                directory = generation_api.profile_generated_dir(original)
+                generation_api._store_edition({'editions': [edition]}, {'sources': []}, {}, directory)
+                self.assertTrue(edition_api.edition_response(profile='active')[1]['generated'])
+                generation_api.save_profile(edited, profile_file)
+                status, body = edition_api.edition_response(profile='active')
+                self.assertEqual(status, 200)
+                self.assertTrue(body['generated'])
+                self.assertTrue(body['stale'])
+                self.assertEqual(body['edition']['id'], 'generated-before-edit')
+                replacement = {**edition, 'id': 'generated-after-edit',
+                               'profile_id': profile_identifier(edited)}
+                generation_api._store_edition({'editions': [replacement]}, {'sources': []}, {},
+                                              generation_api.profile_generated_dir(edited))
+                status, refreshed = edition_api.edition_response(profile='active')
+                self.assertEqual(status, 200)
+                self.assertTrue(refreshed['generated'])
+                self.assertFalse(refreshed['stale'])
+                self.assertEqual(refreshed['edition']['id'], 'generated-after-edit')
 
     def test_invalid_source_reference_is_rejected(self):
         with tempfile.TemporaryDirectory() as temp:

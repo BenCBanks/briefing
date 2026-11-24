@@ -683,28 +683,6 @@
       "evidence_url": "https://cfr.org/",
       "rights_status": "unverified"
     },
-    "charlottenc.gov": {
-      "tier": "primary",
-      "origin": "charlottenc.gov",
-      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
-      "basis": [
-        "great-sources-housing-2026-11-17"
-      ],
-      "reviewed_at": "2026-11-18",
-      "evidence_url": "https://charlottenc.gov/",
-      "rights_status": "unverified"
-    },
-    "charlotteobserver.com": {
-      "tier": "major",
-      "origin": "mcclatchy",
-      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
-      "basis": [
-        "great-sources-housing-2026-11-17"
-      ],
-      "reviewed_at": "2026-11-18",
-      "evidence_url": "https://charlotteobserver.com/",
-      "rights_status": "unverified"
-    },
     "chelseafc.com": {
       "tier": "primary",
       "origin": "chelseafc.com",
@@ -1311,17 +1289,6 @@
       "evidence_url": "https://fiercehealthcare.com/",
       "rights_status": "unverified"
     },
-    "files.zillowstatic.com": {
-      "tier": "primary",
-      "origin": "zillow",
-      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
-      "basis": [
-        "great-sources-housing-2026-11-17"
-      ],
-      "reviewed_at": "2026-11-18",
-      "evidence_url": "https://files.zillowstatic.com/",
-      "rights_status": "unverified"
-    },
     "fincen.gov": {
       "tier": "primary",
       "origin": "fincen.gov",
@@ -1543,17 +1510,6 @@
       "evidence_url": "https://globalpayments.com/",
       "rights_status": "unverified"
     },
-    "goupstate.com": {
-      "tier": "major",
-      "origin": "gannett",
-      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
-      "basis": [
-        "great-sources-housing-2026-11-17"
-      ],
-      "reviewed_at": "2026-11-18",
-      "evidence_url": "https://goupstate.com/",
-      "rights_status": "unverified"
-    },
     "governing.com": {
       "tier": "trade",
       "origin": "governing.com",
@@ -1574,28 +1530,6 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://greenbuildingadvisor.com/",
-      "rights_status": "unverified"
-    },
-    "greenvilleonline.com": {
-      "tier": "major",
-      "origin": "gannett",
-      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
-      "basis": [
-        "great-sources-housing-2026-11-17"
-      ],
-      "reviewed_at": "2026-11-18",
-      "evidence_url": "https://greenvilleonline.com/",
-      "rights_status": "unverified"
-    },
-    "greenvillesc.gov": {
-      "tier": "primary",
-      "origin": "greenvillesc.gov",
-      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
-      "basis": [
-        "great-sources-housing-2026-11-17"
-      ],
-      "reviewed_at": "2026-11-18",
-      "evidence_url": "https://greenvillesc.gov/",
       "rights_status": "unverified"
     },
     "hai.stanford.edu": {
@@ -2304,17 +2238,6 @@
       "evidence_url": "https://nber.org/",
       "rights_status": "unverified"
     },
-    "ncdoi.gov": {
-      "tier": "primary",
-      "origin": "ncdoi.gov",
-      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
-      "basis": [
-        "great-sources-housing-2026-11-17"
-      ],
-      "reviewed_at": "2026-11-18",
-      "evidence_url": "https://ncdoi.gov/",
-      "rights_status": "unverified"
-    },
     "ncua.gov": {
       "tier": "primary",
       "origin": "ncua.gov",
@@ -2851,18 +2774,6 @@
       "rights_status": "unverified",
       "wire": true
     },
-    "richmondfed.org": {
-      "tier": "primary",
-      "origin": "federal-reserve",
-      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
-      "basis": [
-        "great-sources-2026-11-17",
-        "great-sources-housing-2026-11-17"
-      ],
-      "reviewed_at": "2026-11-18",
-      "evidence_url": "https://richmondfed.org/",
-      "rights_status": "unverified"
-    },
     "ritholtz.com": {
       "tier": "blog",
       "origin": "ritholtz.com",
@@ -2916,17 +2827,6 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://schneier.com/",
-      "rights_status": "unverified"
-    },
-    "schousing.sc.gov": {
-      "tier": "primary",
-      "origin": "schousing.sc.gov",
-      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
-      "basis": [
-        "great-sources-housing-2026-11-17"
-      ],
-      "reviewed_at": "2026-11-18",
-      "evidence_url": "https://schousing.sc.gov/",
       "rights_status": "unverified"
     },
     "sciencedaily.com": {
@@ -3072,17 +2972,6 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://sofi.com/",
-      "rights_status": "unverified"
-    },
-    "spartanburgcounty.gov": {
-      "tier": "primary",
-      "origin": "spartanburgcounty.gov",
-      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
-      "basis": [
-        "great-sources-housing-2026-11-17"
-      ],
-      "reviewed_at": "2026-11-18",
-      "evidence_url": "https://spartanburgcounty.gov/",
       "rights_status": "unverified"
     },
     "sportico.com": {
@@ -3486,17 +3375,6 @@
       "evidence_url": "https://washingtonpost.com/",
       "rights_status": "unverified"
     },
-    "wfae.org": {
-      "tier": "major",
-      "origin": "wfae.org",
-      "reason": "Established general news publisher; individual articles may be opinion or syndicated.",
-      "basis": [
-        "great-sources-housing-2026-11-17"
-      ],
-      "reviewed_at": "2026-11-18",
-      "evidence_url": "https://wfae.org/",
-      "rights_status": "unverified"
-    },
     "whufc.com": {
       "tier": "primary",
       "origin": "whufc.com",
@@ -3583,17 +3461,6 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://zelle.com/",
-      "rights_status": "unverified"
-    },
-    "zillow.com": {
-      "tier": "primary",
-      "origin": "zillow",
-      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
-      "basis": [
-        "great-sources-housing-2026-11-17"
-      ],
-      "reviewed_at": "2026-11-18",
-      "evidence_url": "https://zillow.com/",
       "rights_status": "unverified"
     },
     "zondahome.com": {

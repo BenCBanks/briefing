@@ -74,9 +74,6 @@ KNOWN_ENTITY_WORDS = {
     'services', 'system', 'university', 'reforms'
 }
 KNOWN_NAMED_ENTITIES = {'medicare', 'medicaid', 'chip', 'cms', 'aca'}
-KNOWN_PLACES = {'north carolina', 'south carolina', 'north dakota', 'south dakota',
-                'new york', 'new jersey', 'new mexico', 'west virginia', 'rhode island',
-                'united states', 'united kingdom', 'district of columbia'}
 KNOWN_ACRONYMS = {
     'centers for medicare and medicaid services': 'cms',
     "children's health insurance program": 'chip',
@@ -146,8 +143,7 @@ def _likely_names(text, cited=''):
             continue
         phrase = text[run[first].start():run[-1].end()].strip()
         if at_start:
-            is_known_entity = (phrase.casefold() in KNOWN_PLACES or
-                               phrase.casefold() in KNOWN_NAMED_ENTITIES or
+            is_known_entity = (phrase.casefold() in KNOWN_NAMED_ENTITIES or
                                (len(words[first:]) > 1 and words[-1].casefold().rstrip(".'’") in KNOWN_ENTITY_WORDS))
             common_start = len(words[first:]) == 1 and words[first].casefold() in GENERIC_SENTENCE_STARTS
             if common_start:

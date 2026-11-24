@@ -32,22 +32,22 @@ def main():
                  'include': ['bank', 'deposit', 'lending', 'credit union', 'capital'], 'exclude': [], 'mustFollow': False},
             ]
         }, ['payments', 'banking']),
-        'nc_health_insurance': ({
-            'topics': [{'id': 'insurance', 'label': 'North Carolina health insurance policy',
-                        'scope': 'North Carolina health insurance and policy',
-                        'include': ['North Carolina', 'health', 'insurance', 'coverage', 'policy'],
+        'pinevale_health_insurance': ({
+            'topics': [{'id': 'insurance', 'label': 'Pinevale health insurance policy',
+                        'scope': 'Pinevale health insurance and policy',
+                        'include': ['Pinevale', 'health', 'insurance', 'coverage', 'policy'],
                         'exclude': ['clinic', 'national health insurance survey'], 'mustFollow': False}]
         }, ['insurance']),
-        'charlotte_housing': ({
-            'topics': [{'id': 'custom-charlotte-housing', 'label': 'Charlotte housing',
-                        'scope': 'Housing in Charlotte, North Carolina', 'include': ['Charlotte', 'housing'],
-                        'exclude': ['space shuttle', 'CMS kindergarten', 'Brooklyn collapse'], 'mustFollow': False}]
-        }, ['custom-charlotte-housing']),
-        'upstate_housing': ({
-            'topics': [{'id': 'custom-upstate-housing', 'label': 'Upstate housing',
-                        'scope': 'Housing in Upstate South Carolina', 'include': ['Upstate', 'housing', 'Greenville', 'Spartanburg', 'Anderson'],
+        'fernvale_housing': ({
+            'topics': [{'id': 'custom-fernvale-housing', 'label': 'Fernvale housing',
+                        'scope': 'Housing in Fernvale, Pinevale', 'include': ['Fernvale', 'housing'],
+                        'exclude': ['space shuttle', 'CMS kindergarten', 'Stonebridge collapse'], 'mustFollow': False}]
+        }, ['custom-fernvale-housing']),
+        'northpines_housing': ({
+            'topics': [{'id': 'custom-northpines-housing', 'label': 'Northpines housing',
+                        'scope': 'Housing in Northpines Southpine', 'include': ['Northpines', 'housing', 'Lakeford', 'Redstone', 'Hillford'],
                         'exclude': ['mortgage calculator', 'school district', 'home tour'], 'mustFollow': False}]
-        }, ['custom-upstate-housing']),
+        }, ['custom-northpines-housing']),
     }
 
     total_selected = 0

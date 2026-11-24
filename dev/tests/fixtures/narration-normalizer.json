@@ -6,8 +6,8 @@
   },
   {
     "name": "ISO dates years acronyms ordinals ranges and a clock time",
-    "input": "By 2026-11-12, AI and NC suppliers reported 21st-century gains.\n\nA 2019–2024 measure rose 50 bps at 5:05 a.m.",
-    "expected": "By November twelfth, twenty twenty-six, A-I and N-C suppliers reported twenty-first-century gains.\n\nA twenty nineteen to twenty twenty-four measure rose fifty basis points at five o five a m."
+    "input": "By 2026-11-12, AI and PV suppliers reported 21st-century gains.\n\nA 2019–2024 measure rose 50 bps at 5:05 a.m.",
+    "expected": "By November twelfth, twenty twenty-six, A-I and P-V suppliers reported twenty-first-century gains.\n\nA twenty nineteen to twenty twenty-four measure rose fifty basis points at five o five a m."
   },
   {
     "name": "cents currency signs ordinals and symbol words",

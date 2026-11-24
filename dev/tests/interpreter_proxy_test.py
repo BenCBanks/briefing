@@ -280,7 +280,7 @@ class InterpreterProxyTests(unittest.TestCase):
         self.assertIn({'label': 'Crypto'}, result['profile']['muted'])
 
     def test_real_new_user_text_keeps_supported_duration_and_complete_exclusion_phrase(self):
-        words = 'Payments and banking news, NC health insurance and finance policy, AI in finance. Skip crypto hype.'
+        words = 'Payments and banking news, health insurance and finance policy, AI in finance. Skip crypto hype.'
         generated = response_for(words)
         generated['profile']['minutes'] = 5  # An arbitrary model default must not make the profile invalid.
         generated['profile']['topics'] = [
@@ -288,10 +288,10 @@ class InterpreterProxyTests(unittest.TestCase):
              'scope': 'News and developments in payments and commercial/retail banking',
              'include': ['payments', 'banking'], 'exclude': ['crypto'], 'depth': 'standard',
              'cadence': 'daily', 'mustFollow': False, 'sourcePhrase': 'Payments and banking news'},
-            {'id': 'nc-health-insurance-finance-policy', 'label': 'NC Health Insurance and Finance Policy',
-             'scope': 'North Carolina health insurance regulation and state finance policy updates',
-             'include': ['NC', 'health insurance', 'finance policy'], 'exclude': [], 'depth': 'standard',
-             'cadence': 'daily', 'mustFollow': False, 'sourcePhrase': 'NC health insurance and finance policy'},
+            {'id': 'health-insurance-finance-policy', 'label': 'Health Insurance and Finance Policy',
+             'scope': 'Pinevale health insurance regulation and state finance policy updates',
+             'include': ['PV', 'health insurance', 'finance policy'], 'exclude': [], 'depth': 'standard',
+             'cadence': 'daily', 'mustFollow': False, 'sourcePhrase': 'health insurance and finance policy'},
             {'id': 'ai-in-finance', 'label': 'AI in Finance',
              'scope': 'Applications and regulation of artificial intelligence within financial services',
              'include': ['AI', 'finance'], 'exclude': ['crypto'], 'depth': 'standard',
@@ -305,9 +305,9 @@ class InterpreterProxyTests(unittest.TestCase):
         profile = result['profile']
         self.assertEqual(profile['minutes'], 12)
         self.assertEqual([topic['id'] for topic in profile['topics']], [
-            'payments-banking', 'nc-health-finance-policy', 'ai-in-finance'])
+            'payments-banking', 'health-insurance-finance-policy', 'ai-in-finance'])
         self.assertEqual([topic['label'] for topic in profile['topics']], [
-            'Payments and banking', 'NC health insurance and finance policy', 'AI in finance'])
+            'Payments and banking', 'Health insurance and finance policy', 'AI in finance'])
         self.assertTrue(all(not topic['exclude'] for topic in profile['topics']))
         self.assertEqual(profile['muted'], [{'label': 'Crypto'}])
 

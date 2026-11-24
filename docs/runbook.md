@@ -18,28 +18,44 @@ Tests refuse to run without `BRIEFING_TESTING=1` and an isolated
 paid provider. Tests read fixed caps from `dev/tests/fixtures/usage-prices.json`,
 so changing the real caps does not change test results.
 
+## Real quality run
+
+When the daily ledger has room, run one check at a time from the repository
+root. Each command uses a fresh temporary generation state and the normal global
+usage ledger; the daily and monthly caps still refuse calls at the limit:
+
+```sh
+python3 dev/try_real.py episode "How do instant payment systems work?" --minutes 5
+python3 dev/try_real.py episode "What is NASA testing for its next moon mission?" --minutes 5
+python3 dev/try_real.py daily
+```
+
+Budget about $0.10–$0.15 for a five-minute episode and $0.03–$0.05 for a daily;
+the command prints the actual ledger cost, duration, word count, script and
+stage diagnostics. Stop when the configured daily cap is reached.
+
 ## Daily job: rehearsal and authorized execution
 
 For a focused daily/generation run, use an isolated state root and the existing mocks:
 
 ```sh
-BRIEFING_TEST_STATE=$(mktemp -d)
-BRIEFING_STATE_DIR="$BRIEFING_TEST_STATE" BRIEFING_EPISODES=fake \
+TEST_STATE=$(mktemp -d)
+BRIEFING_STATE_DIR="$TEST_STATE" BRIEFING_EPISODES=fake \
   python3 -m unittest -q dev.tests.daily_test dev.tests.generation_api_test
 ```
 
-Remove the directory named by `BRIEFING_TEST_STATE` when finished if retaining
+Remove the directory named by `TEST_STATE` when finished if retaining
 focused-test state is unnecessary. No fixture-mode flag exists on `daily.py` itself.
 
 When provider work is authorized again, the operator must select the intended
 runtime account, reviewed source checkout and private state root. In this
-section, `BRIEFING_RUN_STATE` is an operator-supplied shell variable identifying
+section, `RUN_STATE` is an operator-supplied shell variable identifying
 that root, not a new application setting. Ensure `profile.json` contains a valid
 saved profile, keys are available to that account, source rights are current,
 and the preview and scheduler use the same state configuration. Then:
 
 ```sh
-BRIEFING_STATE_DIR="$BRIEFING_RUN_STATE" python3 dev/ingest/daily.py
+BRIEFING_STATE_DIR="$RUN_STATE" python3 dev/ingest/daily.py
 ```
 
 This performs network/provider work and publishes on success. It prints one
@@ -78,15 +94,15 @@ missed run after downtime; it does not guarantee completion at 05:00. Eastern
 time changes with daylight saving: 05:00 is 10:00 UTC in winter and 09:00 UTC in
 summer. `BRIEFING_TIMEZONE` does not configure the timer.
 
-For an authorized operational check, set `BRIEFING_DAILY_TIMER` and
-`BRIEFING_DAILY_SERVICE` to the installed unit names from the private inventory:
+For an authorized operational check, set `daily-timer-name` and
+`daily-service-name` to the installed unit names from the private inventory:
 
 ```sh
 systemd-analyze calendar '*-*-* 05:00:00 America/New_York'
-systemctl --user list-timers "$BRIEFING_DAILY_TIMER" --all
-systemctl --user show "$BRIEFING_DAILY_SERVICE" \
+systemctl --user list-timers "$daily-timer-name" --all
+systemctl --user show "$daily-service-name" \
   -p Result -p ExecMainStatus -p ExecMainStartTimestamp -p ExecMainExitTimestamp
-python3 dev/morning_report.py --state-dir "$BRIEFING_RUN_STATE" \
+python3 dev/morning_report.py --state-dir "$RUN_STATE" \
   --timezone America/New_York
 ```
 
@@ -98,11 +114,11 @@ returns nonzero for stale/missing editions, thin days and failed runs. Review it
 counts as well as its exit status.
 
 Next verify what the browser actually receives, using the configured loopback
-preview URL as `BRIEFING_CHECK_URL`:
+preview URL as `http://127.0.0.1:8898`:
 
 ```sh
-python3 dev/smoke_live.py "$BRIEFING_CHECK_URL"
-python3 dev/morning_check.py "$BRIEFING_CHECK_URL"
+python3 dev/smoke_live.py "$http://127.0.0.1:8898"
+python3 dev/morning_check.py "$http://127.0.0.1:8898"
 ```
 
 These perform GET checks, not generation. Check `/api/edition?profile=active`,
@@ -245,10 +261,10 @@ After an authorized operator-session/host restart:
 2. If no runner exists and work is authorized, start exactly one:
 
    ```sh
-   setsid nohup briefing-feed run 60 > "$BRIEFING_FEED_LOG" 2>&1 < /dev/null &
+   setsid nohup briefing-feed run 60 > "$PRIVATE_LOG_PATH" 2>&1 < /dev/null &
    ```
 
-   `BRIEFING_FEED_LOG` is an operator-selected private log file. There is no
+   `PRIVATE_LOG_PATH` is an operator-selected private log file. There is no
    singleton guard in the feeder; duplicate processes can duplicate assignments.
    `briefing-feed pause` creates its pause marker; `resume` removes it. Resume
    only when the owner has authorized ending the pause.

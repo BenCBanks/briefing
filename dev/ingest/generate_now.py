@@ -28,7 +28,7 @@ def main():
     args = parser.parse_args()
     started = time.monotonic()
     profile = json.loads(Path(args.profile).read_text(encoding='utf-8'))
-    registry = core.load_registry()
+    registry = core.load_registry(local_source_ids=profile.get('local_sources'))
     if args.source_id:
         known = {source['id']: source for source in registry}
         missing = [source_id for source_id in args.source_id if source_id not in known]
@@ -46,12 +46,12 @@ def main():
     except (OSError, ValueError, TypeError):
         pass
     article_fetcher = (lambda _url, _source: None) if args.feed_only else core.fetch_article_text
-    editions, sources, detail = generate_edition(profile, registry=core.load_registry(),
+    editions, sources, detail = generate_edition(profile, registry=registry,
         article_fetcher=article_fetcher, max_stories=max(1, min(args.max_stories, 20)), previous=previous)
     output.mkdir(parents=True, exist_ok=True)
     (output / 'editions.json').write_text(json.dumps(editions, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     (output / 'sources.json').write_text(json.dumps(sources, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
-    report = score_edition(editions['editions'][0], sources['sources'], core.load_registry(),
+    report = score_edition(editions['editions'][0], sources['sources'], registry,
                            scorecard_evidence(detail))
     (output / 'scorecard.json').write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     print(json.dumps({'feed_counts': counts}, sort_keys=True))
