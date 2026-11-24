@@ -1,7 +1,7 @@
 """Search existing RSS/Atom items; optional bounded, transient feed refresh."""
 from datetime import timedelta
 from dataclasses import replace
-from threading import local
+from threading import Lock, local
 import time
 from urllib.error import HTTPError
 from .. import core
@@ -23,6 +23,8 @@ class FeedProvider(BaseProvider):
         self.max_feeds = max_feeds
         self.result_cap = result_cap
         self._refresh_state = local()
+        self._refresh_lock = Lock()
+        self._refreshed_sources = set()
         # Daily fill can cheaply exclude known repeats and junk before this
         # provider's result cap, leaving room for older eligible cached items.
         self.candidate_filter = None
@@ -41,7 +43,8 @@ class FeedProvider(BaseProvider):
     def _search(self, query, count, freshness, budget):
         terms = core._tokens(query)
         sources = {s['id']: s for s in self.registry}
-        cached_items = list(self.items)
+        with self._refresh_lock:
+            cached_items = list(self.items)
         items = list(cached_items)
         refresh_error, refreshed = None, 0
         if self.refresh:
@@ -51,12 +54,21 @@ class FeedProvider(BaseProvider):
                 -len(terms & core._tokens(' '.join([s.get('name', ''), *s.get('topics', []), *s.get('tags', [])]))),
                 -source_yield_score(s), s.get('name', '')))
             for source in eligible[:self.max_feeds]:
+                with self._refresh_lock:
+                    if source['id'] in self._refreshed_sources:
+                        continue
+                    # A feed is fetched at most once during this provider run.
+                    self._refreshed_sources.add(source['id'])
                 if budget.remaining() <= 0:
                     break
                 try:
                     fresh, _ = core.fetch_source(source, opener=guarded_opener(source, budget, self.opener), robots_cache_path=None,
                                                   deadline=budget.deadline)
                     items.extend(fresh)
+                    with self._refresh_lock:
+                        self.items.extend(item for item in fresh
+                                          if not any(existing.get('url') == item.get('url')
+                                                     for existing in self.items))
                     refreshed += 1
                 except (OSError, ValueError, PermissionError) as error:
                     refresh_error = error

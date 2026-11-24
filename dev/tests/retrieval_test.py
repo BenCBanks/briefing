@@ -652,10 +652,12 @@ class AdapterTest(unittest.TestCase):
         with patch.object(core, 'save_store', side_effect=AssertionError('store write')), \
                 patch.object(core, '_save_robots_cache', side_effect=AssertionError('robots write')):
             rows = self.search(provider, freshness=None)
+            repeated = self.search(provider, freshness=None)
         self.assertEqual([r.url for r in rows], ['https://science.example/paper'])
+        self.assertEqual([r.url for r in repeated], ['https://science.example/paper'])
         self.assertEqual(requests, ['https://science.example/robots.txt', 'https://science.example/feed'])
         self.assertEqual(self.wait.call_args.args[1], 17)
-        self.assertEqual(provider.items, [])
+        self.assertEqual(len(provider.items), 1)
 
     def test_failed_feed_refresh_reports_timeout_and_keeps_unseen_90_day_cache(self):
         now = datetime(2026, 11, 21, 12, tzinfo=timezone.utc)

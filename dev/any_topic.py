@@ -11,11 +11,13 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from decimal import Decimal
+import json
 import os
 from pathlib import Path
 import re
 import sys
 import tempfile
+from concurrent.futures import ThreadPoolExecutor
 import time
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -111,7 +113,6 @@ EXPECTED_CATEGORIES = {
     'One-word broad topic', 'Ambiguous', 'Sensitive health, legal, or money',
     'Odd phrasing',
 }
-MODEL_COST = Decimal('0')
 MAX_CANDIDATES_TO_READ = 2
 EVIDENCE_SENTENCE_THRESHOLD = 5
 
@@ -132,34 +133,45 @@ def evaluate_prompt(case, *, search, fetch, registry, clock=time.monotonic,
                     evidence_builder=None, now=None):
     """Measure one prompt without writing, verifying, or recording an episode."""
     started = clock()
+    model_cost = Decimal('0')
     candidates, statuses = [], {}
     try:
-        candidates, statuses = search(case.prompt, case.freshness)
+        search_result = search(case.prompt, case.freshness)
+        candidates, statuses = search_result[:2]
+        if len(search_result) > 2:
+            model_cost = Decimal(str(search_result[2]))
     except Exception as error:
         return _result(case, 'retrieval_error', 'discovery', 0, 0, 0,
-                       statuses, clock() - started, type(error).__name__)
+                       statuses, clock() - started, type(error).__name__, model_cost)
     if not candidates:
         provider_status = _provider_status(statuses)
         failed = provider_status not in {'ok', 'no results', 'not run'}
         return _result(case, 'retrieval_error' if failed else 'insufficient_evidence',
                        'discovery', 0, 0, 0, statuses, clock() - started,
-                       provider_status if failed else '')
+                       provider_status if failed else '', model_cost)
 
     from dev.ingest.retrieval import RetrievalBudget
     reads = []
     read_errors = []
-    for candidate in candidates[:MAX_CANDIDATES_TO_READ]:
+    def read_candidate(candidate):
         budget = RetrievalBudget(timeout_seconds=45, max_queries=0, freshness=None)
         diagnostics = []
         try:
             body = fetch(candidate, budget=budget, registry=registry, diagnostics=diagnostics)
         except Exception as error:
             body = None
-            read_errors.append(type(error).__name__)
-        if isinstance(body, str) and body.strip():
-            reads.append((candidate, body))
-        elif diagnostics:
-            read_errors.append(str(diagnostics[-1].get('reason') or 'unreadable'))
+            return candidate, None, type(error).__name__
+        reason = '' if isinstance(body, str) and body.strip() else (
+            str(diagnostics[-1].get('reason') or 'unreadable') if diagnostics else 'unreadable')
+        return candidate, body, reason
+
+    selected = candidates[:MAX_CANDIDATES_TO_READ]
+    with ThreadPoolExecutor(max_workers=len(selected) or 1, thread_name_prefix='topic-article-read') as pool:
+        for candidate, body, reason in pool.map(read_candidate, selected):
+            if isinstance(body, str) and body.strip():
+                reads.append((candidate, body))
+            elif reason:
+                read_errors.append(reason)
 
     if evidence_builder is None:
         from dev.ingest.episodes.generate import evidence_pack
@@ -168,7 +180,7 @@ def evaluate_prompt(case, *, search, fetch, registry, clock=time.monotonic,
         sources, evidence = evidence_builder(reads, registry, now or datetime.now(timezone.utc).isoformat())
     except Exception as error:
         return _result(case, 'retrieval_error', 'evidence_sufficiency', len(candidates), len(reads), 0,
-                       statuses, clock() - started, type(error).__name__)
+                       statuses, clock() - started, type(error).__name__, model_cost)
 
     evidence_count = len(evidence)
     if not reads:
@@ -179,15 +191,22 @@ def evaluate_prompt(case, *, search, fetch, registry, clock=time.monotonic,
         outcome, drop_stage = 'retrieval_sufficient', 'none'
     reason = '; '.join(dict.fromkeys(read_errors))
     return _result(case, outcome, drop_stage, len(candidates), len(reads), evidence_count,
-                   statuses, clock() - started, reason)
+                   statuses, clock() - started, reason, model_cost)
 
 
 def _provider_status(statuses):
     row = statuses.get('gdelt', {}) if isinstance(statuses, dict) else {}
-    return str(row.get('status') or 'not run')[:80]
+    status = str(row.get('status') or 'not run')
+    if status in {'provider rate limited', 'provider backoff', 'provider timeout'}:
+        return status[:80]
+    feed_status = statuses.get('feeds', {}) if isinstance(statuses, dict) else {}
+    if str(feed_status.get('status') or '') in {'provider timeout', 'provider unavailable'}:
+        return str(feed_status['status'])[:80]
+    return status[:80]
 
 
-def _result(case, outcome, drop_stage, candidates, reads, evidence, statuses, seconds, reason=''):
+def _result(case, outcome, drop_stage, candidates, reads, evidence, statuses, seconds, reason='',
+            model_cost=Decimal('0')):
     return {
         'id': case.id,
         'category': case.category,
@@ -200,36 +219,67 @@ def _result(case, outcome, drop_stage, candidates, reads, evidence, statuses, se
         'articles_read': reads,
         'evidence_sentences': evidence,
         'provider_status': _provider_status(statuses),
+        'provider_statuses': {name: str(row.get('status') or 'not run')[:80]
+                              for name, row in statuses.items()
+                              if isinstance(row, dict)},
         'reason': reason[:100],
         'seconds': round(max(0, seconds), 2),
-        'model_cost_usd': MODEL_COST,
+        'model_cost_usd': float(Decimal(str(model_cost))),
     }
 
 
-def run_pass(cases, *, search, fetch, registry, workers=4, clock=time.monotonic,
+def run_pass(cases, *, search, fetch, registry, workers=1, clock=time.monotonic,
+             sleep=time.sleep, spacing_seconds=5, retries=1, resume_path=None,
              evidence_builder=None):
     cases = validate_prompts(cases)
-    results = [None] * len(cases)
+    results_by_id = {}
+    if resume_path and Path(resume_path).is_file():
+        for line in Path(resume_path).read_text(encoding='utf-8').splitlines():
+            try:
+                row = json.loads(line)
+            except (json.JSONDecodeError, TypeError):
+                continue
+            if isinstance(row, dict) and row.get('id') in {case.id for case in cases}:
+                results_by_id[row['id']] = row
+    last_search_started = None
     for index, case in enumerate(cases):
-        row = evaluate_prompt(case, search=search, fetch=fetch, registry=registry,
-                              clock=clock, evidence_builder=evidence_builder)
-        results[index] = row
+        if case.id in results_by_id:
+            print(f"[{index + 1}/{len(cases)}] {case.id}: resumed {results_by_id[case.id]['outcome']}",
+                  flush=True)
+            continue
+        row = None
+        prompt_started = None
+        for attempt in range(retries + 1):
+            if last_search_started is not None:
+                delay = spacing_seconds - (clock() - last_search_started)
+                if delay > 0:
+                    sleep(delay)
+            if prompt_started is None:
+                prompt_started = clock()
+            last_search_started = clock()
+            row = evaluate_prompt(case, search=search, fetch=fetch, registry=registry,
+                                  clock=clock, evidence_builder=evidence_builder)
+            if row['provider_status'] != 'provider rate limited' or attempt == retries:
+                break
+            retry_delay_getter = getattr(search, 'retry_delay', lambda: spacing_seconds)
+            retry_delay = max(spacing_seconds, float(retry_delay_getter()))
+            print(f"{case.id}: search rate limited; retrying in {retry_delay:.0f}s "
+                  f"({attempt + 1}/{retries})", flush=True)
+            sleep(retry_delay)
+        row['seconds'] = round(max(0, clock() - prompt_started), 2)
+        results_by_id[case.id] = row
+        if resume_path:
+            path = Path(resume_path)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            with path.open('a', encoding='utf-8') as progress:
+                progress.write(json.dumps(row, ensure_ascii=False) + '\n')
         print(f"[{index + 1}/{len(cases)}] {row['id']}: {row['outcome']}; "
               f"{row['candidates']} candidates, {row['evidence_sentences']} evidence sentences; "
               f"{row['seconds']}s; $0.00000 model cost", flush=True)
-        if row['provider_status'] == 'provider rate limited':
-            for skipped_index, skipped in enumerate(cases[index + 1:], start=index + 1):
-                results[skipped_index] = _result(
-                    skipped, 'not_measured', 'provider_unavailable', 0, 0, 0,
-                    {'gdelt': {'status': 'not attempted after rate limit'}}, 0,
-                    'not attempted after provider rate limit')
-            print(f"Stopped after provider rate limit; {len(cases) - index - 1} prompts not measured.",
-                  flush=True)
-            break
-    return results
+    return [results_by_id[case.id] for case in cases]
 
 
-def render_report(results, report_date):
+def render_report(results, report_date, mode='free'):
     categories = []
     for category in dict.fromkeys(row['category'] for row in results):
         rows = [row for row in results if row['category'] == category]
@@ -244,9 +294,9 @@ def render_report(results, report_date):
     sufficient = sum(row['outcome'] == 'retrieval_sufficient' for row in results)
     errors = sum(row['outcome'] == 'retrieval_error' for row in results)
     unmeasured = sum(row['outcome'] == 'not_measured' for row in results)
-    total_cost = sum((row['model_cost_usd'] for row in results), Decimal('0'))
+    total_cost = sum((Decimal(str(row['model_cost_usd'])) for row in results), Decimal('0'))
     lines = [
-        f'# Any-topic coverage: retrieval-only — {report_date}',
+        f'# Any-topic coverage: {mode} retrieval — {report_date}',
         '',
         f"Prompt set: **{len(results)}**. Retrieval-sufficient: **{sufficient}**. "
         f"Insufficient evidence: **{len(results) - sufficient - errors - unmeasured}**. "
@@ -255,18 +305,20 @@ def render_report(results, report_date):
         '',
         '## What this measures',
         '',
-        'Each measured prompt was sent once to the free GDELT search adapter. '
-        'Prompts marked `not_measured` were not sent because the run stopped after a provider rate limit. '
-        'For a measured prompt, up to two returned articles '
-        'were fetched through the normal guarded reader and converted to evidence with the production '
+        f"Mode `{mode}` uses the product's retrieval provider path: "
+        + ('feeds, grounded search, then GDELT.' if mode == 'grounded' else 'feeds then GDELT.')
+        + ' Searches are serial, spaced by at least five seconds, and rate-limited prompts are retried. '
+        + 'For a measured prompt, up to two returned articles '
+        + 'were fetched through the normal guarded reader and converted to evidence with the production '
         '`evidence_pack` function. The retrieval-sufficient threshold matches the generation entry '
         'check: at least one source and five extracted evidence sentences.',
         '',
         'This is a retrieval estimate, not an episode outcome. Planning, topic entailment, verification, '
         'script checks, fallback writing, and audio were not run. `generation_outcome` is therefore '
         '`not run` for every prompt. A retrieval-sufficient result does not establish that a final episode '
-        'would pass those later stages. GDELT search is free; the harness constructs no model client, '
-        'and the model cost column is $0.00000 for every prompt.',
+        'would pass those later stages. '
+        + ('The free mode makes no model calls; the model cost column is $0.00000 for every prompt.'
+           if mode == 'free' else 'Grounded-search mode uses the configured search provider; no script or audio is generated.'),
         '',
         '## Results by prompt type',
         '',
@@ -288,7 +340,9 @@ def render_report(results, report_date):
     for row in results:
         if row['reason'] or row['outcome'] == 'retrieval_error':
             reason = row['reason'] or row['provider_status']
-            lines.append(f"- `{row['id']}`: {reason}")
+            details = ', '.join(f'{name}: {status}'
+                                for name, status in row.get('provider_statuses', {}).items())
+            lines.append(f"- `{row['id']}`: {reason}" + (f" ({details})" if details else ''))
     if not any(row['reason'] or row['outcome'] == 'retrieval_error' for row in results):
         lines.append('- None.')
     lines.append('')
@@ -296,7 +350,7 @@ def render_report(results, report_date):
 
 
 @contextmanager
-def isolated_retrieval_environment():
+def isolated_retrieval_environment(*, disable_model_keys=True):
     """Force all package defaults to a temporary state and disable model keys."""
     state_key = 'BRIEFING_STATE_DIR'
     testing_key = 'BRIEFING_TESTING'
@@ -306,9 +360,10 @@ def isolated_retrieval_environment():
     previous = {key: os.environ.get(key) for key in (state_key, testing_key, *key_names)}
     with tempfile.TemporaryDirectory(prefix='briefing-any-topic-') as temp:
         os.environ[state_key] = str(Path(temp) / 'state')
-        os.environ[testing_key] = '1'
-        for key in key_names:
-            os.environ.pop(key, None)
+        os.environ[testing_key] = '1' if disable_model_keys else '0'
+        if disable_model_keys:
+            for key in key_names:
+                os.environ.pop(key, None)
         try:
             yield Path(temp) / 'state'
         finally:
@@ -319,7 +374,8 @@ def isolated_retrieval_environment():
                     os.environ[key] = value
 
 
-def run_retrieval_only(report_date=None, *, report_dir=REPORT_DIR, workers=1):
+def run_retrieval_only(report_date=None, *, report_dir=REPORT_DIR, workers=1,
+                       mode='free', resume=True):
     validate_prompts()
     if type(workers) is not int or not 1 <= workers <= 4:
         raise ValueError('workers must be between 1 and 4')
@@ -327,34 +383,58 @@ def run_retrieval_only(report_date=None, *, report_dir=REPORT_DIR, workers=1):
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}(?:-[a-z0-9-]+)?', stamp):
         raise ValueError('report date must start with YYYY-MM-DD')
     date.fromisoformat(stamp[:10])
-    with isolated_retrieval_environment():
+    if mode not in {'free', 'grounded'}:
+        raise ValueError('mode must be free or grounded')
+    with isolated_retrieval_environment(disable_model_keys=(mode == 'free')) as state_dir:
         from dev.ingest import core
         from dev.ingest.episodes.generate import evidence_pack
-        from dev.ingest.retrieval import RetrievalBudget, fetch_candidate, retrieve
+        from dev.ingest.retrieval import RetrievalBudget, build_providers, fetch_candidate, retrieve
         from dev.ingest.retrieval.config import RetrievalConfig
-        from dev.ingest.retrieval.gdelt import GdeltProvider
+        from dev.ingest.retrieval.resilience import Resilience
 
-        config = RetrievalConfig(provider_order=('gdelt',), result_cap=8,
-                                 state_dir=Path(os.environ['BRIEFING_STATE_DIR']))
+        order = ('feeds', 'gdelt') if mode == 'free' else ('feeds', 'gemini', 'gdelt')
+        config = RetrievalConfig(provider_order=order, result_cap=8,
+                                 state_dir=Path(state_dir))
         registry = core.load_registry()
-        provider = GdeltProvider(result_cap=config.result_cap)
+        items = core.load_store(Path(state_dir) / 'ingested-items.json')
+        providers = build_providers(config, items=items, registry=registry, refresh_feeds=True)
+        # One topic-selected feed per prompt is enough alongside broad GDELT,
+        # and keeps the 60-topic measurement from re-fetching RSS repeatedly.
+        for provider in providers:
+            if provider.name == 'feeds':
+                provider.max_feeds = 1
+        resilience = Resilience()
+        ledger = None
+        if mode == 'grounded':
+            from dev.ingest.usage import process_ledger
+            ledger = process_ledger()
 
         def search(query, freshness):
-            budget = RetrievalBudget(timeout_seconds=35, max_queries=1, max_results=8,
-                                     per_provider_results=8, freshness=freshness,
-                                     domain_tiers=config.domain_tiers)
-            rows = retrieve(query, [provider], budget)
-            return rows, budget.statuses
+            before = (Decimal(ledger.summary()['daily']['estimated_cost_usd'])
+                      if ledger is not None else Decimal('0'))
+            budget = RetrievalBudget(timeout_seconds=120, max_queries=len(providers), max_results=8,
+                                     per_provider_results=8, freshness=freshness, max_workers=len(providers),
+                                     domain_tiers=config.domain_tiers, resilience=resilience)
+            rows = retrieve(query, providers, budget)
+            after = (Decimal(ledger.summary()['daily']['estimated_cost_usd'])
+                     if ledger is not None else Decimal('0'))
+            return rows, budget.statuses, after - before
+
+        search.retry_delay = lambda: resilience.health('gdelt')['retry_in'] + 0.25
+        progress_path = Path(tempfile.gettempdir()) / f'briefing-any-topic-{stamp}-{mode}-v5.jsonl'
 
         results = run_pass(PROMPTS, search=search, fetch=fetch_candidate,
-                           registry=registry, workers=workers, evidence_builder=evidence_pack)
+                           registry=registry, workers=workers,
+                           resume_path=progress_path if resume else None,
+                           evidence_builder=evidence_pack)
     report_dir.mkdir(parents=True, exist_ok=True)
-    path = report_dir / f'{stamp}-any-topic-retrieval.md'
-    path.write_text(render_report(results, stamp), encoding='utf-8')
+    path = report_dir / f'{stamp}-any-topic-{mode}.md'
+    path.write_text(render_report(results, stamp, mode), encoding='utf-8')
     print(f'Report: {path}')
     measured = sum(row['outcome'] != 'not_measured' for row in results)
+    cost = sum((Decimal(str(row['model_cost_usd'])) for row in results), Decimal('0'))
     print(f'Prompts: {len(results)} · measured: {measured} · retrieval-sufficient: '
-          f"{sum(row['outcome'] == 'retrieval_sufficient' for row in results)} · model ledger cost: $0.00000")
+          f"{sum(row['outcome'] == 'retrieval_sufficient' for row in results)} · model cost: ${cost:.5f}")
     return path
 
 
@@ -362,9 +442,12 @@ if __name__ == '__main__':
     import argparse
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--retrieval-only', action='store_true', required=True,
-                        help='run free search and guarded reads only; never write or record an episode')
+                        help='run retrieval only; never write or record an episode')
+    parser.add_argument('--mode', choices=('free', 'grounded'), default='free',
+                        help='free uses feeds + GDELT; grounded adds Gemini search (defer until approved)')
     parser.add_argument('--date', help='report date, optionally with a suffix')
     parser.add_argument('--workers', type=int, default=1,
                         help='reserved for compatibility; prompts run sequentially to respect free search')
+    parser.add_argument('--no-resume', action='store_true', help='start a fresh run instead of loading /tmp progress')
     args = parser.parse_args()
-    run_retrieval_only(args.date, workers=args.workers)
+    run_retrieval_only(args.date, workers=args.workers, mode=args.mode, resume=not args.no_resume)

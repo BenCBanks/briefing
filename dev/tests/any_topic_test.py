@@ -1,6 +1,10 @@
 import unittest
+from contextlib import redirect_stdout
+import io
+import tempfile
+from pathlib import Path
 
-from dev.any_topic import PROMPTS, evaluate_prompt, render_report, validate_prompts
+from dev.any_topic import PROMPTS, evaluate_prompt, render_report, run_pass, validate_prompts
 
 
 class AnyTopicCoverageTest(unittest.TestCase):
@@ -91,9 +95,35 @@ class AnyTopicCoverageTest(unittest.TestCase):
         }
         report = render_report([measured, skipped], '2026-11-24-test')
         self.assertIn('Retrieval errors: **1**. Not measured: **1**.', report)
-        self.assertIn('Prompts marked `not_measured` were not sent', report)
+        self.assertIn('rate-limited prompts are retried', report)
         self.assertIn('| retrieval_error | discovery |', report)
         self.assertIn('| not_measured | provider_unavailable |', report)
+
+    def test_rate_limited_prompt_retries_and_completed_results_resume(self):
+        calls = []
+
+        def search(prompt, _freshness):
+            calls.append(prompt)
+            status = 'provider rate limited' if len(calls) == 1 else 'no results'
+            return [], {'gdelt': {'status': status}}
+
+        search.retry_delay = lambda: 0
+        with tempfile.TemporaryDirectory(prefix='any-topic-test-') as temp:
+            progress = Path(temp) / 'progress.jsonl'
+            with redirect_stdout(io.StringIO()):
+                rows = run_pass(PROMPTS, search=search,
+                                fetch=lambda *_args, **_kwargs: None, registry=[],
+                                spacing_seconds=0, retries=1, sleep=lambda _delay: None,
+                                resume_path=progress)
+            self.assertEqual(len(rows), 60)
+            self.assertEqual(len(calls), 61)
+            self.assertEqual(rows[0]['outcome'], 'insufficient_evidence')
+            with redirect_stdout(io.StringIO()):
+                resumed = run_pass(PROMPTS, search=search,
+                                   fetch=lambda *_args, **_kwargs: None, registry=[],
+                                   spacing_seconds=0, resume_path=progress)
+            self.assertEqual(len(resumed), 60)
+            self.assertEqual(len(calls), 61)
 
 
 if __name__ == '__main__':
