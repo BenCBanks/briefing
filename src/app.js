@@ -37,6 +37,7 @@ import { EPISODE_STAGE_FIXTURES, announceEpisodeStage as announceEpisodeStageVie
 import { renderEpisodeRoute as renderEpisodeRouteScreen, renderEpisodeRouteFailure as renderEpisodeRouteFailureScreen } from './screens/episode-route.js';
 import { createEditionReaderScreen } from './screens/edition-reader.js';
 import { describeRoute, restoreRouteView } from './screens/route-controller.js';
+import { createNavigationController } from './screens/navigation-controller.js';
 
 const app = document.querySelector('#app');
 const content = document.querySelector('#content');
@@ -234,6 +235,8 @@ let readingObserver = null;
 let pendingRouteContext = null;
 let lastSignalRoute = null;
 const rootScroll = new Map();
+const historyViews = new Map();
+let navigationController = null;
 let libraryFilter = ['saved', 'episodes'].includes(sessionStorage.getItem('briefing:library-filter')) ? sessionStorage.getItem('briefing:library-filter') : 'editions';
 let librarySearchQuery = '';
 const EDITION_MODE_KEY = 'briefing:v1:edition-mode';
@@ -572,84 +575,27 @@ function personalized(edition) {
   return { ...edition, audio: { ...(edition.audio || {}), state: 'superseded', superseded: true } };
 }
 
-function focusToken() {
-  const active = document.activeElement;
-  if (!active) return null;
-  if (active.dataset?.nav) return { type: 'nav', id: active.dataset.nav };
-  if (active.classList?.contains('settings-link')) return { type: 'settings' };
-  if (!content.contains(active)) return null;
-  if (active.dataset.source) return { type: 'source', id: active.dataset.source };
-  if (active.dataset.topic) return { type: 'topic', id: active.dataset.topic };
-  if (active.hasAttribute('data-read-start')) return { type: 'read-start' };
-  if (active.hasAttribute('data-continue')) return { type: 'continue' };
-  if (active.dataset.readSection) return { type: 'read-section', id: active.dataset.readSection };
-  if (active instanceof HTMLAnchorElement && active.getAttribute('href')?.startsWith('#')) return { type: 'href', id: active.getAttribute('href') };
-  if (active.id) return { type: 'id', id: active.id };
-  return null;
-}
-function remember(sectionId = null) {
-  returnTo = { hash: location.hash || '#today', sectionId, scrollY: window.scrollY, focus: focusToken(), sourceID: document.activeElement?.dataset?.source || null };
-  return returnTo;
-}
-function rootForHash(hash = location.hash || '#today', context = history.state?.routeContext) {
-  if (hash === '#today') return 'today';
-  if (hash === '#topics') return 'topics';
-  if (['#library', '#earlier', '#episodes'].includes(hash)) return 'library';
-  if (['#ask', '#ask-episode'].includes(hash)) return 'today';
-  if (context?.root && ['today', 'topics', 'library'].includes(context.root)) return context.root;
-  if (['#weekly'].includes(hash) || hash.startsWith('#edition/')) return 'today';
-  if (hash.startsWith('#topic/') || hash.startsWith('#explanation/')) return 'topics';
-  if (hash.startsWith('#topic-detail/')) return 'topics';
-  return 'today';
-}
-function navigate(hash, context = null) {
-  const currentHash = location.hash || '#today';
-  if (['#today', '#topics', '#ask', '#library', '#earlier'].includes(currentHash)) rootScroll.set(currentHash, window.scrollY);
-  if (currentHash !== hash && ['#today', '#topics', '#ask', '#library', '#earlier'].includes(hash)) pendingScrollRestore = rootScroll.get(hash) ?? 0;
-  const currentState = history.state || {};
-  historyViews.delete(currentState.viewKey);
-  history.replaceState({ ...currentState, viewState: { scrollY: window.scrollY, focus: context?.returnFocus || focusToken() || context?.parentFocus || null } }, '', location.href);
-  pendingRouteContext = context || { root: rootForHash(currentHash), parentHash: currentHash, parentScroll: window.scrollY, parentFocus: focusToken() };
-  if (context?.returnFocus) {
-    const focusReturn = () => {
-      const apply = () => {
-        if (location.hash !== hash) return;
-        const target = document.querySelector(`[data-nav="${CSS.escape(context.returnFocus.id)}"]`);
-        if (target && target.getClientRects().length) target.focus({ preventScroll: true });
-      };
-      setTimeout(() => requestAnimationFrame(apply), 80);
-    };
-    if (currentHash === hash) focusReturn();
-    else window.addEventListener('hashchange', focusReturn, { once: true });
-  }
-  if (hash.startsWith('#interests/')) {
-    pendingRouteContext.interestReturnHash ||= history.state?.routeContext?.interestReturnHash || (currentHash === '#preferences' ? '#preferences' : '#today');
-  }
-  if (currentHash === hash) route(); else location.hash = hash;
-}
-function navigateTranscript(hash, placement) {
-  pendingPlayerReturnFocus = false;
-  pendingTranscriptPlacement = placement;
-  if (location.hash === hash) route();
-  else {
-    historyViews.set(history.state?.viewKey, { scrollY: transcriptReturnTo.scrollY, focus: transcriptReturnTo.focus });
-    history.pushState({ ...(history.state || {}), viewKey: null, viewState: { scrollY: 0, focus: null }, transcriptOrigin: { ...transcriptReturnTo }, transcriptHash: hash,
-      routeContext: { root: rootForHash(transcriptReturnTo.hash), parentHash: transcriptReturnTo.hash, parentScroll: transcriptReturnTo.scrollY, parentFocus: transcriptReturnTo.focus, sectionId: placement.sectionId, transcript: true } }, '', hash);
-    route();
-  }
-}
-function openSource(id) {
-  const parent = remember(document.activeElement?.closest('.edition-section')?.id || null);
-  parent.focus = { type: 'source', id }; parent.sourceID = id;
-  // Narration · preserve the source page's actual immediate parent for its Back label.
-  navigate(`#source/${encodeURIComponent(id)}`, { root: rootForHash(parent.hash), parentHash: parent.hash, parentLabel: immediateParentLabel(parent.hash, history.state?.routeContext || {}), parentScroll: parent.scrollY, parentFocus: parent.focus, sectionId: parent.sectionId, parentType: parent.hash.startsWith('#explanation/') || parent.hash.startsWith('#topic/') || parent.hash.startsWith('#topic-detail/') ? 'explanation' : 'briefing' });
-}
-function openDeepDive(id, sectionId = null) {
-  const parent = remember(sectionId);
-  parent.focus ||= { type: 'topic', id };
-  deepDiveReturnTo = returnTo;
-  navigate(`#topic/${encodeURIComponent(id)}`, { root: rootForHash(parent.hash), parentHash: parent.hash, parentScroll: parent.scrollY, parentFocus: parent.focus, sectionId });
-}
+navigationController = createNavigationController({
+  content, document, window, location, history, rootScroll, historyViews, CSS, HTMLAnchorElement,
+  route, immediateParentLabel,
+  get returnTo() { return returnTo; }, set returnTo(value) { returnTo = value; },
+  get deepDiveReturnTo() { return deepDiveReturnTo; }, set deepDiveReturnTo(value) { deepDiveReturnTo = value; },
+  get pendingScrollRestore() { return pendingScrollRestore; }, set pendingScrollRestore(value) { pendingScrollRestore = value; },
+  get pendingSourceFocusID() { return pendingSourceFocusID; }, set pendingSourceFocusID(value) { pendingSourceFocusID = value; },
+  get pendingReturnHeadingFocus() { return pendingReturnHeadingFocus; }, set pendingReturnHeadingFocus(value) { pendingReturnHeadingFocus = value; },
+  get pendingTranscriptPlacement() { return pendingTranscriptPlacement; }, set pendingTranscriptPlacement(value) { pendingTranscriptPlacement = value; },
+  get transcriptReturnTo() { return transcriptReturnTo; }, set transcriptReturnTo(value) { transcriptReturnTo = value; },
+  get transcriptReturnHash() { return transcriptReturnHash; }, set transcriptReturnHash(value) { transcriptReturnHash = value; },
+  get pendingPlayerReturnFocus() { return pendingPlayerReturnFocus; }, set pendingPlayerReturnFocus(value) { pendingPlayerReturnFocus = value; },
+  get pendingRouteContext() { return pendingRouteContext; }, set pendingRouteContext(value) { pendingRouteContext = value; },
+});
+function focusToken(...args) { return navigationController.focusToken(...args); }
+function remember(...args) { return navigationController.remember(...args); }
+function rootForHash(...args) { return navigationController.rootForHash(...args); }
+function navigate(...args) { return navigationController.navigate(...args); }
+function navigateTranscript(...args) { return navigationController.navigateTranscript(...args); }
+function openSource(...args) { return navigationController.openSource(...args); }
+function openDeepDive(...args) { return navigationController.openDeepDive(...args); }
 
 function showWhySheet(section, edition) {
   const topicId = section.topic_ids?.[0];
@@ -754,27 +700,8 @@ function showStoryActionsSheet(section, edition, trigger) {
   dialog.addEventListener('close', () => { dialog.remove(); if (trigger?.isConnected) trigger.focus({ preventScroll: true }); }, { once: true });
   dialog.showModal();
 }
-function backTo(target) {
-  if (history.state?.routeContext?.parentHash === target.hash && history.length > 1) {
-    history.back();
-  } else {
-    pendingScrollRestore = target.scrollY;
-    pendingSourceFocusID = target.sourceID || null;
-    pendingReturnHeadingFocus = !target.focus && !target.sourceID;
-    navigate(target.hash, { root: rootForHash(target.hash), parentHash: null, restore: { scrollY: target.scrollY, focus: target.focus || (target.sourceID ? { type: 'source', id: target.sourceID } : null) } });
-  }
-}
-function back() {
-  if (transcriptReturnTo && transcriptReturnHash && location.hash.startsWith('#source/') && returnTo.hash === transcriptReturnHash) {
-    pendingScrollRestore = returnTo.scrollY;
-    pendingSourceFocusID = returnTo.sourceID || null;
-    history.back();
-    return;
-  }
-  const parent = history.state?.routeContext?.parentHash;
-  if (parent && history.length > 1) history.back();
-  else backTo(returnTo);
-}
+function backTo(...args) { return navigationController.backTo(...args); }
+function back(...args) { return navigationController.back(...args); }
 function renderEditionPage(kind, exactEdition = null, sectionId = null) {
   return renderEditionPageScreen(kind, exactEdition, sectionId);
 }
@@ -1507,7 +1434,6 @@ async function cancelEpisodeJob() {
 
 let restoringRoute = false;
 let renderedRouteHash = null;
-const historyViews = new Map();
 let historyEntrySequence = 0;
 history.scrollRestoration = 'manual';
 const routeRestoration = {
