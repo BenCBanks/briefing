@@ -106,13 +106,26 @@ class UsageLedgerTests(unittest.TestCase):
     def test_daily_audio_budget_tracks_measured_usage_without_pending_reservations(self):
         with tempfile.TemporaryDirectory() as directory:
             ledger = UsageLedger(ledger_dir=directory)
-            self.assertEqual(ledger.daily_audio_budget_remaining(NOW), Decimal('0.15'))
+            self.assertEqual(ledger.daily_audio_budget_remaining(NOW), Decimal('0.50'))
             self.assertEqual(ledger.estimate_tts_cost(12_000, 60), Decimal('0.0105'))
             ledger.record_tts_usage(10_000, 60, model='fictional-tts', now=NOW)
-            self.assertLess(ledger.daily_audio_budget_remaining(NOW), Decimal('0.15'))
+            spent = Decimal(ledger.summary(NOW)['daily']['estimated_cost_usd'])
+            self.assertEqual(ledger.daily_audio_budget_remaining(NOW), Decimal('0.50') - spent)
             state = json.loads(ledger.path.read_text(encoding='utf-8'))
             self.assertNotIn('pending', state)
             self.assertNotIn('batch_reservations', state)
+
+    def test_daily_audio_uses_remaining_cap_after_episode_tts_spend(self):
+        with tempfile.TemporaryDirectory() as directory:
+            ledger = UsageLedger(config_path=prices_file(directory, daily='0.50', reserve='0.15'),
+                                 ledger_dir=Path(directory) / 'ledger')
+            for _ in range(70):
+                ledger.record_search('perplexity', now=NOW)
+            ledger.record_tts_usage(100_000, 300, model='fictional-tts', now=NOW)
+            self.assertEqual(ledger.summary(NOW)['daily']['estimated_cost_usd'], '0.40750000')
+            self.assertEqual(ledger.daily_audio_budget_remaining(NOW), Decimal('0.0925'))
+            self.assertLess(ledger.estimate_tts_cost(3_000, 300),
+                            ledger.daily_audio_budget_remaining(NOW))
 
     def test_gemini_grounded_search_free_allowance_then_overage(self):
         with tempfile.TemporaryDirectory() as directory:
