@@ -1389,14 +1389,19 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                      for eid in sentence.get('evidence_ids', [])}
         repair_payload = {
             'topic': topic, 'style': style, 'requested_minutes': length,
-            'target_words': min(length * WORDS_PER_MINUTE, max(80, len(words(transcript(chapters))))),
+            'target_words': length * WORDS_PER_MINUTE,
             'research_plan': [row for row in research_plan if row.get('source_ids')],
-            'evidence': {eid: evidence[eid] for eid in sorted(cited_ids) if eid in evidence},
+            # The first draft may leave useful passages unused. A duration or
+            # style repair must see the whole pack so it can add supported depth.
+            'evidence': evidence,
+            'previously_cited_evidence_ids': sorted(cited_ids),
             'script': draft, 'quality_issues': quality_report['issues'],
             **({'request_context': request_context} if request_context is not None else {}),
             'instruction': ('Make one targeted editorial repair. Preserve all supported facts and exact evidence IDs; '
-                            'when the assigned evidence supports it, meet 90–110 percent of requested_minutes in spoken words; '
-                            'never add unsupported filler to reach the duration; '
+                            'use relevant details from the full evidence pack, including details not used in the previous script. '
+                            'For a duration shortfall, target target_words in spoken words when the evidence supports it; '
+                            'if the evidence cannot support that much, keep the script shorter and state the gap once. '
+                            'Never add unsupported filler to reach the duration; '
                             'do not add claims or sources. Open with a concrete hook, make each chapter answer its '
                             'assigned question, remove cross-chapter repetition and list-reading, keep every spoken '
                             'sentence at 25 words or fewer, source every number, and state unresolved questions honestly.')}

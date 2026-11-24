@@ -17,10 +17,12 @@ import subprocess
 import sys
 import tempfile
 import threading
+from datetime import datetime
 from types import MappingProxyType
 import unittest
 import wave
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from dev.ingest.episodes_audio import (
     DEFAULT_VOICE, MAX_SEGMENT_ATTEMPTS, EpisodeAudioError, _chapter_output_token_estimate, _chapter_scripts,
@@ -1821,6 +1823,40 @@ class EpisodeAudioRenderTests(unittest.TestCase):
         self.assertEqual(len(provider.calls), 3)
         root = self.state_dir / 'episodes' / 'profiles' / episode['profile_id'] / 'audio' / episode['id']
         self.assertFalse(any(row.is_dir() and not row.name.startswith('.render-') for row in root.iterdir()))
+
+    def test_provider_failure_logs_only_the_sanitized_tts_reason(self):
+        episode = read_fixture()
+
+        class SanitizedFailureProvider:
+            provider_name = 'gemini'
+            model = DEFAULT_MODEL
+
+            def synthesize(self, _text, _voice_name):
+                raise TtsProviderError('Gemini API returned HTTP 503.')
+
+        with self.assertLogs('dev.ingest.episodes_audio', level='WARNING') as captured:
+            with self.assertRaisesRegex(EpisodeAudioError, 'failed after 3 attempts'):
+                render_episode_audio(episode, episode['profile_id'], provider=SanitizedFailureProvider(),
+                                     state_dir=self.state_dir)
+        self.assertTrue(any('Gemini API returned HTTP 503.' in row for row in captured.output))
+        self.assertFalse(any('fixture-key' in row for row in captured.output))
+
+    def test_episode_tts_cap_refusal_is_not_wrapped_as_episode_audio_error(self):
+        episode = read_fixture()
+        now = datetime.now(ZoneInfo('America/New_York'))
+        ledger = UsageLedger(ledger_dir=Path(self.temp.name) / 'cap-ledger')
+        for _ in range(70):
+            ledger.record_search('perplexity', now=now)
+        key_file = Path(self.temp.name) / 'fictional-key'
+        key_file.write_text('fictional-fixture-key', encoding='utf-8')
+        requests = []
+        provider = GeminiTtsProvider(key_path=key_file,
+                                    transport=lambda *_args, **_kwargs: requests.append(True),
+                                    usage_ledger=ledger)
+        with self.assertRaises(UsageCapReached):
+            render_episode_audio(episode, episode['profile_id'], provider=provider,
+                                 state_dir=self.state_dir, voice_file=self.voice_file)
+        self.assertEqual(requests, [], 'cap refusal occurs before transport')
 
     def test_cost_and_provider_counters_include_successful_retry_attempts(self):
         episode = read_fixture()

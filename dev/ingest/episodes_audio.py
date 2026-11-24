@@ -15,6 +15,7 @@ import argparse
 import fcntl
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -674,6 +675,14 @@ def _render_episode_audio_unlocked(episode: dict, profile_id: str, *, provider=N
                         last_error = error
                 if rendered is None:
                     error_kind = type(last_error).__name__ if last_error else 'UnknownError'
+                    # Gemini TTS errors have already been sanitized at the
+                    # provider boundary. Keep generic exception details out of
+                    # logs, but expose that safe reason to diagnose retries.
+                    reason = (str(last_error)[:200] if isinstance(last_error, TtsProviderError)
+                              else error_kind)
+                    logging.getLogger(__name__).warning(
+                        'Episode audio chapter %s failed after %s attempts: %s',
+                        chapter['index'] + 1, attempts, reason)
                     raise EpisodeAudioError(f'Chapter {chapter["index"] + 1} failed after {attempts} attempts ({error_kind}).') from None
                 info, audio_bytes, character_count = rendered
             filename = f'chapter-{chapter["index"] + 1:02d}.wav'

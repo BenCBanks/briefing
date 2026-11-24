@@ -629,11 +629,13 @@ class EpisodeGenerationTests(unittest.TestCase):
         from unittest.mock import patch
         calls = []
         repair_targets = []
+        repair_payloads = []
         original_client = self.client
         def client(system, payload, schema, timeout):
             if 'targeted quality repair' in system:
                 calls.append(payload['quality_issues'])
                 repair_targets.append(payload['requested_minutes'])
+                repair_payloads.append(deepcopy(payload))
                 return add_test_signposts(draft(), payload)
             return original_client(system, payload, schema, timeout)
         self.kwargs['client'] = client
@@ -648,6 +650,10 @@ class EpisodeGenerationTests(unittest.TestCase):
         self.assertTrue(episode['verification']['quality_repair_verified'])
         self.assertEqual(calls, [['opening_hook', 'spoken_style']])
         self.assertEqual(repair_targets, [5], 'the single repair receives the requested duration')
+        self.assertEqual(repair_payloads[0]['target_words'], 5 * WORDS_PER_MINUTE)
+        self.assertEqual(len(repair_payloads[0]['evidence']), 9,
+                         'repair can use relevant evidence the short first draft left out')
+        self.assertEqual(len(repair_payloads[0]['previously_cited_evidence_ids']), 8)
 
     def test_unresolved_quality_issues_are_marked_partial_after_one_repair(self):
         from unittest.mock import patch
