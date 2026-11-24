@@ -44,12 +44,18 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
     return text.slice(first, last).replace(/^export /u, '');
   };
   const historySource = fs.readFileSync(path.join(root, 'src/screens/episode-history.js'), 'utf8');
+  const makingPath = path.join(root, 'src/screens/episode-making.js');
+  const makingSource = fs.existsSync(makingPath) ? fs.readFileSync(makingPath, 'utf8') : source;
   const renderers = section(source, 'async function loadEpisodeCards(', 'function episodeProfileTopic(')
     + section(historySource, 'export function episodeHistoryState(', 'export function episodeHistoryDismissed(')
-    + section(source, 'function appendEpisodeDoneCard(', 'async function cancelEpisodeJob(')
+    + (fs.existsSync(makingPath)
+      ? section(makingSource, 'function appendDoneCard(', 'export function updateEpisodeMakingView(') +
+        'function appendEpisodeDoneCard(page, job) { appendDoneCard(page, job, node, episodeHasReadyAudio, navigate); }'
+      : section(source, 'function appendEpisodeDoneCard(', 'async function cancelEpisodeJob('))
     + section(source, 'async function renderEpisodeRoute(', 'function renderEpisodeRouteFailure(');
-  const readyHelpers = source.includes('function episodeHasReadyAudio(')
-    ? section(source, 'function episodeHasReadyAudio(', 'async function pollEpisodeJob(') : '';
+  const readyHelpers = fs.existsSync(makingPath)
+    ? section(makingSource, 'export function episodeHasReadyAudio(', 'function failureCopy(')
+    : source.includes('function episodeHasReadyAudio(') ? section(source, 'function episodeHasReadyAudio(', 'async function pollEpisodeJob(') : '';
   const current = { ...episode, revision_id: 'fictional-r2', script_hash: 'fictional-script-r2',
     audio_recorded: true, audio_status: 'recorded', requested_minutes: 10,
     duration_minutes: 2, duration_basis: 'measured rendered audio',
@@ -147,7 +153,8 @@ async function checkRequestCardStates(hasCurrentEpisodeRecording) {
   const historySource = fs.readFileSync(path.join(root, 'src/screens/episode-history.js'), 'utf8');
   const stateHelper = section(historySource, 'export function episodeHistoryState(', 'export function episodeHistoryDismissed(');
   const makingPath = path.join(root, 'src/screens/episode-making.js');
-  const audioSource = fs.existsSync(makingPath) ? fs.readFileSync(makingPath, 'utf8') : source;
+  const makingSource = fs.existsSync(makingPath) ? fs.readFileSync(makingPath, 'utf8') : source;
+  const audioSource = makingSource;
   const audioHelpers = fs.existsSync(makingPath)
     ? section(audioSource, 'export function episodeHasReadyAudio(', 'function failureCopy(')
     : section(audioSource, 'function episodeHasReadyAudio(', 'async function pollEpisodeJob(');
