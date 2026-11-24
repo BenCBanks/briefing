@@ -404,6 +404,13 @@ def _article_access_rank(source, item=None):
     return 3
 
 
+def _candidate_queue_key(candidate, topic_counts, attempts_by_topic):
+    """Give each under-covered topic a fair attempt before ranking within it."""
+    topic_id = candidate['topic']['id']
+    return (topic_counts.get(topic_id, 0), attempts_by_topic.get(topic_id, 0),
+            candidate['topic_round'], -candidate.get('topic_match', 0))
+
+
 def extract_source_sentences(cluster, article_fetcher, sports=False, *, now=None):
     """Build an ephemeral sentence-ID evidence bundle; never serialize article text."""
     from .credibility import assess_bundle
@@ -1188,6 +1195,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         return not reason
 
     topic_candidates = {}
+    topic_cluster_pools = {}
     ranked_positions = {}
     for topic in topic_profiles:
         topic_id = topic['id']
@@ -1286,9 +1294,11 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                     -evidence_chars, -publisher_count, -host_count)
 
         clusters.sort(key=cluster_rank)
-        from .source_selection import select_daily_clusters
-        topic_candidates[topic_id], source_selection_reports[topic_id] = select_daily_clusters(
-            clusters, registry_by_id, topic, limit=MAX_TOPIC_ITEMS, now=now)
+        # Preserve distinct, relevant clusters through the repeat check. The
+        # per-outlet selection cap is for published stories, not discovery:
+        # applying it here can discard readable alternatives before evidence
+        # extraction has a chance to test them.
+        topic_cluster_pools[topic_id] = clusters
         topic_fetched = sum(1 for item in items
                             if (source := registry_by_id.get(item.get('source_id'))) and
                             source.get('enabled') is True and
@@ -1299,7 +1309,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
             'ranked_items': len(ranked), 'fresh_items': fresh_source_item_count,
             'eligible_items': len(eligible),
             'fresh_source_items': fresh_source_item_count,
-            'candidate_clusters': len(topic_candidates[topic_id]),
+            'clustered': len(clusters),
             'feed_topic_ids': topic.get('feed_topic_ids', [topic_id]),
             'topic_only_fallback': topic_only_fallback
         }
@@ -1307,14 +1317,23 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
             dropped['topic_not_matched'] = topic_fetched - len(ranked)
         funnel_drop_reasons[topic_id] = dropped
 
-    topic_candidates, repeat_counts, followup_clusters = repeats.filter_candidates(
-        topic_candidates, (recent_history or [])[:14], now)
-    for topic_id, clusters in topic_candidates.items():
+    topic_cluster_pools, repeat_counts, followup_clusters = repeats.filter_candidates(
+        topic_cluster_pools, (recent_history or [])[:14], now)
+    from .source_selection import select_daily_clusters
+    for topic in topic_profiles:
+        topic_id = topic['id']
+        clusters = topic_cluster_pools.get(topic_id, [])
         candidate_pool_diagnostics[topic_id]['after_repeat_suppression'] = len(clusters)
-        candidate_pool_diagnostics[topic_id]['unseen'] = sum(len(cluster.get('rows', [])) for cluster in clusters)
-        removed = candidate_pool_diagnostics[topic_id].get('candidate_clusters', 0) - len(clusters)
+        # Count story clusters, not source rows. A fresh state with no reader
+        # history should report all eligible clusters as unseen.
+        candidate_pool_diagnostics[topic_id]['unseen'] = len(clusters)
+        removed = candidate_pool_diagnostics[topic_id].get('clustered', 0) - len(clusters)
         if removed > 0:
             funnel_drop_reasons.setdefault(topic_id, {})['repeat_suppressed_cluster'] = removed
+        topic_candidates[topic_id], source_selection_reports[topic_id] = select_daily_clusters(
+            clusters, registry_by_id, topic, limit=MAX_TOPIC_ITEMS,
+            max_per_outlet=MAX_TOPIC_ITEMS, now=now)
+        candidate_pool_diagnostics[topic_id]['candidate_clusters'] = len(topic_candidates[topic_id])
 
     fill_enabled = (flag_enabled('retrieval_fill') if retrieval_fill_enabled is None
                     else retrieval_fill_enabled is True)
@@ -1323,10 +1342,10 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
     fill_report = empty_report(fill_enabled)
     search_first_report = empty_report(search_first_enabled)
     first_round_passed = first_round_readable = 0
-    planned_outlet_counts = {}
+    selected_outlet_counts = {}
+    attempts_by_topic = Counter()
 
     def plan_round(pool, limit=None, supply_origin='feed'):
-        from .source_selection import reserve_outlet_slot
         extraction_limit = min(MAX_PREFETCH_CANDIDATES,
                                max(0, int(max_candidate_attempts if limit is None else limit)))
         prefetch_plan = []
@@ -1349,18 +1368,6 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                               {'full-text', 'transient-read', 'feed-full'} or row['item'].get('feed_body')]
                 primary = fetch_rows[0] if fetch_rows else cluster['rows'][0]
                 source = primary.get('source') or registry_by_id.get(primary['item'].get('source_id')) or {}
-                allowed = reserve_outlet_slot(planned_outlet_counts, primary['item'], source)
-                if not allowed:
-                    report = source_selection_reports.setdefault(topic['id'], {'kept': 0, 'dropped': 0,
-                                                                                 'items': []})
-                    report['kept'] = max(0, report.get('kept', 0) - 1)
-                    report['dropped'] = report.get('dropped', 0) + 1
-                    report.setdefault('items', []).append({
-                        'title': _safe(primary['item'].get('title'), 180) or 'Untitled item',
-                        'outlet': _safe(source.get('name') or source.get('publisher') or source.get('id'), 120),
-                        'action': 'dropped', 'reason': 'outlet_cap_2',
-                        'tier': str(source.get('tier') or 'unknown')})
-                    continue
                 host = (urlsplit(primary['item'].get('url', '')).hostname or '').lower()
                 candidate = {'topic_id': topic['id'], 'topic': topic, 'cluster': cluster,
                              'sports': topic['id'] in SPORTS_IDS, 'also_topic_ids': [], 'host': host,
@@ -1368,6 +1375,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                                                'search-first' if any(row['item'].get('supply_origin') == 'search-first'
                                                                      for row in cluster['rows']) else supply_origin),
                              'topic_round': depth,
+                             'outlet_item': primary['item'], 'outlet_source': source,
                              'topic_match': len(_tokens(' '.join([topic.get('label', ''), topic.get('scope', ''),
                                                                  *topic.get('include', [])])) &
                                                 _tokens(' '.join(row['item'].get('title', '') + ' ' +
@@ -1538,7 +1546,6 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
             candidate_results.append(error_result)
             return
         dropped_claims += dropped
-        sentence_evidence.update(evidence)
         if not story or not story.get('claims'):
             failure = {'candidate': number, 'topic_id': topic_id,
                                       'status': 'no_verified_story',
@@ -1553,6 +1560,13 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                 failure['relevance_reason'] = _safe(reason, 240)
             candidate_results.append(failure)
             return
+        from .source_selection import outlet_key
+        outlet_identity = outlet_key(candidate['outlet_item'], candidate['outlet_source'])
+        if selected_outlet_counts.get(outlet_identity, 0) >= 2:
+            candidate_results.append({'candidate': number, 'topic_id': topic_id,
+                                      'status': 'outlet_cap_dropped', 'reason': 'outlet_cap_2'})
+            return
+        sentence_evidence.update(evidence)
         news_citations = [citation for citation in citations if citation.get('source_class') != 'explainer']
         status, detail = _source_status(news_citations)
         source_ids, candidate_sources = [], []
@@ -1614,6 +1628,11 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                 'evidence_chars': sum(int(row.get('evidence_chars', 0)) for row in candidate_sources),
                 'evidence_sentences': sum(int(row.get('source_sentence_count', 0)) for row in candidate_sources),
                 'unsupported_claims_dropped': unresolved})
+        # Enforce outlet diversity only on stories that pass evidence and
+        # publication checks. Candidate planning may inspect other stories
+        # from that outlet if its earlier candidates prove unreadable.
+        from .source_selection import reserve_outlet_slot
+        reserve_outlet_slot(selected_outlet_counts, candidate['outlet_item'], candidate['outlet_source'])
         source_entries.extend(candidate_sources)
         sections.append(section)
         story_by_cluster[cluster_id] = section
@@ -1646,13 +1665,14 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                 for candidate, future in extraction.poll():
                     collect_extraction(candidate, future)
                 writer_queue[next_candidate:] = sorted(writer_queue[next_candidate:],
-                    key=lambda row: (-row.get('topic_match', 0), row['topic_round']))
+                    key=lambda row: _candidate_queue_key(row, topic_counts, attempts_by_topic))
                 while next_candidate < len(writer_queue) and len(pending) < writer_workers:
                     candidate = writer_queue[next_candidate]
                     next_candidate += 1
                     if candidate_attempts >= max_candidate_attempts:
                         break
                     candidate_attempts += 1
+                    attempts_by_topic[candidate['topic']['id']] += 1
                     candidate['number'] = candidate_attempts
                     if progress:
                         progress(candidate_attempts, candidate_attempt_limit)

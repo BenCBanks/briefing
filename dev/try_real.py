@@ -137,13 +137,14 @@ def _print_funnel(scorecard: dict, selected: dict) -> None:
     if not diagnostics:
         return
     print('\nPer-topic supply funnel:')
-    print('| Topic | Fetched | Topic-matched | Relevance-passed | Unseen | Selected | Drop reasons |')
-    print('|---|---:|---:|---:|---:|---:|---|')
+    print('| Topic | Fetched | Topic-matched | Relevance-passed | Clustered | Unseen | Candidate pool | Selected | Drop reasons |')
+    print('|---|---:|---:|---:|---:|---:|---:|---:|---|')
     for topic_id, row in diagnostics.items():
         drops = reasons.get(topic_id, {})
         drop_text = ', '.join(f'{key}: {value}' for key, value in sorted(drops.items())) or 'none'
         print(f"| {topic_id} | {row.get('fetched', 0)} | {row.get('topic_matched', 0)} | "
-              f"{row.get('relevance_passed', 0)} | {row.get('unseen', 0)} | "
+              f"{row.get('relevance_passed', 0)} | {row.get('clustered', 0)} | "
+              f"{row.get('unseen', 0)} | {row.get('candidate_clusters', 0)} | "
               f"{selected.get(topic_id, row.get('selected', 0))} | {drop_text} |")
 
 

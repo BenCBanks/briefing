@@ -16,7 +16,7 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ingest.write_edition import (_needs_daily_retrieval_fill, _publisher_for, _source_maps,
-                                  generate_edition)
+                                  _candidate_queue_key, generate_edition)
 from ingest.score_edition import score_edition
 from ingest import core
 
@@ -521,8 +521,23 @@ class WriterTests(unittest.TestCase):
         self.assertGreater(funnel['topic_matched'], 0)
         self.assertGreaterEqual(funnel['topic_matched'], funnel['relevance_passed'])
         self.assertGreaterEqual(funnel['relevance_passed'], funnel['unseen'])
+        self.assertEqual(funnel['unseen'], funnel['after_repeat_suppression'])
+        self.assertEqual(funnel['unseen'], funnel['clustered'],
+                         'fresh history suppresses no source-valid story clusters')
+        self.assertGreaterEqual(funnel['unseen'], funnel['candidate_clusters'])
         self.assertEqual(funnel['selected'], 0)
         self.assertIn('funnel_drop_reasons', result)
+
+    def test_candidate_writer_queue_fairly_retries_the_least_served_topic(self):
+        counts = {'ai': 0, 'climate': 0, 'space': 0}
+        attempts = {'ai': 1, 'climate': 0, 'space': 0}
+        rows = [
+            {'topic': {'id': 'ai'}, 'topic_round': 1, 'topic_match': 1.0},
+            {'topic': {'id': 'climate'}, 'topic_round': 1, 'topic_match': 0.2},
+            {'topic': {'id': 'space'}, 'topic_round': 1, 'topic_match': 0.1},
+        ]
+        ordered = sorted(rows, key=lambda row: _candidate_queue_key(row, counts, attempts))
+        self.assertEqual([row['topic']['id'] for row in ordered], ['climate', 'space', 'ai'])
 
     def test_topic_only_fallback_finds_relevant_items_from_mistagged_feeds(self):
         from ingest.write_edition import _canonical_profile, _rank_profile_topic_items
@@ -1429,6 +1444,48 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(len(stories), 1)
         self.assertEqual(set(stories[0]['topic_ids']), {'payments', 'banking'})
         self.assertEqual(len(calls), 1)
+
+    def test_unreadable_candidates_do_not_consume_the_final_outlet_story_cap(self):
+        source = {**REGISTRY[0], 'tier': 'trade', 'article_access': 'full-text'}
+        items, clusters = [], []
+        for index in range(4):
+            item = {**ITEM, 'title': f'Weekend route update for distinct service zone {index}',
+                    'snippet': f'Temporary boarding changes affect service zone {index}.',
+                    'url': f'https://transit.example.test/story/zone-{index}',
+                    'source_id': source['id'], 'topics': ['payments'],
+                    'feed_body': ARTICLE_BODY}
+            items.append(item)
+            clusters.append({'id': f'zone-{index}', 'key': item['title'], 'context': item['snippet'],
+                             'rows': [{'item': item, 'source': source, 'key': item['title'],
+                                       'canonical_url': item['url']} ]})
+
+        def write_from_fixture(cluster, _topic, _fetcher, _call_json, _key, _sports,
+                               *, extracted=None, **_kwargs):
+            citations, evidence = extracted
+            sentence_id = citations[0]['source_sentences'][0]
+            sentence = evidence[sentence_id]['text']
+            claim = {'section': 'what_happened', 'text': sentence,
+                     'rendered': sentence + ' [1]', 'evidence_ids': [sentence_id],
+                     'citation_numbers': [1], 'verified': True}
+            return ({'heading': cluster['rows'][0]['item']['title'], 'claims': [claim],
+                     'quote': None, 'background_text': '', 'background_section': None,
+                     'read_takeaway': ''}, evidence, 0, citations)
+
+        with patch('ingest.write_edition.core.load_registry', return_value=[source]), \
+             patch('ingest.write_edition._rank_profile_topic_items', side_effect=lambda rows, *_a, **_k: rows), \
+             patch('ingest.write_edition.cluster_items', return_value=clusters), \
+             patch('ingest.write_edition._cluster_story', side_effect=write_from_fixture):
+            editions, _sources, result = generate_edition(
+                PROFILE, items, [source], NOW,
+                article_fetcher=lambda *_a, **_k: self.fail('fixture feed bodies avoid article reads'),
+                call_json=lambda *_a, **_k: self.fail('fixture writer is isolated'),
+                max_stories=6, max_candidate_attempts=4, writer_workers=1,
+                retrieval_fill_enabled=False, search_first_enabled=False)
+
+        stories = [row for row in editions['editions'][0]['sections'] if row.get('cluster_id')]
+        self.assertEqual(len(stories), 2, 'the final publication cap remains two stories per outlet')
+        self.assertGreaterEqual(result['candidate_pool_diagnostics']['payments']['unseen'], 4)
+        self.assertGreaterEqual(result['funnel_drop_reasons']['payments'].get('writer:outlet_cap_2', 0), 1)
 
     def test_unsupported_claim_is_rewritten_or_dropped(self):
         calls = []
