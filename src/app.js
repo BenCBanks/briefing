@@ -38,6 +38,7 @@ import { renderEpisodeRoute as renderEpisodeRouteScreen, renderEpisodeRouteFailu
 import { createEditionReaderScreen } from './screens/edition-reader.js';
 import { describeRoute, restoreRouteView } from './screens/route-controller.js';
 import { createNavigationController } from './screens/navigation-controller.js';
+import { createDetailRouteController } from './screens/detail-routes.js';
 
 const app = document.querySelector('#app');
 const content = document.querySelector('#content');
@@ -970,90 +971,26 @@ function immediateParentLabel(hash, context = {}) {
   return '‹ Briefing';
 }
 
-function renderDeepDivePage(id, exactDive = null) {
-  const dive = exactDive || currentItems(pack.deepDives, item => item.topic_id === id)[0];
-  const topic = pack.topics.find(item => item.id === (dive?.topic_id || id));
-  if (!topic || !dive) return renderMissing();
-  const body = node('div'); content.append(body);
-  body.className = 'deep-dive-page';
-  const isTranscriptDestination = transcriptDestination(dive.id, 'deep-dive');
-  const routeContext = history.state?.routeContext;
-  const origin = isTranscriptDestination ? transcriptReturnTo : (routeContext?.parentHash ? { hash: routeContext.parentHash, scrollY: routeContext.parentScroll || 0, focus: routeContext.parentFocus } : (deepDiveReturnTo || returnTo));
-  const root = rootForHash(location.hash, routeContext);
-  const backLabel = immediateParentLabel(origin?.hash, routeContext);
-  const sticky = node('div', null, 'reader-sticky');
-  const back = node('button', backLabel, 'reader-back'); back.type = 'button';
-  if (isTranscriptDestination) back.classList.add('transcript-return');
-  back.addEventListener('click', () => {
-    if (isTranscriptDestination) { returnFromTranscript(); return; }
-    if (routeContext?.parentHash && !routeContext.direct && history.length > 1) history.back();
-    else navigate(root === 'library' ? '#library' : root === 'today' ? '#today' : '#topics', { root, parentHash: null });
-  });
-  sticky.append(back); content.insertBefore(sticky, body);
-  renderDeepDive(body, topic, dive, pack.sources, {
-    play: item => startListening(item),
-    listen: item => startListening(item),
-    canListen,
-    estimateListenMinutes: item => listenEstimate(item),
-    openSource,
-    save: (itemId, revision) => toggleSave(itemId, revision, false),
-    isSaved: itemId => state.savedIds.includes(itemId),
-  });
-  const sections = [...body.querySelectorAll('.deep-dive-section')];
-  sections.forEach((section, index) => {
-    section.id = dive.sections[index]?.id || `dive-section-${index}`;
-    section.querySelector('h2')?.setAttribute('tabindex', '-1');
-  });
-  const saved = state.readingProgress[dive.id];
-  if (isTranscriptDestination) {
-    const back = body.querySelector('.back-link');
-    if (back) back.textContent = transcriptReturnLabel();
-  } else trackReadingPlace(dive.id, dive.revision_id, '.deep-dive-section');
-}
-
-function renderTopicDetailPage(id) {
-  const topic = pack.topics.find(item => item.id === id) || interestProfile?.topics.find(item => item.id === id);
-  if (!topic) return renderMissing();
-  const body = node('div', null, 'topic-detail-page'); content.append(body);
-  const context = history.state?.routeContext || {};
-  const sticky = node('div', null, 'reader-sticky topic-detail-sticky');
-  const back = node('button', '‹ Topics', 'reader-back'); back.type = 'button';
-  back.addEventListener('click', () => {
-    if (context.parentHash === '#topics' && !context.direct && history.length > 1) history.back();
-    else navigate('#topics', { root: 'topics', parentHash: null });
-  });
-  sticky.append(back); content.insertBefore(sticky, body);
-  const profileTopic = interestProfile?.topics.find(item => item.id === id);
-  const isPaused = Boolean(profileTopic && interestProfile?.muted.some(item => item.label.toLocaleLowerCase() === profileTopic.label.toLocaleLowerCase()));
-  const editions = currentItems(pack.editions).filter(item => item.kind === 'daily' && item.generated === true)
-    .sort((a, b) => String(b.local_date || '').localeCompare(String(a.local_date || '')));
-  const items = editions.flatMap(edition => (edition.sections || [])
-    .filter(section => (section.topic_ids || []).includes(id) || section.topic_id === id)
-    .map(section => ({ section, edition, href: `#edition/daily/${encodeURIComponent(edition.id)}/${encodeURIComponent(section.id)}` })))
-    .slice(0, 12);
-  renderTopicDetail(body, {
-    topic, items, sources: pack.sources, followed: Boolean(profileTopic), paused: isPaused,
-    actions: {
-      setPaused: paused => {
-        const profile = { ...interestProfile, muted: (interestProfile.muted || []).filter(item => item.label.toLocaleLowerCase() !== profileTopic.label.toLocaleLowerCase()) };
-        if (paused) profile.muted.push({ label: profileTopic.label });
-        void updateTopicsBriefing(profile.words, profile);
-      },
-      follow: () => {
-        const profile = interestProfile || defaultProfile(pack.topics);
-        const nextTopic = { id: topic.id, label: topic.label, scope: topic.scope || topic.label,
-          include: [topic.sourcePhrase || topic.label], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false,
-          sourcePhrase: topic.sourcePhrase || topic.label };
-        void updateTopicsBriefing(profile.words || nextTopic.label, { ...profile, topics: [...profile.topics.filter(item => item.id !== topic.id), nextTopic] });
-      },
-      editInterests: () => navigate('#interests', { root: 'topics', parentHash: location.hash, parentScroll: window.scrollY }),
-      askEpisode: () => { episodeDraft.prompt = `Tell me about ${topic.label}`; navigate('#ask-episode', { root: 'topics', parentHash: location.hash, parentScroll: window.scrollY }); },
-      openStory: item => navigate(item.href, { root: 'topics', parentHash: location.hash, parentScroll: window.scrollY, sectionId: item.section.id }),
-      openSource: sourceId => openSource(sourceId),
-    },
-  });
-  if (interestProfile && !editionHistoryLoaded) void loadEditionHistory();
-}
+let detailRouteController;
+detailRouteController = createDetailRouteController({
+  node, content, document, window, history, location, CSS, link,
+  renderDeepDive, renderTopicDetail, currentItems, currentRevision, transcriptDestination,
+  returnFromTranscript, transcriptReturnLabel, rootForHash, immediateParentLabel,
+  startListening, canListen, listenEstimate, openSource, toggleSave, trackReadingPlace,
+  navigate, updateTopicsBriefing, defaultProfile, loadEditionHistory, back,
+  plainDate, displayDate,
+  renderMissing,
+  get pack() { return pack; },
+  get interestProfile() { return interestProfile; },
+  get transcriptReturnTo() { return transcriptReturnTo; },
+  get deepDiveReturnTo() { return deepDiveReturnTo; },
+  get returnTo() { return returnTo; },
+  get state() { return state; },
+  get episodeDraft() { return episodeDraft; },
+  get editionHistoryLoaded() { return editionHistoryLoaded; },
+});
+function renderDeepDivePage(...args) { return detailRouteController.renderDeepDivePage(...args); }
+function renderTopicDetailPage(...args) { return detailRouteController.renderTopicDetailPage(...args); }
 
 function transcriptReturnLabel() {
   const hash = transcriptReturnTo?.hash || '#today';
@@ -1072,55 +1009,7 @@ function returnFromTranscript() {
   else navigate(target.hash);
 }
 
-function renderSourcePage(id) {
-  const source = pack.sources.find(item => item.id === id);
-  if (!source) return renderMissing();
-  const routeContext = history.state?.routeContext || {};
-  const sticky = node('div', null, 'reader-sticky');
-  const backButton = node('button', routeContext.parentLabel || immediateParentLabel(routeContext.parentHash, routeContext), 'reader-back');
-  backButton.type = 'button'; backButton.addEventListener('click', back);
-  sticky.append(backButton); content.append(sticky);
-  const safeURL = (() => { try { const url = new URL(source.url); return url.protocol === 'https:' && url.hostname ? url : null; } catch { return null; } })();
-  const domain = safeURL?.hostname.replace(/^www\./, '') || '';
-  const publisherNames = { 'federalreserve.gov': 'Federal Reserve', 'fdic.gov': 'FDIC', 'consumerfinance.gov': 'Consumer Financial Protection Bureau', 'pages.nist.gov': 'NIST', 'content.naic.org': 'National Association of Insurance Commissioners', 'theifab.com': 'The IFAB' };
-  const publisher = source.publisher || publisherNames[domain] || domain || 'Reference';
-  const parentHash = routeContext.parentHash || '';
-  const associatedDive = parentHash.startsWith('#topic/')
-    ? currentItems(pack.deepDives, item => item.topic_id === decodeURIComponent(parentHash.slice(7)))[0]
-    : parentHash.startsWith('#explanation/')
-      ? currentRevision(pack.deepDives, decodeURIComponent(parentHash.slice(13)))
-      : null;
-  const editionMatch = parentHash.startsWith('#edition/') && /^#edition\/[^/]+\/[^/]+/.exec(parentHash);
-  const associatedEdition = editionMatch
-    ? currentRevision(pack.editions, decodeURIComponent(editionMatch[0].split('/')[2]))
-    : null;
-  const sourcePublication = source.date || source.published_at || '';
-  const sourceUpdate = source.updated_at || '';
-  const sourceDateValue = sourcePublication || sourceUpdate;
-  const sourceDate = plainDate(sourceDateValue) || 'Date not listed';
-  const sourceDateLabel = sourcePublication ? `Document date · ${sourceDate}`
-    : sourceUpdate ? `Updated · ${sourceDate}` : 'Document date · Date not listed';
-  const reviewedDate = source.reviewed_at || associatedDive?.reviewed_at || associatedEdition?.reviewed_at || associatedEdition?.published_at || associatedEdition?.local_date || '2026-11-16';
-  const heading = node('h1', source.title); heading.tabIndex = -1;
-  heading.className = 'source-title';
-  content.append(node('p', publisher, 'source-publisher'), node('p', 'Document', 'source-document'), heading,
-    node('p', sourceDateLabel, 'source-published'));
-  content.append(node('h2', 'What this supports', 'source-section-heading'));
-  const sourceNote = (source.note || 'This reference provides background for the explanation.')
-    .replace(/\b\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2})?(?:\.\d+)?(?:Z|[+-]\d{2}:?\d{2})?)?\b/g, value => plainDate(value) || value);
-  content.append(node('p', sourceNote));
-  content.append(node('p', `Reviewed · ${displayDate(reviewedDate)}`, 'source-reviewed'));
-  if (source.kind === 'Internal fictional evidence') content.append(node('p', 'Sample · fictional', 'source-sample-tag sample-label'));
-  const row = node('div', null, 'button-row source-actions');
-  if (safeURL && source.kind !== 'Internal fictional evidence') {
-    const external = link('Open original ↗', safeURL.href, 'button-link');
-    external.setAttribute('aria-label', `Open original: ${publisher}, ${source.title || 'current source'}`);
-    external.target = '_blank'; external.rel = 'noopener noreferrer';
-    row.append(external);
-  }
-  if (safeURL && source.kind !== 'Internal fictional evidence') row.append(node('span', 'Opens in a new tab', 'source-new-tab'));
-  content.append(row);
-}
+function renderSourcePage(...args) { return detailRouteController.renderSourcePage(...args); }
 
 const interestFlowController = createInterestFlowController({
   content, node, navigate, rootForHash, focusToken, back,
@@ -1319,15 +1208,7 @@ function revealStoryMore(target) {
   const toggle = more.parentElement.querySelector('.story-more-toggle'); toggle?.setAttribute('aria-expanded', 'true'); if (toggle) toggle.innerHTML = 'Less <svg aria-hidden="true" focusable="false" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m7 10 5 5 5-5"/></svg>';
 }
 
-function renderMissing() {
-  const page = node('section', null, 'unavailable-page');
-  page.setAttribute('aria-labelledby', 'unavailable-title');
-  const heading = node('h1', 'This page is unavailable');
-  heading.id = 'unavailable-title';
-  page.append(heading, node('p', 'The link may have moved or expired. You can head back to Today and keep browsing.', 'unavailable-copy'));
-  page.append(link('Return to today', '#today', 'button-link primary unavailable-action'));
-  content.append(page);
-}
+function renderMissing(...args) { return detailRouteController.renderMissing(...args); }
 
 const episodeJobController = createEpisodeJobController({
   node, document, content, renderOnDemandScreen, rememberEpisodeLength, loadEpisodeCards, EPISODE_MODES,
