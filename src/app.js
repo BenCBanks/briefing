@@ -39,6 +39,7 @@ import { createEditionReaderScreen } from './screens/edition-reader.js';
 import { describeRoute, restoreRouteView } from './screens/route-controller.js';
 import { createNavigationController } from './screens/navigation-controller.js';
 import { createDetailRouteController } from './screens/detail-routes.js';
+import { createTopicsManagementController } from './screens/topics-management-controller.js';
 
 const app = document.querySelector('#app');
 const content = document.querySelector('#content');
@@ -843,115 +844,13 @@ function renderNoStoryExplanations(container, profile) {
   if (list.children.length > 1) container.append(list);
 }
 
-function invalidateTopicsEdition() {
-  // Persist the gate before interpretation/network work so reload cannot expose an old edition.
-  if (!pendingTopicsUpdate()) localStorage.setItem(TOPICS_PENDING_KEY, JSON.stringify({
-    revisions: (pack?.editions || []).map(item => item.id + ':' + item.revision_id),
-  }));
-  localStorage.removeItem('briefing:v1:built-profile-key');
-  localStorage.removeItem(BUILD_GENERAL_FALLBACK_KEY);
-  clearEditionCache();
-  player.close(); state.activeAudio = null; state = saveState(state);
-}
-
-function setTopicsProgress(message) {
-  topicsProgress = message;
-  const status = content.querySelector('.topics-update-stage');
-  if (status) status.textContent = message;
-}
-
-function topicsProgressFor(stepName, found, progress, job) {
-  if (/writing|write|edition_writer/.test(stepName)) {
-    const message = typeof progress === 'object' ? progress.message || job.message || '' : job.message || '';
-    const story = String(message).match(/writing\s+story\s+(?:candidate\s+)?(\d+)\s+of\s+(\d+)/i);
-    return story ? `Writing story ${story[1]} of ${story[2]}` : 'Writing your briefing…';
-  }
-  if (/reading|read/.test(stepName)) return 'Reading sources…';
-  if (/checking|scoring|scorecard|verify/.test(stepName)) return 'Checking sources…';
-  if (/finding|story|fetching|feed_fetch|research|queued|discover/.test(stepName) || found != null) {
-    return found != null ? `Finding stories · ${found} found` : 'Finding stories…';
-  }
-  return 'Preparing your briefing…';
-}
-
-async function updateTopicsBriefing(words, profile = null) {
-  if (topicsUpdating) return;
-  const attempt = ++buildAttempt;
-  topicsDraft = words; sessionStorage.setItem(TOPICS_DRAFT_KEY, words);
-  topicsUpdating = true; topicsError = ''; topicsProgress = profile ? 'Saving your interests…' : 'Understanding your words…'; buildInProgress = true;
-  invalidateTopicsEdition();
-  route();
-  try {
-    if (!profile) {
-      const result = await interpretProfile(words, { topics: pack.topics, minutes: interestProfile?.minutes || state.durationMinutes });
-      if (attempt !== buildAttempt) return;
-      if (result.fallbackError || !result.profile?.topics?.length) throw new Error('interpret');
-      // Preserve the exact reader-authored sentence and existing pause choices.
-      profile = { ...result.profile, words, muted: [...new Map([
-        ...(result.profile.muted || []), ...(interestProfile?.muted || []).filter(item =>
-          interestProfile.topics.some(topic => topic.label.toLowerCase() === item.label.toLowerCase())),
-      ].map(item => [item.label.toLowerCase(), item])).values()].slice(0, 12) };
-    }
-    interestProfile = saveProfile(profile, { server: false });
-    setTopicsProgress('Saving your interests…');
-    await startBuildGeneration(interestProfile, attempt, { inline: true, returnToday: true });
-  } catch {
-    if (attempt !== buildAttempt) return;
-    topicsUpdating = false; buildInProgress = false; topicsProgress = '';
-    topicsError = "We couldn't build it right now. Your last briefing is still here.";
-    if (location.hash === '#topics' || location.hash === '#today') route();
-  }
-}
-
-function renderTopicsPage() {
-  document.querySelector('[data-page-title]').textContent = '';
-  const profileTopics = (interestProfile?.topics || pack.topics.filter(topic => state.selectedIds.includes(topic.id)))
-    .filter(topic => (topic.include || []).length || !topic.exclude?.length || topic.mustFollow);
-  const daily = currentEdition('daily');
-  const matched = !interestProfile || localStorage.getItem('briefing:v1:built-profile-key') === profileBuildKey(interestProfile);
-  renderTopicsScreen({
-    content, document, node, link, renderTopics, profile: interestProfile, profileTopics,
-    deepDives: currentItems(pack.deepDives), selectedIds: profileTopics.map(topic => topic.id),
-    dailyCoverage: matched && !pendingTopicsUpdate() ? daily?.coverage || [] : [],
-    actions: {
-    openDeepDive,
-    words: topicsDraft ?? interestProfile?.words ?? '',
-    savedWords: interestProfile?.words || '',
-    muted: interestProfile?.muted || [],
-    updating: topicsUpdating || Boolean(pendingTopicsUpdate() && buildInProgress),
-    progress: topicsProgress,
-    error: topicsError || (pendingTopicsUpdate() && !topicsUpdating ? 'Your changes are waiting. Update your briefing to try again.' : ''),
-    draftWords: words => { topicsDraft = words; sessionStorage.setItem(TOPICS_DRAFT_KEY, words); },
-    updateBriefing: words => void updateTopicsBriefing(words),
-    retryUpdate: words => void updateTopicsBriefing(words),
-    pauseTopic: (id, paused) => {
-      const profile = interestProfile || defaultProfile(pack.topics);
-      const topic = profile.topics.find(item => item.id === id);
-      if (!topic) return;
-      const muted = profile.muted.filter(item => item.label.toLowerCase() !== topic.label.toLowerCase());
-      if (paused) muted.push({ label: topic.label });
-      void updateTopicsBriefing(profile.words, { ...profile, muted });
-    },
-    interestBrief: deriveInterestBrief(interestProfile || { topics: profileTopics, muted: [] }),
-    openEpisodeRequest: () => navigate('#ask-episode', { root: 'topics', parentHash: '#topics', parentScroll: window.scrollY,
-      parentFocus: { type: 'href', id: '#ask-episode' } }),
-  },
-  });
-}
-
-function renderInterestsPage() {
-  renderInterestsManagementScreen({
-    content, node, history, pack,
-    getProfile: () => interestProfile, setProfile: value => { interestProfile = value; },
-    setDraft: value => { interestDraft = value; },
-    getPageFlags: () => interestPageFlags, setPageFlags: value => { interestPageFlags = value; },
-    getPageNotice: () => interestPageNotice, setPageNotice: value => { interestPageNotice = value; },
-    saveProfile, defaultProfile, immediateParentLabel, navigate, rootForHash,
-    generateSuggestions, renderInterests, interpretProfile,
-    invalidateTopicsEdition, startBuildGeneration, route,
-    applySuggestion, snoozeSuggestion, resetBehaviorWeighting, clearSuggestionSnoozes,
-  });
-}
+let topicsManagementController;
+function invalidateTopicsEdition(...args) { return topicsManagementController.invalidateTopicsEdition(...args); }
+function setTopicsProgress(...args) { return topicsManagementController.setTopicsProgress(...args); }
+function topicsProgressFor(...args) { return topicsManagementController.topicsProgressFor(...args); }
+async function updateTopicsBriefing(...args) { return topicsManagementController.updateTopicsBriefing(...args); }
+function renderTopicsPage(...args) { return topicsManagementController.renderTopicsPage(...args); }
+function renderInterestsPage(...args) { return topicsManagementController.renderInterestsPage(...args); }
 
 function immediateParentLabel(hash, context = {}) {
   if (hash === '#library') return '‹ Earlier';
@@ -1075,6 +974,31 @@ const {
   persistInterestDraft,
   renderInterestConfirm,
 } = interestFlowController;
+
+topicsManagementController = createTopicsManagementController({
+  content, document, window, location, node, link,
+  get pack() { return pack; },
+  get state() { return state; }, set state(value) { state = value; },
+  get interestProfile() { return interestProfile; }, set interestProfile(value) { interestProfile = value; },
+  get interestDraft() { return interestDraft; }, set interestDraft(value) { interestDraft = value; },
+  get interestPageFlags() { return interestPageFlags; }, set interestPageFlags(value) { interestPageFlags = value; },
+  get interestPageNotice() { return interestPageNotice; }, set interestPageNotice(value) { interestPageNotice = value; },
+  get topicsDraft() { return topicsDraft; }, set topicsDraft(value) { topicsDraft = value; },
+  get topicsUpdating() { return topicsUpdating; }, set topicsUpdating(value) { topicsUpdating = value; },
+  get topicsError() { return topicsError; }, set topicsError(value) { topicsError = value; },
+  get topicsProgress() { return topicsProgress; }, set topicsProgress(value) { topicsProgress = value; },
+  get buildInProgress() { return buildInProgress; }, set buildInProgress(value) { buildInProgress = value; },
+  get buildAttempt() { return buildAttempt; }, set buildAttempt(value) { buildAttempt = value; },
+  history,
+  TOPICS_PENDING_KEY, BUILD_GENERAL_FALLBACK_KEY, TOPICS_DRAFT_KEY,
+  localStorage, sessionStorage,
+  clearEditionCache, player, saveState, saveProfile, defaultProfile,
+  currentEdition, currentItems, profileBuildKey, pendingTopicsUpdate,
+  renderTopicsScreen, renderInterestsManagementScreen, renderTopics, renderInterests,
+  deriveInterestBrief, immediateParentLabel, navigate, rootForHash, route,
+  openDeepDive, interpretProfile, startBuildGeneration,
+  generateSuggestions, applySuggestion, snoozeSuggestion, resetBehaviorWeighting, clearSuggestionSnoozes,
+});
 
 function formatLastUpdated(value) {
   const date = value ? new Date(value) : null;
