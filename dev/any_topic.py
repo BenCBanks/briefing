@@ -306,7 +306,37 @@ def run_pass(cases, *, search, fetch, registry, workers=1, clock=time.monotonic,
     return [results_by_id[case.id] for case in cases]
 
 
-def render_report(results, report_date, mode='free'):
+def _free_category_counts(report_path):
+    """Read the free-run's public Markdown summary for side-by-side reporting."""
+    path = Path(report_path)
+    if not path.is_file():
+        return {}
+    lines = path.read_text(encoding='utf-8').splitlines()
+    try:
+        start = lines.index('## Results by prompt type')
+    except ValueError:
+        return {}
+    counts = {}
+    for line in lines[start + 1:]:
+        if not line.startswith('|'):
+            if counts:
+                break
+            continue
+        cells = [cell.strip() for cell in line.strip('|').split('|')]
+        if len(cells) < 6 or cells[0] == 'Type' or cells[0].startswith('---'):
+            continue
+        try:
+            counts[cells[0]] = {
+                'prompts': int(cells[1]), 'sufficient': int(cells[2]),
+                'insufficient': int(cells[3]), 'errors': int(cells[4]),
+                'not_measured': int(cells[5]),
+            }
+        except (ValueError, IndexError):
+            continue
+    return counts
+
+
+def render_report(results, report_date, mode='free', free_report_path=None):
     categories = []
     for category in dict.fromkeys(row['category'] for row in results):
         rows = [row for row in results if row['category'] == category]
@@ -322,6 +352,21 @@ def render_report(results, report_date, mode='free'):
     errors = sum(row['outcome'] == 'retrieval_error' for row in results)
     unmeasured = sum(row['outcome'] == 'not_measured' for row in results)
     total_cost = sum((Decimal(str(row['model_cost_usd'])) for row in results), Decimal('0'))
+    if free_report_path is None:
+        free_report_path = REPORT_DIR / f'{report_date[:10]}-any-topic-free.md'
+    free_counts = _free_category_counts(free_report_path) if mode == 'grounded' else {}
+    comparison = []
+    for category in dict.fromkeys(row['category'] for row in results):
+        rows = [row for row in results if row['category'] == category]
+        free = free_counts.get(category, {})
+        enough = sum(row['outcome'] == 'retrieval_sufficient' for row in rows)
+        errors_for_category = sum(row['outcome'] == 'retrieval_error' for row in rows)
+        skipped = sum(row['outcome'] == 'not_measured' for row in rows)
+        not_enough = len(rows) - enough - errors_for_category - skipped
+        comparison.append(
+            f"| {category} | {free.get('prompts', len(rows))} | {free.get('sufficient', '—')} | "
+            f"{free.get('insufficient', '—')} | {enough} | {not_enough} | "
+            f"{errors_for_category} | {skipped} |")
     lines = [
         f'# Any-topic coverage: {mode} retrieval — {report_date}',
         '',
@@ -352,12 +397,25 @@ def render_report(results, report_date, mode='free'):
         '| Type | Prompts | Retrieval-sufficient | Insufficient | Retrieval errors | Not measured | Average seconds |',
         '|---|---:|---:|---:|---:|---:|---:|',
         *categories,
+    ]
+    if mode == 'grounded' and free_counts:
+        lines.extend([
+            '',
+            '## Free and grounded results by prompt type',
+            '',
+            'The free columns are from the matching dated free-mode report; retrieval outcomes are estimates, not completed episodes.',
+            '',
+            '| Type | Prompts | Free sufficient | Free insufficient | Grounded sufficient | Grounded insufficient | Grounded errors | Grounded not measured |',
+            '|---|---:|---:|---:|---:|---:|---:|---:|',
+            *comparison,
+        ])
+    lines.extend([
         '',
         '## Per-prompt results',
         '',
         '| ID | Type | Prompt | Retrieval outcome | Drop stage | Likely reason | Candidates | Articles read | Evidence sentences | Seconds | Model cost |',
         '|---|---|---|---|---|---|---:|---:|---:|---:|---:|',
-    ]
+    ])
     for row in results:
         prompt = row['prompt'].replace('|', '\\|').replace('\n', ' ')
         reason = likely_insufficient_reason(row)

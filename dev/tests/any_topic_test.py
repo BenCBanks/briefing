@@ -101,6 +101,24 @@ class AnyTopicCoverageTest(unittest.TestCase):
         self.assertIn('| retrieval_error | discovery |', report)
         self.assertIn('| not_measured | provider_unavailable |', report)
 
+    def test_grounded_report_compares_matching_free_mode_counts_by_type(self):
+        with tempfile.TemporaryDirectory() as temp:
+            free_report = Path(temp) / 'free.md'
+            free_report.write_text(
+                '## Results by prompt type\n\n'
+                '| Type | Prompts | Retrieval-sufficient | Insufficient | Retrieval errors | Not measured | Average seconds |\n'
+                '|---|---:|---:|---:|---:|---:|---:|\n'
+                '| Explainer | 6 | 2 | 3 | 1 | 0 | 10.00 |\n',
+                encoding='utf-8')
+            grounded = evaluate_prompt(
+                PROMPTS[0], search=lambda *_args: ([object()], {'gemini': {'status': 'ok'}}),
+                fetch=lambda *_args, **_kwargs: 'fictional body', registry=[],
+                evidence_builder=lambda *_args: ([{}], {f'e{i}': {} for i in range(5)}))
+            report = render_report([grounded], '2026-11-24-grounded', mode='grounded',
+                                   free_report_path=free_report)
+        self.assertIn('## Free and grounded results by prompt type', report)
+        self.assertIn('| Explainer | 6 | 2 | 3 | 1 | 0 | 0 | 0 |', report)
+
     def test_rate_limited_prompt_retries_and_completed_results_resume(self):
         calls = []
 
