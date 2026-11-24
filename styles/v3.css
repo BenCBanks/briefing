@@ -47,7 +47,7 @@ main,body.is-reader main,body.has-player main{width:100%;max-width:680px;padding
 
 /* Vale · story reading and player hierarchy on narrow screens. */
 @media(max-width:600px){
-  body.is-today main{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
+  body.is-today main{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
   body.has-player main,body.is-reader.has-player main{padding-bottom:calc(156px + env(safe-area-inset-bottom))}
   body.is-today.has-player main{padding-bottom:calc(127px + env(safe-area-inset-bottom))}
   .mini-player,body.is-reader .mini-player{height:auto;min-height:68px;padding-block:0}

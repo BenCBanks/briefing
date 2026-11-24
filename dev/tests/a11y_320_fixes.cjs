@@ -40,6 +40,15 @@ async function run() {
         const names = await sources.evaluateAll(nodes => nodes.map(node => node.getAttribute('aria-label') || ''));
         assert.ok(names.every(name => /^Open source from .+/u.test(name)), `Today source names identify their publishers: ${JSON.stringify(names)}`);
       }
+      await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+      const clearance = await page.evaluate(() => {
+        const last = [...document.querySelectorAll('main a[href],main button,main summary,main input,main textarea,main select')]
+          .filter(node => node.getClientRects().length).at(-1);
+        return { lastBottom: last?.getBoundingClientRect().bottom || 0,
+          navTop: document.querySelector('.main-nav').getBoundingClientRect().top };
+      });
+      assert.ok(clearance.lastBottom <= clearance.navTop + 1, `Today controls clear the tab bar at 320 px large text: ${JSON.stringify(clearance)}`);
+      await page.evaluate(() => window.scrollTo(0, 0));
       await page.screenshot({ path: path.join(shots, `today-transcript-320-${theme}.png`) });
 
       await page.close();
