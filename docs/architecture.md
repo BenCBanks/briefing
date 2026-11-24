@@ -331,7 +331,8 @@ many module constants bind it at import. No `XDG_STATE_HOME` override is read.
 | `generation.lock`, `ingestion.disabled` | Cross-process daily lock; presence-based ingestion kill switch |
 | `generated/default/`, `generated/profiles/<profile-id>/` | Atomic current bundle, exports, prior exports, seven-revision history, `jobs/<job-id>.scorecard.json` diagnostics |
 | `generated/legacy-profile-owner.json` | Legacy migration ownership; original top-level files remain recovery copies |
-| `episode-jobs/profiles/<profile-id>/<job-id>.json` | Request, timestamps, stage, counts, terminal result and generated episode text; no automatic retention sweep |
+| `episode-jobs/profiles/<profile-id>/<job-id>.json` | Request, timestamps, stage, counts, terminal result and generated episode text; pruned with expired episode jobs after 90 days |
+| `episode-jobs/profiles/<profile-id>/.<job-id>-stream/` | Private per-chapter WAVs published during opt-in streaming; removed with the expired episode job |
 | `episode-jobs/retrieval/retrieval-counts.json` | Real episode search request counter; resets its bucket on UTC date change |
 | `episodes/profiles/<profile-id>/audio/<episode-id>/<asset-key>/` | Versioned WAVs and manifest; no automatic old-asset pruning |
 | `corrections/profiles/<profile-id>/*.jsonl` | Correction events, private evidence quotes and retained snapshots; per-profile publication lock |
