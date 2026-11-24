@@ -3,8 +3,10 @@ from contextlib import redirect_stdout
 import io
 import tempfile
 from pathlib import Path
+from decimal import Decimal
 
-from dev.any_topic import PROMPTS, evaluate_prompt, render_report, run_pass, validate_prompts
+from dev.any_topic import (PROMPTS, evaluate_prompt, likely_insufficient_reason,
+                           render_report, run_pass, validate_prompts)
 
 
 class AnyTopicCoverageTest(unittest.TestCase):
@@ -124,6 +126,37 @@ class AnyTopicCoverageTest(unittest.TestCase):
                                    spacing_seconds=0, resume_path=progress)
             self.assertEqual(len(resumed), 60)
             self.assertEqual(len(calls), 61)
+
+    def test_grounded_run_reserves_cost_and_labels_unmeasured_prompts(self):
+        calls = []
+
+        def search(prompt, _freshness):
+            calls.append(prompt)
+            return [], {'gemini': {'status': 'ok'}}, Decimal('0.20')
+
+        with redirect_stdout(io.StringIO()):
+            rows = run_pass(PROMPTS[:3], search=search,
+                            fetch=lambda *_args, **_kwargs: None, registry=[],
+                            max_cost=Decimal('0.25'), max_next_cost=Decimal('0.10'))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(rows[0]['model_cost_usd'], 0.2)
+        self.assertEqual([row['outcome'] for row in rows], [
+            'insufficient_evidence', 'not_measured', 'not_measured'])
+        self.assertTrue(all(row['drop_stage'] == 'cost_cap' for row in rows[1:]))
+
+    def test_likely_reason_points_to_reed_fallback_target(self):
+        self.assertEqual(likely_insufficient_reason({
+            'outcome': 'insufficient_evidence', 'category': 'One-word broad topic',
+            'drop_stage': 'discovery'}), 'too broad or ambiguous')
+        self.assertEqual(likely_insufficient_reason({
+            'outcome': 'insufficient_evidence', 'category': 'Comparison',
+            'drop_stage': 'article_read'}), 'comparison needs evidence for both sides')
+        self.assertIn('niche', likely_insufficient_reason({
+            'outcome': 'insufficient_evidence', 'category': 'Niche and technical',
+            'drop_stage': 'article_read'}))
+        self.assertIn('recent', likely_insufficient_reason({
+            'outcome': 'insufficient_evidence', 'category': 'Very recent',
+            'drop_stage': 'discovery'}))
 
 
 if __name__ == '__main__':

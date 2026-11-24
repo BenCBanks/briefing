@@ -115,6 +115,7 @@ EXPECTED_CATEGORIES = {
 }
 MAX_CANDIDATES_TO_READ = 2
 EVIDENCE_SENTENCE_THRESHOLD = 5
+GROUNDING_PROMPT_COST_RESERVE = Decimal('0.05')
 
 
 def validate_prompts(cases=PROMPTS):
@@ -126,6 +127,14 @@ def validate_prompts(cases=PROMPTS):
         raise ValueError('any-topic categories are incomplete')
     if any(not case.prompt.strip() or len(case.prompt) > 500 for case in cases):
         raise ValueError('invalid any-topic prompt')
+    return cases
+
+
+def validate_prompt_subset(cases):
+    known = {case.id: case for case in PROMPTS}
+    ids = [case.id for case in cases]
+    if not cases or len(ids) != len(set(ids)) or any(known.get(case.id) != case for case in cases):
+        raise ValueError('invalid any-topic prompt selection')
     return cases
 
 
@@ -230,8 +239,8 @@ def _result(case, outcome, drop_stage, candidates, reads, evidence, statuses, se
 
 def run_pass(cases, *, search, fetch, registry, workers=1, clock=time.monotonic,
              sleep=time.sleep, spacing_seconds=5, retries=1, resume_path=None,
-             evidence_builder=None):
-    cases = validate_prompts(cases)
+             evidence_builder=None, max_cost=None, max_next_cost=Decimal('0')):
+    cases = validate_prompt_subset(cases)
     results_by_id = {}
     if resume_path and Path(resume_path).is_file():
         for line in Path(resume_path).read_text(encoding='utf-8').splitlines():
@@ -249,7 +258,22 @@ def run_pass(cases, *, search, fetch, registry, workers=1, clock=time.monotonic,
             continue
         row = None
         prompt_started = None
+        prompt_cost = Decimal('0')
         for attempt in range(retries + 1):
+            spent = sum((Decimal(str(result['model_cost_usd'])) for result in results_by_id.values()),
+                        Decimal('0'))
+            if max_cost is not None and spent + prompt_cost + max_next_cost > max_cost:
+                if row is not None:
+                    row['reason'] = 'retry skipped to preserve the task cost cap'
+                    break
+                for skipped in cases[index:]:
+                    results_by_id[skipped.id] = _result(
+                        skipped, 'not_measured', 'cost_cap', 0, 0, 0,
+                        {'gemini': {'status': 'not attempted at task cost cap'}}, 0,
+                        'stopped before prompt to keep estimated spend under the task cap')
+                print(f"Stopped before {case.id}; task cost reserve would exceed ${max_cost:.2f}.",
+                      flush=True)
+                break
             if last_search_started is not None:
                 delay = spacing_seconds - (clock() - last_search_started)
                 if delay > 0:
@@ -259,6 +283,7 @@ def run_pass(cases, *, search, fetch, registry, workers=1, clock=time.monotonic,
             last_search_started = clock()
             row = evaluate_prompt(case, search=search, fetch=fetch, registry=registry,
                                   clock=clock, evidence_builder=evidence_builder)
+            prompt_cost += Decimal(str(row['model_cost_usd']))
             if row['provider_status'] != 'provider rate limited' or attempt == retries:
                 break
             retry_delay_getter = getattr(search, 'retry_delay', lambda: spacing_seconds)
@@ -266,16 +291,18 @@ def run_pass(cases, *, search, fetch, registry, workers=1, clock=time.monotonic,
             print(f"{case.id}: search rate limited; retrying in {retry_delay:.0f}s "
                   f"({attempt + 1}/{retries})", flush=True)
             sleep(retry_delay)
-        row['seconds'] = round(max(0, clock() - prompt_started), 2)
-        results_by_id[case.id] = row
-        if resume_path:
-            path = Path(resume_path)
-            path.parent.mkdir(parents=True, exist_ok=True)
-            with path.open('a', encoding='utf-8') as progress:
-                progress.write(json.dumps(row, ensure_ascii=False) + '\n')
-        print(f"[{index + 1}/{len(cases)}] {row['id']}: {row['outcome']}; "
-              f"{row['candidates']} candidates, {row['evidence_sentences']} evidence sentences; "
-              f"{row['seconds']}s; $0.00000 model cost", flush=True)
+        if case.id not in results_by_id:
+            row['model_cost_usd'] = float(prompt_cost)
+            row['seconds'] = round(max(0, clock() - prompt_started), 2)
+            results_by_id[case.id] = row
+            if resume_path:
+                path = Path(resume_path)
+                path.parent.mkdir(parents=True, exist_ok=True)
+                with path.open('a', encoding='utf-8') as progress:
+                    progress.write(json.dumps(row, ensure_ascii=False) + '\n')
+            print(f"[{index + 1}/{len(cases)}] {row['id']}: {row['outcome']}; "
+                  f"{row['candidates']} candidates, {row['evidence_sentences']} evidence sentences; "
+                  f"{row['seconds']}s; ${row['model_cost_usd']:.5f} model cost", flush=True)
     return [results_by_id[case.id] for case in cases]
 
 
@@ -328,13 +355,14 @@ def render_report(results, report_date, mode='free'):
         '',
         '## Per-prompt results',
         '',
-        '| ID | Type | Prompt | Retrieval outcome | Drop stage | Candidates | Articles read | Evidence sentences | Seconds | Model cost |',
-        '|---|---|---|---|---|---:|---:|---:|---:|---:|',
+        '| ID | Type | Prompt | Retrieval outcome | Drop stage | Likely reason | Candidates | Articles read | Evidence sentences | Seconds | Model cost |',
+        '|---|---|---|---|---|---|---:|---:|---:|---:|---:|',
     ]
     for row in results:
         prompt = row['prompt'].replace('|', '\\|').replace('\n', ' ')
+        reason = likely_insufficient_reason(row)
         lines.append(f"| {row['id']} | {row['category']} | {prompt} | {row['outcome']} | "
-                     f"{row['drop_stage']} | {row['candidates']} | {row['articles_read']} | "
+                     f"{row['drop_stage']} | {reason} | {row['candidates']} | {row['articles_read']} | "
                      f"{row['evidence_sentences']} | {row['seconds']:.2f} | ${row['model_cost_usd']:.5f} |")
     lines.extend(['', 'Provider statuses and fixed failure reasons:', ''])
     for row in results:
@@ -347,6 +375,25 @@ def render_report(results, report_date, mode='free'):
         lines.append('- None.')
     lines.append('')
     return '\n'.join(lines)
+
+
+def likely_insufficient_reason(row):
+    if row.get('outcome') != 'insufficient_evidence':
+        return '—'
+    category = row.get('category')
+    if category == 'Comparison':
+        return 'comparison needs evidence for both sides'
+    if category == 'Niche and technical':
+        return 'niche or technical topic'
+    if category == 'Very recent':
+        return 'very recent; source availability may lag'
+    if category in {'One-word broad topic', 'Ambiguous'}:
+        return 'too broad or ambiguous'
+    if row.get('drop_stage') == 'article_read':
+        return 'candidates found, but readable source text was unavailable'
+    if row.get('drop_stage') == 'evidence_sufficiency':
+        return 'readable evidence below the five-sentence threshold'
+    return 'no usable evidence returned at discovery'
 
 
 @contextmanager
@@ -375,7 +422,7 @@ def isolated_retrieval_environment(*, disable_model_keys=True):
 
 
 def run_retrieval_only(report_date=None, *, report_dir=REPORT_DIR, workers=1,
-                       mode='free', resume=True):
+                       mode='free', resume=True, limit=None, max_cost=None):
     validate_prompts()
     if type(workers) is not int or not 1 <= workers <= 4:
         raise ValueError('workers must be between 1 and 4')
@@ -385,6 +432,13 @@ def run_retrieval_only(report_date=None, *, report_dir=REPORT_DIR, workers=1,
     date.fromisoformat(stamp[:10])
     if mode not in {'free', 'grounded'}:
         raise ValueError('mode must be free or grounded')
+    if limit is not None and (type(limit) is not int or not 1 <= limit <= len(PROMPTS)):
+        raise ValueError('limit must be between 1 and 60')
+    if max_cost is not None and (mode != 'grounded' or not Decimal(str(max_cost)).is_finite()
+                                 or Decimal(str(max_cost)) <= 0):
+        raise ValueError('max-cost must be positive and is available only in grounded mode')
+    selected_cases = PROMPTS[:limit] if limit else PROMPTS
+    validate_prompt_subset(selected_cases)
     with isolated_retrieval_environment(disable_model_keys=(mode == 'free')) as state_dir:
         from dev.ingest import core
         from dev.ingest.episodes.generate import evidence_pack
@@ -423,9 +477,12 @@ def run_retrieval_only(report_date=None, *, report_dir=REPORT_DIR, workers=1,
         search.retry_delay = lambda: resilience.health('gdelt')['retry_in'] + 0.25
         progress_path = Path(tempfile.gettempdir()) / f'briefing-any-topic-{stamp}-{mode}-v5.jsonl'
 
-        results = run_pass(PROMPTS, search=search, fetch=fetch_candidate,
+        results = run_pass(selected_cases, search=search, fetch=fetch_candidate,
                            registry=registry, workers=workers,
                            resume_path=progress_path if resume else None,
+                           max_cost=Decimal(str(max_cost)) if max_cost is not None else None,
+                           max_next_cost=(GROUNDING_PROMPT_COST_RESERVE if mode == 'grounded'
+                                          and max_cost is not None else Decimal('0')),
                            evidence_builder=evidence_pack)
     report_dir.mkdir(parents=True, exist_ok=True)
     path = report_dir / f'{stamp}-any-topic-{mode}.md'
@@ -445,9 +502,15 @@ if __name__ == '__main__':
                         help='run retrieval only; never write or record an episode')
     parser.add_argument('--mode', choices=('free', 'grounded'), default='free',
                         help='free uses feeds + GDELT; grounded adds Gemini search (defer until approved)')
+    parser.add_argument('--limit', type=int, help='measure the first N prompts; full fixed set remains 60')
+    parser.add_argument('--max-cost', type=Decimal,
+                        help='task ledger spend ceiling (grounded mode only), with per-prompt safety reserve')
     parser.add_argument('--date', help='report date, optionally with a suffix')
+    parser.add_argument('--report-dir', type=Path, default=REPORT_DIR,
+                        help='report output directory (use /tmp for an interim estimate)')
     parser.add_argument('--workers', type=int, default=1,
                         help='reserved for compatibility; prompts run sequentially to respect free search')
     parser.add_argument('--no-resume', action='store_true', help='start a fresh run instead of loading /tmp progress')
     args = parser.parse_args()
-    run_retrieval_only(args.date, workers=args.workers, mode=args.mode, resume=not args.no_resume)
+    run_retrieval_only(args.date, workers=args.workers, mode=args.mode, resume=not args.no_resume,
+                       limit=args.limit, max_cost=args.max_cost, report_dir=args.report_dir)
