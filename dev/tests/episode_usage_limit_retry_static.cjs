@@ -31,16 +31,10 @@ class Element {
   click() { if (!this.disabled) this.listeners.click?.(); }
 }
 
-const source = fs.readFileSync(process.argv[2] || path.join(__dirname, '../../src/app.js'), 'utf8');
+const source = fs.readFileSync(path.join(__dirname, '../../src/screens/episode-job-controller.js'), 'utf8')
+  .replace(/^export /gm, '');
 const screenSource = fs.readFileSync(path.join(__dirname, '../../src/screens/on-demand.js'), 'utf8')
   .replace(/^export /gm, '');
-function productionFunction(start, end) {
-  const begin = source.indexOf(start); const finish = source.indexOf(end, begin);
-  assert.ok(begin >= 0 && finish > begin, 'production function boundaries exist');
-  return source.slice(begin, finish);
-}
-const renderer = productionFunction('function renderEpisodeRequestPage()', 'function episodeProfileTopic(');
-const submit = productionFunction('async function startEpisodeJob(', 'function announceEpisodeStage(');
 
 async function check(error, httpFailure = false, malformed = false, staleResponse = false) {
   const request = httpFailure || malformed || staleResponse ? '  Why do fictional harbor tides change?  ' : 'Why do fictional harbor tides change?';
@@ -59,15 +53,34 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
     episodeRequestBlocked: false, episodeRequestBusy: false, episodeRequestError: '',
     episodeJob: null, episodeJobTimer: null,
     EPISODE_MODES: [{ id: 'deep-dive' }],
+    renderOnDemandScreen: null,
+    rememberEpisodeLength(minutes) { this.episodeDraft.minutes = minutes; },
     episodeTopicSuggestions: () => [],
     loadEpisodeCards: cards => { if (httpFailure) cards.append(unrelatedReadyCard); },
+    defaultProfile: () => ({ topics: [], muted: [] }),
+    interpret: () => ({ profile: { topics: [] } }),
     syncOnDemandBadge: () => {},
     syncProfile: async () => {}, interestProfile: {}, pack: { topics: [] },
-    episodeModeStyle: () => 'explainer',
+    saveProfile: profile => profile,
+    validateProfile: profile => profile,
+    announceEpisodeStageView: () => {},
+    EPISODE_STAGE_FIXTURES: [{ title: 'Finding sources', detail: 'Checking sources.' }],
+    episodeStageIndex: () => 0,
+    episodeStageTitle: () => 'Finding sources',
+    markEpisodeUnheard: () => {},
+    updateEpisodeMakingScreen: () => {},
+    renderEpisodeMakingScreen: () => {},
+    link: () => new Element('a'),
+    cancelEpisodeJob: () => {},
+    player: { playRecording() {} },
+    setTimeout: () => 1,
     location: { hash: '#ask-episode' }, window: { scrollY: 0 }, clearTimeout,
-    pollEpisodeJob: () => { polls += 1; },
     fetch: async (url, options) => {
-      assert.equal(url, '/api/episodes'); assert.equal(options.method, 'POST');
+      if (url !== '/api/episodes') {
+        polls += 1;
+        return { status: 200, ok: true, json: async () => ({ status: 'recording', stage: 'recording' }) };
+      }
+      assert.equal(options.method, 'POST');
       posts.push(JSON.parse(options.body));
       if (staleResponse) return pendingResponse;
       return { status: allow || malformed ? 202 : httpFailure ? 500 : 429, ok: allow || malformed,
@@ -77,10 +90,13 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
             : { error, left_today: 0 } };
     },
   });
-  vm.runInContext(`${screenSource}\n${renderer}\n${submit}\n
-    function rememberEpisodeLength(minutes) { episodeDraft.minutes = minutes; }
+  vm.runInContext(`${screenSource}\n${source}\n
     function navigate(hash) { location.hash = hash; }
-    function route() { content.replaceChildren(); renderEpisodeRequestPage(); }
+    function route() { content.replaceChildren(); controller.renderEpisodeRequestPage(); }
+    globalThis.renderOnDemandScreen = renderOnDemandScreen;
+    globalThis.navigate = navigate;
+    globalThis.route = route;
+    const controller = createEpisodeJobController(globalThis);
     route();`, context);
   const input = () => content.querySelector('#episode-request-prompt');
   const action = () => content.querySelector('#episode-request-start');

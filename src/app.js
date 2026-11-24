@@ -28,6 +28,9 @@ import { renderSettingsScreen } from './screens/settings.js';
 import { renderTodayScreen } from './screens/today.js';
 import { renderEarlierScreen } from './screens/earlier.js';
 import { renderInterestDescribe as renderInterestDescribeScreen, renderInterestConfirm as renderInterestConfirmScreen, renderInterestBuild as renderInterestBuildScreen } from './screens/interests.js';
+import { createInterestFlowController } from './screens/interest-flow-controller.js';
+import { createEpisodeJobController } from './screens/episode-job-controller.js';
+import { createStoryInteractionController } from './screens/story-interactions.js';
 import { renderInterestsManagementScreen } from './screens/interests-management.js';
 import { episodeHistoryState, episodeHistoryDismissed, saveEpisodeHistoryDismissed, renderEpisodeHistory as renderEpisodeHistoryScreen, renderEpisodeMakingFromHistory as renderEpisodeMakingFromHistoryScreen } from './screens/episode-history.js';
 import { EPISODE_STAGE_FIXTURES, announceEpisodeStage as announceEpisodeStageView, episodeStageIndex, episodeStageTitle, episodeHasReadyAudio, episodeLengthCopy, renderEpisodeMakingPage as renderEpisodeMakingScreen, updateEpisodeMakingView as updateEpisodeMakingScreen } from './screens/episode-making.js';
@@ -248,6 +251,58 @@ function rememberEditionMode(id, mode) {
     localStorage.setItem(EDITION_MODE_KEY, JSON.stringify(modes));
   } catch { /* The current view still works if local storage is unavailable. */ }
 }
+
+const storyInteractionController = createStoryInteractionController({
+  content, node, recordSignal, behaviorWeights, saveProfile, clearSignals, saveState,
+  invalidateAudioProgress, audioScriptText, hasMaterialCorrection, currentRevision, showToast,
+  compareRevision, personalized, visibleSections, focusToken, navigateTranscript,
+  navigate, route, invalidatedEditionAudio,
+  get player() { return player; },
+  get syncListeningControls() { return syncListeningControls; },
+  get refreshListenControls() { return refreshListenControls; },
+  get withNarrationTopics() { return withNarrationTopics; },
+  get interestProfile() { return interestProfile; },
+  set interestProfile(value) { interestProfile = value; },
+  get pack() { return pack; },
+  set pack(value) { pack = value; },
+  get readingObserver() { return readingObserver; },
+  set readingObserver(value) { readingObserver = value; },
+  get lastSignalRoute() { return lastSignalRoute; },
+  set lastSignalRoute(value) { lastSignalRoute = value; },
+  get transcriptReturnTo() { return transcriptReturnTo; },
+  set transcriptReturnTo(value) { transcriptReturnTo = value; },
+  get transcriptReturnHash() { return transcriptReturnHash; },
+  set transcriptReturnHash(value) { transcriptReturnHash = value; },
+  get state() { return state; },
+  set state(value) { state = value; },
+});
+const {
+  topicIdFor,
+  signalForItem,
+  resetBehaviorWeighting,
+  signalCurrent,
+  toggleSave,
+  setFeedback,
+  listenText,
+  listenEstimate,
+  listenEstimateWithUnit,
+  browserCanSpeak,
+  canListen,
+  startListening,
+  currentEdition,
+  stopCorrectedEditionAudio,
+  invalidateMaterialCorrections,
+  transcriptDestination,
+  readerAlreadyShows,
+  paragraphAt,
+  trackReadingPlace,
+  currentTranscriptItem,
+  transcriptLabel,
+  openTranscript,
+  trackRouteSignals,
+  beginStoryVisit,
+  finishStoryVisit,
+} = storyInteractionController;
 
 const playerIntegration = createAppPlayer({
   root: document.querySelector('#player-root'), content, node,
@@ -719,276 +774,6 @@ function back() {
   if (parent && history.length > 1) history.back();
   else backTo(returnTo);
 }
-function topicIdFor(item, sectionId = null) {
-  if (!item) return 'unknown';
-  if (item.topic_id) return item.topic_id;
-  const section = (item.sections || []).find(row => row.id === sectionId) || item.sections?.[0];
-  return section?.topic_ids?.[0] || section?.topic_id || item.coverage?.[0]?.topic_id || 'unknown';
-}
-function signalForItem(type, item, sectionId = null) {
-  if (!item) return false;
-  const section = (item.sections || []).find(row => row.id === sectionId) || item.sections?.[0];
-  const recorded = recordSignal(type, section?.id || item.id, topicIdFor(item, sectionId));
-  if (recorded && interestProfile?.topics?.length) {
-    const topicIds = interestProfile.topics.map(topic => topic.id);
-    interestProfile = saveProfile({ ...interestProfile, behavior_weights: behaviorWeights(topicIds) });
-  }
-  return recorded;
-}
-
-function resetBehaviorWeighting() {
-  clearSignals();
-  if (interestProfile) {
-    interestProfile = saveProfile({ ...interestProfile, behavior_weights: {} });
-  }
-}
-function signalCurrent(type, storyId = null) {
-  const hash = location.hash || '#today';
-  if (hash.startsWith('#edition/')) {
-    const parts = hash.slice(1).split('/').map(decodeURIComponent);
-    const item = pack?.editions.find(entry => entry.id === parts[2] && entry.kind === parts[1]);
-    return signalForItem(type, item, storyId || parts[3]);
-  }
-  if (hash.startsWith('#explanation/') || hash.startsWith('#topic/')) {
-    const id = decodeURIComponent(hash.slice(hash.indexOf('/') + 1));
-    const item = pack?.deepDives.find(entry => entry.id === id || entry.topic_id === id);
-    return signalForItem(type, item);
-  }
-  return false;
-}
-function toggleSave(id, revisionId = null, rerender = true) {
-  const adding = !state.savedIds.includes(id);
-  if (state.savedIds.includes(id)) {
-    state.savedIds = state.savedIds.filter(x => x !== id);
-    delete state.savedRevisions[id];
-  } else {
-    state.savedIds = [...state.savedIds, id];
-    if (revisionId) state.savedRevisions[id] = revisionId;
-  }
-  state = saveState(state);
-  if (adding) {
-    const item = [...(pack?.editions || []), ...(pack?.deepDives || [])].find(entry => entry.id === id);
-    const parts = (location.hash || '').startsWith('#edition/') ? location.hash.slice(1).split('/').map(decodeURIComponent) : [];
-    signalForItem('save', item, parts[3] || null);
-  }
-  showToast(adding ? 'Saved for later.' : 'Removed from saved items.');
-  if (rerender) route();
-}
-function setFeedback(id, category) {
-  state.feedback[id] = category; state = saveState(state);
-  const type = { more: 'more', less: 'less', mute: 'mute' }[category];
-  if (type) signalCurrent(type, id);
-  route();
-}
-// Interface · pass 010: shared read/listen estimates for Interface-owned surfaces.
-function listenText(item) {
-  if (typeof item === 'string') return item;
-  const sections = item?.sections || [];
-  if (sections.length) return sections.map(section => audioScriptText(section) || `${section.heading || ''}. ${section.body || ''}`).join(' ');
-  return `${item?.title || ''}. ${item?.body || ''}`;
-}
-
-function listenEstimate(item) {
-  return player.estimateListenMinutes(listenText(item));
-}
-
-function listenEstimateWithUnit(item) { return `${listenEstimate(item)} min`; }
-
-function browserCanSpeak() {
-  return typeof window.speechSynthesis !== 'undefined' && typeof window.SpeechSynthesisUtterance === 'function';
-}
-
-function canListen(item) {
-  return Boolean(item && browserCanSpeak() &&
-    !invalidatedEditionAudio.has(item.id) && !hasMaterialCorrection(item));
-}
-
-function startListening(item) {
-  if (!canListen(item)) return;
-  item = withNarrationTopics(item);
-  if (player.item?.id === item.id && player.item?.revision_id === item.revision_id) player.play({ ...item, start_section_id: null });
-  else {
-    const saved = state.readingProgress[item.id];
-    const fromParagraph = saved?.revisionId === item.revision_id ? saved.paragraphIndex : 0;
-    player.listen(item, { fromParagraph });
-  }
-}
-
-function currentEdition(kind) {
-  const ids = [...new Set(pack.editions.filter(item => item.kind === kind).map(item => item.id))];
-  const editions = ids.map(id => currentRevision(pack.editions, id, item => item.kind === kind)).filter(Boolean);
-  const latest = editions.sort(compareRevision).at(-1);
-  return latest ? personalized(latest) : null;
-}
-
-function stopCorrectedEditionAudio(id) {
-  if (!id) return;
-  invalidatedEditionAudio.add(id);
-  for (const edition of pack?.editions || []) {
-    if (edition.id === id && edition.audio) {
-      edition.audio.state = 'superseded';
-      edition.audio.superseded = true;
-    }
-  }
-  const stopped = player.invalidate(id);
-  const hadProgress = Boolean(state.progress[id]);
-  const wasActive = state.activeAudio?.id === id;
-  if (hadProgress || wasActive) state = invalidateAudioProgress(state, id);
-  document.querySelectorAll('[data-audio-action]').forEach(button => {
-    if (button.dataset.audioAction === id) button.remove();
-  });
-  if (stopped || wasActive) sessionStorage.setItem('briefing:correction-audio-notice', 'The prior recording is no longer available for this corrected edition.');
-  syncListeningControls();
-  refreshListenControls();
-}
-
-function invalidateMaterialCorrections() {
-  for (const edition of pack?.editions || []) {
-    if (hasMaterialCorrection(edition)) stopCorrectedEditionAudio(edition.id);
-  }
-}
-
-// The same hook is used by content refreshes and correction updates arriving during playback.
-window.addEventListener('briefing:material-correction', event => stopCorrectedEditionAudio(event.detail?.id));
-
-function transcriptDestination(id, kind) {
-  if (!transcriptReturnTo || transcriptReturnHash !== (location.hash || '#today')) return false;
-  if (kind === 'deep-dive') return location.hash === `#explanation/${encodeURIComponent(id)}`;
-  const base = `#edition/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`;
-  return location.hash === base || location.hash.startsWith(`${base}/`);
-}
-
-function readerAlreadyShows(item) {
-  const hash = location.hash || '#today';
-  if (item.kind === 'deep-dive') {
-    return hash === `#explanation/${encodeURIComponent(item.id)}` || hash === `#topic/${encodeURIComponent(item.topic_id)}`;
-  }
-  const editionBase = `#edition/${encodeURIComponent(item.kind)}/${encodeURIComponent(item.id)}`;
-  return hash === editionBase || hash.startsWith(`${editionBase}/`);
-}
-
-function paragraphAt(section, index) {
-  return section?.querySelector(`[data-narration-index="${Number(index) || 0}"]`) || section?.querySelectorAll('p')[index];
-}
-
-function trackReadingPlace(id, revisionId, selector) {
-  readingObserver?.disconnect();
-  readingObserver = new IntersectionObserver(entries => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      const section = entry.target.closest('.edition-section, .deep-dive-section');
-      const paragraphIndex = entry.target.hasAttribute('data-narration-index') ? Number(entry.target.dataset.narrationIndex) : [...section.querySelectorAll('p')].indexOf(entry.target);
-      if (player.status === 'playing' && player.item?.id === id) continue;
-      const prior = state.readingProgress[id];
-      if (prior?.revisionId === revisionId && prior.storyId === section.id && prior.paragraphIndex === paragraphIndex && prior.mode === 'read') continue;
-      state.readingProgress[id] = { storyId: section.id, paragraphIndex: Math.max(0, paragraphIndex), mode: 'read', updatedAt: new Date().toISOString(), revisionId };
-      state = saveState(state);
-    }
-  }, { rootMargin: '0px 0px -65% 0px', threshold: 0 });
-  content.querySelectorAll(`${selector} p`).forEach(paragraph => readingObserver.observe(paragraph));
-}
-
-function currentTranscriptItem(selected) {
-  if (!selected || !pack) return { available: false };
-  const pool = selected.kind === 'deep-dive' ? pack.deepDives : pack.editions;
-  const entry = currentRevision(pool, selected.id, item => selected.kind === 'deep-dive' || item.kind === selected.kind);
-  if (!entry) return { available: false };
-  const current = selected.kind === 'deep-dive' ? { ...entry, kind: 'deep-dive' } : entry;
-  const selectedAudioMismatch = selected.audio?.state === 'recorded' &&
-    (selected.audio.revision_id !== selected.revision_id || selected.audio.script_hash !== selected.script_hash);
-  const corrected = current.revision_id !== selected.revision_id || current.script_hash !== selected.script_hash;
-  const correction = current.corrections?.find(item => item.previous_revision_id === selected.revision_id &&
-    (!item.revision_id || item.revision_id === current.revision_id)) || null;
-  return { available: true, current, corrected, selectedAudioMismatch, correction };
-}
-
-function transcriptLabel(selected) {
-  return 'Read along';
-}
-
-function openTranscript(selected) {
-  const resolved = currentTranscriptItem(selected);
-  if (!resolved.available) return { available: false };
-  const { current, corrected, selectedAudioMismatch } = resolved;
-  if (readerAlreadyShows(current)) return { available: true, correctedItem: corrected || selectedAudioMismatch ? current : null, navigate: () => {
-    const place = state.readingProgress[current.id];
-    const story = content.querySelector(`#${CSS.escape(place?.storyId || '')}`);
-    const paragraph = paragraphAt(story, place?.paragraphIndex || 0);
-    paragraph?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
-    paragraph?.classList.add('spoken-paragraph');
-  } };
-  transcriptReturnTo = { hash: location.hash || '#today', sectionId: null, scrollY: window.scrollY, focus: focusToken() };
-  const saved = state.readingProgress[current.id];
-  const validAnchor = !corrected && saved?.revisionId === current.revision_id && current.sections.some(section => section.id === saved.storyId);
-  const correctionSection = corrected ? current.corrections?.find(item => item.severity === 'material')?.section_ids?.[0] : null;
-  const placement = { id: current.id, sectionId: validAnchor ? saved.storyId : correctionSection || visibleSections(current)[0]?.id, paragraphIndex: validAnchor ? saved.paragraphIndex : 0, correction: corrected };
-  const itemHash = current.kind === 'deep-dive'
-    ? `#explanation/${encodeURIComponent(current.id)}`
-    : `#edition/${encodeURIComponent(current.kind)}/${encodeURIComponent(current.id)}/${encodeURIComponent(placement.sectionId || '')}`;
-  transcriptReturnHash = itemHash;
-  return {
-    available: true,
-    correctedItem: corrected || selectedAudioMismatch ? current : null,
-    navigate: () => navigateTranscript(itemHash, placement),
-  };
-}
-
-function trackRouteSignals(routeHash, routeName) {
-  if (lastSignalRoute === routeHash) return;
-  lastSignalRoute = routeHash;
-  const context = history.state?.routeContext || {};
-  if (routeName.startsWith('source/')) {
-    const sourceId = routeName.slice(7);
-    const parent = context.parentHash || '';
-    if (parent.startsWith('#edition/')) {
-      const parts = parent.slice(1).split('/').map(decodeURIComponent);
-      const edition = pack?.editions.find(item => item.id === parts[2] && item.kind === parts[1]);
-      signalForItem('sourceOpen', edition, context.sectionId || parts[3]);
-    } else if (parent.startsWith('#explanation/') || parent.startsWith('#topic/')) {
-      const id = decodeURIComponent(parent.slice(parent.indexOf('/') + 1));
-      const dive = pack?.deepDives.find(item => item.id === id || item.topic_id === id);
-      signalForItem('sourceOpen', dive);
-    } else {
-      const edition = pack?.editions.find(item => item.sections?.some(section => section.source_ids?.includes(sourceId)));
-      const section = edition?.sections.find(row => row.source_ids?.includes(sourceId));
-      signalForItem('sourceOpen', edition, section?.id);
-    }
-  } else if (routeName.startsWith('explanation/') || routeName.startsWith('topic/')) {
-    const id = decodeURIComponent(routeName.slice(routeName.indexOf('/') + 1));
-    const dive = pack?.deepDives.find(item => item.id === id || item.topic_id === id);
-    if (dive) {
-      const storyId = context.parentHash?.startsWith('#edition/') && context.sectionId
-        ? context.sectionId
-        : context.sectionId && dive.sections?.some(section => section.id === context.sectionId)
-          ? context.sectionId : dive.sections?.[0]?.id || dive.id;
-      recordSignal('explainOpen', storyId, topicIdFor(dive));
-    }
-  }
-}
-
-let storyVisit = null;
-let storyReadObserver = null;
-function beginStoryVisit(item, sectionId, routeHash) {
-  const section = item.sections?.find(row => row.id === sectionId) || item.sections?.[0];
-  if (!section) return;
-  if (storyVisit?.routeHash === routeHash) return;
-  storyReadObserver?.disconnect(); storyReadObserver = null;
-  storyVisit = { item, section, routeHash, pastFirstParagraph: false };
-  const paragraphs = [...content.querySelectorAll('.edition-section p')];
-  const second = paragraphs[1];
-  if (second && 'IntersectionObserver' in window) {
-    storyReadObserver = new IntersectionObserver(entries => {
-      if (entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= 0.6)) storyVisit && (storyVisit.pastFirstParagraph = true);
-    }, { threshold: 0.6 });
-    storyReadObserver.observe(second);
-  }
-}
-function finishStoryVisit(nextHash) {
-  if (!storyVisit || storyVisit.routeHash === nextHash) return;
-  if (!storyVisit.pastFirstParagraph) signalForItem('skip', storyVisit.item, storyVisit.section.id);
-  storyReadObserver?.disconnect(); storyReadObserver = null; storyVisit = null;
-}
-
 function renderEditionPage(kind, exactEdition = null, sectionId = null) {
   return renderEditionPageScreen(kind, exactEdition, sectionId);
 }
@@ -1409,308 +1194,70 @@ function renderSourcePage(id) {
   content.append(row);
 }
 
-function interestOriginHash() {
-  return history.state?.routeContext?.interestReturnHash || '#today';
-}
-
-function navigateInterest(hash) {
-  const routeContext = history.state?.routeContext || {};
-  const currentHash = location.hash || '#today';
-  navigate(hash, {
-    root: routeContext.root || rootForHash(currentHash),
-    parentHash: currentHash,
-    parentScroll: window.scrollY,
-    parentFocus: focusToken(),
-    interestReturnHash: routeContext.interestReturnHash || (currentHash === '#preferences' ? '#preferences' : '#today'),
-  });
-}
-
-function renderInterestTopbar(step) {
-  const context = history.state?.routeContext || {};
-  const parent = context.parentHash;
-  if (!parent || context.firstRun) return;
-  const label = parent === '#preferences' ? 'Settings' : parent === '#interests/confirm' ? 'What I heard' : 'Describe';
-  const sticky = node('div', null, 'reader-sticky interest-reader-sticky');
-  const backButton = node('button', `‹ ${label}`, 'reader-back');
-  backButton.type = 'button';
-  backButton.addEventListener('click', back);
-  sticky.append(backButton, node('span', step, 'interest-step'));
-  content.append(sticky);
-}
-
-function renderInterestDescribe() {
-  renderInterestDescribeScreen({
-    content, node, draft: interestDraft, profile: interestProfile, dailyTime: dailyTimeValue(),
-    onDailyTimeChange: value => { try { localStorage.setItem(DAILY_TIME_KEY, value); } catch { /* Keep this visit's choice. */ } },
-    interpret, topics: pack.topics, minutes: state.durationMinutes, errorMessage: interestInterpretError,
-    onBuild: words => {
-      interestInterpretError = '';
-      interestDraft = { profile: { ...(interestProfile || {}), words } };
-      navigate('#interests/build', { root: 'today', parentHash: '#interests/describe', firstRun: true });
-      void runFirstBuild(words);
-    },
-  });
-}
-
-const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-function renderInterestBuild() {
-  renderInterestBuildScreen({
-    content, node, profile: interestDraft?.profile || interestProfile, question: buildQuestion, buildChipLabel,
-    onRemoveTopic: removeBuildTopic,
-    onEditWords: () => { clearFirstRunBuild(); buildInProgress = false; navigate('#interests/describe', { root: 'today', parentHash: '#interests/build', firstRun: true }); },
-    onGoToday: () => navigate('#today', { root: 'today', parentHash: null }),
-    scheduleTimeout: callback => {
-      if (buildTimeoutHandle) return;
-      buildTimeoutHandle = setTimeout(() => { buildTimeoutHandle = null; callback(); }, 20000);
-    },
-  });
-}
-
-function setBuildStep(index, found = null, writingMessage = null) {
-  const labels = ['Understanding your words', 'Finding today’s stories', 'Writing your briefing'];
-  const steps = [...content.querySelectorAll('.build-progress-step')];
-  steps.forEach((step, current) => {
-    if (labels[current]) step.textContent = labels[current];
-    step.setAttribute('aria-current', current === index ? 'step' : 'false');
-    step.classList.toggle('is-complete', current < index);
-  });
-  if (index === 1 && found != null && steps[1]) steps[1].textContent = `Finding today’s stories (${found} found)`;
-  if (index === 2 && steps[2]) {
-    const match = String(writingMessage || '').match(/writing\s+story\s+(?:candidate\s+)?(\d+)\s+of\s+(\d+)/i);
-    if (match) steps[2].textContent = `Writing story ${match[1]} of ${match[2]}`;
-  }
-}
-
-async function runFirstBuild(words) {
-  const attempt = ++buildAttempt;
-  buildNotice = ''; sessionStorage.removeItem('briefing:build-error'); buildQuestion = '';
-  renderInterestBuild();
-  try {
-    const result = await interpretProfile(words, { topics: pack.topics, minutes: state.durationMinutes });
-    if (attempt !== buildAttempt) return;
-    if (result.fallbackError || !result.profile?.topics?.length) {
-      interestDraft = { profile: { ...(interestProfile || defaultProfile(pack.topics)), words } };
-      interestInterpretError = result.fallbackError ? 'I could not pick out topics. Try naming a few, like payment rules.' : 'I could not pick out topics. Try naming a few, like payment rules.';
-      navigate('#interests/describe', { root: 'today', parentHash: '#interests/build', firstRun: true }); return;
-    }
-    buildQuestion = result.question || '';
-    interestProfile = saveProfile(result.profile); interestDraft = { profile: interestProfile };
-    writeFirstRunBuild(interestProfile);
-    sessionStorage.setItem(FIRST_EDITION_WELCOME_PENDING_KEY, profileBuildKey(interestProfile));
-    renderInterestBuild(); setBuildStep(1);
-    await startBuildGeneration(interestProfile, attempt, { firstRun: true });
-  } catch {
-    if (attempt !== buildAttempt) return;
-    interestDraft = { profile: { ...(interestProfile || defaultProfile(pack.topics)), words } };
-    interestInterpretError = 'I could not pick out topics. Try naming a few, like payment rules.';
-    navigate('#interests/describe', { root: 'today', parentHash: '#interests/build', firstRun: true });
-  }
-}
-
-async function startBuildGeneration(profile, parentAttempt = null, options = {}) {
-  const attempt = parentAttempt ?? ++buildAttempt;
-  buildInProgress = true; topicsError = '';
-  if (pendingTopicsUpdate()) setTopicsProgress('Saving your interests…');
-  buildNotice = ''; sessionStorage.removeItem('briefing:build-error'); buildStartedAt = Date.now();
-  if (!options.inline) { renderInterestBuild(); setBuildStep(1); }
-  try {
-    try { await syncProfile(profile); } catch (error) { if (pendingTopicsUpdate()) throw error; }
-    if (attempt !== buildAttempt) return;
-    if (pendingTopicsUpdate()) setTopicsProgress('Finding stories…');
-    let jobId = options.resumeJobId || null;
-    if (!jobId) {
-      const response = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profile }) });
-      if (!response.ok) throw new Error('generation_failed');
-      const started = await response.json();
-      const jobValue = started.job ?? started.job_id;
-      jobId = typeof jobValue === 'string' || typeof jobValue === 'number' ? String(jobValue) : jobValue?.id || jobValue?.job_id;
-      if (jobId && options.firstRun) writeFirstRunBuild(profile, jobId);
-    }
-    if (!jobId) throw new Error('generation_failed');
-    // Vale permits a generation job to run for up to 180 seconds. Keep polling
-    // through that window, with room for request and scheduling overhead.
-    for (let poll = 0; poll < 210; poll += 1) {
-      if (attempt !== buildAttempt) return;
-      const jobResponse = await fetch(`/api/generate/${encodeURIComponent(jobId)}`, { cache: 'no-store' });
-      if (!jobResponse.ok) throw new Error('generation_failed');
-      const job = await jobResponse.json();
-      if (attempt !== buildAttempt) return;
-      const progress = job.progress || {};
-      const stepName = typeof progress === 'string' ? progress.toLowerCase()
-        : String(progress.stage || progress.step || '').toLowerCase();
-      const found = typeof progress === 'object'
-        ? (progress.found ?? progress.stories_found ?? progress.story_count ?? progress.count)
-        : job.found;
-      if (/writing|write/.test(stepName)) setBuildStep(2, null, progress.message || job.message);
-      else if (/scoring|scorecard|edition_writer/.test(stepName)) setBuildStep(2);
-      else if (/finding|story|fetching|feed_fetch/.test(stepName) || found != null) setBuildStep(1, found);
-      if (pendingTopicsUpdate()) setTopicsProgress(topicsProgressFor(stepName, found, progress, job));
-      if (job.status === 'failed' || job.status === 'error') throw new Error('generation_failed');
-      if (job.status === 'ready' || job.status === 'complete' || job.edition_ready) {
-        setBuildStep(3);
-        if (pendingTopicsUpdate()) setTopicsProgress('Checking your new briefing…');
-        let loaded = await loadPack(true);
-        const ready = typeof job.edition_ready === 'object' ? job.edition_ready : null;
-        if (ready?.edition) loaded.editions = [ready.edition, ...loaded.editions.filter(item => item.id !== ready.edition.id)];
-        if (Array.isArray(ready?.sources)) loaded.sources = [...new Map([...loaded.sources, ...ready.sources].map(item => [item.id, item])).values()];
-        if (attempt !== buildAttempt) return;
-        const pending = pendingTopicsUpdate();
-        if (pending) {
-          const fresh = ready?.edition;
-          if (!fresh?.generated || pending.revisions.includes(fresh.id + ':' + fresh.revision_id)) throw new Error('stale_edition');
-          // Only the completed job's daily may become Today, even if an older response has a later date.
-          loaded.editions = [fresh, ...loaded.editions.filter(item => item.kind !== 'daily' || item.local_date < fresh.local_date)];
-        }
-        pack = validatePack(loaded);
-        if (!currentEdition('daily')) throw new Error('generation_failed');
-        buildInProgress = false; topicsUpdating = false; topicsProgress = ''; topicsError = '';
-        localStorage.removeItem(TOPICS_PENDING_KEY);
-        sessionStorage.removeItem(TOPICS_DRAFT_KEY); topicsDraft = null;
-        localStorage.setItem('briefing:v1:built-profile-key', profileBuildKey(profile));
-        if (sessionStorage.getItem(FIRST_EDITION_WELCOME_PENDING_KEY) === profileBuildKey(profile)) {
-          sessionStorage.setItem(FIRST_EDITION_WELCOME_KEY, profileBuildKey(profile));
-          sessionStorage.removeItem(FIRST_EDITION_WELCOME_PENDING_KEY);
-        }
-        localStorage.removeItem(BUILD_GENERAL_FALLBACK_KEY);
-        if (options.firstRun) clearFirstRunBuild();
-        buildNotice = ''; sessionStorage.removeItem('briefing:build-error'); clearTimeout(buildTimeoutHandle); buildTimeoutHandle = null;
-        if (!options.inline || options.returnToday || location.hash === '#today' || location.hash === '#topics') navigate('#today', { root: 'today', parentHash: null });
-        return;
-      }
-      await wait(1000);
-    }
-    throw new Error('generation_timeout');
-  } catch {
-    if (attempt !== buildAttempt) return;
-    buildInProgress = false;
-    if (options.firstRun) clearFirstRunBuild();
-    if (pendingTopicsUpdate()) {
-      topicsUpdating = false; topicsProgress = '';
-      topicsError = "We couldn't build it right now. Your last briefing is still here.";
-      if (location.hash === '#topics' || location.hash === '#today') route();
-      return;
-    }
-    if (await showGeneralEditionFallback(profile, attempt)) return;
-    clearTimeout(buildTimeoutHandle); buildTimeoutHandle = null;
-    buildNotice = 'Today’s stories did not load'; sessionStorage.setItem('briefing:build-error', buildNotice);
-    navigate('#today', { root: 'today', parentHash: null });
-  }
-}
-
-function removeBuildTopic(id) {
-  const profile = interestProfile || interestDraft?.profile;
-  const index = profile.topics.findIndex(topic => topic.id === id);
-  if (index < 0) return;
-  const value = profile.topics.splice(index, 1)[0];
-  profile.muted = [...(profile.muted || []).filter(item => item.label !== value.label), { label: value.label }];
-  interestProfile = saveProfile(profile); interestDraft = { profile: interestProfile };
-  if (removedBuildTopic) clearTimeout(removedBuildTopic.timer);
-  const entry = { topic: { value, index }, timer: null };
-  entry.timer = setTimeout(() => { if (removedBuildTopic === entry) removedBuildTopic = null; }, 4000);
-  removedBuildTopic = entry;
-  showToast(`Removed ${value.label}.`, { actionLabel: 'Undo', onAction: () => {
-    if (removedBuildTopic !== entry) return;
-    clearTimeout(entry.timer); removedBuildTopic = null;
-    interestProfile.topics.splice(index, 0, value);
-    interestProfile.muted = (interestProfile.muted || []).filter(item => item.label !== value.label);
-    updateInterestMuted(interestProfile); interestProfile = saveProfile(interestProfile); interestDraft = { profile: interestProfile }; renderInterestBuild(); void startBuildGeneration(interestProfile);
-  } });
-  renderInterestBuild(); void startBuildGeneration(interestProfile);
-}
-
-function updateDescribeInterpretationState() {
-  const words = document.querySelector('#interest-words');
-  if (!words) return;
-  const guidance = document.querySelector('#interest-guidance');
-  const counter = document.querySelector('#interest-counter');
-  const submit = document.querySelector('.interest-form-actions button[type="submit"]');
-  const cancel = document.querySelector('.interest-cancel');
-  const error = document.querySelector('.interest-form-error');
-  const length = words.value.length;
-  if (counter) counter.textContent = `${length.toLocaleString()} / 2,000 characters`;
-  if (counter) counter.hidden = length < 1800;
-  if (guidance) guidance.textContent = interestInterpretBusy ? 'Interpreting…' : interestInterpretStatus;
-  if (submit) submit.disabled = false;
-  words.disabled = interestInterpretBusy;
-  if (cancel) cancel.hidden = !interestInterpretBusy;
-  if (error) error.textContent = interestInterpretError || '';
-}
-
-function cancelInterestInterpretation() {
-  interestInterpretController?.abort();
-  interestInterpretController = null;
-  interestInterpretBusy = false;
-  interestInterpretError = null;
-  interestInterpretStatus = 'Canceled. Your words are still here.';
-  if (location.hash === '#interests/confirm') renderInterestConfirm();
-  else updateDescribeInterpretationState();
-}
-
-async function runInterestInterpretation(words, destination, localOnly = false) {
-  interestInterpretController?.abort();
-  const controller = new AbortController();
-  interestInterpretController = controller;
-  interestInterpretBusy = true;
-  interestInterpretError = null;
-  interestInterpretStatus = 'Interpreting…';
-  if (destination === 'confirm') renderInterestConfirm();
-  else updateDescribeInterpretationState();
-  try {
-    const result = await interpretProfile(words, {
-      topics: pack.topics,
-      minutes: state.durationMinutes,
-      signal: controller.signal,
-      localOnly,
-    });
-    if (interestInterpretController !== controller) return;
-    interestDraft = result;
-    interestInterpretError = result.fallbackError || null;
-    interestInterpretStatus = '';
-    interestInterpretBusy = false;
-    interestInterpretController = null;
-    if (destination === 'describe') navigateInterest('#interests/confirm');
-    else renderInterestConfirm();
-  } catch (error) {
-    if (interestInterpretController !== controller) return;
-    interestInterpretController = null;
-    interestInterpretBusy = false;
-    interestInterpretError = 'Something went wrong while interpreting your words. You can retry or use basic matching.';
-    interestInterpretStatus = '';
-    if (destination === 'confirm') renderInterestConfirm();
-    else updateDescribeInterpretationState();
-  }
-}
-
-function updateInterestMuted(profile) {
-  const labels = new Map();
-  for (const item of profile.muted || []) {
-    const label = String(item?.label || '').trim();
-    if (label) labels.set(label.toLocaleLowerCase(), { label });
-  }
-  profile.muted = [...labels.values()];
-}
-
-function persistInterestDraft(profile) {
-  updateInterestMuted(profile);
-  interestProfile = saveProfile(profile);
-}
-
-function renderInterestConfirm() {
-  if (!interestDraft) {
-    const words = interestProfile?.words || '';
-    interestDraft = interpret(words, { topics: pack.topics, minutes: state.durationMinutes });
-  }
-  renderInterestConfirmScreen({
-    content, node, draft: interestDraft, busy: interestInterpretBusy, errorMessage: interestInterpretError,
-    flags: interestDraft.flags, renderTopbar: renderInterestTopbar,
-    onCancel: cancelInterestInterpretation,
-    onRetry: () => void runInterestInterpretation(interestDraft.profile.words, 'confirm'),
-    onBasic: () => void runInterestInterpretation(interestDraft.profile.words, 'confirm', true),
-    onUpdate: (update, persist = true) => { update(); if (persist) persistInterestDraft(interestDraft.profile); renderInterestConfirm(); },
-    onEdit: () => navigateInterest('#interests/describe'),
-    onSave: profile => { persistInterestDraft(profile); interestDraft = null; navigate(interestOriginHash()); },
-  });
-}
+const interestFlowController = createInterestFlowController({
+  content, node, navigate, rootForHash, focusToken, back,
+  renderInterestDescribeScreen, dailyTimeValue, DAILY_TIME_KEY, interpret, buildChipLabel,
+  clearFirstRunBuild, interpretProfile, defaultProfile, saveProfile, writeFirstRunBuild,
+  profileBuildKey, FIRST_EDITION_WELCOME_PENDING_KEY, FIRST_EDITION_WELCOME_KEY, syncProfile, pendingTopicsUpdate,
+  setTopicsProgress, topicsProgressFor, loadPack, validatePack, currentEdition,
+  TOPICS_DRAFT_KEY, TOPICS_PENDING_KEY, BUILD_GENERAL_FALLBACK_KEY, showGeneralEditionFallback,
+  renderInterestBuildScreen, renderInterestConfirmScreen, route, showToast,
+  get interestDraft() { return interestDraft; },
+  set interestDraft(value) { interestDraft = value; },
+  get interestProfile() { return interestProfile; },
+  set interestProfile(value) { interestProfile = value; },
+  get interestInterpretController() { return interestInterpretController; },
+  set interestInterpretController(value) { interestInterpretController = value; },
+  get interestInterpretBusy() { return interestInterpretBusy; },
+  set interestInterpretBusy(value) { interestInterpretBusy = value; },
+  get interestInterpretError() { return interestInterpretError; },
+  set interestInterpretError(value) { interestInterpretError = value; },
+  get interestInterpretStatus() { return interestInterpretStatus; },
+  set interestInterpretStatus(value) { interestInterpretStatus = value; },
+  get buildAttempt() { return buildAttempt; },
+  set buildAttempt(value) { buildAttempt = value; },
+  get buildStartedAt() { return buildStartedAt; },
+  set buildStartedAt(value) { buildStartedAt = value; },
+  get buildTimeoutHandle() { return buildTimeoutHandle; },
+  set buildTimeoutHandle(value) { buildTimeoutHandle = value; },
+  get buildInProgress() { return buildInProgress; },
+  set buildInProgress(value) { buildInProgress = value; },
+  get buildNotice() { return buildNotice; },
+  set buildNotice(value) { buildNotice = value; },
+  get buildQuestion() { return buildQuestion; },
+  set buildQuestion(value) { buildQuestion = value; },
+  get removedBuildTopic() { return removedBuildTopic; },
+  set removedBuildTopic(value) { removedBuildTopic = value; },
+  get topicsError() { return topicsError; },
+  set topicsError(value) { topicsError = value; },
+  get topicsUpdating() { return topicsUpdating; },
+  set topicsUpdating(value) { topicsUpdating = value; },
+  get topicsProgress() { return topicsProgress; },
+  set topicsProgress(value) { topicsProgress = value; },
+  get topicsDraft() { return topicsDraft; },
+  set topicsDraft(value) { topicsDraft = value; },
+  get pack() { return pack; },
+  set pack(value) { pack = value; },
+  get state() { return state; },
+  set state(value) { state = value; },
+});
+const {
+  interestOriginHash,
+  navigateInterest,
+  renderInterestTopbar,
+  renderInterestDescribe,
+  renderInterestBuild,
+  setBuildStep,
+  runFirstBuild,
+  startBuildGeneration,
+  removeBuildTopic,
+  updateDescribeInterpretationState,
+  cancelInterestInterpretation,
+  runInterestInterpretation,
+  updateInterestMuted,
+  persistInterestDraft,
+  renderInterestConfirm,
+} = interestFlowController;
 
 function formatLastUpdated(value) {
   const date = value ? new Date(value) : null;
@@ -1854,67 +1401,43 @@ function renderMissing() {
   content.append(page);
 }
 
-function renderEpisodeRequestPage() {
-  renderOnDemandScreen({
-    node, document, content, draft: episodeDraft,
-    getRequestState: () => ({ busy: episodeRequestBusy, blocked: episodeRequestBlocked, error: episodeRequestError }),
-    setRequestError: value => { episodeRequestError = value; },
-    setRequestBlocked: value => { episodeRequestBlocked = value; },
-    rememberLength: rememberEpisodeLength,
-    startEpisode: startEpisodeJob,
-    loadEpisodeCards,
-    defaultMode: EPISODE_MODES[0],
-  });
-}
-
-function episodeProfileTopic(episode, profile) {
-  const source = String(episode.topic_label || episode.topic || episode.asked || episode.title || '')
-    .replace(/\s+/g, ' ').trim().slice(0, 500);
-  if (!source) throw new Error('This episode has no topic to add.');
-  const interpreted = interpret(`Follow ${source}`, { topics: pack?.topics || [], minutes: profile.minutes });
-  const topic = interpreted.profile.topics[0];
-  if (!topic) throw new Error('Could not identify this episode topic.');
-  return {
-    ...topic,
-    label: topic.label.slice(0, 60),
-    scope: topic.scope.slice(0, 180),
-    include: topic.include.slice(0, 8).map(value => value.slice(0, 240)),
-    exclude: topic.exclude.slice(0, 8).map(value => value.slice(0, 240)),
-    sourcePhrase: source.slice(0, 500),
-  };
-}
-
-function isEpisodeInDailyBriefing(episode) {
-  const profile = interestProfile;
-  if (!profile) return false;
-  const topic = episodeProfileTopic(episode, profile);
-  const muted = new Set((profile.muted || []).map(item => item.label.toLocaleLowerCase()));
-  return profile.topics.some(item => (item.id === topic.id || item.label.toLocaleLowerCase() === topic.label.toLocaleLowerCase()) && !muted.has(item.label.toLocaleLowerCase()));
-}
-
-async function setEpisodeDailyBriefing(episode, included) {
-  const current = interestProfile || { version: 1, words: '', minutes: 12, background: null, topics: [], muted: [] };
-  const topic = episodeProfileTopic(episode, current);
-  const key = topic.label.toLocaleLowerCase();
-  const muted = (current.muted || []).filter(item => item.label.toLocaleLowerCase() !== key);
-  let topics = [...current.topics];
-  const existingIndex = topics.findIndex(item => item.id === topic.id || item.label.toLocaleLowerCase() === key);
-  if (included) {
-    if (existingIndex < 0 && topics.length >= 12) throw new Error('Your daily briefing already has 12 topics. Remove one in Topics first.');
-    if (existingIndex < 0) {
-      let id = topic.id;
-      let suffix = 2;
-      while (topics.some(item => item.id === id)) id = `${topic.id}-${suffix++}`;
-      topics.push({ ...topic, id });
-    }
-  } else if (existingIndex >= 0) {
-    topics = topics.filter((_, index) => index !== existingIndex);
-  }
-  const updated = validateProfile({ ...current, topics, muted });
-  try { await syncProfile(updated); }
-  catch { throw new Error('Could not update your daily briefing. Try again.'); }
-  interestProfile = saveProfile(updated, { server: false });
-}
+const episodeJobController = createEpisodeJobController({
+  node, document, content, renderOnDemandScreen, rememberEpisodeLength, loadEpisodeCards, EPISODE_MODES,
+  interpret, defaultProfile, syncProfile, route, syncOnDemandBadge, navigate, announceEpisodeStageView,
+  EPISODE_STAGE_FIXTURES, episodeStageIndex, episodeStageTitle, markEpisodeUnheard,
+  updateEpisodeMakingScreen, renderEpisodeMakingScreen, link, cancelEpisodeJob, player, validateProfile, saveProfile,
+  get episodeDraft() { return episodeDraft; },
+  set episodeDraft(value) { episodeDraft = value; },
+  get episodeJob() { return episodeJob; },
+  set episodeJob(value) { episodeJob = value; },
+  get episodeJobTimer() { return episodeJobTimer; },
+  set episodeJobTimer(value) { episodeJobTimer = value; },
+  get episodeRequestBusy() { return episodeRequestBusy; },
+  set episodeRequestBusy(value) { episodeRequestBusy = value; },
+  get episodeRequestBlocked() { return episodeRequestBlocked; },
+  set episodeRequestBlocked(value) { episodeRequestBlocked = value; },
+  get episodeRequestError() { return episodeRequestError; },
+  set episodeRequestError(value) { episodeRequestError = value; },
+  get interestProfile() { return interestProfile; },
+  set interestProfile(value) { interestProfile = value; },
+  get pack() { return pack; },
+  set pack(value) { pack = value; },
+});
+const {
+  renderEpisodeRequestPage,
+  episodeProfileTopic,
+  isEpisodeInDailyBriefing,
+  setEpisodeDailyBriefing,
+  openEpisodeStyleSheet,
+  episodeModeStyle,
+  startEpisodeJob,
+  announceEpisodeStage,
+  pollEpisodeJob,
+  episodeMakingRetry,
+  updateEpisodeMakingView,
+  playStreamingChapter,
+  renderEpisodeMakingPage,
+} = episodeJobController;
 
 async function renderEpisodeRoute(routeName) {
   await renderEpisodeRouteScreen(routeName, {
@@ -1957,158 +1480,6 @@ function renderEpisodeHistory(result, available, corrections = []) {
       episodeHistoryUndoTimer = setTimeout(() => { episodeHistoryUndo = null; episodeHistoryUndoTimer = null; }, 4000);
     },
   });
-}
-
-function openEpisodeStyleSheet(opener) {
-  const dialog = node('dialog', null, 'episode-style-dialog');
-  const sheet = node('section', null, 'episode-style-sheet');
-  const heading = node('h2', 'How should it be told?'); heading.id = 'episode-style-heading';
-  const close = node('button', 'Close', 'episode-style-close'); close.type = 'button';
-  close.setAttribute('aria-label', 'Close narration style choices');
-  close.addEventListener('click', () => dialog.close());
-  sheet.append(close, heading, node('p', 'Choose the shape of your episode.', 'episode-style-intro'));
-  for (const mode of EPISODE_MODES) {
-    const choice = node('button', null, 'episode-style-choice'); choice.type = 'button';
-    choice.append(node('strong', mode.label), node('small', mode.detail));
-    choice.addEventListener('click', () => {
-      dialog.close();
-      startEpisodeJob(mode);
-    });
-    sheet.append(choice);
-  }
-  dialog.setAttribute('aria-labelledby', heading.id);
-  dialog.append(sheet);
-  dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
-  dialog.addEventListener('close', () => { dialog.remove(); if (location.hash === '#ask-episode') opener?.focus(); }, { once: true });
-  document.body.append(dialog);
-  dialog.showModal();
-}
-
-function episodeModeStyle(mode) {
-  return mode.id === 'brief' ? 'news-brief' : mode.id === 'deep-dive' ? 'explainer' : 'conversational';
-}
-
-async function startEpisodeJob(mode) {
-  if (episodeRequestBusy) return;
-  if (episodeJobTimer) clearTimeout(episodeJobTimer);
-  episodeJobTimer = null; episodeJob = null;
-  const request = episodeDraft.prompt;
-  episodeRequestBusy = true;
-  episodeRequestError = '';
-  const status = content.querySelector('.episode-request-error');
-  if (status) status.textContent = 'Starting your episode…';
-  const start = content.querySelector('#episode-request-start');
-  if (start) { start.disabled = true; start.textContent = 'Starting your episode…'; }
-  try {
-    // The private job API attaches requests to its saved profile. A first-time
-    // listener gets the standard local profile until their own interests exist.
-    await syncProfile(interestProfile || defaultProfile(pack.topics));
-    const response = await fetch('/api/episodes', {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ topic: request, length: episodeDraft.minutes, style: episodeModeStyle(mode) }),
-    });
-    const result = await response.json().catch(() => ({}));
-    if (response.status === 429 && result.error === 'cost_cap_reached') {
-      episodeRequestError = 'We cannot make this episode right now. Your request is saved here; try again later.';
-      episodeRequestBlocked = true;
-      return;
-    }
-    if (response.status === 429 && result.error === 'daily_limit_reached') {
-      const leftToday = Number.isInteger(result.left_today) ? Math.max(0, result.left_today) : 0;
-      episodeRequestError = leftToday
-        ? `You can make ${leftToday} more ${leftToday === 1 ? 'episode' : 'episodes'} today.`
-        : "You have used today's three episodes. More tomorrow.";
-      episodeRequestBlocked = true;
-      return;
-    }
-    if (response.status === 429 && result.error === 'rate_limited') {
-      episodeRequestError = 'Please wait a moment, then try again.';
-      return;
-    }
-    if (response.status === 422 && result.error === 'unsupported_format') {
-      episodeRequestError = 'That kind of episode is not supported yet. Try a factual question.';
-      return;
-    }
-    if (response.status === 400 || response.status === 422) {
-      episodeRequestError = 'That request needs a little more detail. Edit the topic or question and try again.';
-      return;
-    }
-    if (!response.ok || !result.job_id) throw new Error('episode_request_failed');
-    episodeJob = {
-      costEstimate: result.cost_estimate?.label, jobId: result.job_id, request, minutes: episodeDraft.minutes, mode,
-      status: result.status || 'queued',
-      stage: result.stage || 'queued', counts: result.counts || { chapters: 0, sentences: 0, sources: 0 },
-      startedAt: Date.now(), stageStartedAt: Date.now(), stageIndex: 0,
-      announcedStage: -1, activityKey: '', done: false,
-    };
-    syncOnDemandBadge();
-    navigate('#episode-making', { root: 'today', parentHash: '#ask-episode', parentScroll: window.scrollY,
-      parentFocus: { type: 'id', id: 'episode-request-start' } });
-    void pollEpisodeJob(episodeJob);
-  } catch {
-    episodeRequestError = 'Your episode could not be started. Please try again.';
-  } finally {
-    episodeRequestBusy = false;
-    if (location.hash === '#ask-episode' && !episodeJob) route();
-  }
-}
-
-function announceEpisodeStage(job, message) {
-  announceEpisodeStageView(content, job, message);
-}
-
-async function pollEpisodeJob(job) {
-  if (!job || job !== episodeJob || !job.jobId) return;
-  if (episodeJobTimer) clearTimeout(episodeJobTimer);
-  try {
-    const response = await fetch(`/api/episodes/${encodeURIComponent(job.jobId)}`, { cache: 'no-store' });
-    const result = await response.json().catch(() => ({}));
-    if (!response.ok || !result) throw new Error('episode_status_unavailable');
-    job.counts = result.counts || job.counts;
-    const nextStage = result.stage || result.status || job.stage;
-    const nextIndex = episodeStageIndex(nextStage);
-    if (nextStage !== job.stage) {
-      job.stage = nextStage;
-      job.stageIndex = nextIndex;
-      job.stageStartedAt = Date.now();
-      const stage = { ...EPISODE_STAGE_FIXTURES[nextIndex], title: episodeStageTitle(job, nextIndex) };
-      if (nextStage === 'done') announceEpisodeStage(job, 'Your episode is ready.');
-      else if (nextStage === 'failed') announceEpisodeStage(job, 'This episode could not be completed.');
-      else if (nextStage === 'cancelled') announceEpisodeStage(job, 'Episode cancelled.');
-      else if (job.announcedStage !== nextIndex) announceEpisodeStage(job, `${stage.title}. ${stage.detail}`);
-    }
-    job.status = result.status || nextStage;
-    job.message = result.message || '';
-    job.failureReason = result.failure_reason || result.error || '';
-    job.episode = result.episode || job.episode || null;
-    job.audio_status = result.audio_status || job.episode?.audio_status || job.episode?.audio?.status || '';
-    job.shorterThanRequested = Boolean(result.shorter_than_requested || result.shortfall_notice ||
-      job.episode?.shorter_than_requested || job.episode?.shortfall_notice);
-    job.done = job.status === 'done';
-    job.failed = job.status === 'failed' || job.status === 'cancelled';
-    job.pollError = '';
-    if (job.done) markEpisodeUnheard(job.jobId);
-  } catch {
-    job.pollError = 'We could not check progress just now. We’ll try again shortly.';
-  }
-  syncOnDemandBadge();
-  if (location.hash === '#episode-making') updateEpisodeMakingView(job, Date.now() - job.stageStartedAt, Date.now() - job.startedAt);
-  if (!job.done && !job.failed) episodeJobTimer = setTimeout(() => void pollEpisodeJob(job), 1000);
-}
-
-function episodeMakingRetry(job) {
-  episodeDraft.prompt = job.request; rememberEpisodeLength(job.minutes);
-  navigate('#ask-episode', { root: 'today', parentHash: '#episode-making', parentScroll: 0 });
-  void startEpisodeJob(job.mode);
-}
-
-function updateEpisodeMakingView(job, elapsed, totalElapsed = elapsed) {
-  updateEpisodeMakingScreen({ content, node, job, elapsed, totalElapsed, navigate, onRetry: episodeMakingRetry });
-}
-
-function renderEpisodeMakingPage() {
-  renderEpisodeMakingScreen({ content, node, link, job: episodeJob, navigate,
-    onCancel: cancelEpisodeJob, onRetry: episodeMakingRetry });
 }
 
 function resetBrowserChoices() {

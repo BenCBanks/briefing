@@ -106,6 +106,10 @@ def isolated_run(*, search_first=False):
         os.environ['BRIEFING_STATE_DIR'] = str(state)
         # A real-run check must not borrow a live profile's feature flags.
         for key in ('BRIEFING_FLAGS_FILE', *flag_environment):
+            # Keep the explicitly requested A/B flag while still discarding
+            # every other flag-backed setting before an isolated real run.
+            if key == 'BRIEFING_DAILY_OUTLINE_WRITER':
+                continue
             os.environ.pop(key, None)
         os.environ['BRIEFING_EPISODES'] = 'real'
         # Exercise the same narrated publication path readers use.
@@ -181,6 +185,9 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
         text = result.get('transcript') or ''
     else:
         daily = result.get('daily_briefing') if isinstance(result.get('daily_briefing'), dict) else {}
+        sections = result.get('sections') if isinstance(result.get('sections'), list) else []
+        story_count = sum(1 for row in sections if isinstance(row, dict) and row.get('cluster_id'))
+        print(f'Stories: {story_count}')
         text = ' '.join(str(row.get('text') or '') for row in daily.get('briefing_script', [])
                         if isinstance(row, dict))
         print('Audio: not rendered by this editorial script check')

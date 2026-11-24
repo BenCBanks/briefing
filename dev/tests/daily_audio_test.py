@@ -489,9 +489,9 @@ class DailyAudioTests(unittest.TestCase):
                                     state_dir=self.temp.name, ledger=FakeLedger(Decimal('1')),
                                     provider=provider)
         self.assertEqual(result['audio_status'], 'ready')
-        self.assertIn('S-N-B reported ninety billion dollars over five years.', provider.calls[0][0])
+        self.assertIn('S N B reported ninety billion dollars over five years.', provider.calls[0][0])
         self.assertIn('August seventh, twenty twenty-four at eleven a m Eastern', provider.calls[0][0])
-        self.assertIn('with twelve point five percent exposure. U-S officials discussed C-M-S and A-I.',
+        self.assertIn('with twelve point five percent exposure. U S officials discussed C M S and A I.',
                       provider.calls[0][0])
         self.assertNotIn('[1]', provider.calls[0][0])
         self.assertIn('$90 billion', edition['sections'][0]['audio_script'],

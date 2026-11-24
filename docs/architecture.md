@@ -400,6 +400,10 @@ alternate constants do not provide automatic failover. Grounding defaults to
 key-file overrides are configuration objects or CLI arguments, not environment
 flags.
 
+For activation criteria, required evidence and rollback steps for experimental
+writer, hybrid, streaming and search-first behavior, see
+[the feature flag rollout checklist](flags.md).
+
 [usage-prices.json](../dev/ingest/usage-prices.json) defaults to estimated caps of
 $2/day and $30/month, bucketed in Eastern time. Reservations precede instrumented
 text/TTS calls and count pending work; this is not a provider balance check or an

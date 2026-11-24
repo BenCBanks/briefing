@@ -21,6 +21,7 @@ from dev.tests.episodes_audio_test import read_fixture, wav_bytes
 
 ROOT = Path(__file__).resolve().parents[1]
 FIXTURE = ROOT / 'tests' / 'fixtures' / 'narration-normalizer.json'
+SPOKEN_FORMS = ROOT / 'tests' / 'fixtures' / 'spoken-forms.json'
 
 
 class FixtureProvider:
@@ -54,7 +55,16 @@ class NarrationNormalizerTests(unittest.TestCase):
 
     def test_common_pronounceable_names_and_acronyms_reach_tts_as_words(self):
         self.assertEqual(normalize_narration('NASA tested FedNow and ACH.'),
-                         'NASA tested FedNow and ACH.')
+                         'NASA tested FedNow and A C H.')
+
+    def test_table_driven_real_world_spoken_forms(self):
+        cases = json.loads(SPOKEN_FORMS.read_text(encoding='utf-8'))
+        self.assertGreaterEqual(len(cases), 80)
+        for source, spoken in cases:
+            with self.subTest(source=source):
+                actual = normalize_narration(f'Update {source} today.')
+                self.assertEqual(actual, f'Update {spoken} today.')
+                self.assertEqual(normalize_narration(actual), actual)
 
     def test_parenthesized_citation_links_leave_money_and_date_punctuation_clean(self):
         cited = (
@@ -75,8 +85,8 @@ class NarrationNormalizerTests(unittest.TestCase):
             result = render_episode_audio(episode, episode['profile_id'], provider=provider,
                                           state_dir=Path(temp) / 'state')
         self.assertEqual(provider.calls[0][0],
-                         'The S-E-C reported two and a half billion dollars on November twelfth.\n\n'
-                         'A-I and P-V rates rose three to five percent.')
+                         'The S E C reported two and a half billion dollars on November twelfth.\n\n'
+                         'A I and P V rates rose three to five percent.')
         self.assertEqual(result['episode']['chapters'][0]['spoken_text'], raw,
                          'on-screen transcript stays separate from the synthesis-only normalization')
         self.assertEqual(result['manifest']['chapters'][1]['start_seconds'], 0.1,
@@ -85,7 +95,7 @@ class NarrationNormalizerTests(unittest.TestCase):
 
     def test_existing_story_speech_builder_uses_the_same_normalizer(self):
         self.assertEqual(normalize_narration(_speak_text('Payment guidance changed on Nov 12. The SEC issued it.')),
-                         'Payment guidance changed on November twelfth. The S-E-C issued it.')
+                         'Payment guidance changed on November twelfth. The S E C issued it.')
 
 
 if __name__ == '__main__':
