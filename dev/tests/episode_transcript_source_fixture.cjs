@@ -151,7 +151,7 @@ async function checkRequestCardStates(hasCurrentEpisodeRecording) {
   const section = (text, start, end) => {
     const first = text.indexOf(start); const last = text.indexOf(end, first);
     assert.ok(first >= 0 && last > first, `production boundaries exist: ${start}`);
-    return text.slice(first, last).replace(/^export /u, '');
+    return text.slice(first, last).replace(/^export /gmu, '');
   };
   const renderers = section(source, 'async function loadEpisodeCards(', 'function episodeProfileTopic(');
   const historyPath = path.join(root, 'src/screens/episode-history.js');
