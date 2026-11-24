@@ -45,11 +45,16 @@ import { renderRouteContent } from './screens/route-renderer.js';
 import { createTopicsManagementController } from './screens/topics-management-controller.js';
 import { createStoryActionsController } from './screens/story-actions-controller.js';
 import { createTodayDataController } from './screens/today-data.js';
+import { createEpisodeStateController } from './screens/episode-state.js';
 
 const app = document.querySelector('#app');
 const content = document.querySelector('#content');
 let storyActionsController = null;
 let todayDataController = null;
+let episodeDraft = { prompt: '', minutes: 5 };
+let episodeJob = null;
+let episodeJobTimer = null;
+let episodeHistorySnapshot = null;
 const nav = [...document.querySelectorAll('[data-nav]')];
 const editableControlSelector = 'textarea, select, [contenteditable="true"], input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"])';
 function syncVirtualKeyboard() {
@@ -102,6 +107,8 @@ const FIRST_RUN_BUILD_KEY = 'briefing:v1:first-run-build';
 const DAILY_TIME_KEY = 'briefing:v1:daily-time';
 const TOPICS_PENDING_KEY = 'briefing:v1:topics-pending';
 const TOPICS_DRAFT_KEY = 'briefing:topics-draft';
+const EPISODE_LENGTH_KEY = 'briefing:v1:last-episode-length';
+const EPISODE_UNHEARD_KEY = 'briefing:v1:episode-unheard';
 const editionDataController = createEditionDataLoader({
   get pack() { return pack; }, set pack(value) { pack = value; },
   get interestProfile() { return interestProfile; },
@@ -110,53 +117,26 @@ const editionDataController = createEditionDataLoader({
   get editionHistoryPromise() { return editionHistoryPromise; }, set editionHistoryPromise(value) { editionHistoryPromise = value; },
   localStorage, profileBuildKey, location, route, document, node,
 });
-function readFirstRunBuild() {
-  try {
-    const pending = JSON.parse(localStorage.getItem(FIRST_RUN_BUILD_KEY));
-    return pending && pending.version === 1 && typeof pending.profileKey === 'string'
-      ? { version: 1, profileKey: pending.profileKey, jobId: typeof pending.jobId === 'string' ? pending.jobId : null }
-      : null;
-  } catch { return null; }
-}
-function writeFirstRunBuild(profile, jobId = null) {
-  const pending = { version: 1, profileKey: profileBuildKey(profile), jobId: jobId ? String(jobId) : null };
-  firstRunPending = pending;
-  try { localStorage.setItem(FIRST_RUN_BUILD_KEY, JSON.stringify(pending)); } catch { /* Keep the current build usable in memory. */ }
-}
-function clearFirstRunBuild() {
-  firstRunPending = null;
-  try { localStorage.removeItem(FIRST_RUN_BUILD_KEY); } catch { /* The server job may still finish for this visit. */ }
-}
-function dailyTimeValue() {
-  try {
-    const value = localStorage.getItem(DAILY_TIME_KEY);
-    return /^([01]\d|2[0-3]):[0-5]\d$/.test(value || '') ? value : '05:00';
-  } catch { return '05:00'; }
-}
-function formatEasternTime(value) {
-  const match = /^(\d{2}):(\d{2})$/.exec(value);
-  const hour = Number(match?.[1] ?? 5);
-  const minute = Number(match?.[2] ?? 0);
-  const hour12 = hour % 12 || 12;
-  return `${hour12}:${String(minute).padStart(2, '0')} ${hour < 12 ? 'am' : 'pm'} ET`;
-}
-function nextDailyRunTime(value, now = new Date()) {
-  const match = /^(\d{2}):(\d{2})$/.exec(value);
-  const runHour = Number(match?.[1] ?? 5);
-  const runMinute = Number(match?.[2] ?? 0);
-  const parts = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York', year: 'numeric', month: '2-digit', day: '2-digit',
-    hour: '2-digit', minute: '2-digit', hourCycle: 'h23',
-  }).formatToParts(now);
-  const get = type => Number(parts.find(part => part.type === type)?.value);
-  const year = get('year'); const month = get('month'); const day = get('day');
-  const isAfterRun = get('hour') * 60 + get('minute') >= runHour * 60 + runMinute;
-  const date = new Date(Date.UTC(year, month - 1, day + Number(isAfterRun), 12));
-  const dateLabel = new Intl.DateTimeFormat('en-US', {
-    timeZone: 'America/New_York', weekday: 'long', month: 'long', day: 'numeric',
-  }).format(date);
-  return `${dateLabel} at ${formatEasternTime(`${String(runHour).padStart(2, '0')}:${String(runMinute).padStart(2, '0')}`)}`;
-}
+const episodeStateController = createEpisodeStateController({
+  localStorage, profileBuildKey, FIRST_RUN_BUILD_KEY, DAILY_TIME_KEY, EPISODE_LENGTH_KEY, EPISODE_UNHEARD_KEY,
+  nav, episodeHistoryState,
+  get episodeDraft() { return episodeDraft; },
+  get episodeJob() { return episodeJob; },
+  get episodeHistorySnapshot() { return episodeHistorySnapshot; },
+});
+function readFirstRunBuild(...args) { return episodeStateController.readFirstRunBuild(...args); }
+function writeFirstRunBuild(...args) { firstRunPending = episodeStateController.writeFirstRunBuild(...args); return firstRunPending; }
+function clearFirstRunBuild(...args) { firstRunPending = null; return episodeStateController.clearFirstRunBuild(...args); }
+function dailyTimeValue(...args) { return episodeStateController.dailyTimeValue(...args); }
+function formatEasternTime(...args) { return episodeStateController.formatEasternTime(...args); }
+function nextDailyRunTime(...args) { return episodeStateController.nextDailyRunTime(...args); }
+function readLastEpisodeLength(...args) { return episodeStateController.readLastEpisodeLength(...args); }
+function rememberEpisodeLength(...args) { return episodeStateController.rememberEpisodeLength(...args); }
+function episodeUnheardIds(...args) { return episodeStateController.episodeUnheardIds(...args); }
+function saveEpisodeUnheardIds(...args) { return episodeStateController.saveEpisodeUnheardIds(...args); }
+function syncOnDemandBadge(...args) { return episodeStateController.syncOnDemandBadge(...args); }
+function markEpisodeUnheard(...args) { return episodeStateController.markEpisodeUnheard(...args); }
+function markEpisodeHeard(...args) { return episodeStateController.markEpisodeHeard(...args); }
 let firstRunPending = readFirstRunBuild();
 let firstRunRecoveryAvailable = false;
 if (firstRunPending && (!interestProfile || firstRunPending.profileKey !== profileBuildKey(interestProfile))) clearFirstRunBuild();
@@ -167,65 +147,12 @@ const EPISODE_MODES = [
   { id: 'deep-dive', label: 'Deep dive', detail: 'More context and connections.' },
   { id: 'simple', label: 'Explain it simply', detail: 'Plain language, step by step.' },
 ];
-const EPISODE_LENGTH_KEY = 'briefing:v1:last-episode-length';
-function readLastEpisodeLength() {
-  try {
-    const value = Number(localStorage.getItem(EPISODE_LENGTH_KEY));
-    return [3, 5, 10, 15].includes(value) ? value : 5;
-  } catch { return 5; }
-}
-function rememberEpisodeLength(value) {
-  episodeDraft.minutes = value;
-  try { localStorage.setItem(EPISODE_LENGTH_KEY, String(value)); } catch { /* Keep the choice for this visit. */ }
-}
-let episodeDraft = { prompt: '', minutes: readLastEpisodeLength() };
-let episodeJob = null;
-let episodeJobTimer = null;
-const EPISODE_UNHEARD_KEY = 'briefing:v1:episode-unheard';
-function episodeUnheardIds() {
-  try {
-    const ids = JSON.parse(localStorage.getItem(EPISODE_UNHEARD_KEY) || '[]');
-    return Array.isArray(ids) ? ids.filter(id => typeof id === 'string').slice(-100) : [];
-  } catch { return []; }
-}
-function saveEpisodeUnheardIds(ids) {
-  try { localStorage.setItem(EPISODE_UNHEARD_KEY, JSON.stringify([...new Set(ids)].slice(-100))); }
-  catch { /* The badge is a convenience; episode access still works without storage. */ }
-}
-function syncOnDemandBadge(jobs = episodeHistorySnapshot?.jobs || []) {
-  const tab = nav.find(item => item.dataset.nav === 'on-demand');
-  const badge = tab?.querySelector('[data-on-demand-badge]');
-  if (!tab || !badge) return;
-  const activeId = episodeJob?.jobId;
-  const making = Boolean(episodeJob && !episodeJob.done && !episodeJob.failed) || jobs.some(job => {
-    const id = job.job_id || job.id;
-    return id !== activeId && episodeHistoryState(job).key === 'making';
-  });
-  const unheard = episodeUnheardIds();
-  const ready = Boolean(episodeJob?.done && unheard.includes(episodeJob.jobId)) ||
-    jobs.some(job => unheard.includes(job.job_id || job.id) && episodeHistoryState(job).key === 'ready');
-  const state = making ? 'making' : ready ? 'ready' : '';
-  badge.hidden = !state;
-  badge.dataset.state = state;
-  badge.textContent = state === 'ready' ? '✓' : '';
-  tab.setAttribute('aria-label', state === 'making' ? 'On demand, episode in progress' : state === 'ready' ? 'On demand, episode ready to play' : 'On demand');
-}
-function markEpisodeUnheard(id) {
-  if (!id) return;
-  saveEpisodeUnheardIds([...episodeUnheardIds(), id]);
-  syncOnDemandBadge();
-}
-function markEpisodeHeard(id) {
-  if (!id) return;
-  saveEpisodeUnheardIds(episodeUnheardIds().filter(unheard => unheard !== id));
-  syncOnDemandBadge();
-}
+episodeDraft.minutes = readLastEpisodeLength();
 let episodeRequestError = '';
 let episodeRequestBusy = false;
 let episodeRequestBlocked = false;
 let episodeHistoryFilter = 'all';
 let episodeHistorySearch = '';
-let episodeHistorySnapshot = null;
 let episodeHistoryUndo = null;
 let episodeHistoryUndoTimer = null;
 let toastTimer = null;
