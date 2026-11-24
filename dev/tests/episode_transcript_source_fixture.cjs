@@ -54,7 +54,14 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
   const routeSource = fs.existsSync(routePath)
     ? fs.readFileSync(routePath, 'utf8').replace(/^import .*;\s*$/gm, '').replace(/^export /gm, '')
     : source;
-  const renderers = section(source, 'async function loadEpisodeCards(', 'function episodeProfileTopic(')
+  const listPath = path.join(root, 'src/screens/episode-list.js');
+  const listSource = fs.readFileSync(listPath, 'utf8').replace(/^export /gmu, '');
+  const renderers = `${listSource}
+    const loadEpisodeCards = createEpisodeListScreen({
+      node, link, episodeHistoryState, episodeLengthCopy, episodeHasReadyAudio,
+      getEpisodeJob: () => episodeJob, episodeUnheardIds, syncOnDemandBadge,
+      onSnapshot: snapshot => { episodeHistorySnapshot = snapshot; }, onRetry: (...args) => loadEpisodeCards(...args),
+    });`
     + stateHelper
     + (fs.existsSync(makingPath)
       ? section(makingSource, 'function appendDoneCard(', 'export function updateEpisodeMakingView(') +
@@ -167,7 +174,14 @@ async function checkRequestCardStates(hasCurrentEpisodeRecording) {
     assert.ok(first >= 0 && last > first, `production boundaries exist: ${start}`);
     return text.slice(first, last).replace(/^export /gmu, '');
   };
-  const renderers = section(source, 'async function loadEpisodeCards(', 'function episodeProfileTopic(');
+  const listPath = path.join(root, 'src/screens/episode-list.js');
+  const listSource = fs.readFileSync(listPath, 'utf8').replace(/^export /gmu, '');
+  const renderers = `${listSource}
+    const loadEpisodeCards = createEpisodeListScreen({
+      node, link, episodeHistoryState, episodeLengthCopy, episodeHasReadyAudio,
+      getEpisodeJob: () => episodeJob, episodeUnheardIds, syncOnDemandBadge,
+      onSnapshot: snapshot => { episodeHistorySnapshot = snapshot; }, onRetry: (...args) => loadEpisodeCards(...args),
+    });`;
   const historyPath = path.join(root, 'src/screens/episode-history.js');
   const historySource = fs.existsSync(historyPath) ? fs.readFileSync(historyPath, 'utf8') : source;
   const stateHelper = fs.existsSync(historyPath)
