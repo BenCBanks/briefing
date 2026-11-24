@@ -8,6 +8,7 @@ from datetime import datetime, timedelta, timezone
 import fcntl
 import copy
 import json
+import logging
 import os
 import re
 import sys
@@ -634,14 +635,31 @@ def _safe_narration_exception_reason(error):
     return error_type if re.fullmatch(r'[A-Z][A-Za-z0-9]{0,39}', error_type) else 'narration_failed'
 
 
-def _mark_daily_narration_failure(report, narration_result):
-    """Make a failed enabled narration a publication failure, not a fallback edition."""
+def _publish_text_only_after_narration_failure(edition, report, narration_result):
+    """Keep the checked written edition publishable when optional narration fails."""
     if isinstance(narration_result, dict) and narration_result.get('status') == 'written':
         return False
-    existing = report.get('failed_critical') if isinstance(report, dict) else None
-    existing = existing if isinstance(existing, list) else []
-    report['critical_failed'] = True
-    report['failed_critical'] = list(dict.fromkeys([*existing, 'daily_narration']))
+    reason = narration_result.get('reason') if isinstance(narration_result, dict) else None
+    if not isinstance(reason, str) or not reason:
+        reason = 'narration_unavailable'
+    safe_status = _daily_narration_job_status(
+        {'daily_narration': {'status': 'fallback', 'reason': reason}})
+    reason = safe_status.get('reason') or 'narration_unavailable'
+    report['daily_narration'] = {'status': 'fallback', 'reason': reason}
+    daily = edition.setdefault('daily_briefing', {})
+    if not isinstance(daily, dict):
+        daily = edition['daily_briefing'] = {}
+    daily['briefing_script'] = []
+    daily['background_segments'] = []
+    daily['spoken_words'] = 0
+    daily['duration_seconds'] = 0
+    daily['text_only'] = True
+    audio = edition.get('audio') if isinstance(edition.get('audio'), dict) else {}
+    audio['state'] = 'pending'
+    audio['reason'] = 'no_spoken_stories'
+    edition['audio'] = audio
+    logging.getLogger(__name__).warning(
+        'Daily narration unavailable; publishing the text edition only (%s).', reason)
     return True
 
 
@@ -1345,34 +1363,31 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                         edition, profile, runtime_evidence, sources['sources'],
                         call_json=narration_call_json)
                 except Exception as error:
-                    # Preserve the candidate for diagnostics. The enabled
-                    # publication gate below keeps the last good edition live.
+                    # Keep the checked written edition if optional narration fails.
                     narration_result = {'status': 'fallback',
                                         'reason': _safe_narration_exception_reason(error)}
-                if narration_result:
+                if isinstance(narration_result, dict) and narration_result.get('status') == 'written':
                     report['daily_narration'] = narration_result
-                    if narration_result.get('status') == 'written':
-                        report['daily_briefing'] = {
-                            key: edition['daily_briefing'][key]
-                            for key in ('target_minutes', 'nominal_target_spoken_words', 'target_spoken_words',
-                                        'maximum_spoken_words', 'spoken_words', 'duration_seconds',
-                                        'supply_ladder', 'search_summary', 'topic_allocation')
-                            if key in edition['daily_briefing']
-                        }
-                        final_content_checks = check_content(
-                            {'editions': editions, 'sources': sources}, recent_history, profile,
-                            now=core.utc_now())
-                        final_content_failures = _record_content_gate(report, final_content_checks)
-                        hard_failures = _hard_content_failures(final_content_failures)
-                        report['content_soft_warnings'] = [code for code in final_content_failures
-                                                           if code not in hard_failures]
-                        if hard_failures:
-                            _persist_job_scorecard(directory, job_id, report)
-                            raise RuntimeError(
-                                'scorecard_critical_failed:' + ','.join(hard_failures))
-                    elif _mark_daily_narration_failure(report, narration_result):
+                    report['daily_briefing'] = {
+                        key: edition['daily_briefing'][key]
+                        for key in ('target_minutes', 'nominal_target_spoken_words', 'target_spoken_words',
+                                    'maximum_spoken_words', 'spoken_words', 'duration_seconds',
+                                    'supply_ladder', 'search_summary', 'topic_allocation')
+                        if key in edition['daily_briefing']
+                    }
+                    final_content_checks = check_content(
+                        {'editions': editions, 'sources': sources}, recent_history, profile,
+                        now=core.utc_now())
+                    final_content_failures = _record_content_gate(report, final_content_checks)
+                    hard_failures = _hard_content_failures(final_content_failures)
+                    report['content_soft_warnings'] = [code for code in final_content_failures
+                                                       if code not in hard_failures]
+                    if hard_failures:
                         _persist_job_scorecard(directory, job_id, report)
-                        raise RuntimeError('scorecard_critical_failed:daily_narration')
+                        raise RuntimeError(
+                            'scorecard_critical_failed:' + ','.join(hard_failures))
+                else:
+                    _publish_text_only_after_narration_failure(edition, report, narration_result)
             else:
                 report['daily_narration'] = {'status': 'off', 'reason': 'flag_disabled'}
             report['daily_briefing'] = {

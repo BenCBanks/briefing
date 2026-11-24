@@ -16,6 +16,9 @@ from zoneinfo import ZoneInfo
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ingest.write_edition import (_needs_daily_retrieval_fill, _publisher_for, _source_maps,
+                                  _candidate_queue_key, _daily_coverage_target_met,
+                                  _daily_first_attempt_limit, _daily_refill_candidates,
+                                  _daily_refill_pool_limit, _with_prefetched_bodies,
                                   generate_edition)
 from ingest.score_edition import score_edition
 from ingest import core
@@ -108,6 +111,52 @@ class WriterTests(unittest.TestCase):
                              for index in range(3)]
         self.assertFalse(_needs_daily_retrieval_fill(
             260, True, sections=one_topic_covered, topics=[{'id': 'payments'}]))
+
+    def test_daily_target_requires_topic_coverage_and_reserves_fallback_attempts(self):
+        topics = [{'id': topic} for topic in ('chips', 'climate', 'space')]
+        self.assertTrue(_daily_coverage_target_met(3, 3,
+                                                  {'chips': 1, 'climate': 1, 'space': 1}, topics))
+        self.assertFalse(_daily_coverage_target_met(3, 3,
+                                                    {'chips': 2, 'climate': 1, 'space': 0}, topics),
+                         'three stories do not meet the target while one selected topic is empty')
+        self.assertFalse(_daily_coverage_target_met(2, 3,
+                                                    {'chips': 1, 'climate': 1, 'space': 0}, topics))
+        self.assertEqual(_daily_first_attempt_limit(30, 3), 24,
+                         'six writer attempts remain available for fallback supply')
+        self.assertEqual(_daily_first_attempt_limit(6, 3), 4)
+        self.assertEqual(_daily_first_attempt_limit(4, 4), 4,
+                         'a small fixture budget still tries one feed candidate per topic')
+        self.assertEqual(_daily_refill_pool_limit(30, 24), 36,
+                         'fallback results survive selection with room for all six reserved attempts')
+        feed = {'ai': [{'id': 'read-once'}, {'id': 'unreadable-once'}, {'id': 'untried-feed'}]}
+        searched = {'ai': [{'id': 'search-result'}, {'id': 'read-once'}]}
+        refill = _daily_refill_candidates(feed, searched, [{'id': 'ai'}], {'read-once', 'unreadable-once'})
+        self.assertEqual([row['id'] for row in refill['ai']], ['search-result', 'untried-feed'],
+                         'untried feed clusters remain available after initial readable candidates fail')
+
+    def test_search_first_and_refill_prefetch_wrappers_compose_without_recursion(self):
+        calls = []
+        def original(url, source):
+            calls.append((url, source))
+            return 'live:' + url
+        original.has_prefetch = lambda url: url == 'cached-original'
+        original.diagnostics = [{'reason': 'fixture'}]
+        original.worker_count = 2
+
+        searched = _with_prefetched_bodies(original, {'search-result': 'search body'})
+        refilled = _with_prefetched_bodies(searched, {'refill-result': 'refill body'})
+        self.assertEqual(refilled('refill-result', 'fixture-source'), 'refill body')
+        self.assertEqual(refilled('search-result', 'fixture-source'), 'search body')
+        self.assertEqual(refilled('cached-original', 'fixture-source'), 'live:cached-original')
+        self.assertEqual(calls, [('cached-original', 'fixture-source')])
+        self.assertTrue(refilled.has_prefetch('refill-result'))
+        self.assertTrue(refilled.has_prefetch('search-result'))
+        self.assertTrue(refilled.has_prefetch('cached-original'))
+        self.assertFalse(refilled.has_prefetch('uncached'))
+        self.assertEqual(refilled.diagnostics, [{'reason': 'fixture'}])
+        self.assertEqual(refilled.worker_count, 2)
+        self.assertEqual(_daily_first_attempt_limit(6, 1), 6,
+                         'single-topic daily generation does not reserve unused coverage slots')
 
     def test_saved_story_is_removed_before_article_extraction_and_model_writing(self):
         previous_time = NOW.isoformat()
@@ -521,8 +570,26 @@ class WriterTests(unittest.TestCase):
         self.assertGreater(funnel['topic_matched'], 0)
         self.assertGreaterEqual(funnel['topic_matched'], funnel['relevance_passed'])
         self.assertGreaterEqual(funnel['relevance_passed'], funnel['unseen'])
+        self.assertEqual(funnel['unseen'], funnel['after_repeat_suppression'])
+        self.assertEqual(funnel['unseen'], funnel['clustered'],
+                         'fresh history suppresses no source-valid story clusters')
+        self.assertEqual(result['funnel_drop_reasons']['payments'].get('duplicate_cluster', 0),
+                         funnel['relevance_passed'] - funnel['clustered'],
+                         'the funnel distinguishes duplicate source rows from reader repeats')
+        self.assertGreaterEqual(funnel['unseen'], funnel['candidate_clusters'])
         self.assertEqual(funnel['selected'], 0)
         self.assertIn('funnel_drop_reasons', result)
+
+    def test_candidate_writer_queue_fairly_retries_the_least_served_topic(self):
+        counts = {'ai': 0, 'climate': 0, 'space': 0}
+        attempts = {'ai': 1, 'climate': 0, 'space': 0}
+        rows = [
+            {'topic': {'id': 'ai'}, 'topic_round': 1, 'topic_match': 1.0},
+            {'topic': {'id': 'climate'}, 'topic_round': 1, 'topic_match': 0.2},
+            {'topic': {'id': 'space'}, 'topic_round': 1, 'topic_match': 0.1},
+        ]
+        ordered = sorted(rows, key=lambda row: _candidate_queue_key(row, counts, attempts))
+        self.assertEqual([row['topic']['id'] for row in ordered], ['climate', 'space', 'ai'])
 
     def test_topic_only_fallback_finds_relevant_items_from_mistagged_feeds(self):
         from ingest.write_edition import _canonical_profile, _rank_profile_topic_items
@@ -910,8 +977,8 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(uncovered['state'], 'limited')
         self.assertEqual(uncovered['candidate_count'], 1)
         self.assertIn('none of 1 candidate(s) passed', uncovered['reason'])
-        self.assertEqual(provider_builds, [True],
-                         'the only provider setup is for the genuinely uncovered topic, not word count')
+        self.assertEqual(provider_builds, [],
+                         'do not open retrieval when no writer attempt remains for its candidates')
         self.assertEqual(len(sources['sources']), 3)
         self.assertEqual(len([row for row in result['candidate_results'] if row['status'] == 'passed']), 3)
         self.assertTrue(any(row['status'] == 'scorecard_dropped' and row['topic_id'] == 'housing'
@@ -1429,6 +1496,48 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(len(stories), 1)
         self.assertEqual(set(stories[0]['topic_ids']), {'payments', 'banking'})
         self.assertEqual(len(calls), 1)
+
+    def test_unreadable_candidates_do_not_consume_the_final_outlet_story_cap(self):
+        source = {**REGISTRY[0], 'tier': 'trade', 'article_access': 'full-text'}
+        items, clusters = [], []
+        for index in range(4):
+            item = {**ITEM, 'title': f'Weekend route update for distinct service zone {index}',
+                    'snippet': f'Temporary boarding changes affect service zone {index}.',
+                    'url': f'https://transit.example.test/story/zone-{index}',
+                    'source_id': source['id'], 'topics': ['payments'],
+                    'feed_body': ARTICLE_BODY}
+            items.append(item)
+            clusters.append({'id': f'zone-{index}', 'key': item['title'], 'context': item['snippet'],
+                             'rows': [{'item': item, 'source': source, 'key': item['title'],
+                                       'canonical_url': item['url']} ]})
+
+        def write_from_fixture(cluster, _topic, _fetcher, _call_json, _key, _sports,
+                               *, extracted=None, **_kwargs):
+            citations, evidence = extracted
+            sentence_id = citations[0]['source_sentences'][0]
+            sentence = evidence[sentence_id]['text']
+            claim = {'section': 'what_happened', 'text': sentence,
+                     'rendered': sentence + ' [1]', 'evidence_ids': [sentence_id],
+                     'citation_numbers': [1], 'verified': True}
+            return ({'heading': cluster['rows'][0]['item']['title'], 'claims': [claim],
+                     'quote': None, 'background_text': '', 'background_section': None,
+                     'read_takeaway': ''}, evidence, 0, citations)
+
+        with patch('ingest.write_edition.core.load_registry', return_value=[source]), \
+             patch('ingest.write_edition._rank_profile_topic_items', side_effect=lambda rows, *_a, **_k: rows), \
+             patch('ingest.write_edition.cluster_items', return_value=clusters), \
+             patch('ingest.write_edition._cluster_story', side_effect=write_from_fixture):
+            editions, _sources, result = generate_edition(
+                PROFILE, items, [source], NOW,
+                article_fetcher=lambda *_a, **_k: self.fail('fixture feed bodies avoid article reads'),
+                call_json=lambda *_a, **_k: self.fail('fixture writer is isolated'),
+                max_stories=6, max_candidate_attempts=4, writer_workers=1,
+                retrieval_fill_enabled=False, search_first_enabled=False)
+
+        stories = [row for row in editions['editions'][0]['sections'] if row.get('cluster_id')]
+        self.assertEqual(len(stories), 2, 'the final publication cap remains two stories per outlet')
+        self.assertGreaterEqual(result['candidate_pool_diagnostics']['payments']['unseen'], 4)
+        self.assertGreaterEqual(result['funnel_drop_reasons']['payments'].get('writer:outlet_cap_2', 0), 1)
 
     def test_unsupported_claim_is_rewritten_or_dropped(self):
         calls = []

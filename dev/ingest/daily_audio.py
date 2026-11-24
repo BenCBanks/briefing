@@ -42,19 +42,21 @@ def daily_episode_from_edition(edition: dict) -> dict:
     if not isinstance(sections, list):
         raise ValueError('edition sections are unavailable')
     daily = edition.get('daily_briefing') if isinstance(edition.get('daily_briefing'), dict) else {}
+    text_only = daily.get('text_only') is True
     section_by_cluster = {
         section.get('cluster_id'): section for section in sections
         if isinstance(section, dict) and isinstance(section.get('cluster_id'), str)
     }
     spoken_order = []
-    for row in daily.get('briefing_script', []):
+    for row in ([] if text_only else daily.get('briefing_script', [])):
         section_id = row.get('section_id') if isinstance(row, dict) else None
         if (isinstance(row, dict) and row.get('kind') == 'story_intro' and
                 section_id in section_by_cluster and
                 section_id not in spoken_order):
             spoken_order.append(section_id)
     ordered_sections = [section_by_cluster[section_id] for section_id in spoken_order]
-    ordered_sections.extend(section for section in sections if section not in ordered_sections)
+    if not text_only:
+        ordered_sections.extend(section for section in sections if section not in ordered_sections)
     chapters = []
     used_ids = set()
     for index, section in enumerate(ordered_sections, 1):
@@ -76,7 +78,7 @@ def daily_episode_from_edition(edition: dict) -> dict:
             includes_title = isinstance(audio_script, dict) and audio_script.get('includes_title') is True
             chapters.append({'id': chapter_id, 'title': title[:180],
                              'spoken_text': text if includes_title else f'{title.strip()}. {text}'})
-    for index, segment in enumerate(daily.get('background_segments', []), 1):
+    for index, segment in enumerate([] if text_only else daily.get('background_segments', []), 1):
         if not isinstance(segment, dict):
             continue
         title = 'Worth knowing: ' + str(segment.get('topic_id') or 'background').replace('-', ' ')

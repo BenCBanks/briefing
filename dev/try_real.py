@@ -94,17 +94,24 @@ def fictional_profile() -> dict:
 
 
 @contextmanager
-def isolated_run():
+def isolated_run(*, search_first=False):
     """Set a fresh state directory without touching live briefing state."""
-    previous = {key: os.environ.get(key) for key in
-                ('BRIEFING_STATE_DIR', 'BRIEFING_EPISODES', 'BRIEFING_TESTING', 'BRIEFING_DAILY_NARRATION')}
+    from dev.ingest.flags import FLAG_NAMES
+    flag_environment = ['BRIEFING_' + name.upper() for name in FLAG_NAMES]
+    keys = ['BRIEFING_STATE_DIR', 'BRIEFING_FLAGS_FILE', 'BRIEFING_TESTING', *flag_environment]
+    previous = {key: os.environ.get(key) for key in keys}
     with tempfile.TemporaryDirectory(prefix='briefing-try-real-') as directory:
         state = assert_isolated_state(Path(directory))
         (state / 'profile.json').write_text(json.dumps(fictional_profile()), encoding='utf-8')
         os.environ['BRIEFING_STATE_DIR'] = str(state)
+        # A real-run check must not borrow a live profile's feature flags.
+        for key in ('BRIEFING_FLAGS_FILE', *flag_environment):
+            os.environ.pop(key, None)
         os.environ['BRIEFING_EPISODES'] = 'real'
         # Exercise the same narrated publication path readers use.
         os.environ['BRIEFING_DAILY_NARRATION'] = 'on'
+        if search_first:
+            os.environ['BRIEFING_SEARCH_FIRST'] = 'on'
         os.environ.pop('BRIEFING_TESTING', None)
         _assert_imported_paths_are_isolated(state)
         try:
@@ -176,17 +183,27 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
 def _print_funnel(scorecard: dict, selected: dict) -> None:
     diagnostics = scorecard.get('candidate_pool_diagnostics', {}) if isinstance(scorecard, dict) else {}
     reasons = scorecard.get('funnel_drop_reasons', {}) if isinstance(scorecard, dict) else {}
+    retrieval = scorecard.get('retrieval_fill', {}) if isinstance(scorecard, dict) else {}
     if not diagnostics:
         return
     print('\nPer-topic supply funnel:')
-    print('| Topic | Fetched | Topic-matched | Relevance-passed | Unseen | Selected | Drop reasons |')
-    print('|---|---:|---:|---:|---:|---:|---|')
+    print('| Topic | Fetched | Topic-matched | Relevance-passed | Clustered | Unseen | Candidate pool | Selected | Drop reasons |')
+    print('|---|---:|---:|---:|---:|---:|---:|---:|---|')
     for topic_id, row in diagnostics.items():
         drops = reasons.get(topic_id, {})
         drop_text = ', '.join(f'{key}: {value}' for key, value in sorted(drops.items())) or 'none'
         print(f"| {topic_id} | {row.get('fetched', 0)} | {row.get('topic_matched', 0)} | "
-              f"{row.get('relevance_passed', 0)} | {row.get('unseen', 0)} | "
+              f"{row.get('relevance_passed', 0)} | {row.get('clustered', 0)} | "
+              f"{row.get('unseen', 0)} | {row.get('candidate_clusters', 0)} | "
               f"{selected.get(topic_id, row.get('selected', 0))} | {drop_text} |")
+    if isinstance(retrieval, dict) and retrieval.get('triggered'):
+        from dev.ingest.retrieval_fill import safe_report
+        retrieval = safe_report(retrieval)
+        summary = {key: retrieval.get(key, 0) for key in (
+            'search_first', 'topics_searched', 'grounding_requests', 'search_requests',
+            'candidates_considered', 'candidates_added', 'guarded_reads', 'quality_passed',
+            'novelty_passed', 'rejected', 'provider_statuses', 'providers')}
+        print('Open-web fallback: ' + json.dumps(summary, sort_keys=True))
 
 
 def _print_failed_daily_cost(before: dict, started: float) -> None:
@@ -267,8 +284,8 @@ def _poll_daily(job_id: str) -> dict:
     raise TimeoutError('daily generation exceeded ten-minute runner limit')
 
 
-def run_daily() -> int:
-    with isolated_run() as state:
+def run_daily(*, search_first=False) -> int:
+    with isolated_run(search_first=search_first) as state:
         from dev.ingest import core
         from dev.ingest.generation_api import start_generation
         original_ingest = core.ingest_enabled
@@ -333,13 +350,15 @@ def run_daily() -> int:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='kind', required=True)
-    sub.add_parser('daily', help='generate one real daily edition')
+    daily = sub.add_parser('daily', help='generate one real daily edition')
+    daily.add_argument('--search-first', action='store_true',
+                       help='use open-web retrieval before feed candidates')
     episode = sub.add_parser('episode', help='generate one real on-demand episode')
     episode.add_argument('question')
     episode.add_argument('--minutes', type=int, choices=(3, 5, 10, 15), default=DEFAULT_MINUTES)
     args = parser.parse_args(argv)
     if args.kind == 'daily':
-        return run_daily()
+        return run_daily(search_first=args.search_first)
     return run_episode(args.question, args.minutes)
 
 
