@@ -2085,6 +2085,11 @@ class EpisodeJobStoreTests(unittest.TestCase):
                          ['what-changed', 'why-it-matters', 'streaming-close'])
         self.assertEqual(job['episode']['transcript'].split('\n\n')[-1],
                          "That's all I could confirm.")
+        self.assertEqual(job['episode']['script_hash'], sha256(
+            job['episode']['transcript'].encode('utf-8')).hexdigest())
+        self.assertEqual(job['episode']['chapters'][0]['spoken_text'],
+                         generated['chapters'][0]['spoken_text'])
+        self.assertEqual(job['streaming']['progress'], 1.0)
         self.assertEqual(calls[-1], ['streaming-close'])
 
     def test_streaming_cancel_midway_stops_and_keeps_only_published_chapter(self):
