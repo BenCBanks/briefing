@@ -100,8 +100,9 @@ async function checkContrast(page) {
   await page.locator('.today-run-summary').waitFor();
   assert.equal(await page.locator('.today-title').innerText(), 'Your daily briefing');
   assert.equal(await page.locator('.today-run-meta').innerText(), '3 stories · about 2 min');
-  assert.equal(await page.locator('.today-completion strong').innerText(), "You're caught up for today.");
-  assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow morning');
+  assert.equal(await page.locator('.today-completion').isVisible(), false, 'Today does not show its ending before the edition has played');
+  assert.equal(await page.locator('.today-completion strong').textContent(), "You're caught up for today.");
+  assert.equal(await page.locator('.today-completion span').textContent(), 'Next briefing tomorrow morning');
   const navIcons = await page.locator('.main-nav-icon').evaluateAll(icons=>icons.map(icon=>[icon.getBoundingClientRect().width,icon.getBoundingClientRect().height,getComputedStyle(icon).strokeWidth]));
   assert.deepEqual(navIcons,Array.from({length:4},()=>[24,24,'1.8px']),'Navigation icons share a 24px box and 1.8px stroke');
   const saveIcon = await page.locator('.story-bookmark svg').first().evaluate(icon=>[icon.getBoundingClientRect().width,icon.getBoundingClientRect().height,getComputedStyle(icon).strokeWidth]);
@@ -151,8 +152,9 @@ async function checkContrast(page) {
   assert.equal(await page.locator('.today-page .episode-entry-prompt').getAttribute('href'), '#ask-episode', 'The Today-to-On-demand link opens the On demand tab route');
   assert.doesNotMatch(editionRendererSource, /\b(?:No stories today|nothing today)\b/i, 'The Today renderer contains no rejected quiet-day copy');
   assert.doesNotMatch(await page.locator('body').innerText(), /\b(?:No stories today|nothing today)\b/i, 'The Today experience never suggests that a topic has no stories today');
-  assert.equal(await page.locator('.today-completion strong').innerText(), "You're caught up for today.");
-  assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow morning');
+  assert.equal(await page.locator('.today-completion').isVisible(), false, 'a longer edition also keeps the ending until playback completes');
+  assert.equal(await page.locator('.today-completion strong').textContent(), "You're caught up for today.");
+  assert.equal(await page.locator('.today-completion span').textContent(), 'Next briefing tomorrow morning');
   assert.equal(await page.locator('.today-chapter-title').count(),3);
   assert.equal(await page.locator('.today-quick-hits').count(),1,'Server-approved quick hits render on Today');
   assert.equal(await page.locator('.today-quick-hits li').count(),4,'Quick hits show three to five approved rows');
@@ -312,11 +314,11 @@ async function checkContrast(page) {
   await page.evaluate(() => localStorage.setItem('briefing:v1:daily-time', '06:30'));
   await page.locator('[data-nav="on-demand"]').click(); await page.locator('.episode-request-page').waitFor();
   await page.locator('[data-nav="today"]').click(); await page.locator('.today-page').waitFor();
-  assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow morning', 'Today never exposes the internal build time');
+  assert.equal(await page.locator('.today-completion span').textContent(), 'Next briefing tomorrow morning', 'Today never exposes the internal build time');
   await page.evaluate(() => localStorage.setItem('briefing:v1:daily-time', '05:00'));
   await page.locator('[data-nav="on-demand"]').click(); await page.locator('.episode-request-page').waitFor();
   await page.locator('[data-nav="today"]').click(); await page.locator('.today-page').waitFor();
-  assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow morning');
+  assert.equal(await page.locator('.today-completion span').textContent(), 'Next briefing tomorrow morning');
   // Known duration, available narration with unknown duration, and no playback.
   for (const [available,duration,label] of [[true,180,'Listen · about 3 min'],[true,undefined,'Listen · about 1 min'],[false,180,null]]) {
    await page.evaluate(async ({edition,sources,available,duration})=>{const {renderToday}=await import('/src/edition/edition.js');renderToday(document.querySelector('main'),{...edition,audio:{duration_seconds:duration}},[],{sources,listeningAvailable:available});},{edition,sources,available,duration});
