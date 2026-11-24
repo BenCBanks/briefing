@@ -48,13 +48,16 @@ async function run() {
       sectionId: section.id, inline: true, expanded: true,
       sources: registry, listeningAvailable: false,
     });
-    const sources = [...container.innerHTML.matchAll(/<button data-source="([^"]+)">([^<]+)<\/button>/gu)];
+    const sources = [...container.innerHTML.matchAll(/<button data-source="([^"]+)" aria-label="([^"]+)">([^<]+)<\/button>/gu)];
     const eligibleIds = story.source_ids.filter(id => currentSources.some(source => source.id === id));
     assert.deepEqual(sources.map(match => match[1]), eligibleIds,
       `${story.id} Today source rows follow current source_ids and exclude withdrawn history`);
     const expectedRows = eligibleIds.map(id => currentSources.find(source => source.id === id));
     const sourceDate = source => { const date = new Date(`${source.published_at}T12:00:00Z`); return new Intl.DateTimeFormat('en-GB', { day: 'numeric', month: 'short', timeZone: 'UTC' }).format(date); };
     assert.deepEqual(sources.map(match => match[2]),
+      expectedRows.map(source => `Open source from ${source.publisher}`),
+      `${story.id} Today source buttons have publisher-specific accessible names`);
+    assert.deepEqual(sources.map(match => match[3]),
       expectedRows.map(source => `${source.publisher} · ${sourceDate(source)}`),
       `${story.id} Today source rows use the current publisher and date`);
     assert.ok(container.innerHTML.includes(`data-source="${expectedRows[0].id}"`),
@@ -110,7 +113,7 @@ async function run() {
   });
   assert.match(legacyContainer.innerHTML, /data-source="legacy-embedded-source"/u,
     'standalone legacy renders keep an embedded source when no current registry is supplied');
-  assert.match(legacyContainer.innerHTML, /<button data-source="legacy-embedded-source">Fictional Legacy Desk<\/button>/u,
+  assert.match(legacyContainer.innerHTML, /<button data-source="legacy-embedded-source" aria-label="Open source from Fictional Legacy Desk">Fictional Legacy Desk<\/button>/u,
     'Today lists the publisher while the source action resolves its full details');
   assert.doesNotMatch(legacyContainer.innerHTML, /legacy-embedded-withdrawn|Legacy withdrawn source title|legacy-withdrawn/u,
     'legacy embedded-source fallback still excludes withdrawn source history');

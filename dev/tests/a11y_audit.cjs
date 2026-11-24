@@ -161,7 +161,10 @@ async function assertStructure(page, route) {
     if (main.querySelector('[aria-modal="true"]')) return { lastBottom: 0, barTop: innerHeight };
     const last = [...main.querySelectorAll('a[href],button,summary,input,textarea,select')].filter(el => el.getClientRects().length).at(-1);
     const fixed = [...document.querySelectorAll('.main-nav,.mini-player')].filter(el => getComputedStyle(el).position === 'fixed' && el.getBoundingClientRect().height > 0 && getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().right > main.getBoundingClientRect().left && el.getBoundingClientRect().left < main.getBoundingClientRect().right);
-    return { lastBottom: last?.getBoundingClientRect().bottom || 0, barTop: fixed.length ? Math.min(...fixed.map(el => el.getBoundingClientRect().top)) : innerHeight };
+    return { lastBottom: last?.getBoundingClientRect().bottom || 0, lastName: last?.getAttribute('aria-label') || last?.innerText || last?.tagName,
+      barTop: fixed.length ? Math.min(...fixed.map(el => el.getBoundingClientRect().top)) : innerHeight,
+      fixedBars: fixed.map(el => ({ name: el.className, rect: { top: el.getBoundingClientRect().top, bottom: el.getBoundingClientRect().bottom, height: el.getBoundingClientRect().height } })),
+      viewportHeight: innerHeight, mainPaddingBottom: getComputedStyle(main).paddingBottom, scrollY };
   });
   assert.ok(clearance.lastBottom <= clearance.barTop + 1, `${route}: last control clears fixed bars (${JSON.stringify(clearance)})`);
   if (route === 'episodes') assert.equal(await page.locator('.episode-deck-position[aria-live="polite"]').count(), 1, 'Deck position changes are announced');

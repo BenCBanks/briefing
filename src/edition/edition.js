@@ -407,10 +407,10 @@ export function renderEdition(container, edition, topics, actions = {}) {
   const sourceRows = references.map(source => {
     const published = shortDate(source.published_at || source.date || source.updated_at);
     const label = `${outlet(source)}${published ? ` · ${published}` : ''}`;
-    return `<li>${source.id ? `<button data-source="${esc(source.id)}">${esc(label)}</button>` : `<a href="${esc(safeExternalURL(source.url) || '#')}">${esc(label)}</a>`}</li>`;
+    return `<li>${source.id ? `<button data-source="${esc(source.id)}" aria-label="Open source from ${esc(outlet(source))}">${esc(label)}</button>` : `<a href="${esc(safeExternalURL(source.url) || '#')}">${esc(label)}</a>`}</li>`;
   }).join('');
   const sourceList = sourceRows ? `<section class="story-sources${inline ? ' inline-story-sources' : ''}" aria-label="Sources"><h2>Sources</h2><ul>${sourceRows}</ul></section>` : '';
-  const citations = references.map((source, index) => `<li>${references.length > 1 ? `<span class="citation-number">${index + 1}.</span>` : ''}${source.id ? `<button data-source="${esc(source.id)}">${esc(outlet(source))} · ${esc(source.title || 'Source details')}</button>` : `<a href="${esc(safeExternalURL(source.url) || '#')}">${esc(outlet(source))}</a>`}</li>`).join('');
+  const citations = references.map((source, index) => `<li>${references.length > 1 ? `<span class="citation-number">${index + 1}.</span>` : ''}${source.id ? `<button data-source="${esc(source.id)}" aria-label="Open source from ${esc(outlet(source))}: ${esc(source.title || 'source details')}">${esc(outlet(source))} · ${esc(source.title || 'Source details')}</button>` : `<a href="${esc(safeExternalURL(source.url) || '#')}">${esc(outlet(source))}</a>`}</li>`).join('');
   const moreId = `more-${section.id}`;
   const open = moreSectionIsOpen(edition, section, !inline || actions.expanded);
   const correctedAt = correction?.corrected_at ? new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit', timeZone: 'America/New_York', timeZoneName: 'short' }).format(new Date(correction.corrected_at)) : '';
