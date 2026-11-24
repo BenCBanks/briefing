@@ -25,7 +25,8 @@ from dev.ingest.episodes.generate import (EpisodeCancelled, EpisodeError, Gemini
                                          VERIFY_PROMPT, deterministic_check,
                                          balance_chapter_targets, evidence_pack, generate_episode, transcript, _score_text,
                                          _chapter_schema_error, _fallback_episode,
-                                         _hybrid_background_draft_valid, _is_explainer_request)
+                                         _hybrid_background_draft_valid, _is_explainer_request,
+                                         _answer_outline, _outline_pre_audio_issues)
 from dev.ingest.episodes.policy import WORDS_PER_MINUTE
 from dev.ingest.episodes.comparison import comparison_questions
 from dev.ingest.jobs import EpisodeJobStore
@@ -825,6 +826,94 @@ class EpisodeGenerationTests(unittest.TestCase):
             ordinary = generate_episode('How do fictional parcel lockers work?', **self.kwargs)
         self.assertFalse(ordinary['verification']['hybrid_background'])
         self.assertNotIn('The broad explanation comes from general knowledge.', ordinary['transcript'])
+
+    def test_answer_outline_preserves_order_and_separates_questions_without_evidence(self):
+        evidence = {'E-1': {'source_id': 'S-1'}, 'E-2': {'source_id': 'S-2'}}
+        plan = [{'question': 'How does it start?', 'source_ids': ['S-1'], 'target_words': 140},
+                {'question': 'What happens next?', 'source_ids': [], 'target_words': 140},
+                {'question': 'What does the review show?', 'evidence_ids': ['E-2'], 'target_words': 140}]
+        outline = _answer_outline(plan, evidence)
+        self.assertEqual([row['question'] for row in outline['questions']],
+                         ['How does it start?', 'What does the review show?'])
+        self.assertEqual([row['evidence_ids'] for row in outline['questions']], [['E-1'], ['E-2']])
+        self.assertEqual(outline['not_found'], ['What happens next?'])
+
+    def test_outline_pre_audio_check_rejects_cutoffs_long_paragraphs_and_missing_gap_beat(self):
+        outline = {'questions': [{'question': 'How does it work?', 'evidence_ids': ['E-1']}],
+                   'not_found': ['What happens next?']}
+        good = {'chapters': [
+            {'sentences': [{'text': "Let's start with the basic process.", 'kind': 'opening', 'evidence_ids': []},
+                           {'text': 'The fictional system uses a collection code at its door.',
+                            'kind': 'claim', 'evidence_ids': ['E-1']}]},
+            {'sentences': [{'text': "I couldn't confirm what happens after the review, so I'll leave that out.",
+                            'kind': 'editorial', 'evidence_ids': []}]}]}
+        self.assertEqual(_outline_pre_audio_issues(good, outline), [])
+        mis_mapped = deepcopy(good)
+        mis_mapped['chapters'][0]['sentences'][1]['evidence_ids'] = ['E-OTHER']
+        self.assertIn('paragraph_not_mapped_to_outline_question',
+                      _outline_pre_audio_issues(mis_mapped, outline))
+        bad = deepcopy(good)
+        bad['chapters'][0]['sentences'][1]['text'] = 'The fictional system uses a collection code'
+        bad['chapters'][1]['sentences'][0]['text'] = 'There is still more to learn.'
+        self.assertIn('cut_off_sentence', _outline_pre_audio_issues(bad, outline))
+        self.assertIn('not_found_gap_missing_or_not_its_own_beat', _outline_pre_audio_issues(bad, outline))
+        long = deepcopy(good)
+        long['chapters'][0]['sentences'][1]['text'] = ' '.join(['detail'] * 111) + '.'
+        self.assertIn('paragraph_too_long', _outline_pre_audio_issues(long, outline))
+
+    def test_flagged_outline_writer_uses_outline_and_reports_pre_audio_result(self):
+        base = Client()
+        calls = []
+        outline_writes = 0
+
+        class OutlineClient:
+            model = 'fictional-model'
+            usage = {'input_tokens': 10, 'output_tokens': 10}
+
+            def __call__(self, system, payload, schema, timeout):
+                nonlocal outline_writes
+                calls.append((system, deepcopy(payload)))
+                if 'answer_outline' not in payload:
+                    return base(system, payload, schema, timeout)
+                outline_writes += 1
+                outline = payload['answer_outline']
+                chapters = []
+                for index, question in enumerate(outline['questions']):
+                    ident = question['evidence_ids'][0]
+                    sentences = []
+                    if index == 0:
+                        sentences.append({'text': "Let's start with the basic process.",
+                                          'kind': 'opening', 'evidence_ids': []})
+                    sentences.append({'text': payload['evidence'][ident]['text'], 'kind': 'claim',
+                                      'evidence_ids': [ident]})
+                    if index == len(outline['questions']) - 1:
+                        sentences[-1]['kind'] = 'closing'
+                    chapters.append({'title': 'The process', 'title_evidence_ids': [ident],
+                                     'sentences': sentences})
+                if outline['not_found']:
+                    chapters.append({'title': 'What remains unclear', 'title_evidence_ids': [],
+                        'sentences': [{'text': "I couldn't confirm that detail, so I'll leave it out.",
+                                       'kind': 'editorial', 'evidence_ids': []}]})
+                if outline_writes == 1:
+                    chapters[-1]['sentences'][-1]['text'] = chapters[-1]['sentences'][-1]['text'].rstrip('.!?')
+                return {'chapters': chapters, 'could_not_confirm': outline['not_found']}
+
+        self.kwargs['client'] = OutlineClient()
+        with patch.dict('os.environ', {'BRIEFING_EPISODE_OUTLINE_WRITER': 'on'}):
+            episode = generate_episode(TOPIC, 5, 'explainer', **self.kwargs)
+        self.assertTrue(episode['verification']['outline_pre_audio']['passed'],
+                        episode['verification']['outline_pre_audio'])
+        outline_calls = [(system, payload) for system, payload in calls if 'answer_outline' in payload]
+        self.assertEqual(len(outline_calls), 2)
+        self.assertIn('OUTLINE-FIRST HOST PASS', outline_calls[0][0])
+        self.assertTrue(episode['verification']['outline_pre_audio']['rewrite_attempted'])
+        self.assertTrue(any('repair_hint' in payload for _, payload in outline_calls))
+        self.assertEqual(outline_calls[0][1]['evidence'], outline_calls[1][1]['evidence'],
+                         'the rewrite reuses the same evidence without new research')
+        self.kwargs['client'] = Client()
+        with patch.dict('os.environ', {'BRIEFING_EPISODE_OUTLINE_WRITER': 'off'}):
+            default_episode = generate_episode(TOPIC, 5, 'explainer', **self.kwargs)
+        self.assertNotIn('outline_pre_audio', default_episode['verification'])
 
     def test_thin_evidence_fallback_repeats_only_extracted_sentence(self):
         evidence = {'E-1': {'id': 'E-1', 'text': 'A fictional source describes a parcel locker trial.',
