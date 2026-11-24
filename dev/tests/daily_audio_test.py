@@ -16,12 +16,14 @@ import wave
 from datetime import datetime
 import io
 from unittest.mock import patch
+from zoneinfo import ZoneInfo
 
 from dev.ingest.daily_audio import daily_episode_from_edition, render_daily_audio
 from dev.ingest.episodes_audio import current_audio_asset, render_episode_audio
 from dev.ingest.paths import profile_identifier
 from dev.ingest.tts.base import TtsResult
 from dev.ingest.tts.gemini import DEFAULT_MODEL
+from dev.ingest.usage import UsageLedger
 
 
 PROFILE = {'minutes': 12, 'topics': [{'id': 'fiction', 'label': 'Fictional topic'}]}
@@ -99,6 +101,22 @@ class DailyAudioTests(unittest.TestCase):
         self.assertEqual([row['duration_seconds'] for row in result['chapter_offsets']], [150.0, 150.0])
         self.assertEqual(len(provider.calls), 2)
         self.assertEqual(result['voice_name'], 'Kore')
+
+    def test_episode_tts_spend_does_not_exhaust_daily_audio_cap_early(self):
+        ledger = UsageLedger(ledger_dir=Path(self.temp.name) / 'ledger')
+        now = datetime(2026, 11, 18, 9, tzinfo=ZoneInfo('America/New_York'))
+        ledger.record_tts_usage(300_000, 900, model='fictional-tts',
+                                now=now)
+        self.assertEqual(ledger.daily_audio_budget_remaining(now),
+                         Decimal('0.32750000'))
+
+        provider = FiveMinuteFakeProvider()
+        result = render_daily_audio(
+            EDITION, profile=PROFILE, voice_file=self.voice_file,
+            state_dir=Path(self.temp.name) / 'state', ledger=ledger, provider=provider)
+
+        self.assertEqual(result['audio_status'], 'ready')
+        self.assertEqual(len(provider.calls), 2)
 
     def test_material_correction_gets_new_audio_hash_and_retry_reuses_asset(self):
         provider = FiveMinuteFakeProvider()

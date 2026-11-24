@@ -360,10 +360,12 @@ class UsageLedger:
         day_key, _ = self._periods(now)
         def read(state):
             bucket = self._bucket(state['days'], day_key)
-            chars = max(0, int(bucket.get('tts_characters', 0)))
-            seconds = Decimal(chars) / Decimal(self.config['_tts_chars_per_second'])
-            return max(Decimal(0), self.config['_daily_reserve'] -
-                       self.estimate_tts_cost(chars, seconds)), False
+            spent = _decimal(bucket.get('estimated_cost_usd', '0'), 'daily total')
+            # Daily audio is part of the daily caller, which may use the
+            # protected reserve. Subtracting prior TTS usage from the reserve
+            # double-counted episode audio and could refuse the scheduled daily
+            # render even while the ledger still had room under the hard cap.
+            return max(Decimal(0), self.config['_daily_cap'] - spent), False
         return self._transaction(read)
 
     def episode_record(self, job_id):
