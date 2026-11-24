@@ -28,6 +28,7 @@ import { renderSettingsScreen } from './screens/settings.js';
 import { renderTodayScreen } from './screens/today.js';
 import { renderEarlierScreen } from './screens/earlier.js';
 import { renderInterestDescribe as renderInterestDescribeScreen, renderInterestConfirm as renderInterestConfirmScreen, renderInterestBuild as renderInterestBuildScreen } from './screens/interests.js';
+import { createInterestFlowController } from './screens/interest-flow-controller.js';
 import { renderInterestsManagementScreen } from './screens/interests-management.js';
 import { episodeHistoryState, episodeHistoryDismissed, saveEpisodeHistoryDismissed, renderEpisodeHistory as renderEpisodeHistoryScreen, renderEpisodeMakingFromHistory as renderEpisodeMakingFromHistoryScreen } from './screens/episode-history.js';
 import { EPISODE_STAGE_FIXTURES, announceEpisodeStage as announceEpisodeStageView, episodeStageIndex, episodeStageTitle, episodeHasReadyAudio, episodeLengthCopy, renderEpisodeMakingPage as renderEpisodeMakingScreen, updateEpisodeMakingView as updateEpisodeMakingScreen } from './screens/episode-making.js';
@@ -1409,308 +1410,70 @@ function renderSourcePage(id) {
   content.append(row);
 }
 
-function interestOriginHash() {
-  return history.state?.routeContext?.interestReturnHash || '#today';
-}
-
-function navigateInterest(hash) {
-  const routeContext = history.state?.routeContext || {};
-  const currentHash = location.hash || '#today';
-  navigate(hash, {
-    root: routeContext.root || rootForHash(currentHash),
-    parentHash: currentHash,
-    parentScroll: window.scrollY,
-    parentFocus: focusToken(),
-    interestReturnHash: routeContext.interestReturnHash || (currentHash === '#preferences' ? '#preferences' : '#today'),
-  });
-}
-
-function renderInterestTopbar(step) {
-  const context = history.state?.routeContext || {};
-  const parent = context.parentHash;
-  if (!parent || context.firstRun) return;
-  const label = parent === '#preferences' ? 'Settings' : parent === '#interests/confirm' ? 'What I heard' : 'Describe';
-  const sticky = node('div', null, 'reader-sticky interest-reader-sticky');
-  const backButton = node('button', `‹ ${label}`, 'reader-back');
-  backButton.type = 'button';
-  backButton.addEventListener('click', back);
-  sticky.append(backButton, node('span', step, 'interest-step'));
-  content.append(sticky);
-}
-
-function renderInterestDescribe() {
-  renderInterestDescribeScreen({
-    content, node, draft: interestDraft, profile: interestProfile, dailyTime: dailyTimeValue(),
-    onDailyTimeChange: value => { try { localStorage.setItem(DAILY_TIME_KEY, value); } catch { /* Keep this visit's choice. */ } },
-    interpret, topics: pack.topics, minutes: state.durationMinutes, errorMessage: interestInterpretError,
-    onBuild: words => {
-      interestInterpretError = '';
-      interestDraft = { profile: { ...(interestProfile || {}), words } };
-      navigate('#interests/build', { root: 'today', parentHash: '#interests/describe', firstRun: true });
-      void runFirstBuild(words);
-    },
-  });
-}
-
-const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-function renderInterestBuild() {
-  renderInterestBuildScreen({
-    content, node, profile: interestDraft?.profile || interestProfile, question: buildQuestion, buildChipLabel,
-    onRemoveTopic: removeBuildTopic,
-    onEditWords: () => { clearFirstRunBuild(); buildInProgress = false; navigate('#interests/describe', { root: 'today', parentHash: '#interests/build', firstRun: true }); },
-    onGoToday: () => navigate('#today', { root: 'today', parentHash: null }),
-    scheduleTimeout: callback => {
-      if (buildTimeoutHandle) return;
-      buildTimeoutHandle = setTimeout(() => { buildTimeoutHandle = null; callback(); }, 20000);
-    },
-  });
-}
-
-function setBuildStep(index, found = null, writingMessage = null) {
-  const labels = ['Understanding your words', 'Finding today’s stories', 'Writing your briefing'];
-  const steps = [...content.querySelectorAll('.build-progress-step')];
-  steps.forEach((step, current) => {
-    if (labels[current]) step.textContent = labels[current];
-    step.setAttribute('aria-current', current === index ? 'step' : 'false');
-    step.classList.toggle('is-complete', current < index);
-  });
-  if (index === 1 && found != null && steps[1]) steps[1].textContent = `Finding today’s stories (${found} found)`;
-  if (index === 2 && steps[2]) {
-    const match = String(writingMessage || '').match(/writing\s+story\s+(?:candidate\s+)?(\d+)\s+of\s+(\d+)/i);
-    if (match) steps[2].textContent = `Writing story ${match[1]} of ${match[2]}`;
-  }
-}
-
-async function runFirstBuild(words) {
-  const attempt = ++buildAttempt;
-  buildNotice = ''; sessionStorage.removeItem('briefing:build-error'); buildQuestion = '';
-  renderInterestBuild();
-  try {
-    const result = await interpretProfile(words, { topics: pack.topics, minutes: state.durationMinutes });
-    if (attempt !== buildAttempt) return;
-    if (result.fallbackError || !result.profile?.topics?.length) {
-      interestDraft = { profile: { ...(interestProfile || defaultProfile(pack.topics)), words } };
-      interestInterpretError = result.fallbackError ? 'I could not pick out topics. Try naming a few, like payment rules.' : 'I could not pick out topics. Try naming a few, like payment rules.';
-      navigate('#interests/describe', { root: 'today', parentHash: '#interests/build', firstRun: true }); return;
-    }
-    buildQuestion = result.question || '';
-    interestProfile = saveProfile(result.profile); interestDraft = { profile: interestProfile };
-    writeFirstRunBuild(interestProfile);
-    sessionStorage.setItem(FIRST_EDITION_WELCOME_PENDING_KEY, profileBuildKey(interestProfile));
-    renderInterestBuild(); setBuildStep(1);
-    await startBuildGeneration(interestProfile, attempt, { firstRun: true });
-  } catch {
-    if (attempt !== buildAttempt) return;
-    interestDraft = { profile: { ...(interestProfile || defaultProfile(pack.topics)), words } };
-    interestInterpretError = 'I could not pick out topics. Try naming a few, like payment rules.';
-    navigate('#interests/describe', { root: 'today', parentHash: '#interests/build', firstRun: true });
-  }
-}
-
-async function startBuildGeneration(profile, parentAttempt = null, options = {}) {
-  const attempt = parentAttempt ?? ++buildAttempt;
-  buildInProgress = true; topicsError = '';
-  if (pendingTopicsUpdate()) setTopicsProgress('Saving your interests…');
-  buildNotice = ''; sessionStorage.removeItem('briefing:build-error'); buildStartedAt = Date.now();
-  if (!options.inline) { renderInterestBuild(); setBuildStep(1); }
-  try {
-    try { await syncProfile(profile); } catch (error) { if (pendingTopicsUpdate()) throw error; }
-    if (attempt !== buildAttempt) return;
-    if (pendingTopicsUpdate()) setTopicsProgress('Finding stories…');
-    let jobId = options.resumeJobId || null;
-    if (!jobId) {
-      const response = await fetch('/api/generate', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ profile }) });
-      if (!response.ok) throw new Error('generation_failed');
-      const started = await response.json();
-      const jobValue = started.job ?? started.job_id;
-      jobId = typeof jobValue === 'string' || typeof jobValue === 'number' ? String(jobValue) : jobValue?.id || jobValue?.job_id;
-      if (jobId && options.firstRun) writeFirstRunBuild(profile, jobId);
-    }
-    if (!jobId) throw new Error('generation_failed');
-    // Vale permits a generation job to run for up to 180 seconds. Keep polling
-    // through that window, with room for request and scheduling overhead.
-    for (let poll = 0; poll < 210; poll += 1) {
-      if (attempt !== buildAttempt) return;
-      const jobResponse = await fetch(`/api/generate/${encodeURIComponent(jobId)}`, { cache: 'no-store' });
-      if (!jobResponse.ok) throw new Error('generation_failed');
-      const job = await jobResponse.json();
-      if (attempt !== buildAttempt) return;
-      const progress = job.progress || {};
-      const stepName = typeof progress === 'string' ? progress.toLowerCase()
-        : String(progress.stage || progress.step || '').toLowerCase();
-      const found = typeof progress === 'object'
-        ? (progress.found ?? progress.stories_found ?? progress.story_count ?? progress.count)
-        : job.found;
-      if (/writing|write/.test(stepName)) setBuildStep(2, null, progress.message || job.message);
-      else if (/scoring|scorecard|edition_writer/.test(stepName)) setBuildStep(2);
-      else if (/finding|story|fetching|feed_fetch/.test(stepName) || found != null) setBuildStep(1, found);
-      if (pendingTopicsUpdate()) setTopicsProgress(topicsProgressFor(stepName, found, progress, job));
-      if (job.status === 'failed' || job.status === 'error') throw new Error('generation_failed');
-      if (job.status === 'ready' || job.status === 'complete' || job.edition_ready) {
-        setBuildStep(3);
-        if (pendingTopicsUpdate()) setTopicsProgress('Checking your new briefing…');
-        let loaded = await loadPack(true);
-        const ready = typeof job.edition_ready === 'object' ? job.edition_ready : null;
-        if (ready?.edition) loaded.editions = [ready.edition, ...loaded.editions.filter(item => item.id !== ready.edition.id)];
-        if (Array.isArray(ready?.sources)) loaded.sources = [...new Map([...loaded.sources, ...ready.sources].map(item => [item.id, item])).values()];
-        if (attempt !== buildAttempt) return;
-        const pending = pendingTopicsUpdate();
-        if (pending) {
-          const fresh = ready?.edition;
-          if (!fresh?.generated || pending.revisions.includes(fresh.id + ':' + fresh.revision_id)) throw new Error('stale_edition');
-          // Only the completed job's daily may become Today, even if an older response has a later date.
-          loaded.editions = [fresh, ...loaded.editions.filter(item => item.kind !== 'daily' || item.local_date < fresh.local_date)];
-        }
-        pack = validatePack(loaded);
-        if (!currentEdition('daily')) throw new Error('generation_failed');
-        buildInProgress = false; topicsUpdating = false; topicsProgress = ''; topicsError = '';
-        localStorage.removeItem(TOPICS_PENDING_KEY);
-        sessionStorage.removeItem(TOPICS_DRAFT_KEY); topicsDraft = null;
-        localStorage.setItem('briefing:v1:built-profile-key', profileBuildKey(profile));
-        if (sessionStorage.getItem(FIRST_EDITION_WELCOME_PENDING_KEY) === profileBuildKey(profile)) {
-          sessionStorage.setItem(FIRST_EDITION_WELCOME_KEY, profileBuildKey(profile));
-          sessionStorage.removeItem(FIRST_EDITION_WELCOME_PENDING_KEY);
-        }
-        localStorage.removeItem(BUILD_GENERAL_FALLBACK_KEY);
-        if (options.firstRun) clearFirstRunBuild();
-        buildNotice = ''; sessionStorage.removeItem('briefing:build-error'); clearTimeout(buildTimeoutHandle); buildTimeoutHandle = null;
-        if (!options.inline || options.returnToday || location.hash === '#today' || location.hash === '#topics') navigate('#today', { root: 'today', parentHash: null });
-        return;
-      }
-      await wait(1000);
-    }
-    throw new Error('generation_timeout');
-  } catch {
-    if (attempt !== buildAttempt) return;
-    buildInProgress = false;
-    if (options.firstRun) clearFirstRunBuild();
-    if (pendingTopicsUpdate()) {
-      topicsUpdating = false; topicsProgress = '';
-      topicsError = "We couldn't build it right now. Your last briefing is still here.";
-      if (location.hash === '#topics' || location.hash === '#today') route();
-      return;
-    }
-    if (await showGeneralEditionFallback(profile, attempt)) return;
-    clearTimeout(buildTimeoutHandle); buildTimeoutHandle = null;
-    buildNotice = 'Today’s stories did not load'; sessionStorage.setItem('briefing:build-error', buildNotice);
-    navigate('#today', { root: 'today', parentHash: null });
-  }
-}
-
-function removeBuildTopic(id) {
-  const profile = interestProfile || interestDraft?.profile;
-  const index = profile.topics.findIndex(topic => topic.id === id);
-  if (index < 0) return;
-  const value = profile.topics.splice(index, 1)[0];
-  profile.muted = [...(profile.muted || []).filter(item => item.label !== value.label), { label: value.label }];
-  interestProfile = saveProfile(profile); interestDraft = { profile: interestProfile };
-  if (removedBuildTopic) clearTimeout(removedBuildTopic.timer);
-  const entry = { topic: { value, index }, timer: null };
-  entry.timer = setTimeout(() => { if (removedBuildTopic === entry) removedBuildTopic = null; }, 4000);
-  removedBuildTopic = entry;
-  showToast(`Removed ${value.label}.`, { actionLabel: 'Undo', onAction: () => {
-    if (removedBuildTopic !== entry) return;
-    clearTimeout(entry.timer); removedBuildTopic = null;
-    interestProfile.topics.splice(index, 0, value);
-    interestProfile.muted = (interestProfile.muted || []).filter(item => item.label !== value.label);
-    updateInterestMuted(interestProfile); interestProfile = saveProfile(interestProfile); interestDraft = { profile: interestProfile }; renderInterestBuild(); void startBuildGeneration(interestProfile);
-  } });
-  renderInterestBuild(); void startBuildGeneration(interestProfile);
-}
-
-function updateDescribeInterpretationState() {
-  const words = document.querySelector('#interest-words');
-  if (!words) return;
-  const guidance = document.querySelector('#interest-guidance');
-  const counter = document.querySelector('#interest-counter');
-  const submit = document.querySelector('.interest-form-actions button[type="submit"]');
-  const cancel = document.querySelector('.interest-cancel');
-  const error = document.querySelector('.interest-form-error');
-  const length = words.value.length;
-  if (counter) counter.textContent = `${length.toLocaleString()} / 2,000 characters`;
-  if (counter) counter.hidden = length < 1800;
-  if (guidance) guidance.textContent = interestInterpretBusy ? 'Interpreting…' : interestInterpretStatus;
-  if (submit) submit.disabled = false;
-  words.disabled = interestInterpretBusy;
-  if (cancel) cancel.hidden = !interestInterpretBusy;
-  if (error) error.textContent = interestInterpretError || '';
-}
-
-function cancelInterestInterpretation() {
-  interestInterpretController?.abort();
-  interestInterpretController = null;
-  interestInterpretBusy = false;
-  interestInterpretError = null;
-  interestInterpretStatus = 'Canceled. Your words are still here.';
-  if (location.hash === '#interests/confirm') renderInterestConfirm();
-  else updateDescribeInterpretationState();
-}
-
-async function runInterestInterpretation(words, destination, localOnly = false) {
-  interestInterpretController?.abort();
-  const controller = new AbortController();
-  interestInterpretController = controller;
-  interestInterpretBusy = true;
-  interestInterpretError = null;
-  interestInterpretStatus = 'Interpreting…';
-  if (destination === 'confirm') renderInterestConfirm();
-  else updateDescribeInterpretationState();
-  try {
-    const result = await interpretProfile(words, {
-      topics: pack.topics,
-      minutes: state.durationMinutes,
-      signal: controller.signal,
-      localOnly,
-    });
-    if (interestInterpretController !== controller) return;
-    interestDraft = result;
-    interestInterpretError = result.fallbackError || null;
-    interestInterpretStatus = '';
-    interestInterpretBusy = false;
-    interestInterpretController = null;
-    if (destination === 'describe') navigateInterest('#interests/confirm');
-    else renderInterestConfirm();
-  } catch (error) {
-    if (interestInterpretController !== controller) return;
-    interestInterpretController = null;
-    interestInterpretBusy = false;
-    interestInterpretError = 'Something went wrong while interpreting your words. You can retry or use basic matching.';
-    interestInterpretStatus = '';
-    if (destination === 'confirm') renderInterestConfirm();
-    else updateDescribeInterpretationState();
-  }
-}
-
-function updateInterestMuted(profile) {
-  const labels = new Map();
-  for (const item of profile.muted || []) {
-    const label = String(item?.label || '').trim();
-    if (label) labels.set(label.toLocaleLowerCase(), { label });
-  }
-  profile.muted = [...labels.values()];
-}
-
-function persistInterestDraft(profile) {
-  updateInterestMuted(profile);
-  interestProfile = saveProfile(profile);
-}
-
-function renderInterestConfirm() {
-  if (!interestDraft) {
-    const words = interestProfile?.words || '';
-    interestDraft = interpret(words, { topics: pack.topics, minutes: state.durationMinutes });
-  }
-  renderInterestConfirmScreen({
-    content, node, draft: interestDraft, busy: interestInterpretBusy, errorMessage: interestInterpretError,
-    flags: interestDraft.flags, renderTopbar: renderInterestTopbar,
-    onCancel: cancelInterestInterpretation,
-    onRetry: () => void runInterestInterpretation(interestDraft.profile.words, 'confirm'),
-    onBasic: () => void runInterestInterpretation(interestDraft.profile.words, 'confirm', true),
-    onUpdate: (update, persist = true) => { update(); if (persist) persistInterestDraft(interestDraft.profile); renderInterestConfirm(); },
-    onEdit: () => navigateInterest('#interests/describe'),
-    onSave: profile => { persistInterestDraft(profile); interestDraft = null; navigate(interestOriginHash()); },
-  });
-}
+const interestFlowController = createInterestFlowController({
+  content, node, navigate, rootForHash, focusToken, back,
+  renderInterestDescribeScreen, dailyTimeValue, DAILY_TIME_KEY, interpret, buildChipLabel,
+  clearFirstRunBuild, interpretProfile, defaultProfile, saveProfile, writeFirstRunBuild,
+  profileBuildKey, FIRST_EDITION_WELCOME_PENDING_KEY, FIRST_EDITION_WELCOME_KEY, syncProfile, pendingTopicsUpdate,
+  setTopicsProgress, topicsProgressFor, loadPack, validatePack, currentEdition,
+  TOPICS_DRAFT_KEY, TOPICS_PENDING_KEY, BUILD_GENERAL_FALLBACK_KEY, showGeneralEditionFallback,
+  renderInterestBuildScreen, renderInterestConfirmScreen, route, showToast,
+  get interestDraft() { return interestDraft; },
+  set interestDraft(value) { interestDraft = value; },
+  get interestProfile() { return interestProfile; },
+  set interestProfile(value) { interestProfile = value; },
+  get interestInterpretController() { return interestInterpretController; },
+  set interestInterpretController(value) { interestInterpretController = value; },
+  get interestInterpretBusy() { return interestInterpretBusy; },
+  set interestInterpretBusy(value) { interestInterpretBusy = value; },
+  get interestInterpretError() { return interestInterpretError; },
+  set interestInterpretError(value) { interestInterpretError = value; },
+  get interestInterpretStatus() { return interestInterpretStatus; },
+  set interestInterpretStatus(value) { interestInterpretStatus = value; },
+  get buildAttempt() { return buildAttempt; },
+  set buildAttempt(value) { buildAttempt = value; },
+  get buildStartedAt() { return buildStartedAt; },
+  set buildStartedAt(value) { buildStartedAt = value; },
+  get buildTimeoutHandle() { return buildTimeoutHandle; },
+  set buildTimeoutHandle(value) { buildTimeoutHandle = value; },
+  get buildInProgress() { return buildInProgress; },
+  set buildInProgress(value) { buildInProgress = value; },
+  get buildNotice() { return buildNotice; },
+  set buildNotice(value) { buildNotice = value; },
+  get buildQuestion() { return buildQuestion; },
+  set buildQuestion(value) { buildQuestion = value; },
+  get removedBuildTopic() { return removedBuildTopic; },
+  set removedBuildTopic(value) { removedBuildTopic = value; },
+  get topicsError() { return topicsError; },
+  set topicsError(value) { topicsError = value; },
+  get topicsUpdating() { return topicsUpdating; },
+  set topicsUpdating(value) { topicsUpdating = value; },
+  get topicsProgress() { return topicsProgress; },
+  set topicsProgress(value) { topicsProgress = value; },
+  get topicsDraft() { return topicsDraft; },
+  set topicsDraft(value) { topicsDraft = value; },
+  get pack() { return pack; },
+  set pack(value) { pack = value; },
+  get state() { return state; },
+  set state(value) { state = value; },
+});
+const {
+  interestOriginHash,
+  navigateInterest,
+  renderInterestTopbar,
+  renderInterestDescribe,
+  renderInterestBuild,
+  setBuildStep,
+  runFirstBuild,
+  startBuildGeneration,
+  removeBuildTopic,
+  updateDescribeInterpretationState,
+  cancelInterestInterpretation,
+  runInterestInterpretation,
+  updateInterestMuted,
+  persistInterestDraft,
+  renderInterestConfirm,
+} = interestFlowController;
 
 function formatLastUpdated(value) {
   const date = value ? new Date(value) : null;
