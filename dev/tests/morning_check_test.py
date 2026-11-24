@@ -105,16 +105,28 @@ class MorningCheckTests(unittest.TestCase):
         self.assertEqual(lines[9], 'Feeds: 5 enabled · 0 backing off')
         self.assertIn('2 done', lines[10])
         self.assertIn('today $0.100000 / $0.500000 cap ($0.400000 left)', lines[11])
-        self.assertEqual(lines[12], 'Audio: daily ready · 5m 0s')
+        self.assertEqual(lines[12], 'Audio: recorded 5m')
         self.assertEqual(lines[13], 'Feed health: 5 enabled / 0 backing_off / 2 disabled_permanent (7 tracked)')
         self.assertEqual(lines[14], 'Top failing sources: alpha (5), bravo (4), charlie (3), delta (2), echo (1)')
 
         for audio_status in ('pending', 'failed'):
             payload['edition']['audio']['audio_status'] = audio_status
+            payload['edition']['audio']['reason'] = ('daily_budget' if audio_status == 'pending'
+                                                        else 'synthesis_failed')
             lines, _code = summarize('https://briefing.example.test', checks, fetch, today=TODAY,
                                     health_reader=lambda: health,
                                     backup_age_reader=lambda: 'Last backup age: unavailable')
-            self.assertEqual(lines[12], f'Audio: daily {audio_status} · 5m 0s')
+            expected_audio = ('Audio: pending (daily audio budget was used)' if audio_status == 'pending'
+                              else 'Audio: failed (audio synthesis failed)')
+            self.assertEqual(lines[12], expected_audio)
+
+    def test_audio_status_is_for_today_and_pending_reason_is_plain(self):
+        from dev.morning_check import daily_audio_line
+        edition = {'local_date': TODAY.isoformat(),
+                   'audio': {'audio_status': 'pending', 'reason': 'tts_disabled'}}
+        self.assertEqual(daily_audio_line(edition, TODAY), 'Audio: pending (audio is turned off)')
+        edition['local_date'] = '2026-11-17'
+        self.assertEqual(daily_audio_line(edition, TODAY), "Audio: unavailable (today's edition unavailable)")
 
     def test_morning_story_count_uses_short_two_fact_assessor(self):
         payload = sample_payload()
