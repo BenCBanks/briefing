@@ -1,10 +1,10 @@
 import { readEditionCache, writeEditionCache, clearEditionCache } from './edition/cache.js';
 import { renderEdition, renderToday, renderWeeklyRecap, editionDateRange, visibleSections, hasMaterialCorrection } from './edition/edition.js';
 import { revisionNumber, revisionDate, revisionGroup, compareRevision, currentRevision, currentItems, latestGeneratedDaily, newerEdition, includeNewerCachedEdition, displayDate, plainDate, briefingDate, firstReadableSection, dailyBriefings } from './edition/selectors.js';
-// Reed · generated editions: only corrections tied to the current revision affect playback and Corrected labels.
+// Narration · generated editions: only corrections tied to the current revision affect playback and Corrected labels.
 import { renderTopics, renderDeepDive } from './topics/topics.js';
 import { renderTopicDetail } from './topics/topic-detail.js';
-// Mica · episode pages and the API-backed request flow.
+// Interface · episode pages and the API-backed request flow.
 import { renderEpisodeDeck, renderEpisodePage } from './episodes/episodes.js';
 import { loadState, saveState, resetState, invalidateAudioProgress } from './storage.js';
 import { NARRATOR_KEY } from './player.js';
@@ -426,7 +426,7 @@ function validatePack(data) {
     const coverageIds = edition.coverage.map(row => row.topic_id);
     const uniqueCoverage = new Set(coverageIds).size === coverageIds.length;
     if (edition.generated === true) {
-      // Reed · generated editions can contain profile-defined topic IDs beyond the sample catalog.
+      // Narration · generated editions can contain profile-defined topic IDs beyond the sample catalog.
       const validGeneratedIds = coverageIds.every(id => typeof id === 'string' && /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(id));
       const sectionTopicIds = new Set(edition.sections.flatMap(section => section.topic_ids || []));
       if (!uniqueCoverage || !validGeneratedIds ||
@@ -516,7 +516,7 @@ function navigateTranscript(hash, placement) {
 function openSource(id) {
   const parent = remember(document.activeElement?.closest('.edition-section')?.id || null);
   parent.focus = { type: 'source', id }; parent.sourceID = id;
-  // Reed · preserve the source page's actual immediate parent for its Back label.
+  // Narration · preserve the source page's actual immediate parent for its Back label.
   navigate(`#source/${encodeURIComponent(id)}`, { root: rootForHash(parent.hash), parentHash: parent.hash, parentLabel: immediateParentLabel(parent.hash, history.state?.routeContext || {}), parentScroll: parent.scrollY, parentFocus: parent.focus, sectionId: parent.sectionId, parentType: parent.hash.startsWith('#explanation/') || parent.hash.startsWith('#topic/') || parent.hash.startsWith('#topic-detail/') ? 'explanation' : 'briefing' });
 }
 function openDeepDive(id, sectionId = null) {
@@ -711,7 +711,7 @@ function setFeedback(id, category) {
   if (type) signalCurrent(type, id);
   route();
 }
-// Mica · pass 010: shared read/listen estimates for Mica-owned surfaces.
+// Interface · pass 010: shared read/listen estimates for Interface-owned surfaces.
 function listenText(item) {
   if (typeof item === 'string') return item;
   const sections = item?.sections || [];
@@ -2468,7 +2468,7 @@ function route() {
   document.body.classList.toggle('is-topics', routeName === 'topics');
   document.body.classList.toggle('is-episodes-list', routeName === 'episodes');
   document.title = `${pageTitle} · Personal briefing`;
-  // Mica · pass 010 navigation: Settings is opened by the gear, so no reader tab is current there.
+  // Interface · pass 010 navigation: Settings is opened by the gear, so no reader tab is current there.
   for (const item of nav) {
     if (routeName === 'preferences') item.removeAttribute('aria-current');
     else if (item.dataset.nav === group) item.setAttribute('aria-current', 'page');

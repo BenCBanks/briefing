@@ -618,7 +618,7 @@ async function run() {
     assert.equal(await listenPage.locator('.library-row:has-text("Five systems, one useful question") .library-row-progress').innerText(), 'Read to story 3', 'Library shows the saved reading position');
     await listenPage.locator('.library-row:has-text("The choices behind the tap") .library-listen-button').click();
     await listenPage.locator('.mini-player-open strong').waitFor();
-    assert.equal(await listenPage.locator('.mini-player-open strong').innerText(), 'The choices behind the tap', 'Saved-item Listen starts through Tern’s shared player');
+    assert.equal(await listenPage.locator('.mini-player-open strong').innerText(), 'The choices behind the tap', 'Saved-item Listen starts through Player’s shared player');
     await listenPage.close();
     assert.deepEqual(errors, []);
     console.log('Topics, explanation sources and Library return state passed.');

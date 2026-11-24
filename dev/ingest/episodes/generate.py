@@ -149,6 +149,7 @@ developments matter.
 Open with a direct, natural answer to the listener's question in plain words. Never repeat the raw
 question as a template, and never announce a duration or say “Here is your five-minute briefing.”
 Use short spoken transitions that state the connection to the next idea in ordinary language. Write
+Never use robotic signposts such as “Next up,” “Moving on,” “First up,” “Now to,” or “Turning to.”
 the complete episode as one script from the full evidence pack; do not draft chapters independently
 or stitch their openings together. Transitions should explain how the next idea follows, without
 reading or paraphrasing a chapter title. Never
@@ -1047,6 +1048,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                     host_system = SYSTEM_PROMPT + ("\nHOST PASS: Write the complete episode as one coherent script "
                         "from this full evidence pack. Open in plain words that address the listener's question without "
                         "reading it back. Use natural transitions that explain the connection between ideas, never "
+                        "using ‘Next up’, ‘Moving on’, ‘First up’, ‘Now to’, or ‘Turning to’. "
                         "section-title bridges. Do not speak unanswered questions; state any evidence gap once in one "
                         "plain sentence. End with a supported takeaway from this episode, or omit it if the evidence "
                         "offers no useful synthesis. Do not add unrelated tangents.\n\nSTYLE TARGET EXAMPLE "
