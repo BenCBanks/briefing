@@ -43,9 +43,11 @@ import { createEditionDataLoader } from './edition/data-loader.js';
 import { createEditionRefreshController } from './edition/refresh-controller.js';
 import { renderRouteContent } from './screens/route-renderer.js';
 import { createTopicsManagementController } from './screens/topics-management-controller.js';
+import { createStoryActionsController } from './screens/story-actions-controller.js';
 
 const app = document.querySelector('#app');
 const content = document.querySelector('#content');
+let storyActionsController = null;
 const nav = [...document.querySelectorAll('[data-nav]')];
 const editableControlSelector = 'textarea, select, [contenteditable="true"], input:not([type="button"]):not([type="submit"]):not([type="reset"]):not([type="checkbox"]):not([type="radio"])';
 function syncVirtualKeyboard() {
@@ -461,107 +463,11 @@ function openSource(...args) { return navigationController.openSource(...args); 
 function openDeepDive(...args) { return navigationController.openDeepDive(...args); }
 
 function showWhySheet(section, edition) {
-  const topicId = section.topic_ids?.[0];
-  const topic = pack.topics.find(item => item.id === topicId);
-  const matched = interestProfile?.topics.find(item => item.id === topicId);
-  const dialog = node('dialog', null, 'why-story-dialog');
-  const sheet = node('section', null, 'why-story-sheet');
-  const close = node('button', 'Close', 'why-story-close'); close.type = 'button'; close.setAttribute('aria-label', 'Close Why this story');
-  close.addEventListener('click', () => dialog.close());
-  const heading = node('h2', 'Why this story?');
-  heading.id = 'why-story-heading';
-  dialog.setAttribute('aria-labelledby', heading.id);
-  sheet.append(close, node('p', 'WHY THIS STORY', 'eyebrow'), heading);
-  sheet.append(node('p', matched ? `You follow ${matched.label.toLowerCase()} because you wrote “${matched.sourcePhrase}”.` : `This story is filed under ${topic?.label || 'your interests'}.`));
-  sheet.append(node('p', topic?.scope || '', 'why-story-scope'));
-  const actionsRow = node('div', null, 'why-story-actions');
-  const more = node('button', 'More like this'); more.type = 'button';
-  more.addEventListener('click', () => { if (topicId) recordSignal('more', section.id, topicId); dialog.close(); });
-  const less = node('button', 'Less like this'); less.type = 'button';
-  less.addEventListener('click', () => { if (topicId) recordSignal('less', section.id, topicId); dialog.close(); });
-  const mute = node('button', 'Not interested in this topic'); mute.type = 'button';
-  const confirm = node('div', null, 'why-story-confirm'); confirm.hidden = true;
-  confirm.append(node('p', `Mute ${topic?.label || 'this topic'}? It will be removed from your interests and stay muted until you add it back.`));
-  const confirmMute = node('button', 'Confirm mute', 'primary'); confirmMute.type = 'button';
-  confirmMute.addEventListener('click', () => {
-    if (topicId && topic) {
-      recordSignal('mute', section.id, topicId);
-      if (!interestProfile.muted.some(item => item.label === topic.label)) interestProfile.muted.push({ label: topic.label });
-      interestProfile.topics = interestProfile.topics.filter(item => item.id !== topicId);
-      interestProfile = saveProfile(interestProfile);
-      invalidateTopicsEdition();
-      void startBuildGeneration(interestProfile, null, { inline: true });
-    }
-    dialog.close();
-  });
-  const cancelMute = node('button', 'Keep this topic'); cancelMute.type = 'button'; cancelMute.addEventListener('click', () => { confirm.hidden = true; actionsRow.hidden = false; });
-  confirm.append(confirmMute, cancelMute);
-  mute.addEventListener('click', () => { confirm.hidden = false; actionsRow.hidden = true; confirmMute.focus(); });
-  const edit = node('button', 'Edit my interests'); edit.type = 'button';
-  edit.addEventListener('click', () => {
-    dialog.close();
-    const current = location.hash || '#today';
-    navigate('#interests', { root: rootForHash(current), parentHash: current, parentScroll: window.scrollY, parentFocus: focusToken() });
-  });
-  actionsRow.append(more, less, mute); sheet.append(actionsRow, confirm, edit); dialog.append(sheet);
-  dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); }, { once: true });
-  document.body.append(dialog); dialog.addEventListener('close', () => dialog.remove(), { once: true });
-  dialog.showModal();
+  return storyActionsController.showWhySheet(section, edition);
 }
 
 function showStoryActionsSheet(section, edition, trigger) {
-  const dialog = node('dialog', null, 'story-actions-dialog');
-  const sheet = node('section', null, 'story-actions-sheet');
-  const close = node('button', 'Close', 'story-actions-close'); close.type = 'button'; close.setAttribute('aria-label', 'Close story actions');
-  close.addEventListener('click', () => dialog.close());
-  const heading = node('h2', 'Share this story'); heading.id = 'story-actions-heading';
-  dialog.setAttribute('aria-labelledby', heading.id);
-  sheet.append(close, node('p', 'STORY', 'eyebrow'), heading, node('p', section.heading, 'story-actions-title'));
-
-  const status = node('p', '', 'story-actions-status'); status.setAttribute('role', 'status'); status.setAttribute('aria-live', 'polite');
-  const storyUrl = location.href;
-  const copyText = async text => {
-    if (navigator.clipboard?.writeText) { await navigator.clipboard.writeText(text); return; }
-    const field = node('textarea'); field.value = text; field.setAttribute('readonly', '');
-    field.style.position = 'fixed'; field.style.opacity = '0'; document.body.append(field); field.select();
-    const copied = document.execCommand?.('copy'); field.remove();
-    if (!copied) throw new Error('clipboard_unavailable');
-  };
-  const share = node('button', 'Share story', 'primary story-share-action'); share.type = 'button';
-  share.addEventListener('click', async () => {
-    if (typeof navigator.share === 'function') {
-      try { await navigator.share({ title: section.heading, text: 'A story from my daily briefing.', url: storyUrl }); showToast('Share options opened.'); }
-      catch (error) { if (error?.name !== 'AbortError') status.textContent = 'Sharing is unavailable right now.'; }
-      return;
-    }
-    try { await copyText(storyUrl); showToast('Sharing is unavailable. Story link copied instead.'); }
-    catch { status.textContent = 'Sharing and copying are unavailable in this browser.'; }
-  });
-  const copyLink = node('button', 'Copy link', 'story-copy-link'); copyLink.type = 'button';
-  copyLink.addEventListener('click', async () => {
-    try { await copyText(storyUrl); showToast('Story link copied.'); }
-    catch { status.textContent = 'Copy is unavailable. You can copy the page address from your browser.'; }
-  });
-  const shareActions = node('div', null, 'story-share-actions'); shareActions.append(share, copyLink); sheet.append(shareActions, status);
-
-  const report = node('section', null, 'story-report-form');
-  report.append(node('h3', 'Report a mistake'));
-  report.append(node('p', 'What should we check? Nothing is sent automatically; copy the details into your message to the editor.', 'story-report-note'));
-  const label = node('label', 'What looks wrong?', 'story-report-label'); label.htmlFor = 'story-report-note';
-  const note = node('textarea'); note.id = 'story-report-note'; note.name = 'report'; note.rows = 3; note.maxLength = 1200;
-  note.placeholder = 'A date, name, number, or other detail to check';
-  const copyReport = node('button', 'Copy report details', 'story-copy-report'); copyReport.type = 'button';
-  copyReport.addEventListener('click', async () => {
-    if (!note.value.trim()) { status.textContent = 'Add a short note about what to check first.'; note.focus(); return; }
-    const reportText = `Story: ${section.heading}\nLink: ${storyUrl}\n\nWhat to check:\n${note.value.trim()}`;
-    try { await copyText(reportText); showToast('Report details copied. Paste them into your message to the editor.'); }
-    catch { status.textContent = 'Copy is unavailable. Your note is still here; you can select and copy it.'; }
-  });
-  report.append(label, note, copyReport); sheet.append(report); dialog.append(sheet);
-  dialog.addEventListener('click', event => { if (event.target === dialog) dialog.close(); });
-  document.body.append(dialog);
-  dialog.addEventListener('close', () => { dialog.remove(); if (trigger?.isConnected) trigger.focus({ preventScroll: true }); }, { once: true });
-  dialog.showModal();
+  return storyActionsController.showStoryActionsSheet(section, edition, trigger);
 }
 function backTo(...args) { return navigationController.backTo(...args); }
 function back(...args) { return navigationController.back(...args); }
@@ -859,6 +765,13 @@ topicsManagementController = createTopicsManagementController({
   deriveInterestBrief, immediateParentLabel, navigate, rootForHash, route,
   openDeepDive, interpretProfile, startBuildGeneration,
   generateSuggestions, applySuggestion, snoozeSuggestion, resetBehaviorWeighting, clearSuggestionSnoozes,
+});
+
+storyActionsController = createStoryActionsController({
+  node, document, window, location, navigator, recordSignal, saveProfile, invalidateTopicsEdition,
+  startBuildGeneration, focusToken, navigate, rootForHash, showToast,
+  get pack() { return pack; },
+  get interestProfile() { return interestProfile; }, set interestProfile(value) { interestProfile = value; },
 });
 
 function formatLastUpdated(value) {
