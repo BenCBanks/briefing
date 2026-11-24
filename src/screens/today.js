@@ -125,6 +125,8 @@ export function renderTodayScreen(deps) {
     profile: (edition.generated === true && profileMatches) || showUnfilteredGeneralFallback ? null : interestProfile,
     lastMode: getEditionMode(edition.id),
     listeningAvailable: listeningAvailable(),
+    listeningComplete: player.item?.kind === 'daily' && player.item.id === edition.id
+      && player.item.revision_id === edition.revision_id && ['complete', 'finished'].includes(player.status),
     listenEstimate: listenEstimateWithUnit,
     listenState: item => {
       const label = listenControlLabel(item);

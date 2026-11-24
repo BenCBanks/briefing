@@ -44,6 +44,8 @@ async function captureLargeText(page, name) {
     await page.screenshot({ path: path.join(shots, `${name}-large-text-dark.png`) });
     await page.emulateMedia({ colorScheme: 'light' });
     if (name === 'today') {
+      assert.equal(await page.locator('.today-completion').isVisible(), false, 'caught-up ending stays hidden until the daily audio completes');
+      await page.evaluate(() => { document.querySelector('.today-completion').hidden = false; });
       await page.locator('.today-completion').scrollIntoViewIfNeeded();
       const clearance = await page.evaluate(() => ({
         endingBottom: document.querySelector('.today-completion').getBoundingClientRect().bottom,
@@ -181,8 +183,9 @@ async function run() {
     assert.equal(await page.locator('.today-quick-hits li').count(), 3, 'The server-filtered remainder renders as three compact quick hits');
     assert.deepEqual(await page.locator('.today-quick-hits li a span').allTextContents(), ['Federal Reserve','Cedar News','Harbor Journal']);
     assert.doesNotMatch(await page.locator('.today-quick-hits').innerText(), /Weekend settlement window announced|revised settlement window/, 'Raw quick hits and summaries stay hidden');
-    assert.equal(await page.locator('.today-completion strong').innerText(), "You're caught up for today.");
-    assert.equal(await page.locator('.today-completion span').innerText(), 'Next briefing tomorrow morning');
+    assert.equal(await page.locator('.today-completion').isVisible(), false, 'Today hides the ending until playback is complete');
+    assert.equal(await page.locator('.today-completion strong').textContent(), "You're caught up for today.");
+    assert.equal(await page.locator('.today-completion span').textContent(), 'Next briefing tomorrow morning');
     assert.equal(await page.locator('.today-quiet-line').count(), 0,
       'Today does not expose a topic gap note');
     await captureLargeText(page, 'today');

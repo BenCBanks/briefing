@@ -60,6 +60,8 @@ async function capture(page, name) {
     await page.locator('.today-page').waitFor();
     await page.waitForFunction(() => document.activeElement?.hasAttribute('data-source'));
     assert.equal(await summary.getAttribute('aria-expanded'), 'true');
+    assert.equal(await page.locator('.today-completion').isVisible(), false, 'Today keeps its caught-up ending hidden before audio completion');
+    await page.evaluate(() => { document.querySelector('.today-completion').hidden = false; });
     await page.locator('.today-completion').scrollIntoViewIfNeeded();
     await capture(page, 'today-fixture-complete');
     await page.locator('.today-listen-pill').scrollIntoViewIfNeeded();
@@ -116,6 +118,7 @@ async function capture(page, name) {
     await page.evaluate(() => scrollTo(0, 0));
     await page.goBack(); await page.locator('.today-page').waitFor();
     await page.waitForFunction(() => document.activeElement?.hasAttribute('data-read-section'));
+    await page.evaluate(() => { document.querySelector('.today-completion').hidden = false; });
     await page.evaluate(() => scrollTo(0, document.documentElement.scrollHeight));
     const completionGeometry = await page.locator('.today-completion').evaluate(el => {
       const miniPlayer = document.querySelector('.mini-player');

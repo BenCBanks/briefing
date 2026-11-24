@@ -100,7 +100,7 @@ async function flow({ fail = false, noStories = false, missingEndpoints = false,
         assert.equal(await page.getByRole('button', { name: 'Retry' }).count(), 1);
       } else {
         await page.locator('.today-general-fallback-note').waitFor();
-        assert.equal(await page.locator('.today-general-fallback-note').innerText(), 'Built from the shared topics while your selection updates');
+        assert.equal(await page.locator('.today-general-fallback-note').innerText(), 'Your daily briefing will switch to your topics as soon as they are ready.');
         assert.equal(await page.locator('.today-general-fallback-note').evaluate(el => el.scrollHeight <= parseFloat(getComputedStyle(el).lineHeight) * 2 + 1 && el.scrollWidth <= el.clientWidth), true, 'Small fallback notice wraps cleanly within two lines at phone width');
         assert.equal(await page.locator('.today-general-fallback-note').evaluate(el => Boolean(el.previousElementSibling?.matches('h1')) && parseFloat(getComputedStyle(el).fontSize) <= 13), true, 'Fallback note sits directly below the Today title');
         assert.equal(await page.locator('.today-build-error').count(), 0, 'Fallback does not show the generation error panel');

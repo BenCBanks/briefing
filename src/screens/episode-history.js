@@ -6,6 +6,22 @@ export function episodeHistoryState(job) {
   return { key: 'making', label: 'Making', ring: 'active' };
 }
 
+export function episodeMakingStageCopy(stage) {
+  const copy = {
+    queued: 'Waiting to start.',
+    fetching: 'Finding useful sources.',
+    researching: 'Finding useful sources.',
+    reading: 'Reading and checking sources.',
+    evidence: 'Reading and checking sources.',
+    checking: 'Reading and checking sources.',
+    writing: 'Writing your episode.',
+    recording: 'Preparing the audio.',
+    scoring: 'Finishing your episode.',
+    publishing: 'Finishing your episode.',
+  };
+  return copy[String(stage || '').toLowerCase()] || 'Your episode is being made.';
+}
+
 export function episodeHistoryDismissed() {
   try {
     const value = JSON.parse(localStorage.getItem('briefing:v1:episode-list-dismissed') || '[]');
@@ -30,7 +46,7 @@ export function renderEpisodeMakingFromHistory({ content, node, link, job }) {
   const ring = node('span', null, 'episode-stage-ring'); ring.setAttribute('aria-hidden', 'true');
   ring.dataset.check = view.ring === 'done' ? '✓' : view.ring === 'failed' ? '!' : view.ring === 'cancelled' ? '–' : '';
   chip.append(ring, node('span', view.label)); page.append(chip);
-  const detail = view.key === 'making' ? (job.stage || job.status || 'queued').replaceAll('_', ' ') :
+  const detail = view.key === 'making' ? episodeMakingStageCopy(job.stage || job.status) :
     view.key === 'failed' ? 'You can ask for another episode when you’re ready.' : 'This request will stay in your episode history.';
   page.append(node('p', detail, 'episode-job-card-status'));
   content.replaceChildren(page);
@@ -47,7 +63,9 @@ export function renderEpisodeHistory({ content, node, link, result, available, c
     page.append(retry); content.replaceChildren(page); return;
   }
   if (jobs.length) page.append(link('Ask for an episode', '#ask-episode', 'button-link'));
-  if (Number.isInteger(result?.left_today)) page.append(node('p', `${result.left_today} left today`, 'episode-list-allowance'));
+  if (Number.isInteger(result?.left_today)) page.append(node('p', result.left_today
+    ? `You can make ${result.left_today} more ${result.left_today === 1 ? 'episode' : 'episodes'} today.`
+    : "You have used today's three episodes. More tomorrow.", 'episode-list-allowance'));
   const dismissed = episodeHistoryDismissed();
   const correctionIDs = new Set(corrections.filter(item => item?.target_type === 'episode').map(item => item.target_id).filter(Boolean));
   const visibleJobs = jobs.filter(job => !dismissed.includes(job.job_id || job.id));

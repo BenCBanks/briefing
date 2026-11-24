@@ -158,9 +158,9 @@ export function renderEpisodePage(container, episode, { onListen = null, inDaily
       try {
         await onDailyBriefingChange(episode, requested);
         status.textContent = requested ? 'Added to your daily briefing.' : 'Removed from your daily briefing.';
-      } catch (error) {
+      } catch {
         toggle.checked = !requested;
-        status.textContent = error?.message || 'Could not update your daily briefing. Try again.';
+        status.textContent = 'We could not update your topics just now. Please try again.';
       } finally { toggle.disabled = false; }
     });
     section.append(label, status); page.append(section);

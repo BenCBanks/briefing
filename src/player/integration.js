@@ -1,6 +1,17 @@
 import { createPlayer } from '../player.js';
 import { createPauseIcon, createPlayIcon } from '../ui-icons.js';
 
+export function syncTodayCompletion(content, player) {
+  const ending = content.querySelector('[data-today-completion]');
+  if (!ending) return;
+  const item = player.item;
+  const isComplete = item?.kind === 'daily'
+    && item.id === ending.dataset.editionId
+    && item.revision_id === ending.dataset.revisionId
+    && ['complete', 'finished'].includes(player.status);
+  ending.hidden = !isComplete;
+}
+
 export function createAppPlayer({
   root, content, node, getState, setState, saveState, getPack, getShowingCachedPack,
   openTranscript, transcriptLabel, signalForItem, hasMaterialCorrection,
@@ -21,6 +32,7 @@ const player = createPlayer(root, (id, seconds, revisionId, chapterId = null) =>
     getState().activeAudio = selection;
     setState(saveState(getState()));
   }
+  syncTodayCompletion(content, player);
   document.querySelectorAll('[data-audio-action]').forEach(button => {
     if (button.matches('[data-listen-control], [data-story-play]')) return;
     const active = button.dataset.audioAction === player.item?.id;

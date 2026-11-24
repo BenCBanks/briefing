@@ -77,7 +77,7 @@ let buildTimeoutHandle = null;
 let buildInProgress = false;
 let buildNotice = sessionStorage.getItem('briefing:build-error') || '';
 const BUILD_GENERAL_FALLBACK_KEY = 'briefing:v1/general-fallback-profile-key';
-const BUILD_GENERAL_FALLBACK_NOTE = 'Built from the shared topics while your selection updates';
+const BUILD_GENERAL_FALLBACK_NOTE = 'Your daily briefing will switch to your topics as soon as they are ready.';
 const FIRST_EDITION_WELCOME_PENDING_KEY = 'briefing:first-edition-welcome-pending';
 const FIRST_EDITION_WELCOME_KEY = 'briefing:first-edition-welcome';
 const FIRST_RUN_BUILD_KEY = 'briefing:v1:first-run-build';
@@ -2287,13 +2287,15 @@ async function startEpisodeJob(mode) {
     });
     const result = await response.json().catch(() => ({}));
     if (response.status === 429 && result.error === 'cost_cap_reached') {
-      episodeRequestError = 'The current cost limit has been reached. Your request is still here; try again later.';
+      episodeRequestError = 'We cannot make this episode right now. Your request is saved here; try again later.';
       episodeRequestBlocked = true;
       return;
     }
     if (response.status === 429 && result.error === 'daily_limit_reached') {
       const leftToday = Number.isInteger(result.left_today) ? Math.max(0, result.left_today) : 0;
-      episodeRequestError = `${leftToday} left today`;
+      episodeRequestError = leftToday
+        ? `You can make ${leftToday} more ${leftToday === 1 ? 'episode' : 'episodes'} today.`
+        : "You have used today's three episodes. More tomorrow.";
       episodeRequestBlocked = true;
       return;
     }
@@ -2363,7 +2365,7 @@ async function pollEpisodeJob(job) {
     job.failed = job.status === 'failed' || job.status === 'cancelled';
     job.pollError = '';
   } catch {
-    job.pollError = 'Checking progress…';
+    job.pollError = 'We could not check progress just now. We’ll try again shortly.';
   }
   if (location.hash === '#episode-making') updateEpisodeMakingView(job, Date.now() - job.stageStartedAt, Date.now() - job.startedAt);
   if (!job.done && !job.failed) episodeJobTimer = setTimeout(() => void pollEpisodeJob(job), 1000);
