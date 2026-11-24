@@ -6,7 +6,7 @@ from pathlib import Path
 from decimal import Decimal
 
 from dev.any_topic import (PROMPTS, evaluate_prompt, likely_insufficient_reason,
-                           render_report, run_pass, validate_prompts)
+                           render_report, run_pass, validate_prompts, validate_run_limits)
 
 
 class AnyTopicCoverageTest(unittest.TestCase):
@@ -157,6 +157,14 @@ class AnyTopicCoverageTest(unittest.TestCase):
         self.assertIn('recent', likely_insufficient_reason({
             'outcome': 'insufficient_evidence', 'category': 'Very recent',
             'drop_stage': 'discovery'}))
+
+    def test_grounded_mode_requires_a_cost_ceiling_beyond_estimate_sample(self):
+        validate_run_limits('grounded', 5, None)
+        validate_run_limits('grounded', None, Decimal('1.20'))
+        with self.assertRaises(ValueError):
+            validate_run_limits('grounded', None, None)
+        with self.assertRaises(ValueError):
+            validate_run_limits('free', None, Decimal('1.20'))
 
 
 if __name__ == '__main__':

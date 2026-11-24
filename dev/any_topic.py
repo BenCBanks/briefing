@@ -396,6 +396,18 @@ def likely_insufficient_reason(row):
     return 'no usable evidence returned at discovery'
 
 
+def validate_run_limits(mode, limit, max_cost):
+    if mode not in {'free', 'grounded'}:
+        raise ValueError('mode must be free or grounded')
+    if limit is not None and (type(limit) is not int or not 1 <= limit <= len(PROMPTS)):
+        raise ValueError('limit must be between 1 and 60')
+    if max_cost is not None and (mode != 'grounded' or not Decimal(str(max_cost)).is_finite()
+                                 or Decimal(str(max_cost)) <= 0):
+        raise ValueError('max-cost must be positive and is available only in grounded mode')
+    if mode == 'grounded' and max_cost is None and (limit is None or limit > 5):
+        raise ValueError('grounded runs beyond five prompts require --max-cost')
+
+
 @contextmanager
 def isolated_retrieval_environment(*, disable_model_keys=True):
     """Force all package defaults to a temporary state and disable model keys."""
@@ -430,13 +442,7 @@ def run_retrieval_only(report_date=None, *, report_dir=REPORT_DIR, workers=1,
     if not re.fullmatch(r'\d{4}-\d{2}-\d{2}(?:-[a-z0-9-]+)?', stamp):
         raise ValueError('report date must start with YYYY-MM-DD')
     date.fromisoformat(stamp[:10])
-    if mode not in {'free', 'grounded'}:
-        raise ValueError('mode must be free or grounded')
-    if limit is not None and (type(limit) is not int or not 1 <= limit <= len(PROMPTS)):
-        raise ValueError('limit must be between 1 and 60')
-    if max_cost is not None and (mode != 'grounded' or not Decimal(str(max_cost)).is_finite()
-                                 or Decimal(str(max_cost)) <= 0):
-        raise ValueError('max-cost must be positive and is available only in grounded mode')
+    validate_run_limits(mode, limit, max_cost)
     selected_cases = PROMPTS[:limit] if limit else PROMPTS
     validate_prompt_subset(selected_cases)
     with isolated_retrieval_environment(disable_model_keys=(mode == 'free')) as state_dir:
