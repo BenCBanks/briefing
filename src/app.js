@@ -39,6 +39,7 @@ import { createEditionReaderScreen } from './screens/edition-reader.js';
 import { describeRoute, restoreRouteView } from './screens/route-controller.js';
 import { createNavigationController } from './screens/navigation-controller.js';
 import { createDetailRouteController } from './screens/detail-routes.js';
+import { renderRouteContent } from './screens/route-renderer.js';
 import { createTopicsManagementController } from './screens/topics-management-controller.js';
 
 const app = document.querySelector('#app');
@@ -1316,67 +1317,32 @@ function route() {
     else if (item.dataset.nav === group) item.setAttribute('aria-current', 'page');
     else item.removeAttribute('aria-current');
   }
-  if (episodeRoute) void renderEpisodeRoute(routeName);
-  else if (routeName === 'today' || !routeName) renderTodayScreen({
-    content, node, link, interestProfile, pendingTopicsUpdate, buildInProgress, todayListSkeleton,
-    getState: () => state, setState: value => { state = value; },
-    FIRST_EDITION_WELCOME_KEY, profileBuildKey, BUILD_GENERAL_FALLBACK_KEY,
-    currentEdition, filterGeneralEditionForProfile: (edition, profile) => filterGeneralEditionForProfile(edition, profile, pack.topics),
-    buildNotice, setBuildNotice: value => { buildNotice = value; },
-    startTodayBuildAfterStatusCheck, startBuildGeneration, renderNoStoryExplanations,
-    profileTopicNames, BUILD_GENERAL_FALLBACK_NOTE, navigate, writeFirstRunBuild,
-    renderMissing, pack, localStorage, sessionStorage, editionJustUpdatedAt,
-    buildChipLabel, topicIdFor, toggleSave, saveState, recordSignal, signalEvents,
-    dailyTimeValue, openSource, player, getEditionMode, listeningAvailable, renderToday,
-    listenEstimateWithUnit, listenEstimate, listenControlLabel, formatElapsed,
-    invalidatedEditionAudio, startEditionListening, startRowListening, visibleSections,
-    firstReadableSection, focusToken, withNarrationTopics, personalized, readableEdition, rememberEditionMode,
-    cacheIdentity, writeEditionCache, showingCachedPack, getCachedPackIdentity: () => cachedPackIdentity,
-    setCachedPackIdentity: value => { cachedPackIdentity = value; },
-    refreshTodayRunSummary, markDailyEditionSeen,
-  });
-  else if (routeName === 'ask-episode' || routeName === 'ask') renderEpisodeRequestPage();
-  else if (routeName === 'episode-making') renderEpisodeMakingPage();
-  else if (routeName === 'corrections') void renderCorrectionsPage();
-  else if (routeName === 'weekly') renderEditionPage('weekly');
-  else if (routeName.startsWith('edition/')) {
-    const parts = routeName.slice(8).split('/');
-    const kind = parts.length > 1 ? parts.shift() : null;
-    const id = parts.shift();
-    const sectionId = parts.shift() || history.state?.routeContext?.sectionId || null;
-    const edition = currentRevision(pack.editions, id, item => !kind || item.kind === kind);
-    if (edition) {
-      renderEditionPage(edition.kind, edition, sectionId);
-    } else renderMissing();
-  }
-  else if (routeName.startsWith('explanation/')) {
-    const dive = currentRevision(pack.deepDives, routeName.slice(12));
-    if (dive) renderDeepDivePage(dive.topic_id, dive); else renderMissing();
-  }
-  else if (routeName.startsWith('topic-detail/')) renderTopicDetailPage(routeName.slice(13));
-  else if (routeName === 'topics') renderTopicsPage();
-  else if (routeName.startsWith('topic/')) renderDeepDivePage(routeName.slice(6));
-  else if (routeName.startsWith('source/')) renderSourcePage(routeName.slice(7));
-  else if (routeName === 'interests/describe') renderInterestDescribe();
-  else if (routeName === 'interests/build') renderInterestBuild();
-  else if (routeName === 'interests/confirm') renderInterestBuild();
-  else if (routeName === 'preferences') renderSettingsScreen({
-    content, node, link, dailyTimeValue, formatEasternTime, nextDailyRunTime,
-    interestProfile, navigate, resetBehaviorWeighting, player, NARRATOR_KEY, refreshLastUpdated,
-    getState: () => state, setState: value => { state = value; }, saveState,
-    localStorage, sessionStorage, resetChoices: resetBrowserChoices,
-  });
-  else if (routeName === 'interests') renderInterestsPage();
-  else if (routeName === 'library' || routeName === 'earlier') renderEarlierScreen({
-    content, node, link, currentItems, visibleSections, editionDateRange, hasMaterialCorrection,
-    getState: () => state, interestProfile, editionHistoryLoaded, pack, dailyBriefings: () => dailyBriefings(pack?.editions || []), firstReadableSection,
+  renderRouteContent(routeName, {
+    episodeRoute, content, node, link, history, interestProfile, pendingTopicsUpdate, buildInProgress,
+    todayListSkeleton, renderTodayScreen, getState: () => state, setState: value => { state = value; },
+    FIRST_EDITION_WELCOME_KEY, profileBuildKey, BUILD_GENERAL_FALLBACK_KEY, currentEdition,
+    filterGeneralEditionForProfile: (edition, profile) => filterGeneralEditionForProfile(edition, profile, pack.topics),
+    pack, buildNotice, setBuildNotice: value => { buildNotice = value; }, startTodayBuildAfterStatusCheck,
+    startBuildGeneration, renderNoStoryExplanations, profileTopicNames, BUILD_GENERAL_FALLBACK_NOTE,
+    navigate, writeFirstRunBuild, renderMissing, localStorage, sessionStorage, editionJustUpdatedAt,
+    buildChipLabel, topicIdFor, toggleSave, saveState, recordSignal, signalEvents, dailyTimeValue,
+    openSource, player, getEditionMode, listeningAvailable, renderToday, listenEstimateWithUnit,
+    listenEstimate, listenControlLabel, formatElapsed, invalidatedEditionAudio, startEditionListening,
+    startRowListening, visibleSections, firstReadableSection, focusToken, withNarrationTopics,
+    personalized, readableEdition, rememberEditionMode, cacheIdentity, writeEditionCache,
+    showingCachedPack, getCachedPackIdentity: () => cachedPackIdentity,
+    setCachedPackIdentity: value => { cachedPackIdentity = value; }, refreshTodayRunSummary, markDailyEditionSeen,
+    renderEpisodeRoute, renderEpisodeRequestPage, renderEpisodeMakingPage, renderCorrectionsPage,
+    renderEditionPage, currentRevision, renderDeepDivePage, renderTopicDetailPage,
+    renderSourcePage, renderTopicsPage, renderInterestDescribe, renderInterestBuild,
+    renderSettingsScreen, formatEasternTime, nextDailyRunTime, resetBehaviorWeighting, NARRATOR_KEY,
+    refreshLastUpdated, resetBrowserChoices, renderInterestsPage, renderEarlierScreen, currentItems,
+    editionDateRange, hasMaterialCorrection, editionHistoryLoaded, dailyBriefings,
     revisionDate, briefingDate, displayDate,
     getLibraryFilter: () => libraryFilter, setLibraryFilter: value => { libraryFilter = value; },
     getLibrarySearchQuery: () => librarySearchQuery, setLibrarySearchQuery: value => { librarySearchQuery = value; },
-    loadEpisodeCards, canListen, listenEstimate, createPlayIcon, startListening, toggleSave,
-    browserCanSpeak, navigate, loadEditionHistory,
+    loadEpisodeCards, canListen, createPlayIcon, startListening, browserCanSpeak, loadEditionHistory,
   });
-  else renderMissing();
   if (firstRunPending && firstRunRecoveryAvailable && ['today', 'interests/build'].includes(routeName)) {
     firstRunRecoveryAvailable = false;
     const pending = firstRunPending;
