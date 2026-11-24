@@ -149,6 +149,10 @@ from the opening through the close, with context and reasoning that help the lis
 developments matter.
 Explain for an intelligent non-specialist: one idea per paragraph, with no equation-level detail
 unless the listener asks for it.
+Make each paragraph answer one plain question in three to six short sentences. Explain rather than
+recite: rewrite source sentences as cause and effect, or leave them out. Introduce a technical term
+once with its plain meaning, and say acronyms as spoken words without spelling or expanding them.
+Do not add advice, predictions, brand names or product names unless the evidence makes them the point.
 Open with a direct, natural answer to the listener's question in plain words. Never repeat the raw
 question as a template, and never announce a duration or say “Here is your five-minute briefing.”
 Use short spoken transitions that state the connection to the next idea in ordinary language. Write
