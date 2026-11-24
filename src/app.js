@@ -36,6 +36,7 @@ import { episodeHistoryState, episodeHistoryDismissed, saveEpisodeHistoryDismiss
 import { EPISODE_STAGE_FIXTURES, announceEpisodeStage as announceEpisodeStageView, episodeStageIndex, episodeStageTitle, episodeHasReadyAudio, episodeLengthCopy, renderEpisodeMakingPage as renderEpisodeMakingScreen, updateEpisodeMakingView as updateEpisodeMakingScreen } from './screens/episode-making.js';
 import { renderEpisodeRoute as renderEpisodeRouteScreen, renderEpisodeRouteFailure as renderEpisodeRouteFailureScreen } from './screens/episode-route.js';
 import { createEditionReaderScreen } from './screens/edition-reader.js';
+import { describeRoute, restoreRouteView } from './screens/route-controller.js';
 
 const app = document.querySelector('#app');
 const content = document.querySelector('#content');
@@ -1509,6 +1510,22 @@ let renderedRouteHash = null;
 const historyViews = new Map();
 let historyEntrySequence = 0;
 history.scrollRestoration = 'manual';
+const routeRestoration = {
+  window, content, document, CSS,
+  revealStoryMore, paragraphAt, currentRevision, trackReadingPlace,
+  get pack() { return pack; },
+  get pendingScrollRestore() { return pendingScrollRestore; },
+  set pendingScrollRestore(value) { pendingScrollRestore = value; },
+  get pendingSourceFocusID() { return pendingSourceFocusID; },
+  set pendingSourceFocusID(value) { pendingSourceFocusID = value; },
+  get pendingReturnHeadingFocus() { return pendingReturnHeadingFocus; },
+  set pendingReturnHeadingFocus(value) { pendingReturnHeadingFocus = value; },
+  get pendingTranscriptPlacement() { return pendingTranscriptPlacement; },
+  set pendingTranscriptPlacement(value) { pendingTranscriptPlacement = value; },
+  get pendingPlayerReturnFocus() { return pendingPlayerReturnFocus; },
+  set pendingPlayerReturnFocus(value) { pendingPlayerReturnFocus = value; },
+  setRestoringRoute(value) { restoringRoute = value; },
+};
 
 function route() {
   if (!pack) return;
@@ -1522,9 +1539,8 @@ function route() {
   content.classList.remove('interests-page');
   content.classList.remove('first-run-describe', 'interest-build-screen');
   content.textContent = '';
-  const routeName = decodeURIComponent((location.hash || '#today').slice(1));
   const routeHash = location.hash || '#today';
-  const episodeRoute = routeName === 'episodes' || routeName.startsWith('episode/') || routeName.startsWith('episode-making/');
+  const routeName = decodeURIComponent(routeHash.slice(1));
   if (interestInterpretController && !routeName.startsWith('interests/')) {
     interestInterpretController.abort();
     interestInterpretController = null;
@@ -1540,6 +1556,8 @@ function route() {
     history.replaceState({ ...routeState, routeContext: { root: directRoot, parentHash: directParent, parentScroll: 0, parentFocus: null, direct: Boolean(directParent) } }, '', location.href);
   }
   if (!history.state?.viewKey) history.replaceState({ ...history.state, viewKey: `${Date.now()}-${++historyEntrySequence}` }, '', location.href);
+  const routeDescriptor = describeRoute(routeHash, history.state?.routeContext, rootForHash);
+  const { episodeRoute, onDemandRoute, group, editionKind, isReader, pageTitle } = routeDescriptor;
   trackRouteSignals(routeHash, routeName);
   if (history.state?.transcriptHash === routeHash && history.state?.transcriptOrigin) {
     transcriptReturnTo = history.state.transcriptOrigin;
@@ -1555,12 +1573,7 @@ function route() {
   if (routeName.startsWith('topic/') && !deepDiveReturnTo) {
     deepDiveReturnTo = { hash: '#topics', sectionId: null, scrollY: 0 };
   }
-  const onDemandRoute = ['ask', 'ask-episode', 'episode-making', 'episodes'].includes(routeName) || routeName.startsWith('episode/');
-  const group = onDemandRoute ? 'on-demand' : episodeRoute ? 'library' : rootForHash(routeHash, history.state?.routeContext);
-  const editionKind = routeName.startsWith('edition/') ? routeName.slice(8).split('/')[0] : null;
-  const isReader = routeName === 'weekly' || routeName === 'corrections' || routeName === 'episode-making' || routeName.startsWith('episode-making/') || routeName.startsWith('edition/') || routeName.startsWith('explanation/') || routeName.startsWith('topic/') || routeName.startsWith('topic-detail/') || routeName.startsWith('source/') || routeName.startsWith('interests/') || (episodeRoute && routeName.startsWith('episode/'));
   document.body.classList.toggle('is-reader', isReader);
-  const pageTitle = episodeRoute ? (routeName === 'episodes' ? 'Episodes' : 'Episode') : routeName === 'corrections' ? 'Corrections' : routeName === 'episode-making' || routeName.startsWith('episode-making/') ? 'Making your episode' : onDemandRoute ? 'On demand' : routeName === 'interests' || routeName.startsWith('interests/') ? 'Interests' : routeName === 'preferences' ? 'Settings' : routeName.startsWith('source/') ? 'Source' : routeName.startsWith('explanation/') || routeName.startsWith('topic/') ? 'Explanation' : routeName.startsWith('topic-detail/') ? 'Topic' : group === 'topics' ? 'Topics' : group === 'library' ? 'Earlier' : (routeName === 'weekly' || editionKind === 'weekly') ? 'Weekly' : 'Today';
   document.querySelector('[data-page-title]').textContent = pageTitle;
   document.body.classList.toggle('is-today', routeName === 'today');
   document.body.classList.toggle('is-topics', routeName === 'topics');
@@ -1646,61 +1659,8 @@ function route() {
     showToast(settingsNotice); sessionStorage.removeItem('briefing:settings-saved');
   }
   player.refresh();
-  const restoreScroll = pendingScrollRestore;
-  pendingScrollRestore = null;
   const viewState = historyViews.get(history.state?.viewKey) || history.state?.viewState || history.state?.routeContext?.restore;
-  if (restoreScroll != null) requestAnimationFrame(() => window.scrollTo({ top: restoreScroll, behavior: 'instant' }));
-  else if (viewState && routeName !== 'preferences') requestAnimationFrame(() => window.scrollTo({ top: viewState.scrollY || 0, behavior: 'instant' }));
-  else if (routeName !== 'preferences') window.scrollTo({ top: 0, behavior: 'instant' });
-  const sourceFocusID = pendingSourceFocusID;
-  pendingSourceFocusID = null;
-  if (sourceFocusID) requestAnimationFrame(() => {
-    const source = [...content.querySelectorAll('[data-source]')].find(button => button.dataset.source === sourceFocusID);
-    if (source?.closest('details')) source.closest('details').open = true;
-    revealStoryMore(source);
-    source?.focus({ preventScroll: true });
-  });
-  else if (routeName.startsWith('source/')) requestAnimationFrame(() => content.querySelector('h1')?.focus({ preventScroll: true }));
-  else if (viewState?.focus) requestAnimationFrame(() => {
-    const selector = viewState.focus.type === 'source' ? `[data-source="${CSS.escape(viewState.focus.id)}"]` :
-      viewState.focus.type === 'topic' ? `[data-topic="${CSS.escape(viewState.focus.id)}"]` :
-      viewState.focus.type === 'read-start' ? '[data-read-start]' : viewState.focus.type === 'continue' ? '[data-continue]' :
-      viewState.focus.type === 'read-section' ? `[data-read-section="${CSS.escape(viewState.focus.id)}"]` :
-      viewState.focus.type === 'nav' ? `[data-nav="${CSS.escape(viewState.focus.id)}"]` :
-      viewState.focus.type === 'settings' ? '.settings-link' : viewState.focus.type === 'href' ? null : `#${CSS.escape(viewState.focus.id)}`;
-    const target = viewState.focus.type === 'nav' || viewState.focus.type === 'settings' ? document.querySelector(selector) :
-      viewState.focus.type === 'href' ? [...content.querySelectorAll('a[href]')].find(anchor => anchor.getAttribute('href') === viewState.focus.id) : content.querySelector(selector);
-    if (target?.closest('details')) target.closest('details').open = true;
-    revealStoryMore(target);
-    target?.focus({ preventScroll: true });
-  });
-  const focusReturnHeading = pendingReturnHeadingFocus;
-  pendingReturnHeadingFocus = false;
-  if (focusReturnHeading && !sourceFocusID) requestAnimationFrame(() => (content.querySelector('h1') || document.querySelector('[data-page-title]'))?.focus({ preventScroll: true }));
-  const placement = pendingTranscriptPlacement;
-  pendingTranscriptPlacement = null;
-  if (placement) requestAnimationFrame(() => requestAnimationFrame(() => {
-    const correction = placement.correction && content.querySelector('.correction-notice');
-    const section = placement.sectionId && content.querySelector(`#${CSS.escape(placement.sectionId)}`);
-    const target = correction || section || content.querySelector('h1');
-    if (correction || target?.tagName === 'H1') target.tabIndex = -1;
-    if (correction || !section) target?.focus({ preventScroll: true });
-    else { const heading = section.querySelector('h2') || content.querySelector('h1'); if (heading) { heading.tabIndex = -1; heading.focus({ preventScroll: true }); } }
-    const spoken = paragraphAt(section, placement.paragraphIndex || 0); revealStoryMore(spoken);
-    target?.scrollIntoView({ block: 'start', behavior: 'instant' });
-    spoken?.scrollIntoView({ block: 'center', behavior: 'instant' });
-    const editionParts = routeName.startsWith('edition/') ? routeName.slice(8).split('/') : [];
-    const editionKind = editionParts.length > 1 ? editionParts[0] : null;
-    const edition = editionParts.length ? currentRevision(pack.editions, placement.id, item => !editionKind || item.kind === editionKind) : null;
-    const dive = routeName.startsWith('explanation/') ? currentRevision(pack.deepDives, placement.id) : null;
-    if (edition && !placement.correction) trackReadingPlace(edition.id, edition.revision_id, '.edition-section');
-    else if (dive && !placement.correction) trackReadingPlace(dive.id, dive.revision_id, '.deep-dive-section');
-  }));
-  if (pendingPlayerReturnFocus) requestAnimationFrame(() => requestAnimationFrame(() => {
-    pendingPlayerReturnFocus = false;
-    (document.querySelector('.mini-player-open') || content.querySelector('h1') || document.querySelector('[data-page-title]'))?.focus({ preventScroll: true });
-  }));
-  requestAnimationFrame(() => requestAnimationFrame(() => { restoringRoute = false; }));
+  restoreRouteView(routeRestoration, routeName, viewState);
 }
 
 // Hash routes create real browser entries. Keep the outgoing entry current
