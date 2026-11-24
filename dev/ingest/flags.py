@@ -16,6 +16,7 @@ DEFAULTS = {
     'extraction': False,
     # Full spoken rewrite is opt-in until fixture and live acceptance pass.
     'daily_narration': False,
+    'episode_streaming': False,
     'episodes': 'real',
     # Additional bounded generation controls are reported with the main flags.
     'relevance_tune': False,

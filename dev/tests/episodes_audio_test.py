@@ -27,7 +27,7 @@ from zoneinfo import ZoneInfo
 from dev.ingest.episodes_audio import (
     DEFAULT_VOICE, MAX_SEGMENT_ATTEMPTS, EpisodeAudioError, _chapter_output_token_estimate, _chapter_scripts,
     _fingerprints, add_chapter_timestamps, approve_bounded_audio_candidate,
-    audio_directory, current_audio_asset, load_voice, main, persisted_audio_matches_manifest,
+    _read_wav, audio_directory, current_audio_asset, load_voice, main, persisted_audio_matches_manifest,
     persisted_audio_selector, render_episode_audio,
 )
 from dev.ingest import episodes_audio
@@ -232,6 +232,22 @@ class EpisodeAudioRenderTests(unittest.TestCase):
                                       state_dir=self.state_dir)
         self.assertTrue(cached['cached'])
         self.assertEqual(cached['provider_calls'], 0)
+
+    def test_stream_callback_publishes_each_validated_chapter_in_recording_order(self):
+        episode = read_fixture()
+        published = []
+
+        def ready(row, audio_bytes):
+            info = _read_wav(audio_bytes)
+            published.append((row['chapter_id'], len(published), info.duration_seconds))
+
+        result = render_episode_audio(episode, episode['profile_id'], provider=FakeProvider(),
+            voice_file=self.voice_file, state_dir=self.state_dir, chapter_ready=ready)
+        self.assertEqual([row[0] for row in published],
+                         [chapter['id'] for chapter in episode['chapters']])
+        self.assertEqual([row[1] for row in published], [0, 1])
+        self.assertEqual([row[2] for row in published], [0.1, 0.1])
+        self.assertEqual(result['manifest']['status'], 'recorded')
 
     def test_old_normalizer_recording_is_stale_without_revision_change(self):
         episode = deepcopy(read_fixture())
