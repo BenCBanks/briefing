@@ -1,6 +1,8 @@
 require('../test_guard.cjs').enforceTestEnvironment();
 
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 const auditionManifest = require('./fixtures/audition_manifest.json');
 const { chromium } = require('playwright');
 
@@ -56,6 +58,14 @@ async function run() {
       ] } } });
     });
     await page.goto(`${baseURL}/#interests`, { waitUntil: 'networkidle' });
+    await page.locator('.interests-page').waitFor();
+    if (process.env.BRIEFING_SHOT_DIR) {
+      fs.mkdirSync(process.env.BRIEFING_SHOT_DIR, { recursive: true });
+      await page.screenshot({ animations: 'disabled', caret: 'hide', path: path.join(process.env.BRIEFING_SHOT_DIR, 'interests-management-light.png') });
+      await page.emulateMedia({ colorScheme: 'dark' });
+      await page.screenshot({ animations: 'disabled', caret: 'hide', path: path.join(process.env.BRIEFING_SHOT_DIR, 'interests-management-dark.png') });
+      await page.emulateMedia({ colorScheme: 'light' });
+    }
     await page.locator('textarea[name=words]').fill('Follow payments every day.');
     const generationRequest = page.waitForResponse(response => response.url().endsWith('/api/generate') && response.request().method() === 'POST');
     await page.getByRole('button', { name: 'Update my interests' }).click();

@@ -199,7 +199,7 @@ async function save(page, name) {
   fs.mkdirSync(shots, { recursive: true });
   await page.evaluate(() => window.scrollTo(0, 0));
   await page.evaluate(() => { if (!document.querySelector('[aria-modal="true"]')) document.activeElement?.blur(); });
-  await page.screenshot({ path: path.join(shots, `${name}.png`) });
+  await page.screenshot({ animations: 'disabled', caret: 'hide', path: path.join(shots, `${name}.png`) });
 }
 
 async function run() {

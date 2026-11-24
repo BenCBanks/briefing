@@ -26,6 +26,7 @@ import { renderSettingsScreen } from './screens/settings.js';
 import { renderTodayScreen } from './screens/today.js';
 import { renderEarlierScreen } from './screens/earlier.js';
 import { renderInterestDescribe as renderInterestDescribeScreen, renderInterestConfirm as renderInterestConfirmScreen, renderInterestBuild as renderInterestBuildScreen } from './screens/interests.js';
+import { renderInterestsManagementScreen } from './screens/interests-management.js';
 import { episodeHistoryState, episodeHistoryDismissed, saveEpisodeHistoryDismissed, renderEpisodeHistory as renderEpisodeHistoryScreen, renderEpisodeMakingFromHistory as renderEpisodeMakingFromHistoryScreen } from './screens/episode-history.js';
 import { EPISODE_STAGE_FIXTURES, announceEpisodeStage as announceEpisodeStageView, episodeStageIndex, episodeStageTitle, episodeHasReadyAudio, episodeLengthCopy, renderEpisodeMakingPage as renderEpisodeMakingScreen, updateEpisodeMakingView as updateEpisodeMakingScreen } from './screens/episode-making.js';
 import { renderEpisodeRoute as renderEpisodeRouteScreen, renderEpisodeRouteFailure as renderEpisodeRouteFailureScreen } from './screens/episode-route.js';
@@ -1259,77 +1260,17 @@ function renderTopicsPage() {
 }
 
 function renderInterestsPage() {
-  if (!interestProfile) interestProfile = saveProfile(defaultProfile(pack.topics), { server: false });
-  const context = history.state?.routeContext || {};
-  const parentHash = context.parentHash || '#preferences';
-  const sticky = node('div', null, 'reader-sticky interests-back');
-  const backButton = node('button', parentHash === '#preferences' ? '‹ Settings' : immediateParentLabel(parentHash, context), 'reader-back');
-  backButton.type = 'button'; backButton.addEventListener('click', () => {
-    if (context.parentHash && !context.direct && history.length > 1) history.back();
-    else navigate(parentHash, { root: context.root || rootForHash(parentHash), parentHash: null });
+  renderInterestsManagementScreen({
+    content, node, history, pack,
+    getProfile: () => interestProfile, setProfile: value => { interestProfile = value; },
+    setDraft: value => { interestDraft = value; },
+    getPageFlags: () => interestPageFlags, setPageFlags: value => { interestPageFlags = value; },
+    getPageNotice: () => interestPageNotice, setPageNotice: value => { interestPageNotice = value; },
+    saveProfile, defaultProfile, immediateParentLabel, navigate, rootForHash,
+    generateSuggestions, renderInterests, interpretProfile,
+    invalidateTopicsEdition, startBuildGeneration, route,
+    applySuggestion, snoozeSuggestion, resetBehaviorWeighting, clearSuggestionSnoozes,
   });
-  sticky.append(backButton); content.append(sticky);
-  const suggestions = generateSuggestions({ profile: interestProfile, catalog: pack.topics });
-  renderInterests(content, interestProfile, suggestions, pack.topics, {
-    interpret: async words => {
-      interestPageFlags = [];
-      interestPageNotice = '';
-      const result = await interpretProfile(words, { topics: pack.topics, minutes: interestProfile.minutes });
-      interestPageFlags = result.flags || [];
-      interestPageNotice = result.fallbackError || '';
-      interestProfile = saveProfile(result.profile);
-      interestDraft = null;
-      invalidateTopicsEdition();
-      void startBuildGeneration(interestProfile, null, { inline: true });
-      route();
-    },
-    updateTopic: (id, changes) => {
-      interestProfile = saveProfile({ ...interestProfile, topics: interestProfile.topics.map(topic => topic.id === id ? { ...topic, ...changes } : topic) });
-      invalidateTopicsEdition();
-      void startBuildGeneration(interestProfile, null, { inline: true });
-      route();
-    },
-    removeTopic: id => {
-      const topic = interestProfile.topics.find(item => item.id === id);
-      if (!topic) return;
-      interestProfile = saveProfile({ ...interestProfile, topics: interestProfile.topics.filter(item => item.id !== id), muted: [...interestProfile.muted, { label: topic.label }] });
-      invalidateTopicsEdition();
-      void startBuildGeneration(interestProfile, null, { inline: true });
-      route();
-    },
-    unmute: label => {
-      const topic = pack.topics.find(item => item.label === label);
-      interestProfile = saveProfile({ ...interestProfile, muted: interestProfile.muted.filter(item => item.label !== label),
-        topics: interestProfile.topics.map(item => item.label === label ? { ...item, exclude: [] } : item).concat(topic && !interestProfile.topics.some(item => item.label === topic.label) ? [{ id: topic.id, label: topic.label, scope: topic.scope, include: [], exclude: [], depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: topic.label }] : []) });
-      invalidateTopicsEdition();
-      void startBuildGeneration(interestProfile, null, { inline: true });
-      route();
-    },
-    accept: suggestion => {
-      interestProfile = saveProfile(applySuggestion(interestProfile, suggestion, pack.topics));
-      invalidateTopicsEdition();
-      void startBuildGeneration(interestProfile, null, { inline: true });
-      route();
-    },
-    snooze: suggestion => { snoozeSuggestion(suggestion.id); route(); },
-    clearSignals: () => {
-      if (!window.confirm('Clear the local reading signals and suggestions? Your written interests will stay.')) return;
-      resetBehaviorWeighting(); clearSuggestionSnoozes(); route();
-    },
-  });
-  const wordsForm = content.querySelector('.interest-words-form');
-  if (interestPageFlags.length) {
-    const flags = node('aside', null, 'interest-interpreter-flags');
-    flags.setAttribute('role', 'status');
-    flags.append(node('p', `Interpretation note: ${interestPageFlags.join('; ')}`));
-    wordsForm?.after(flags);
-  }
-  if (interestPageNotice) {
-    const notice = node('aside', null, 'interest-interpreter-error');
-    notice.setAttribute('role', 'status');
-    notice.append(node('p', interestPageNotice));
-    wordsForm?.after(notice);
-  }
 }
 
 function immediateParentLabel(hash, context = {}) {
