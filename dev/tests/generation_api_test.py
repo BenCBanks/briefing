@@ -1111,17 +1111,98 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(generation_api._safe_narration_exception_reason(
             ValueError('private path token')), 'ValueError')
 
-    def test_narration_enabled_publication_requires_written_result(self):
-        accepted = {'critical_failed': False, 'failed_critical': []}
-        self.assertFalse(generation_api._mark_daily_narration_failure(
-            accepted, {'status': 'written'}))
-        self.assertEqual(accepted, {'critical_failed': False, 'failed_critical': []})
+    def test_narration_failure_preserves_critical_content_gate_and_clears_script(self):
+        edition = {'audio': {'state': 'pending'},
+                   'daily_briefing': {'briefing_script': [{'text': 'Old narration'}],
+                                      'background_segments': [{'segment_id': 'bg'}],
+                                      'spoken_words': 12, 'duration_seconds': 8}}
+        report = {'critical_failed': True, 'failed_critical': ['content_quality']}
+        self.assertTrue(generation_api._publish_text_only_after_narration_failure(
+            edition, report, {'status': 'fallback', 'reason': 'narration_underdeveloped_with_unused_evidence'}))
+        self.assertEqual(report['failed_critical'], ['content_quality'])
+        self.assertTrue(report['critical_failed'], 'narration fallback must not clear a hard content failure')
+        self.assertEqual(report['daily_narration'], {
+            'status': 'fallback', 'reason': 'narration_underdeveloped_with_unused_evidence'})
+        self.assertEqual(edition['daily_briefing']['briefing_script'], [])
+        self.assertEqual(edition['daily_briefing']['background_segments'], [])
+        self.assertEqual(edition['daily_briefing']['spoken_words'], 0)
+        self.assertTrue(edition['daily_briefing']['text_only'])
+        self.assertEqual(edition['audio']['state'], 'pending')
 
-        rejected = {'critical_failed': False, 'failed_critical': ['content_quality']}
-        self.assertTrue(generation_api._mark_daily_narration_failure(
-            rejected, {'status': 'fallback', 'reason': 'narration_writer_shape'}))
-        self.assertTrue(rejected['critical_failed'])
-        self.assertEqual(rejected['failed_critical'], ['content_quality', 'daily_narration'])
+    def test_daily_narration_exceptions_short_scripts_and_empty_results_publish_text_only(self):
+        from dev import content_check
+        from ingest import daily_briefing, daily_narration, score_edition, write_edition
+        from ingest.daily_audio import daily_episode_from_edition, render_daily_audio
+
+        stories = [{'id': 'story-fixture', 'cluster_id': 'cluster-fixture',
+                    'heading': 'Fictional payment schedule update',
+                    'body': 'A fictional payment network changes its settlement process.',
+                    'source_ids': ['source-fixture'], 'topic_ids': ['payments']}]
+        edition = {'id': 'fictional-narration-fallback', 'revision_id': 'fictional-r1',
+                   'kind': 'daily', 'generated': True, 'generated_at': '2026-11-24T06:00:00Z',
+                   'local_date': '2026-11-24', 'sections': stories,
+                   'coverage': [{'topic_id': 'payments', 'state': 'covered'}]}
+        sources = [{'id': 'source-fixture', 'registry_id': 'source-fixture',
+                    'publisher': 'Fictional Bulletin', 'url': 'https://example.test/story',
+                    'published_at': '2026-11-24', 'reuse_terms': 'attribution'}]
+        candidate = {'editions': [edition]}
+        detail = {'sentence_evidence': {}, 'candidate_results': [], 'candidate_attempts': 1,
+                  'candidate_attempt_limit': 1}
+        clean_score = {'critical_failed': False, 'failed_critical': [], 'checks': []}
+        outcomes = (
+            ('type-error', TypeError('fixture-only broken call'), 'TypeError'),
+            ('too-short', {'status': 'fallback',
+                           'reason': 'narration_underdeveloped_with_unused_evidence'},
+             'narration_underdeveloped_with_unused_evidence'),
+            ('empty', None, 'narration_unavailable'),
+        )
+
+        for case, narration_result, expected_reason in outcomes:
+            with self.subTest(case=case):
+                directory = self.root / f'narration-{case}'
+                candidate_copy = json.loads(json.dumps(candidate))
+                narration_patch = (
+                    patch.object(daily_narration, 'write_spoken_script', side_effect=narration_result)
+                    if isinstance(narration_result, Exception) else
+                    patch.object(daily_narration, 'write_spoken_script', return_value=narration_result))
+
+                def assemble(target, *_args, **_kwargs):
+                    target['daily_briefing'] = {
+                        'briefing_script': [{'kind': 'greeting', 'text': 'Old fixture script.'}],
+                        'background_segments': [], 'spoken_words': 9, 'duration_seconds': 4,
+                    }
+
+                with patch.dict('os.environ', {'BRIEFING_DAILY_NARRATION': 'on'}), \
+                     patch.object(generation_api.core, 'ingest_enabled', return_value={
+                         'parsed_items': 1, 'fetched_sources': 1, 'errors': 0,
+                         'source_results': {'source-fixture': 'ok'}}), \
+                     patch.object(write_edition, 'generate_edition', return_value=(
+                         candidate_copy, {'sources': sources}, detail)), \
+                     patch.object(score_edition, 'score_edition', return_value=clean_score), \
+                     patch.object(daily_briefing, 'assemble', side_effect=assemble), \
+                     patch.object(content_check, 'check_content', return_value=[
+                         {'name': 'fixture content checks', 'passed': True, 'reasons': []}]), \
+                     narration_patch:
+                    code, started = generation_api.start_generation(
+                        PROFILE, directory, registry=[], is_default=True, publish_default=False)
+                    self.assertEqual(code, 202)
+                    for _ in range(200):
+                        _, job = generation_api.job_response(started['job_id'])
+                        if job['status'] in {'complete', 'failed'}:
+                            break
+                        time.sleep(0.01)
+
+                self.assertEqual(job['status'], 'complete', job)
+                published = job['edition_ready']['edition']
+                saved = json.loads((directory / 'current.json').read_text())['editions']['editions'][0]
+                self.assertEqual(published['daily_briefing']['briefing_script'], [])
+                self.assertTrue(published['daily_briefing']['text_only'])
+                self.assertEqual(published['audio']['state'], 'pending')
+                self.assertEqual(saved['daily_briefing']['briefing_script'], [])
+                self.assertEqual(daily_episode_from_edition(published)['chapters'], [])
+                self.assertEqual(render_daily_audio(published)['audio_status'], 'pending')
+                self.assertEqual(job['daily_narration']['status'], 'fallback')
+                self.assertEqual(job['daily_narration']['reason'], expected_reason)
 
     def test_final_content_gate_replaces_pre_narration_review_and_merges_failures(self):
         report = {'critical_failed': False, 'failed_critical': ['evidence_links'],
