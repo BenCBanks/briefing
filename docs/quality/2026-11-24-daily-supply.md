@@ -20,6 +20,10 @@ One real daily used the standard capped ledger, a fresh temporary state, and the
 
 The refill path now preserves untried feed clusters after the first 24 candidate extractions, alongside any open-web additions, so evidence failures do not strand the remaining writer budget. The real run still did not meet the product target of one story per topic. Feed supply and the currently unavailable external search providers leave the thin-topic fallback unproven; this report does not claim the daily-supply issue is complete.
 
+## Search-first comparison run
+
+One additional real daily was run with `search_first=on` through `dev/try_real.py daily --search-first`, using the same fresh temporary state and fictional profile. It stopped during the refill round with `RecursionError` in composed article-prefetch callbacks, before story selection. **No stories were selected; no script or first-100-word excerpt was produced.** Ledger cost was **$0.04850** and wall time was **120.82 seconds**. The callback composition is now covered by a fixture regression test; no second provider run was made.
+
 ## Fixture verification
 
 `ingest_writer_test`, `retrieval_fill_test`, `try_real_test`, `daily_briefing_test`, and `daily_monitor_test`: **120 passed**. No browser or preview server was run.

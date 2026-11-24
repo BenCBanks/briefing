@@ -53,7 +53,7 @@ def fictional_profile() -> dict:
 
 
 @contextmanager
-def isolated_run():
+def isolated_run(*, search_first=False):
     """Set a fresh state directory without touching live briefing state."""
     from dev.ingest.flags import FLAG_NAMES
     flag_environment = ['BRIEFING_' + name.upper() for name in FLAG_NAMES]
@@ -69,6 +69,8 @@ def isolated_run():
         os.environ['BRIEFING_EPISODES'] = 'real'
         # Exercise the same narrated publication path readers use.
         os.environ['BRIEFING_DAILY_NARRATION'] = 'on'
+        if search_first:
+            os.environ['BRIEFING_SEARCH_FIRST'] = 'on'
         os.environ.pop('BRIEFING_TESTING', None)
         try:
             yield state
@@ -240,8 +242,8 @@ def _poll_daily(job_id: str) -> dict:
     raise TimeoutError('daily generation exceeded ten-minute runner limit')
 
 
-def run_daily() -> int:
-    with isolated_run() as state:
+def run_daily(*, search_first=False) -> int:
+    with isolated_run(search_first=search_first) as state:
         from dev.ingest import core
         from dev.ingest.generation_api import start_generation
         original_ingest = core.ingest_enabled
@@ -306,13 +308,15 @@ def run_daily() -> int:
 def main(argv=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='kind', required=True)
-    sub.add_parser('daily', help='generate one real daily edition')
+    daily = sub.add_parser('daily', help='generate one real daily edition')
+    daily.add_argument('--search-first', action='store_true',
+                       help='use open-web retrieval before feed candidates')
     episode = sub.add_parser('episode', help='generate one real on-demand episode')
     episode.add_argument('question')
     episode.add_argument('--minutes', type=int, choices=(3, 5, 10, 15), default=DEFAULT_MINUTES)
     args = parser.parse_args(argv)
     if args.kind == 'daily':
-        return run_daily()
+        return run_daily(search_first=args.search_first)
     return run_episode(args.question, args.minutes)
 
 

@@ -18,7 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ingest.write_edition import (_needs_daily_retrieval_fill, _publisher_for, _source_maps,
                                   _candidate_queue_key, _daily_coverage_target_met,
                                   _daily_first_attempt_limit, _daily_refill_candidates,
-                                  _daily_refill_pool_limit,
+                                  _daily_refill_pool_limit, _with_prefetched_bodies,
                                   generate_edition)
 from ingest.score_edition import score_edition
 from ingest import core
@@ -133,6 +133,28 @@ class WriterTests(unittest.TestCase):
         refill = _daily_refill_candidates(feed, searched, [{'id': 'ai'}], {'read-once', 'unreadable-once'})
         self.assertEqual([row['id'] for row in refill['ai']], ['search-result', 'untried-feed'],
                          'untried feed clusters remain available after initial readable candidates fail')
+
+    def test_search_first_and_refill_prefetch_wrappers_compose_without_recursion(self):
+        calls = []
+        def original(url, source):
+            calls.append((url, source))
+            return 'live:' + url
+        original.has_prefetch = lambda url: url == 'cached-original'
+        original.diagnostics = [{'reason': 'fixture'}]
+        original.worker_count = 2
+
+        searched = _with_prefetched_bodies(original, {'search-result': 'search body'})
+        refilled = _with_prefetched_bodies(searched, {'refill-result': 'refill body'})
+        self.assertEqual(refilled('refill-result', 'fixture-source'), 'refill body')
+        self.assertEqual(refilled('search-result', 'fixture-source'), 'search body')
+        self.assertEqual(refilled('cached-original', 'fixture-source'), 'live:cached-original')
+        self.assertEqual(calls, [('cached-original', 'fixture-source')])
+        self.assertTrue(refilled.has_prefetch('refill-result'))
+        self.assertTrue(refilled.has_prefetch('search-result'))
+        self.assertTrue(refilled.has_prefetch('cached-original'))
+        self.assertFalse(refilled.has_prefetch('uncached'))
+        self.assertEqual(refilled.diagnostics, [{'reason': 'fixture'}])
+        self.assertEqual(refilled.worker_count, 2)
         self.assertEqual(_daily_first_attempt_limit(6, 1), 6,
                          'single-topic daily generation does not reserve unused coverage slots')
 

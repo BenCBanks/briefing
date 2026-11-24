@@ -44,6 +44,13 @@ class TryRealTests(unittest.TestCase):
         self.assertEqual(os.environ.get('BRIEFING_FLAGS_FILE'), before_flags)
         self.assertEqual(os.environ.get('BRIEFING_SEARCH_FIRST'), before_search)
 
+    def test_search_first_run_option_is_explicit_and_restored(self):
+        before = os.environ.get('BRIEFING_SEARCH_FIRST')
+        with isolated_run(search_first=True) as state:
+            self.assertEqual(os.environ.get('BRIEFING_SEARCH_FIRST'), 'on')
+            self.assertEqual(Path(os.environ['BRIEFING_STATE_DIR']), state)
+        self.assertEqual(os.environ.get('BRIEFING_SEARCH_FIRST'), before)
+
     def test_cost_delta_uses_normal_global_daily_ledger_bucket(self):
         before = {'daily': {'estimated_cost_usd': '1.25000'}}
         after = {'daily': {'estimated_cost_usd': '1.37500'}}

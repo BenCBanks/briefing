@@ -451,6 +451,22 @@ def _daily_refill_candidates(feed_candidates, fallback_candidates, topics, attem
     return result
 
 
+def _with_prefetched_bodies(fetcher, bodies):
+    """Compose a fetcher with cached article bodies without mutating its closure."""
+    cached = dict(bodies)
+
+    def wrapped(url, source, *, _fetcher=fetcher, _cached=cached):
+        return _cached[url] if url in _cached else _fetcher(url, source)
+
+    def has_prefetch(url, *, _fetcher=fetcher, _cached=cached):
+        return url in _cached or getattr(_fetcher, 'has_prefetch', lambda _url: False)(url)
+
+    wrapped.has_prefetch = has_prefetch
+    wrapped.diagnostics = getattr(fetcher, 'diagnostics', [])
+    wrapped.worker_count = getattr(fetcher, 'worker_count', 0)
+    return wrapped
+
+
 def extract_source_sentences(cluster, article_fetcher, sports=False, *, now=None):
     """Build an ephemeral sentence-ID evidence bundle; never serialize article text."""
     from .credibility import assess_bundle
@@ -1478,13 +1494,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
             candidate_pool_diagnostics[topic['id']]['candidate_clusters'] = len(
                 topic_candidates.get(topic['id'], []))
         if search_bodies:
-            original_fetcher = article_fetcher
-            def article_fetcher(url, source):
-                return search_bodies[url] if url in search_bodies else original_fetcher(url, source)
-            article_fetcher.has_prefetch = lambda url: url in search_bodies or getattr(
-                original_fetcher, 'has_prefetch', lambda _url: False)(url)
-            article_fetcher.diagnostics = getattr(original_fetcher, 'diagnostics', [])
-            article_fetcher.worker_count = getattr(original_fetcher, 'worker_count', 0)
+            article_fetcher = _with_prefetched_bodies(article_fetcher, search_bodies)
     first_attempt_limit = _daily_first_attempt_limit(max_candidate_attempts, len(topic_profiles))
     prefetch_plan = plan_round(topic_candidates, first_attempt_limit)
     extraction_end = extraction_deadline if extraction_deadline is not None else deadline
@@ -1810,13 +1820,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                                             first_round_cluster_ids)
         topic_candidates = filtered_fill
         if fill_bodies:
-            original_fetcher = article_fetcher
-            def article_fetcher(url, source):
-                return fill_bodies[url] if url in fill_bodies else original_fetcher(url, source)
-            article_fetcher.has_prefetch = lambda url: url in fill_bodies or getattr(
-                original_fetcher, 'has_prefetch', lambda _url: False)(url)
-            article_fetcher.diagnostics = getattr(original_fetcher, 'diagnostics', [])
-            article_fetcher.worker_count = getattr(original_fetcher, 'worker_count', 0)
+            article_fetcher = _with_prefetched_bodies(article_fetcher, fill_bodies)
             round_deadline = extraction_end = deadline
             budget_exhausted = False
             second_plan = plan_round(new_pool, max_candidate_attempts - candidate_attempt_limit,
