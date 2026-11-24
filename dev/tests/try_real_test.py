@@ -21,10 +21,28 @@ class TryRealTests(unittest.TestCase):
 
     def test_isolated_run_writes_fresh_state_and_restores_environment(self):
         before = os.environ.get('BRIEFING_STATE_DIR')
-        with isolated_run() as state:
-            self.assertTrue((state / 'profile.json').is_file())
-            self.assertEqual(os.environ.get('BRIEFING_EPISODES'), 'real')
+        before_flags = os.environ.get('BRIEFING_FLAGS_FILE')
+        before_search = os.environ.get('BRIEFING_SEARCH_FIRST')
+        os.environ['BRIEFING_FLAGS_FILE'] = '/not-a-real-profile/flags.json'
+        os.environ['BRIEFING_SEARCH_FIRST'] = 'on'
+        try:
+            with isolated_run() as state:
+                self.assertTrue((state / 'profile.json').is_file())
+                self.assertEqual(os.environ.get('BRIEFING_EPISODES'), 'real')
+                self.assertIsNone(os.environ.get('BRIEFING_FLAGS_FILE'))
+                self.assertIsNone(os.environ.get('BRIEFING_SEARCH_FIRST'))
+        finally:
+            if before_flags is None:
+                os.environ.pop('BRIEFING_FLAGS_FILE', None)
+            else:
+                os.environ['BRIEFING_FLAGS_FILE'] = before_flags
+            if before_search is None:
+                os.environ.pop('BRIEFING_SEARCH_FIRST', None)
+            else:
+                os.environ['BRIEFING_SEARCH_FIRST'] = before_search
         self.assertEqual(os.environ.get('BRIEFING_STATE_DIR'), before)
+        self.assertEqual(os.environ.get('BRIEFING_FLAGS_FILE'), before_flags)
+        self.assertEqual(os.environ.get('BRIEFING_SEARCH_FIRST'), before_search)
 
     def test_cost_delta_uses_normal_global_daily_ledger_bucket(self):
         before = {'daily': {'estimated_cost_usd': '1.25000'}}

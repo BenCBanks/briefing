@@ -55,12 +55,17 @@ def fictional_profile() -> dict:
 @contextmanager
 def isolated_run():
     """Set a fresh state directory without touching live briefing state."""
-    previous = {key: os.environ.get(key) for key in
-                ('BRIEFING_STATE_DIR', 'BRIEFING_EPISODES', 'BRIEFING_TESTING', 'BRIEFING_DAILY_NARRATION')}
+    from dev.ingest.flags import FLAG_NAMES
+    flag_environment = ['BRIEFING_' + name.upper() for name in FLAG_NAMES]
+    keys = ['BRIEFING_STATE_DIR', 'BRIEFING_FLAGS_FILE', 'BRIEFING_TESTING', *flag_environment]
+    previous = {key: os.environ.get(key) for key in keys}
     with tempfile.TemporaryDirectory(prefix='briefing-try-real-') as directory:
         state = Path(directory)
         (state / 'profile.json').write_text(json.dumps(fictional_profile()), encoding='utf-8')
         os.environ['BRIEFING_STATE_DIR'] = str(state)
+        # A real-run check must not borrow a live profile's feature flags.
+        for key in ('BRIEFING_FLAGS_FILE', *flag_environment):
+            os.environ.pop(key, None)
         os.environ['BRIEFING_EPISODES'] = 'real'
         # Exercise the same narrated publication path readers use.
         os.environ['BRIEFING_DAILY_NARRATION'] = 'on'
