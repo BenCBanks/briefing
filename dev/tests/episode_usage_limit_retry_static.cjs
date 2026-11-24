@@ -39,7 +39,7 @@ function productionFunction(start, end) {
   assert.ok(begin >= 0 && finish > begin, 'production function boundaries exist');
   return source.slice(begin, finish);
 }
-const renderer = productionFunction('function renderEpisodeRequestPage()', 'async function loadEpisodeCards(');
+const renderer = productionFunction('function renderEpisodeRequestPage()', 'function episodeProfileTopic(');
 const submit = productionFunction('async function startEpisodeJob(', 'function announceEpisodeStage(');
 
 async function check(error, httpFailure = false, malformed = false, staleResponse = false) {
