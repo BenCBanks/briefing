@@ -961,6 +961,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
 
     now = created_at or datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z')
     research_metadata = None
+    research_budget_report = None
     source_selection_report = {'considered': 0, 'kept': 0, 'dropped': 0,
                                'max_per_outlet': 2, 'items': []}
     if research is not None:
@@ -1025,7 +1026,15 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
         retrieval_history = research_result['history']
         query_count, read_attempts = research_result['queries'], research_result['read_attempts']
         discovered_count = research_result['sources_found']
+        research_budget_report = {
+            'research_budget_seconds': research_result.get('research_budget_seconds', 165),
+            'source_read_deadline_seconds': research_result.get('source_read_deadline_seconds', 12),
+            'max_concurrent_reads': research_result.get('max_concurrent_reads', 8),
+            'research_elapsed_seconds': research_result.get('research_elapsed_seconds'),
+            'read_timeouts': research_result.get('read_timeouts', 0),
+            'slow_hosts_dropped': research_result.get('slow_hosts_dropped', 0)}
         timing['research_and_reading_seconds'] = round(clock() - search_start, 3)
+        timing['research_and_reading_budget_seconds'] = research_budget_report['research_budget_seconds']
         stage('evidence')
         from ..source_selection import select_episode_reads
         selected_reads, source_selection_report = select_episode_reads(
@@ -1688,7 +1697,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
             'source_selection': source_selection_report,
             'timing_basis': 'total_seconds is wall clock; parallel model stage seconds sum request durations',
             'research_plan': [{k: v for k, v in q.items() if k not in {'source_ids', 'evidence_ids'}} for q in research_plan],
-            'retrieval': {'queries': query_count, 'attempts': retrieval_history, 'read_attempts': read_attempts},
+            'retrieval': {'queries': query_count, 'attempts': retrieval_history, 'read_attempts': read_attempts,
+                          'research_budget': research_budget_report},
             'cost_estimate': {'usd': round(estimated, 5), 'model': getattr(client, 'model', 'injected'),
                               'model_calls': getattr(client, 'calls', 0), **usage,
                               'basis': 'Text tokens priced from usage.py price list; search and audio costs are in the job ledger record.'}}
