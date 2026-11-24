@@ -1967,7 +1967,6 @@ async function refreshTodayRunSummary(edition, article) {
     if (!seconds || seconds > 60 * 60) return;
 
     const minutes = Math.max(1, Math.round(seconds / 60));
-    const durationLabel = ` · about ${minutes} min`;
     const summary = article.querySelector('.today-run-meta');
     if (summary) {
       const storyCount = (Array.isArray(edition.sections) ? edition.sections : []).filter(section => section.kind !== 'link').length;
@@ -1976,10 +1975,10 @@ async function refreshTodayRunSummary(edition, article) {
     const listen = article.querySelector('.today-listen-pill');
     if (listen) {
       listen.dataset.listenEstimate = `${minutes} min`;
-      listen.dataset.durationLabel = durationLabel;
+      listen.dataset.durationLabel = '';
       const label = listen.querySelector('.mode-label');
-      if (label && (label.textContent === 'Play' || label.textContent.startsWith('Play ·') || label.textContent.startsWith('Play about'))) label.textContent = `Play${durationLabel}`;
-      listen.setAttribute('aria-label', `Play today's briefing, about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`);
+      if (label && (label.textContent === 'Play' || label.textContent.startsWith('Play ·') || label.textContent.startsWith('Play about'))) label.textContent = 'Play briefing';
+      listen.setAttribute('aria-label', 'Play briefing');
     }
   } catch {
     // The edition remains useful if the optional run summary is unavailable.

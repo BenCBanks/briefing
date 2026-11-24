@@ -68,6 +68,7 @@ async function run() {
    await page.goto(baseURL + '/#topics', { waitUntil: 'networkidle' });
    assert.equal(await page.locator('.topics-words').inputValue(), profile.words);
    assert.equal(await page.locator('.topics-heading h1').innerText(), 'Your topics');
+   assert.equal(await page.locator('.topics-words-label').innerText(), 'Update topics saves these words; switches take effect right away.');
    const text = await page.locator('.topics-page').innerText();
    assert.doesNotMatch(text, /interest brief|evergreen|Rebuild from my words|Edit your interests|being prepared|custom-housing/);
    assert.equal(await page.locator('.topic-row').count(), 3, 'Topics with exclusions remain visible');

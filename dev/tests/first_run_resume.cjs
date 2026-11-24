@@ -56,14 +56,14 @@ async function capture(page, name) {
 
     await page.goto(`${baseURL}/#interests/describe`, { waitUntil: 'domcontentloaded' });
     const words = page.locator('#interest-words');
-    const time = page.getByLabel('Preferred time');
+    const time = page.getByLabel('When do you want to read it?');
     await words.waitFor();
     assert.equal(await time.inputValue(), '05:00', 'daily preference starts at 5 am');
     assert.equal(await page.locator('#interest-time-note').innerText(), 'Your briefing is ready by 6 am ET. Your preferred time is saved on this device.',
       'The selected reading time is clearly distinguished from the ready-by time');
     await time.fill('07:30'); await time.dispatchEvent('change');
     await page.reload({ waitUntil: 'domcontentloaded' });
-    assert.equal(await page.getByLabel('Preferred time').inputValue(), '07:30', 'time choice survives a reload');
+    assert.equal(await page.getByLabel('When do you want to read it?').inputValue(), '07:30', 'time choice survives a reload');
     assert.equal(await page.evaluate(() => localStorage.getItem('briefing:v1:daily-time')), '07:30');
 
     await page.locator('#interest-words').fill(typedWords);

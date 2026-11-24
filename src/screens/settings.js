@@ -1,3 +1,5 @@
+import { narratorDisplayName } from '../player.js';
+
 export function renderSettingsScreen({
   content, node, link, dailyTimeValue, formatEasternTime, nextDailyRunTime, interestProfile,
   navigate, resetBehaviorWeighting, player, NARRATOR_KEY, refreshLastUpdated,
@@ -20,7 +22,7 @@ export function renderSettingsScreen({
   let hasVoicePreference = /^[A-F]$/.test(localStorage.getItem(NARRATOR_KEY) || '');
   const voiceRow = node('button', null, 'settings-quick-row settings-voice-row'); voiceRow.type = 'button';
   voiceRow.append(node('span', 'Voice', 'settings-row-title'));
-  const voiceValue = node('span', hasVoicePreference ? `Sample ${selectedNarrator}` : 'Choose a voice', 'settings-row-value');
+  const voiceValue = node('span', hasVoicePreference ? narratorDisplayName(selectedNarrator) : 'Choose a voice', 'settings-row-value');
   voiceRow.append(voiceValue); quickSettings.append(voiceRow);
   const spendingRow = node('div', null, 'settings-quick-row settings-spending-row');
   spendingRow.setAttribute('aria-readonly', 'true');
@@ -71,7 +73,7 @@ export function renderSettingsScreen({
       if (player.narratorSample !== selectedNarrator) player.setNarratorSample(selectedNarrator);
       if (!hasVoicePreference && selectedNarrator !== 'A') hasVoicePreference = true;
       voiceHeading.textContent = hasVoicePreference ? 'Narrator' : 'Choose your voice';
-      voiceValue.textContent = hasVoicePreference ? `Sample ${selectedNarrator}` : 'Choose a voice';
+      voiceValue.textContent = hasVoicePreference ? narratorDisplayName(selectedNarrator) : 'Choose a voice';
     } catch { /* Keep the default when the saved setting cannot load. */ }
   }
   const voicePreferenceReady = loadVoicePreference();
@@ -98,15 +100,15 @@ export function renderSettingsScreen({
           if (activePreviewButton) { activePreviewButton.textContent = 'Play'; activePreviewButton.setAttribute('aria-label', `Play sample ${activePreviewButton.closest('.narrator-sample').querySelector('span').textContent.at(-1)}`); }
           preview.pause(); preview.src = `/audition-audio/${encodeURIComponent(sample.file)}`; preview.currentTime = 0;
           activePreviewButton = play; play.textContent = 'Pause'; play.setAttribute('aria-label', `Pause sample ${sample.label}`);
-          try { await preview.play(); voiceStatus.textContent = `Playing sample ${sample.label}.`; }
-          catch { play.textContent = 'Play'; play.setAttribute('aria-label', `Play sample ${sample.label}`); activePreviewButton = null; voiceStatus.textContent = `Sample ${sample.label} could not be played.`; }
+          try { await preview.play(); voiceStatus.textContent = `Playing ${narratorDisplayName(sample.label)}.`; }
+          catch { play.textContent = 'Play'; play.setAttribute('aria-label', `Play sample ${sample.label}`); activePreviewButton = null; voiceStatus.textContent = `The ${narratorDisplayName(sample.label)} preview could not be played.`; }
         });
         const use = node('button', 'Use this voice', 'narrator-use'); use.type = 'button';
         const selected = hasVoicePreference && selectedNarrator === sample.label;
         use.setAttribute('aria-pressed', String(selected));
         if (selected) { use.textContent = 'Selected'; use.disabled = true; }
         use.addEventListener('click', async () => {
-          use.disabled = true; voiceStatus.textContent = `Saving sample ${sample.label}…`;
+          use.disabled = true; voiceStatus.textContent = `Saving ${narratorDisplayName(sample.label)}…`;
           try {
             const result = await fetch('/api/voice', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ voice_name: sample.voice }) });
             if (!result.ok) throw Error('voice could not be saved');
@@ -115,10 +117,10 @@ export function renderSettingsScreen({
             localStorage.setItem(NARRATOR_KEY, sample.label);
             player.setNarratorSample(sample.label);
             voiceHeading.textContent = 'Narrator';
-            voiceValue.textContent = `Sample ${sample.label}`;
+            voiceValue.textContent = narratorDisplayName(sample.label);
             sampleList.querySelectorAll('.narrator-use').forEach(button => { button.disabled = false; button.textContent = 'Use this voice'; button.setAttribute('aria-pressed', 'false'); });
             use.disabled = true; use.textContent = 'Selected'; use.setAttribute('aria-pressed', 'true');
-            voiceStatus.textContent = `Sample ${sample.label} selected.`;
+            voiceStatus.textContent = `${narratorDisplayName(sample.label)} selected.`;
           } catch {
             use.disabled = false; voiceStatus.textContent = 'Voice could not be saved. Try again.';
           }

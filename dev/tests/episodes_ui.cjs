@@ -69,8 +69,9 @@ async function run() {
     assert.equal(await page.locator('.episode-page h1').innerText(), firstEpisode.title);
     assert.match(await page.locator('.episode-asked').innerText(), /Asked:.*What rules are changing/s);
     assert.equal(await page.locator('.episode-meta').innerText(), '4 sec · 6 sources · 4 chapters · made 17 Nov');
-    assert.equal(await page.getByRole('button', { name: `Listen to ${firstEpisode.title}` }).count(), 1);
-    assert.equal(await page.getByRole('button', { name: `Listen to ${firstEpisode.title}` }).isDisabled(), false);
+    assert.equal(await page.getByRole('button', { name: `Play episode: ${firstEpisode.title}` }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: `Play episode: ${firstEpisode.title}` }).isDisabled(), false);
+    assert.equal(await page.getByRole('heading', { name: 'Chapters · tap a title to jump' }).count(), 1);
     assert.equal(await page.locator('.episode-page .episode-updated').first().innerText(), 'Updated');
     assert.equal(await page.locator('.episode-chapter-list li').count(), 4);
     assert.equal(await page.locator('.episode-chapter-list').getAttribute('aria-label'), 'Episode chapters');
@@ -95,7 +96,7 @@ async function run() {
     assert.ok(citationMap.flatMap(row => row.markers).every(marker =>
       Number(marker.number) >= 1 && Number(marker.number) <= orderedSources.length), 'no displayed citation number dangles');
     await page.getByRole('heading', { name: "What we couldn't confirm" }).waitFor();
-    await page.getByRole('button', { name: `Listen to ${firstEpisode.title}` }).click();
+    await page.getByRole('button', { name: `Play episode: ${firstEpisode.title}` }).click();
     const playerDialog = page.getByRole('dialog', { name: firstEpisode.title });
     await playerDialog.waitFor();
     await page.locator('[data-player-phase]').filter({ hasText: /Loading audio/ }).waitFor();
@@ -133,7 +134,7 @@ async function run() {
     assert.equal(await playerDialog.getByRole('button', { name: 'Replay episode audio' }).count(), 1, 'Finished audio can be replayed');
     await page.keyboard.press('Escape');
     await playerDialog.waitFor({ state: 'detached' });
-    assert.equal(await page.getByRole('button', { name: `Listen to ${firstEpisode.title}` }).evaluate(el => document.activeElement === el), true, 'Closing player returns focus to Listen');
+    assert.equal(await page.getByRole('button', { name: `Play episode: ${firstEpisode.title}` }).evaluate(el => document.activeElement === el), true, 'Closing player returns focus to Listen');
     await capture(page, 'episode-page-light');
     await page.emulateMedia({ colorScheme: 'dark' }); await capture(page, 'episode-page-dark');
     await page.emulateMedia({ colorScheme: 'light' });
@@ -176,7 +177,7 @@ async function run() {
     await page.close();
 
     const failed = await openPage(browser, `episode/${firstEpisode.id}`, true, route => route.fulfill({ status: 404, body: 'missing fixture audio' }));
-    await failed.page.getByRole('button', { name: `Listen to ${firstEpisode.title}` }).click();
+    await failed.page.getByRole('button', { name: `Play episode: ${firstEpisode.title}` }).click();
     const failedDialog = failed.page.getByRole('dialog', { name: firstEpisode.title });
     await failedDialog.locator('[data-player-phase]').filter({ hasText: /Failed/ }).waitFor();
     assert.equal(await failedDialog.getByRole('button', { name: 'Retry episode audio' }).count(), 1, 'Failed audio offers a retry');

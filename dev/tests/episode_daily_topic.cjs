@@ -90,7 +90,7 @@ async function main() {
     await page.locator('.episode-request-page').waitFor();
     assert.equal(await page.locator('.on-demand-length-group [aria-pressed="true"]').innerText(), '10 min', 'The length choice survives reload');
     await page.locator('#episode-request-prompt').fill('Fictional coastal radio protocol');
-    await page.getByRole('button', { name: 'Create episode' }).click();
+    await page.getByRole('button', { name: 'Make episode' }).click();
     await page.locator('.episode-making-page').waitFor();
     assert.equal(episodeRequest.length, 10, 'The remembered length reaches the episode API');
 
