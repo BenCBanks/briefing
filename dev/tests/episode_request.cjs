@@ -38,6 +38,9 @@ async function screenshot(page, name) {
     let createInternalErrorMode = false;
     let creativeResponseMode = false;
     let episodeFailureMode = false;
+    let leaveReturnMode = false;
+    let leaveReturnReadyMode = false;
+    let leaveReturnJob = null;
     let genericCreateStatus = null;
     let episodeListStatus = 200;
     let episodeListJobs = [];
@@ -49,7 +52,7 @@ async function screenshot(page, name) {
     await page.route('**/api/episodes', async route => {
       if (route.request().method() !== 'POST') return episodeListStatus === 404
         ? route.fulfill({ status: 404, json: { error: 'profile_not_found' } })
-        : route.fulfill({ json: { jobs: episodeListJobs, left_today: 2 } });
+        : route.fulfill({ json: { jobs: leaveReturnMode && leaveReturnJob ? [leaveReturnJob, ...episodeListJobs] : episodeListJobs, left_today: 2 } });
       createPostCount += 1;
       createPayload = route.request().postDataJSON(); pollCount = 0;
       if (createPostHold) {
@@ -69,11 +72,27 @@ async function screenshot(page, name) {
         error: 'invalid_request',
         diagnostics: { prompt: 'FIXTURE_PRIVATE_GENERIC_PROMPT', trace: 'fictional generic error detail' },
       } });
+      if (leaveReturnMode) leaveReturnJob = { job_id: jobId, topic: createPayload.topic, length: createPayload.length,
+        status: 'researching', stage: 'researching', created_at: '2026-11-24T12:00:00Z' };
       return route.fulfill({ status: 202, json: { job_id: jobId, status: 'queued', stage: 'queued', counts: {}, left_today: 2, cost_estimate: { label: 'about 12 cents', kind: 'estimate' } } });
     });
     await page.route('**/api/episodes/**', route => {
       const requestPath = new URL(route.request().url()).pathname;
       if (requestPath.endsWith('/cancel')) { cancelCount += 1; return route.fulfill({ json: { status: 'cancelled' } }); }
+      if (leaveReturnMode) {
+        const episode = leaveReturnReadyMode ? {
+          id: jobId, topic_label: createPayload.topic, title: `Fictional briefing on ${createPayload.topic}`,
+          revision_id: 'fixture-leave-return-r1', script_hash: 'fixture-leave-return-hash',
+          audio_recorded: true, audio_status: 'recorded', duration_minutes: 1,
+          audio: { state: 'recorded', status: 'recorded', revision_id: 'fixture-leave-return-r1',
+            script_hash: 'fixture-leave-return-hash', url: '/dev/tests/fixtures/audio/episode-tone.wav', duration_seconds: 4 },
+          sources: [], chapters: [{ id: 'fixture-leave-return-chapter', title: 'The short answer',
+            sentences: [{ text: 'This is a fictional claim for the leave-and-return fixture.', source_ids: [], source_numbers: [] }] }],
+        } : null;
+        if (leaveReturnReadyMode) leaveReturnJob = { ...leaveReturnJob, status: 'done', stage: 'done', episode };
+        return route.fulfill({ json: { ...leaveReturnJob, status: leaveReturnReadyMode ? 'done' : 'researching',
+          stage: leaveReturnReadyMode ? 'done' : 'researching', counts: { chapters: 0, sentences: 0, sources: 1 }, episode } });
+      }
       if (episodeFailureMode) return route.fulfill({ json: {
         job_id: jobId, topic: createPayload.topic, length: createPayload.length,
         status: 'failed', stage: 'failed', failure_reason: 'insufficient_evidence', counts: {}, episode: null,
@@ -459,7 +478,55 @@ async function screenshot(page, name) {
     await screenshot(page, 'episode-failed-light');
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-failed-dark');
     await page.emulateMedia({ colorScheme: 'light' });
+
+    episodeFailureMode = false; leaveReturnMode = true; leaveReturnJob = null;
+    await page.evaluate(() => { location.hash = '#ask-episode'; });
+    await page.locator('.episode-request-page').waitFor();
+    await page.locator('#episode-request-prompt').fill('Fictional ferry schedule changes');
+    await page.getByRole('button', { name: 'Make episode' }).click();
+    await page.locator('.episode-making-page').waitFor();
+    await page.locator('.main-nav-badge[data-state="making"]').waitFor();
+    await screenshot(page, 'leave-return-making-light');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'leave-return-making-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.locator('[data-nav="today"]').click();
+    await page.locator('.today-page').waitFor();
+    assert.equal(await page.locator('.main-nav-badge[data-state="making"]').isVisible(), true, 'the On demand tab marks an episode that is still making');
+    assert.equal(await page.locator('[data-nav="on-demand"]').getAttribute('aria-label'), 'On demand, episode in progress');
+    await screenshot(page, 'leave-return-today-light');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'leave-return-today-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.locator('[data-nav="on-demand"]').click();
+    await page.locator('.episode-request-page').waitFor();
+    const activeCard = page.locator('.ask-episode-card').first();
+    await activeCard.waitFor();
+    assert.equal(await activeCard.getAttribute('data-job-id'), jobId, 'the making episode is first in the On demand list');
+    assert.equal(await activeCard.getAttribute('data-status'), 'making');
+    await screenshot(page, 'leave-return-list-light');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'leave-return-list-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await activeCard.click();
+    await page.locator('.episode-making-page').waitFor();
+    assert.equal(new URL(page.url()).hash, '#episode-making', 'the episode row returns to its active making screen');
+    assert.equal(await page.locator('.episode-making-quote').innerText(), '“Fictional ferry schedule changes”');
+    assert.equal(await page.locator('.main-nav-badge[data-state="making"]').count(), 1);
+    await screenshot(page, 'leave-return-returned-light');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'leave-return-returned-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    leaveReturnReadyMode = true;
+    await page.locator('.main-nav-badge[data-state="ready"]').waitFor();
+    assert.equal(await page.locator('[data-nav="on-demand"]').getAttribute('aria-label'), 'On demand, episode ready to play');
+    assert.equal(await page.locator('.main-nav-badge[data-state="ready"]').innerText(), '✓', 'Ready and unheard uses the check badge');
+    await page.locator('[data-nav="today"]').click(); await page.locator('.today-page').waitFor();
+    await screenshot(page, 'leave-return-ready-today-light');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'leave-return-ready-today-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.locator('[data-nav="on-demand"]').click(); await page.locator('.episode-request-page').waitFor();
+    await page.locator('.ask-episode-card[data-status="ready"]').first().click();
+    await page.locator('.episode-page').waitFor();
+    await page.getByRole('button', { name: `Play episode: Fictional briefing on Fictional ferry schedule changes` }).click();
+    await page.locator('.main-nav-badge').waitFor({ state: 'hidden' });
     assert.deepEqual(errors, []);
-    console.log('Episode request: ask-to-play flow, evidence failure recovery, four lengths, plain progress, source lists, and 390px light/dark screenshots passed.');
+    console.log('Episode request: ask-to-play flow, leave-and-return activity badge, evidence failure recovery, four lengths, plain progress, source lists, and 390px light/dark screenshots passed.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

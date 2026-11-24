@@ -155,6 +155,45 @@ function rememberEpisodeLength(value) {
 let episodeDraft = { prompt: '', minutes: readLastEpisodeLength() };
 let episodeJob = null;
 let episodeJobTimer = null;
+const EPISODE_UNHEARD_KEY = 'briefing:v1:episode-unheard';
+function episodeUnheardIds() {
+  try {
+    const ids = JSON.parse(localStorage.getItem(EPISODE_UNHEARD_KEY) || '[]');
+    return Array.isArray(ids) ? ids.filter(id => typeof id === 'string').slice(-100) : [];
+  } catch { return []; }
+}
+function saveEpisodeUnheardIds(ids) {
+  try { localStorage.setItem(EPISODE_UNHEARD_KEY, JSON.stringify([...new Set(ids)].slice(-100))); }
+  catch { /* The badge is a convenience; episode access still works without storage. */ }
+}
+function syncOnDemandBadge(jobs = episodeHistorySnapshot?.jobs || []) {
+  const tab = nav.find(item => item.dataset.nav === 'on-demand');
+  const badge = tab?.querySelector('[data-on-demand-badge]');
+  if (!tab || !badge) return;
+  const activeId = episodeJob?.jobId;
+  const making = Boolean(episodeJob && !episodeJob.done && !episodeJob.failed) || jobs.some(job => {
+    const id = job.job_id || job.id;
+    return id !== activeId && episodeHistoryState(job).key === 'making';
+  });
+  const unheard = episodeUnheardIds();
+  const ready = Boolean(episodeJob?.done && unheard.includes(episodeJob.jobId)) ||
+    jobs.some(job => unheard.includes(job.job_id || job.id) && episodeHistoryState(job).key === 'ready');
+  const state = making ? 'making' : ready ? 'ready' : '';
+  badge.hidden = !state;
+  badge.dataset.state = state;
+  badge.textContent = state === 'ready' ? '✓' : '';
+  tab.setAttribute('aria-label', state === 'making' ? 'On demand, episode in progress' : state === 'ready' ? 'On demand, episode ready to play' : 'On demand');
+}
+function markEpisodeUnheard(id) {
+  if (!id) return;
+  saveEpisodeUnheardIds([...episodeUnheardIds(), id]);
+  syncOnDemandBadge();
+}
+function markEpisodeHeard(id) {
+  if (!id) return;
+  saveEpisodeUnheardIds(episodeUnheardIds().filter(unheard => unheard !== id));
+  syncOnDemandBadge();
+}
 let episodeRequestError = '';
 let episodeRequestBusy = false;
 let episodeRequestBlocked = false;
@@ -2096,6 +2135,7 @@ async function loadEpisodeCards(cards, examples = null, prompt = null, { earlier
     if (response.status === 404) {
       if (!cards.isConnected) return;
       cards.setAttribute('aria-busy', 'false');
+      if (examples) syncOnDemandBadge([]);
       if (examples) examples.hidden = false;
       const empty = node('p', earlier ? 'No earlier episodes yet. Briefings you request will appear here.' : 'No on-demand briefings yet. Your first one will appear here.', 'episode-empty-copy');
       cards.replaceChildren(...(earlierAsk ? [earlierAsk] : []), empty);
@@ -2109,13 +2149,28 @@ async function loadEpisodeCards(cards, examples = null, prompt = null, { earlier
     cards.setAttribute('aria-busy', 'false');
     if (examples) examples.hidden = false;
     cards.replaceChildren();
+    if (examples) syncOnDemandBadge(jobs);
     if (!jobs.length) {
       cards.append(node('p', earlier ? 'No earlier episodes yet. Briefings you request will appear here.' : 'No on-demand briefings yet. Your first one will appear here.', 'episode-empty-copy'));
     }
     if (earlierAsk) cards.prepend(earlierAsk);
-    for (const job of jobs) {
+    const unheard = new Set(episodeUnheardIds());
+    const listedJobs = earlier ? jobs : [...jobs].sort((a, b) => {
+      const priority = job => {
+        const id = job.job_id || job.id;
+        const status = episodeHistoryState(job).key;
+        if (id === episodeJob?.jobId && !episodeJob.done && !episodeJob.failed) return 0;
+        if (status === 'making') return 0;
+        if (status === 'ready' && unheard.has(id)) return 1;
+        return 2;
+      };
+      return priority(a) - priority(b) || String(b.created_at || b.updated_at || '').localeCompare(String(a.created_at || a.updated_at || ''));
+    });
+    for (const job of listedJobs) {
       const status = episodeHistoryState(job); const id = job.job_id || job.id;
-      const card = link('', status.key === 'ready' ? `#episode/${encodeURIComponent(id)}` : `#episode-making/${encodeURIComponent(id)}`, 'ask-episode-card');
+      const activeMaking = id === episodeJob?.jobId && !episodeJob.done && !episodeJob.failed;
+      const hash = status.key === 'ready' ? `#episode/${encodeURIComponent(id)}` : activeMaking ? '#episode-making' : `#episode-making/${encodeURIComponent(id)}`;
+      const card = link('', hash, 'ask-episode-card'); card.dataset.jobId = id; card.dataset.status = status.key;
       card.append(node('h3', job.episode?.title || job.topic || job.title || 'Your briefing'), node('p', episodeLengthCopy(job), 'episode-length-badge'));
       const state = node('span', null, `episode-status-chip episode-status-${status.key}`);
       const ring = node('span', null, 'episode-stage-ring'); ring.setAttribute('aria-hidden', 'true'); ring.dataset.check = status.ring === 'done' ? '✓' : status.ring === 'failed' ? '!' : '';
@@ -2199,6 +2254,7 @@ async function renderEpisodeRoute(routeName) {
     content, node, location, episodeHistorySnapshot, renderEpisodeHistory, renderEpisodeMakingFromHistory,
     renderRouteFailure: (title, message) => renderEpisodeRouteFailureScreen({ content, node, link, title, message, onRetry: route }),
     renderMissing, navigate, player, isEpisodeInDailyBriefing, setEpisodeDailyBriefing,
+    onEpisodeHeard: markEpisodeHeard,
     setEpisodeDeckCleanup: cleanup => { episodeDeckCleanup = cleanup; },
   });
 }
@@ -2318,6 +2374,7 @@ async function startEpisodeJob(mode) {
       startedAt: Date.now(), stageStartedAt: Date.now(), stageIndex: 0,
       announcedStage: -1, activityKey: '', done: false,
     };
+    syncOnDemandBadge();
     navigate('#episode-making', { root: 'today', parentHash: '#ask-episode', parentScroll: window.scrollY,
       parentFocus: { type: 'id', id: 'episode-request-start' } });
     void pollEpisodeJob(episodeJob);
@@ -2363,9 +2420,11 @@ async function pollEpisodeJob(job) {
     job.done = job.status === 'done';
     job.failed = job.status === 'failed' || job.status === 'cancelled';
     job.pollError = '';
+    if (job.done) markEpisodeUnheard(job.jobId);
   } catch {
     job.pollError = 'We could not check progress just now. We’ll try again shortly.';
   }
+  syncOnDemandBadge();
   if (location.hash === '#episode-making') updateEpisodeMakingView(job, Date.now() - job.stageStartedAt, Date.now() - job.startedAt);
   if (!job.done && !job.failed) episodeJobTimer = setTimeout(() => void pollEpisodeJob(job), 1000);
 }
