@@ -145,9 +145,12 @@ async function run() {
     await page.evaluate(() => window.__voiceTest.state.actions.nexttrack());
     await page.waitForFunction(count => window.__voiceTest.state.spoken.length > count, beforeSkip);
     assert.equal(await page.evaluate(() => window.__voiceTest.state.spoken.at(-1).text), 'Next story: A second fictional headline.', 'Media Session skip advances to and speaks the next story');
-    const beforeSeek = await page.evaluate(() => window.__voiceTest.state.spoken.length);
+    const beforePrevious = await page.evaluate(() => window.__voiceTest.state.spoken.length);
+    await page.evaluate(() => window.__voiceTest.state.actions.previoustrack());
+    await page.waitForFunction(count => window.__voiceTest.state.spoken.length > count, beforePrevious);
+    assert.equal(await page.evaluate(() => window.__voiceTest.state.spoken.at(-1).text), 'The fictional headline.', 'Media Session previous chapter returns to and speaks the first story');
     await page.evaluate(() => window.__voiceTest.state.actions.seekto({ seekTime: 1 }));
-    await page.waitForFunction(count => window.__voiceTest.state.spoken.length > count, beforeSeek);
+    await page.waitForFunction(() => window.__voicePlayer.status === 'playing');
     assert.equal(await page.evaluate(() => window.__voicePlayer.status), 'playing', 'Media Session seek keeps active speech playing');
     assert.ok(Math.abs(await page.evaluate(() => window.__voiceTest.state.media.position.position) - 1) < 0.25,
       'Media Session seekto moves the published playhead to the requested time');
@@ -227,7 +230,10 @@ async function run() {
       player.playRecording({ id: 'recorded-fixture', revision_id: 'r1', script_hash: 'fictional-recorded-script-r1', kind: 'episode',
         title: 'Fictional recorded briefing', audio: { revision_id: 'r1', script_hash: 'fictional-recorded-script-r1',
           url: '/content/fictional-audio.mp3', duration_seconds: 60 },
-        chapters: [{ id: 'chapter-one', title: 'First chapter', start_seconds: 0, end_seconds: 60 }] });
+        chapters: [
+          { id: 'chapter-one', title: 'First chapter', start_seconds: 0, end_seconds: 30 },
+          { id: 'chapter-two', title: 'Second chapter', start_seconds: 30, end_seconds: 60 },
+        ] });
       Object.defineProperty(document, 'hidden', { configurable: true, get: () => true });
       document.dispatchEvent(new Event('visibilitychange'));
       return { status: player.status, audioPaused: window.__voiceTest.recordings.at(-1).paused,
@@ -244,6 +250,18 @@ async function run() {
     await page.evaluate(() => window.__voiceTest.state.actions.play());
     assert.equal(await page.evaluate(() => window.__voiceTest.state.media.playbackState), 'playing',
       'background Media Session play resumes recorded audio');
+    await page.evaluate(() => window.__voiceTest.state.actions.seekforward());
+    assert.ok(Math.abs(await page.evaluate(() => window.__voiceTest.recordings.at(-1).currentTime) - 15) < 0.25,
+      'Media Session forward seek defaults to fifteen seconds');
+    await page.evaluate(() => window.__voiceTest.state.actions.seekbackward());
+    assert.ok(await page.evaluate(() => window.__voiceTest.recordings.at(-1).currentTime) < 0.25,
+      'Media Session backward seek defaults to fifteen seconds and clamps at zero');
+    await page.evaluate(() => window.__voiceTest.state.actions.nexttrack());
+    assert.ok(Math.abs(await page.evaluate(() => window.__voiceTest.recordings.at(-1).currentTime) - 30) < 0.25,
+      'Media Session next chapter moves to the next recorded chapter');
+    await page.evaluate(() => window.__voiceTest.state.actions.previoustrack());
+    assert.ok(await page.evaluate(() => window.__voiceTest.recordings.at(-1).currentTime) < 0.25,
+      'Media Session previous chapter moves to the previous recorded chapter');
     await page.close();
 
     // A real browser smoke test: report availability and request speech only when the runtime exposes it.
