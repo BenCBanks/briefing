@@ -1026,12 +1026,15 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
         retrieval_history = research_result['history']
         query_count, read_attempts = research_result['queries'], research_result['read_attempts']
         discovered_count = research_result['sources_found']
-        research_budget_report = {key: research_result[key] for key in (
-            'research_budget_seconds', 'source_read_deadline_seconds',
-            'max_concurrent_reads', 'research_elapsed_seconds',
-            'read_timeouts', 'slow_hosts_dropped')}
+        research_budget_report = {
+            'research_budget_seconds': research_result.get('research_budget_seconds', 165),
+            'source_read_deadline_seconds': research_result.get('source_read_deadline_seconds', 12),
+            'max_concurrent_reads': research_result.get('max_concurrent_reads', 8),
+            'research_elapsed_seconds': research_result.get('research_elapsed_seconds'),
+            'read_timeouts': research_result.get('read_timeouts', 0),
+            'slow_hosts_dropped': research_result.get('slow_hosts_dropped', 0)}
         timing['research_and_reading_seconds'] = round(clock() - search_start, 3)
-        timing['research_and_reading_budget_seconds'] = research_result['research_budget_seconds']
+        timing['research_and_reading_budget_seconds'] = research_budget_report['research_budget_seconds']
         stage('evidence')
         from ..source_selection import select_episode_reads
         selected_reads, source_selection_report = select_episode_reads(
