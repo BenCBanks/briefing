@@ -15,7 +15,10 @@ import threading
 import time
 from pathlib import Path
 
-from .ingest.paths import configured_state_dir
+try:
+    from .ingest.paths import configured_state_dir
+except ImportError:  # direct preview_server imports used by legacy fixture modules
+    from ingest.paths import configured_state_dir
 
 SESSION_COOKIE = 'briefing_session'
 SESSION_TTL = 60 * 60 * 24 * 30
