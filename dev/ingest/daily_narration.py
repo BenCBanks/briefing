@@ -404,10 +404,11 @@ def narration_cost_estimate(edition, evidence_by_story, *, prices_path=None):
 
 def _evidence_for_story(section, runtime_evidence, sources, background_segments):
     source_ids = section.get('source_ids') if isinstance(section.get('source_ids'), list) else []
+    claim_links = section.get('claim_links') if isinstance(section.get('claim_links'), list) else []
     source_by_id = {row.get('id'): row for row in sources if isinstance(row, dict)}
     linked_ids = {
         sentence_id
-        for link in section.get('claim_links', []) if isinstance(link, dict)
+        for link in claim_links if isinstance(link, dict)
         for sentence_id in link.get('source_sentence_ids', []) if isinstance(sentence_id, str)
     }
     rows = {}
@@ -436,7 +437,7 @@ def _evidence_for_story(section, runtime_evidence, sources, background_segments)
                                  'outlet': str(source.get('publisher') or source.get('kind') or 'Source'),
                                  'title': str(source.get('title') or ''), 'text': text.strip(),
                                  'citation_numbers': [number], 'type': 'reported'}
-    topic_ids = set(section.get('topic_ids', []))
+    topic_ids = set(section.get('topic_ids') if isinstance(section.get('topic_ids'), list) else [])
     for segment in background_segments:
         if not isinstance(segment, dict) or segment.get('topic_id') not in topic_ids:
             continue
@@ -455,7 +456,7 @@ def _evidence_for_story(section, runtime_evidence, sources, background_segments)
                         'type': 'background'})
     # Claim-linked lines are first so evidence truncation never loses the facts
     # already used by the accepted written edition.
-    linked = [sentence_id for link in section.get('claim_links', []) if isinstance(link, dict)
+    linked = [sentence_id for link in claim_links if isinstance(link, dict)
               for sentence_id in link.get('source_sentence_ids', []) if sentence_id in rows]
     ordered = list(dict.fromkeys(linked + list(rows)))
     packed, total = [], 0
@@ -482,13 +483,15 @@ def _story_payload(edition, profile, runtime_evidence, sources):
         section_id = section.get('cluster_id')
         evidence = _evidence_for_story(section, runtime_evidence, sources, backgrounds)
         evidence_by_story[section_id] = evidence
+        topic_ids = section.get('topic_ids') if isinstance(section.get('topic_ids'), list) else []
+        claim_links = section.get('claim_links') if isinstance(section.get('claim_links'), list) else []
         result.append({'section_id': section_id, 'heading': section.get('heading'),
-                       'topics': [labels.get(topic_id, topic_id) for topic_id in section.get('topic_ids', [])],
+                       'topics': [labels.get(topic_id, topic_id) for topic_id in topic_ids],
                        'read_takeaway': (section.get('read_takeaway', '').strip()
                                          if isinstance(section.get('read_takeaway'), str) else ''),
                        'supply_origin': section.get('supply_origin', 'feed'),
                        'required_evidence_ids': list(dict.fromkeys(
-                           sentence_id for link in section.get('claim_links', []) if isinstance(link, dict)
+                           sentence_id for link in claim_links if isinstance(link, dict)
                            for sentence_id in link.get('source_sentence_ids', [])
                            if isinstance(sentence_id, str))), 'evidence': evidence})
     return result, evidence_by_story
