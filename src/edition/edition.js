@@ -339,7 +339,8 @@ export function renderToday(container, edition, topics, actions = {}) {
     ${rows ? `<section class="today-contents" aria-label="Chapters"><ol>${rows}</ol></section>` : ''}
     <section data-quick-hits-slot></section>
     ${actions.weekly && new Date(edition.local_date + 'T12:00:00Z').getUTCDay() === 0 ? '<a class="today-weekly-link" href="#weekly" data-open-weekly>Weekly recap</a>' : ''}
-    <footer class="today-completion"><strong>You're caught up for today.</strong><span>Next briefing tomorrow morning</span>
+    <footer class="today-footer">
+      <div class="today-completion" data-today-completion data-edition-id="${esc(edition.id)}" data-revision-id="${esc(edition.revision_id || '')}" aria-live="polite"${actions.listeningComplete === true ? '' : ' hidden'}><strong>You're caught up for today.</strong><span>Next briefing tomorrow morning</span></div>
       <div class="today-end-actions"><a class="today-earlier-briefings-link" href="#library">Earlier editions</a><div role="group" aria-label="Was this edition useful?">Useful? <button data-edition-useful="yes" aria-pressed="${actions.getFeedback?.(edition.id) === 'yes'}">Yes</button><button data-edition-useful="no" aria-pressed="${actions.getFeedback?.(edition.id) === 'no'}">No</button></div></div>
     </footer>
     <a class="episode-entry-prompt" href="#ask-episode" data-open-episode><span>Brief me on something else</span><span class="episode-entry-arrow" aria-hidden="true">→</span></a>
