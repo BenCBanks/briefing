@@ -1,7 +1,7 @@
 const API_PATH = '/api/interpret';
 
 async function interpretLocally(words, context, fallbackError = null) {
-  // Reed owns this deterministic fallback; load it lazily so this adapter can be integrated independently.
+  // Narration owns this deterministic fallback; load it lazily so this adapter can be integrated independently.
   const local = await import('./interpret.js');
   return { ...local.interpret(words, context), provider: 'local', ...(fallbackError ? { fallbackError } : {}) };
 }

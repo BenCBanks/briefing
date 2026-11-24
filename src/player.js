@@ -93,7 +93,7 @@ export function isCurrentRecordingEvent(activeRecording, eventRecording, recordi
   return recordingMode && activeRecording === eventRecording;
 }
 
-// Reed · generated citation markers are clickable in text and silent in narration.
+// Narration · generated citation markers are clickable in text and silent in narration.
 export function narrationUnits(item) {
   const sections = chaptersFor(item);
   const date = item?.local_date ? new Intl.DateTimeFormat('en-US', { month: 'long', day: 'numeric' }).format(new Date(`${item.local_date}T12:00:00Z`)) : '';

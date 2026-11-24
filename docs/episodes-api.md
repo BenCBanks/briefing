@@ -217,7 +217,7 @@ is limited. Relevant verified missing-answer questions are also read under
 speech, including these notices, passes deterministic script checks. Nothing is
 padded to reach the requested length; fewer than 80 verified content words fails.
 
-Tern's `episodes_audio.render_episode_audio` renders each frozen chapter, stitches
+Player's `episodes_audio.render_episode_audio` renders each frozen chapter, stitches
 the WAV and publishes atomically. Narration loads `BRIEFING_STATE_DIR/voice.json`
 (default `~/.local/state/briefing/voice.json`), falling back to the first audition
 voice only when absent. Invalid settings fail clearly. Tests inject temporary voice

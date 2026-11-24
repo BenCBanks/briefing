@@ -728,7 +728,8 @@ class EpisodeGenerationTests(unittest.TestCase):
 
     def test_empty_reads_publish_general_background_without_extra_model_call(self):
         self.kwargs['fetcher'] = lambda *a, **k: None
-        episode = generate_episode(TOPIC, **self.kwargs)
+        with patch.dict('os.environ', {'BRIEFING_EPISODE_FALLBACK_MODEL': 'off'}):
+            episode = generate_episode(TOPIC, **self.kwargs)
         self.assertEqual(episode['verification']['fallback'], 'general_background')
         self.assertIn('general background', episode['transcript'])
         self.assertEqual(self.client.calls, 1)

@@ -194,7 +194,7 @@ window.addEventListener('scroll', () => {
   if (chip) chip.hidden = false;
 }, { passive: true });
 
-// Mica · pass 010: keep Topics, Library, explanation and weekly Listen controls in sync with Tern's player.
+// Interface · pass 010: keep Topics, Library, explanation and weekly Listen controls in sync with Player's player.
 function refreshListenControls() {
   const current = player.item;
   for (const button of content.querySelectorAll('[data-listen-item]')) {

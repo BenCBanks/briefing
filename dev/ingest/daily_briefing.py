@@ -1041,7 +1041,7 @@ def assemble(edition, profile, target=None, *, retrieval_fill=None, followup_fil
 
 
 def maybe_render_audio(edition, profile_id, renderer=None, enabled=None):
-    """Invoke a Tern daily renderer only when explicitly enabled and available."""
+    """Invoke a Player daily renderer only when explicitly enabled and available."""
     active = (os.environ.get('BRIEFING_DAILY_AUDIO', '').strip() == '1'
               if enabled is None else enabled is True)
     if not active or not callable(renderer):

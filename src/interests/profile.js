@@ -81,7 +81,7 @@ export function saveProfile(profile) {
   return safe;
 }
 
-// Deterministic Stage A interpreter seam. Reed's shared interpret() replaces this adapter when available.
+// Deterministic Stage A interpreter seam. Narration's shared interpret() replaces this adapter when available.
 export function interpretLocally(words, catalog, previous = null) {
   const text = String(words || '').trim();
   const normalized = text.toLocaleLowerCase();

@@ -455,10 +455,10 @@ class EpisodeJobStoreTests(unittest.TestCase):
                                   side_effect=rollback_owned):
                     with patch.object(promoter, 'validate_promoted_asset',
                                       side_effect=None if state != 'new-missing-asset' else
-                                      RuntimeError('fictional Tern validator refusal'),
+                                      RuntimeError('fictional Player validator refusal'),
                                       return_value=validated, create=True) as validator_mock:
                         # A frozen, immutable validator result exercises the core
-                        # boundary; real media integrity remains owned by Tern's
+                        # boundary; real media integrity remains owned by Player's
                         # validate_promoted_asset tests.
                         with patch('dev.ingest.episodes_audio.ValidatedPromotedAudio',
                                    FictionalValidatedPromotedAudio, create=True):
