@@ -10,9 +10,10 @@ const shots = process.env.BRIEFING_SHOT_DIR;
 const shot = async (page, name) => {
   if (!shots) return;
   fs.mkdirSync(shots, { recursive: true });
-  await page.screenshot({ path: path.join(shots, name), fullPage: true, animations: 'disabled' });
+  await page.locator('.account-access').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: path.join(shots, name), animations: 'disabled' });
   await page.emulateMedia({ colorScheme: 'dark' });
-  await page.screenshot({ path: path.join(shots, name.replace(/\.png$/, '-dark.png')), fullPage: true, animations: 'disabled' });
+  await page.screenshot({ path: path.join(shots, name.replace(/\.png$/, '-dark.png')), animations: 'disabled' });
   await page.emulateMedia({ colorScheme: 'light' });
 };
 
@@ -59,7 +60,7 @@ async function main() {
   const account = page.locator('.account-access');
   await account.waitFor();
   await page.getByRole('heading', { name: 'Sign in' }).waitFor();
-  await shot(page, 'account-sign-in-light.png');
+  await shot(page, 'account-sign-in.png');
 
   await page.getByLabel('Email address').fill('reader@example.test');
   await page.getByLabel('Password').fill('wrong');
@@ -78,14 +79,14 @@ async function main() {
   await page.getByText('AI chips').waitFor();
   await page.getByText('A fictional story about chip design').waitFor();
   assert.deepEqual([...new Set(loaded)].sort(), ['history', 'topics'], 'reader-specific topics and history load after sign-in');
-  await shot(page, 'account-signed-in-light.png');
+  await shot(page, 'account-signed-in.png');
 
   await page.getByRole('button', { name: 'Your data' }).click();
   await page.getByRole('heading', { name: 'Your data' }).waitFor();
-  await shot(page, 'account-your-data-light.png');
+  await shot(page, 'account-your-data.png');
   await page.getByRole('button', { name: 'Delete my account' }).click();
   await page.getByRole('heading', { name: 'Delete your account?' }).waitFor();
-  await shot(page, 'account-delete-step-one-light.png');
+  await shot(page, 'account-delete-step-one.png');
   await page.getByRole('button', { name: 'Continue' }).click();
   await page.getByRole('heading', { name: 'Confirm account deletion' }).waitFor();
   await page.getByRole('button', { name: 'Keep my account' }).count().then(count => assert.equal(count, 0));
