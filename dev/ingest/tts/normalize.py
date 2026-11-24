@@ -66,7 +66,7 @@ _NUMBER = re.compile(
     rf'(?P<scale>\s*{_SCALE_TOKEN})?(?P<unit>\s*(?:%|percent(?:age points?)?|basis points?|bps|'
     rf'degrees?\s*[CF]|°\s*[CF]|dollars?|euros?|pounds?|minutes?|hours?|days?|years?|times?))?', re.I)
 _ACRONYMS = {
-    'AI': 'A-I', 'API': 'A-P-I', 'ATM': 'A-T-M', 'CDC': 'C-D-C', 'CEO': 'C-E-O',
+    'AI': 'A-I', 'ACH': 'ACH', 'API': 'A-P-I', 'ATM': 'A-T-M', 'CDC': 'C-D-C', 'CEO': 'C-E-O',
     'CFO': 'C-F-O', 'CPI': 'C-P-I', 'CMS': 'C-M-S', 'FDA': 'F-D-A', 'FBI': 'F-B-I',
     'GDP': 'G-D-P', 'IRS': 'I-R-S', 'NASA': 'NASA', 'SEC': 'S-E-C', 'UN': 'U-N',
     'UK': 'U-K', 'US': 'U-S', 'WHO': 'W-H-O',
