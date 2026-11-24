@@ -530,6 +530,73 @@ def transcript(chapters):
     return '\n\n'.join(' '.join(row['text'] for row in chapter['sentences']) for chapter in chapters)
 
 
+def _answer_outline(research_plan, evidence):
+    """Keep the planned answer order while tying each paragraph to read evidence."""
+    questions, not_found = [], []
+    for item in research_plan:
+        ids = item.get('evidence_ids')
+        if not isinstance(ids, list):
+            source_ids = set(item.get('source_ids', []))
+            ids = [ident for ident, row in evidence.items() if row.get('source_id') in source_ids]
+        ids = [ident for ident in ids if ident in evidence]
+        question = {'question': item.get('question', ''), 'evidence_ids': ids,
+                    'target_words': item.get('target_words', 0)}
+        if ids:
+            questions.append(question)
+        else:
+            not_found.append(question['question'])
+    return {'questions': questions, 'not_found': not_found}
+
+
+def _outline_pre_audio_issues(draft, outline, *, paragraph_word_limit=110):
+    """Check outline mapping and audio-safe shape without making provider calls."""
+    issues = []
+    chapters = draft.get('chapters') if isinstance(draft, dict) else None
+    if not isinstance(chapters, list) or not chapters:
+        return ['no_script']
+    questions = outline.get('questions', [])
+    not_found = outline.get('not_found', [])
+    expected_chapters = len(questions) + bool(not_found)
+    if len(chapters) != expected_chapters:
+        issues.append('paragraph_count_does_not_match_outline')
+    answer_chapters = chapters[:len(questions)]
+    for index, chapter in enumerate(answer_chapters):
+        allowed = set(questions[index]['evidence_ids']) if index < len(questions) else set()
+        sentences = chapter.get('sentences', []) if isinstance(chapter, dict) else []
+        paragraph_words = 0
+        mapped = False
+        for row in sentences:
+            if not isinstance(row, dict) or not isinstance(row.get('text'), str):
+                issues.append('invalid_sentence')
+                continue
+            text = row['text'].strip()
+            paragraph_words += len(words(text))
+            if text and not re.search(r"[.!?…][”\"’']?$", text):
+                issues.append('cut_off_sentence')
+            ids = row.get('evidence_ids', [])
+            if any(ident not in allowed for ident in ids):
+                issues.append('paragraph_not_mapped_to_outline_question')
+            if row.get('kind') not in {'opening', 'navigation'} and set(ids) & allowed:
+                mapped = True
+        if paragraph_words > paragraph_word_limit:
+            issues.append('paragraph_too_long')
+        if not mapped:
+            issues.append('paragraph_not_mapped_to_outline_question')
+    if not_found:
+        gap_chapter = chapters[-1] if len(chapters) == expected_chapters else {}
+        gap_rows = gap_chapter.get('sentences', []) if isinstance(gap_chapter, dict) else []
+        gap_text = ' '.join(row.get('text', '') for row in gap_rows if isinstance(row, dict)).strip()
+        if (len(gap_rows) != 1 or not re.search(
+                r"\b(?:couldn't|could not) (?:confirm|find|verify|establish)|\bno solid evidence\b",
+                gap_text, re.I)):
+            issues.append('not_found_gap_missing_or_not_its_own_beat')
+        elif not re.search(r"[.!?…][”\"’']?$", gap_text):
+            issues.append('cut_off_sentence')
+        if len(words(gap_text)) > paragraph_word_limit:
+            issues.append('paragraph_too_long')
+    return list(dict.fromkeys(issues))
+
+
 def _ensure_spoken_closing(chapters):
     """Do not manufacture a takeaway when pruning removes the writer's closing."""
     return
@@ -1148,6 +1215,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
     expansion_attempts = 0
     expansions_applied = 0
     expansion_failures = 0
+    outline_pre_audio = None
+    outline_writer_on = os.environ.get('BRIEFING_EPISODE_OUTLINE_WRITER', '').strip().lower() in {'1', 'on', 'true'}
     for attempt in range(5):
         if attempt >= 2:
             # A supported explanation should not be discarded for one remaining
@@ -1172,8 +1241,40 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
         else:
             stage('writing')
             if attempt == 0:
-                pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='episode-chapter')
-                if _is_gemini_client(client):
+                if outline_writer_on:
+                    answer_outline = _answer_outline(research_plan, evidence)
+                    outline_payload = {**payload, 'answer_outline': answer_outline}
+                    outline_system = SYSTEM_PROMPT + (
+                        '\nOUTLINE-FIRST HOST PASS: Answer the supplied answer_outline questions in their exact order. '
+                        'Use one chapter, which is one transcript paragraph, for each answerable question. Every factual '
+                        'sentence must cite only evidence_ids listed for that question. Do not add a chapter for an '
+                        'unanswered question. If answer_outline.not_found is non-empty, add exactly one final chapter '
+                        'with one plain honest-gap sentence; that final beat must stand alone. The outline is a coverage '
+                        'map, not spoken text. Keep each paragraph under 110 words and finish every sentence. Do not add '
+                        'facts from memory or new research. Follow the host voice and style target below.\n\nSTYLE TARGET '
+                        'EXAMPLE (qualities only, never its sentences or facts):\n' + STYLE_TARGET_EXAMPLE)
+                    draft = call(outline_system, outline_payload, SCRIPT_SCHEMA,
+                                 call_name='outline_episode_writer')
+                    outline_issues = _outline_pre_audio_issues(draft, answer_outline)
+                    rewritten = False
+                    if outline_issues:
+                        rewritten = True
+                        repair_payload = {**outline_payload,
+                            'repair_hint': {'issues': outline_issues,
+                                'instruction': 'Rewrite from this same outline and evidence only. Do not search or fetch. '
+                                               'Fix every listed issue and return the complete script.'}}
+                        draft = call(outline_system + '\nREWRITE ONCE for the listed pre-audio issues; use no new research.',
+                                     repair_payload, SCRIPT_SCHEMA, call_name='outline_script_rewrite')
+                        outline_issues = _outline_pre_audio_issues(draft, answer_outline)
+                    outline_pre_audio = {'passed': not outline_issues, 'issues': outline_issues,
+                                         'rewrite_attempted': rewritten,
+                                         'paragraph_word_limit': 110}
+                    chapter_assignments = [
+                        {'chapter_assignment': {'target_words': int(item['target_words'])}}
+                        for item in answer_outline['questions']]
+                    if answer_outline['not_found']:
+                        chapter_assignments.append({'chapter_assignment': {'target_words': 0}})
+                elif _is_gemini_client(client):
                     host_system = SYSTEM_PROMPT + ("\nHOST PASS: Write the complete episode as one coherent script "
                         "from this full evidence pack. Open in plain words that address the listener's question without "
                         "reading it back. Use natural transitions that explain the connection between ideas, never "
@@ -1185,6 +1286,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                         "(copy the qualities, never its sentences or facts):\n" + STYLE_TARGET_EXAMPLE)
                     draft = call(host_system, payload, SCRIPT_SCHEMA)
                 else:
+                    pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='episode-chapter')
                     chapter_payloads = [{**payload, 'chapter_assignment': {**question, 'index': index + 1,
                                          'is_first_chapter': index == 0,
                                          'is_last_chapter': index == len(research_plan) - 1},
@@ -1295,7 +1397,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                             expansion_attempts += 1
                             short_chapters.append((chapter_index, chapter, assignment, target))
                     counts['chapter_expansion_attempts'] = expansion_attempts
-                    if short_chapters:
+                    if short_chapters and not outline_writer_on:
                         expansion_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='episode-expand')
                         expansion_futures = []
                         expanded_draft = deepcopy(draft)
@@ -1678,7 +1780,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                                                 'revision_id': f'episode-{script_hash[:16]}'},
             'evidence_pack': {'version': 1, 'id': digest(json.dumps({k: digest(v['text']) for k, v in evidence.items()}, sort_keys=True)),
                               'sentence_count': len(evidence), 'retained_text': False},
-            'verification': {**verification, 'script_checks': script_report},
+            'verification': {**verification, 'script_checks': script_report,
+                             **({'outline_pre_audio': outline_pre_audio} if outline_pre_audio is not None else {})},
             'soft_warnings': list(dict.fromkeys(script_report.get('soft_warnings', []) +
                                                 verification.get('soft_warnings', []))), 'timing': timing,
             'quality_rubric': quality_report,
