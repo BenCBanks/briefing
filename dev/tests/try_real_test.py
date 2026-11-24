@@ -68,12 +68,35 @@ class TryRealTests(unittest.TestCase):
         self.assertEqual(os.environ.get('BRIEFING_FLAGS_FILE'), before_flags)
         self.assertEqual(os.environ.get('BRIEFING_SEARCH_FIRST'), before_search)
 
+    def test_isolated_run_preserves_only_explicit_daily_outline_ab_override(self):
+        before = os.environ.get('BRIEFING_DAILY_OUTLINE_WRITER')
+        with patch.dict(os.environ, {'BRIEFING_DAILY_OUTLINE_WRITER': 'on',
+                                     'BRIEFING_RETRIEVAL_FILL': 'on'}):
+            with isolated_run() as state:
+                self.assertEqual(Path(os.environ['BRIEFING_STATE_DIR']), state)
+                self.assertEqual(os.environ.get('BRIEFING_DAILY_OUTLINE_WRITER'), 'on')
+                self.assertIsNone(os.environ.get('BRIEFING_RETRIEVAL_FILL'))
+            self.assertEqual(os.environ.get('BRIEFING_DAILY_OUTLINE_WRITER'), 'on')
+        self.assertEqual(os.environ.get('BRIEFING_DAILY_OUTLINE_WRITER'), before)
+
     def test_search_first_run_option_is_explicit_and_restored(self):
         before = os.environ.get('BRIEFING_SEARCH_FIRST')
         with isolated_run(search_first=True) as state:
             self.assertEqual(os.environ.get('BRIEFING_SEARCH_FIRST'), 'on')
             self.assertEqual(Path(os.environ['BRIEFING_STATE_DIR']), state)
         self.assertEqual(os.environ.get('BRIEFING_SEARCH_FIRST'), before)
+
+    def test_daily_real_run_report_includes_story_count(self):
+        output = StringIO()
+        edition = {'sections': [{'cluster_id': 'story-one'}, {'cluster_id': 'story-two'},
+                                {'heading': 'not a story'}],
+                   'spoken_words': 200,
+                   'daily_briefing': {'briefing_script': [{'text': 'A fictional spoken script.'}]}}
+        with redirect_stdout(output):
+            _print_result('daily', edition, {'daily': {'estimated_cost_usd': 0}},
+                          __import__('time').monotonic())
+        self.assertIn('Stories: 2', output.getvalue())
+        self.assertIn('Word count: 200', output.getvalue())
 
     def test_cost_delta_uses_normal_global_daily_ledger_bucket(self):
         before = {'daily': {'estimated_cost_usd': '1.25000'}}
