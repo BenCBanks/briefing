@@ -113,8 +113,8 @@ async function checkContrast(page) {
   assert.deepEqual(await page.locator('.main-nav-label').allTextContents(), ['Today','On demand','Earlier','Topics']);
   const initialNav = await page.locator('.main-nav').boundingBox();
   assert.equal(await page.locator('.mini-player').count(),0,'Idle has no player bar');
-  assert.equal(await page.locator('.today-listen-pill').innerText(),'Play · about 2 min');
-  assert.equal(await page.locator('.today-listen-pill').getAttribute('aria-label'), "Play today's briefing, about 2 minutes");
+  assert.equal(await page.locator('.today-listen-pill').innerText(),'Play briefing');
+  assert.equal(await page.locator('.today-listen-pill').getAttribute('aria-label'), 'Play briefing');
   for(const theme of ['light','dark']){
    await page.emulateMedia({colorScheme:theme});
    await capture(page,`nav-header-today-${theme}`);
@@ -213,12 +213,12 @@ async function checkContrast(page) {
     await page.reload({ waitUntil: 'domcontentloaded' });
     await page.locator('.today-run-summary').waitFor();
     const label = `about ${minutes} min`;
-    const ariaLabel = `Play today's briefing, about ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
+    const ariaLabel = `Play briefing`;
     await page.waitForFunction(expected => document.querySelector('.today-run-meta')?.textContent === `3 stories · ${expected}`,
       label);
     assert.equal(await page.locator('.today-run-meta').innerText(), `3 stories · ${label}`,
       `Today uses the ${minutes}-minute recorded audio length over the script estimate`);
-    assert.equal(await page.locator('.today-listen-pill').innerText(), `Play · ${label}`);
+    assert.equal(await page.locator('.today-listen-pill').innerText(), 'Play briefing');
     assert.equal(await page.locator('.today-listen-pill').getAttribute('aria-label'),
       ariaLabel);
   }
@@ -320,14 +320,14 @@ async function checkContrast(page) {
   await page.locator('[data-nav="today"]').click(); await page.locator('.today-page').waitFor();
   assert.equal(await page.locator('.today-completion span').textContent(), 'Next briefing tomorrow morning');
   // Known duration, available narration with unknown duration, and no playback.
-  for (const [available,duration,label] of [[true,180,'Listen · about 3 min'],[true,undefined,'Listen · about 1 min'],[false,180,null]]) {
+  for (const [available,duration,label] of [[true,180,'Play briefing'],[true,undefined,'Play briefing'],[false,180,null]]) {
    await page.evaluate(async ({edition,sources,available,duration})=>{const {renderToday}=await import('/src/edition/edition.js');renderToday(document.querySelector('main'),{...edition,audio:{duration_seconds:duration}},[],{sources,listeningAvailable:available});},{edition,sources,available,duration});
-   if(label) assert.equal(await page.locator('.today-listen-pill').innerText(),label.replace('Listen', 'Play'));
+   if(label) assert.equal(await page.locator('.today-listen-pill').innerText(),label);
    else assert.equal(await page.locator('.today-listen-pill').count(),0);
   }
   await page.evaluate(async ({edition,sources})=>{const {renderToday}=await import('/src/edition/edition.js');renderToday(document.querySelector('main'),{...edition,audio:{duration_seconds:180}},[],{sources,listeningAvailable:true,deferListenDuration:true});},{edition,sources});
-  assert.equal(await page.locator('.today-listen-pill').innerText(),'Play','The explicit deferred state does not show a provisional player duration');
-  assert.equal(await page.locator('.today-listen-pill').getAttribute('aria-label'),"Play today's briefing");
+  assert.equal(await page.locator('.today-listen-pill').innerText(),'Play briefing','The explicit deferred state does not show a provisional player duration');
+  assert.equal(await page.locator('.today-listen-pill').getAttribute('aria-label'),'Play briefing');
   // Thin days open the one story without a separate banner.
   await page.evaluate(()=>localStorage.removeItem('briefing:story-more-open'));
   await page.evaluate(async ({edition,sources})=>{ const {renderToday}=await import('/src/edition/edition.js'); renderToday(document.querySelector('main'),{...edition,sections:edition.sections.slice(0,1),thin_day:true,sources},[],{sources}); },{edition,sources});

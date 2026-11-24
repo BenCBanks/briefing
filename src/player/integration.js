@@ -85,21 +85,19 @@ function syncListeningControls() {
     if (!edition || button.dataset.listenControl === 'edition') {
       if (edition && button.dataset.listenControl === 'edition') {
         const label = listenControlLabel(edition);
-        const spokenEstimate = button.dataset.listenEstimate?.replace(/^(\d+)\s+min$/, (_match, minutes) =>
-          `${minutes} ${minutes === '1' ? 'minute' : 'minutes'}`) || '';
         const audioPaused = label === 'Audio paused';
         const same = player.item?.id === edition.id && player.item?.revision_id === edition.revision_id;
         const detail = audioPaused ? 'Audio paused'
-          : same && ['playing', 'paused'].includes(player.status) ? `Resume ${formatElapsed(getState().progress[edition.id]?.seconds)}` : button.dataset.listenEstimate;
+          : same && ['playing', 'paused'].includes(player.status) ? `Resume ${formatElapsed(getState().progress[edition.id]?.seconds)}` : '';
         const labelNode = button.querySelector('.mode-label');
         const detailNode = button.querySelector('small');
-        if (labelNode) labelNode.textContent = button.classList.contains('today-listen-pill') ? same && player.status === 'playing' ? 'Playing · tap to pause' : label === 'Listen' ? `Play${button.dataset.durationLabel || ''}` : label : 'Listen';
+        if (labelNode) labelNode.textContent = button.classList.contains('today-listen-pill') ? same && player.status === 'playing' ? 'Playing · tap to pause' : label === 'Listen' ? 'Play briefing' : label : 'Listen';
         if (detailNode) detailNode.textContent = detail;
         const icon = button.querySelector('.mode-icon');
         if (icon) icon.innerHTML = same && player.status === 'playing' ? PAUSE_ICON : PLAY_ICON;
         button.disabled = audioPaused;
         button.classList.toggle('is-disabled', audioPaused);
-        button.setAttribute('aria-label', label === 'Listen' ? `Play today's briefing${spokenEstimate ? `, about ${spokenEstimate}` : ''}` : `${label} today's briefing`);
+        button.setAttribute('aria-label', label === 'Listen' ? 'Play briefing' : `${label} today's briefing`);
       }
       continue;
     }

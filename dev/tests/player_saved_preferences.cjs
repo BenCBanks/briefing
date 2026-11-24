@@ -68,7 +68,7 @@ async function run() {
     await page.waitForFunction(() => window.__savedPreferenceFixture.spoken.length > 0);
     await page.locator('#fresh-episode-player .mini-player-open').click();
     second.label = await page.locator('.player-voice-label').innerText();
-    assert.deepEqual(second, { speed: 2, narrator: 'B', voice: 'fixture-natural', label: 'Voice: Sample B',
+    assert.deepEqual(second, { speed: 2, narrator: 'B', voice: 'fixture-natural', label: 'Voice: Charon',
       savedSpeed: '2', savedNarrator: 'B' }, 'a new episode uses the listener’s saved speed and narrator');
     await capture(page, 'new-episode-player-light-390');
     await page.emulateMedia({ colorScheme: 'dark' });

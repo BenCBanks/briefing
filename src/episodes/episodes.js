@@ -76,7 +76,7 @@ function updatedTag(episode) {
 
 function listenControl(episode, onListen = null) {
   const group = element('div', 'episode-listen-group');
-  const listen = element('button', 'primary episode-listen', 'Listen');
+  const listen = element('button', 'primary episode-listen', 'Play episode');
   listen.type = 'button';
   if (!hasCurrentEpisodeRecording(episode)) {
     const statusId = `audio-unavailable-${episode.id}`;
@@ -85,7 +85,7 @@ function listenControl(episode, onListen = null) {
     listen.setAttribute('aria-describedby', statusId);
     group.append(listen, status);
   } else {
-    listen.setAttribute('aria-label', `Listen to ${episode.title}`);
+    listen.setAttribute('aria-label', `Play episode: ${episode.title}`);
     if (typeof onListen === 'function') listen.addEventListener('click', () => onListen(episode));
     group.append(listen);
   }
@@ -167,7 +167,7 @@ export function renderEpisodePage(container, episode, { onListen = null, inDaily
   }
   if (!withdrawnEpisode) page.append(listenControl(episode, onListen));
 
-  const chaptersHeading = element('h2', '', 'Chapters');
+  const chaptersHeading = element('h2', '', 'Chapters · tap a title to jump');
   page.append(chaptersHeading);
   const chapterList = element('ol', 'episode-chapter-list');
   chapterList.setAttribute('aria-label', 'Episode chapters');

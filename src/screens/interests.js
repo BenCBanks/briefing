@@ -24,7 +24,7 @@ export function renderInterestDescribe({ content, node, draft, profile, dailyTim
   field.append(label, words);
   form.append(field);
   const timeField = node('div', null, 'interest-time-field');
-  const dailyTimeLabel = node('label', 'Preferred time', 'interest-time-label'); dailyTimeLabel.htmlFor = 'interest-daily-time';
+  const dailyTimeLabel = node('label', 'When do you want to read it?', 'interest-time-label'); dailyTimeLabel.htmlFor = 'interest-daily-time';
   const dailyTimeInput = node('input'); dailyTimeInput.id = 'interest-daily-time'; dailyTimeInput.name = 'daily-time'; dailyTimeInput.type = 'time'; dailyTimeInput.value = dailyTime;
   dailyTimeInput.setAttribute('aria-describedby', 'interest-time-note');
   dailyTimeInput.addEventListener('change', () => onDailyTimeChange(dailyTimeInput.value));

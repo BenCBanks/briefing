@@ -56,8 +56,8 @@ async function run() {
     assert.equal(await page.locator('.today-mode-read').count(), 0, 'Reading needs no separate mode');
     assert.match(await page.locator('.today-date').innerText(), /^Sunday 15 November$/);
     assert.equal(await page.locator('.today-listen-pill').count(), 1, 'Today exposes the primary Play action');
-    assert.match(await page.locator('.today-listen-pill .mode-label').innerText(), /^Play(?: · about \d+ min)?$/);
-    assert.match(await page.locator('.today-listen-pill').getAttribute('aria-label'), /^Play today's briefing(?:, about \d+ minutes?)?$/);
+    assert.equal(await page.locator('.today-listen-pill .mode-label').innerText(), 'Play briefing');
+    assert.match(await page.locator('.today-listen-pill').getAttribute('aria-label'), /^Play briefing$/);
     assert.match(await page.locator('.today-run-meta').innerText(), /^\d+ stories(?: · about \d+ min)?$/);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false);
     await capture(page, 'today-390-light.png');
