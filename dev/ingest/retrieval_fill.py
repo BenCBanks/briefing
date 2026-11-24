@@ -13,6 +13,7 @@ from .usage import process_ledger
 from .flags import flag_enabled
 
 MAX_GROUNDING_QUERIES = 6
+MAX_TOPIC_FLOOR_QUERIES = 2
 REASONS = ('low_tier', 'listicle', 'source_risk', 'source_policy', 'rights_registry',
            'duplicate', 'already_published', 'unknown_date', 'future',
            'missing_title', 'no_evidence', 'topic_scope', 'deadline', 'invalid_url',
@@ -26,7 +27,8 @@ def empty_report(enabled=False):
     return {'enabled': enabled, 'triggered': False, 'topics_searched': 0,
             'grounding_requests': 0, 'search_requests': 0, 'candidates_considered': 0, 'candidates_added': 0,
             'first_round_passed': 0, 'first_round_readable': 0, 'second_round_passed': 0,
-            'search_first': False, 'planner_queries': 0, 'retrieval_rounds': 0,
+            'search_first': False, 'topic_floor': False,
+            'planner_queries': 0, 'retrieval_rounds': 0,
             'guarded_reads': 0, 'quality_passed': 0, 'novelty_passed': 0,
             'rejected': {}, 'provider_statuses': {}, 'providers': {}}
 
@@ -41,6 +43,7 @@ def safe_report(value):
         count = value.get(key)
         report[key] = count if type(count) is int and count >= 0 else 0
     report['search_first'] = value.get('search_first') is True
+    report['topic_floor'] = value.get('topic_floor') is True
     rejections = value.get('rejected') if isinstance(value.get('rejected'), dict) else {}
     provider_statuses = value.get('provider_statuses') if isinstance(value.get('provider_statuses'), dict) else {}
     report['rejected'] = {key: count for key, count in rejections.items()
@@ -95,11 +98,15 @@ def _feed_candidate_rejection(item, source, topic, *, now, prior, seen, maps, ri
 
 
 def fill_candidates(topic_candidates, topics, items, registry, history, now, *, deadline=None,
-                    passed_candidates=None, before_model_call=None, enabled=None, search_first=False):
+                    passed_candidates=None, before_model_call=None, enabled=None, search_first=False,
+                    topic_floor_search=False):
     search_first = search_first is True
+    topic_floor_search = topic_floor_search is True
+    search_first = search_first or topic_floor_search
     enabled = flag_enabled('retrieval_fill') if enabled is None else enabled is True
     report = empty_report(enabled or search_first)
     report['search_first'] = search_first
+    report['topic_floor'] = topic_floor_search
     bodies = {}
     if not enabled and not search_first:
         return topic_candidates, bodies, report
@@ -149,12 +156,14 @@ def fill_candidates(topic_candidates, topics, items, registry, history, now, *, 
             break
         if search_first:
             plan = plan_queries(topic, style='news', length='short')
-            report['planner_queries'] += len(plan['queries'])
-            planned_queries = plan['queries']
+            planned_queries = (plan['queries'][:MAX_TOPIC_FLOOR_QUERIES]
+                               if topic_floor_search else plan['queries'])
+            report['planner_queries'] += len(planned_queries)
         else:
             planned_queries = [(str(topic.get('scope') or topic.get('label') or '').strip()[:420] +
                                 ' reporting analysis features and data releases')]
-        topic_external_slots = (slot_base + (1 if topic_index < slot_remainder else 0)
+        topic_external_slots = (MAX_TOPIC_FLOOR_QUERIES if topic_floor_search else
+                                slot_base + (1 if topic_index < slot_remainder else 0)
                                 if search_first else MAX_GROUNDING_QUERIES)
         topic_end = (min(end, time.monotonic() + max(1, (end - time.monotonic()) /
                                                      max(1, len(underfilled) - topic_index)))
@@ -162,7 +171,7 @@ def fill_candidates(topic_candidates, topics, items, registry, history, now, *, 
         feed_providers = [provider for provider in providers if provider.name == 'feeds']
         external_providers = [provider for provider in providers if provider.name != 'feeds']
         topic_hints = []
-        rounds = 2 if search_first else 1
+        rounds = 1 if topic_floor_search else 2 if search_first else 1
         for round_number in range(1, rounds + 1):
             if time.monotonic() >= topic_end or end - time.monotonic() < 1:
                 rejected['deadline'] += 1
@@ -175,10 +184,12 @@ def fill_candidates(topic_candidates, topics, items, registry, history, now, *, 
                 query = planned_query
                 if round_number == 2:
                     query = (planned_query + ' additional reporting and recent developments')[:500]
-                selected = list(feed_providers)
+                selected = [] if topic_floor_search else list(feed_providers)
                 if search_first:
+                    global_search_limit = (MAX_TOPIC_FLOOR_QUERIES * len(underfilled)
+                                           if topic_floor_search else MAX_GROUNDING_QUERIES)
                     if (external_providers and topic_external_slots > 0 and
-                            search_slots < MAX_GROUNDING_QUERIES):
+                            search_slots < global_search_limit):
                         selected.append(external_providers[search_slots % len(external_providers)])
                         topic_external_slots -= 1
                         search_slots += 1

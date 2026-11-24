@@ -1900,12 +1900,11 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
             on_fill_start()
         accepted = {topic['id']: [cluster for cluster in topic_candidates.get(topic['id'], [])
                                   if cluster['id'] in story_by_cluster] for topic in topic_profiles}
-        search_for_uncovered = bool(fallback_topics) and not search_first_report.get('triggered')
         filled, fill_bodies, fill_report = fill_candidates(
             topic_candidates, fallback_topics or topic_profiles, items, registry, recent_history, now,
             deadline=deadline, passed_candidates=accepted, before_model_call=before_model_call,
             enabled=True if fallback_topics else fill_enabled,
-            search_first=search_for_uncovered)
+            topic_floor_search=bool(fallback_topics))
         old_candidates = topic_candidates
         from .source_selection import select_daily_clusters
         filtered_fill = {}
@@ -1943,6 +1942,8 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                     'quality_passed', 'novelty_passed'):
             fill_report[key] += search_first_report.get(key, 0)
         fill_report['search_first'] = True
+        fill_report['topic_floor'] = (fill_report.get('topic_floor') is True or
+                                      search_first_report.get('topic_floor') is True)
         fill_report['enabled'] = True
         fill_report['triggered'] = True
         merged_statuses = Counter(fill_report.get('provider_statuses', {}))

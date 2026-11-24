@@ -230,6 +230,46 @@ class FillTests(unittest.TestCase):
         self.assertEqual(report['rejected']['outside_window'], 1)
         self.assertEqual(self.reads, [])
 
+    def test_topic_floor_search_targets_only_empty_topics_with_two_queries_each(self):
+        topics = [
+            {'id': 'payments', 'label': 'Payments', 'scope': 'Payment settlement rules', 'include': []},
+            {'id': 'health-policy', 'label': 'Health insurance policy',
+             'scope': 'Health insurance coverage policy', 'include': []},
+            {'id': 'ai-finance', 'label': 'AI in finance',
+             'scope': 'Artificial intelligence in financial services', 'include': []},
+        ]
+        for row in self.registry:
+            if row['id'] == 'health':
+                row['topics'] = ['health-policy']
+            elif row['id'] == 'wire':
+                row['topics'] = ['ai-finance']
+        self.rows = [
+            self.hint('State regulator updates health insurance coverage rules', 'health-policy', 'health'),
+            self.hint('Bank adopts artificial intelligence review for loan decisions', 'ai-finance', 'wire'),
+        ]
+        payment = self.hint('Regulator updates payment settlement rules', 'feed-payment', 'payments')
+        payment_clusters = cluster_items([{'url': payment.url, 'title': payment.title,
+                                           'published': payment.published, 'source_id': payment.source_id}],
+                                         _source_maps(self.registry))
+        topics_to_search = topics[1:]
+        pool, bodies, report = fill.fill_candidates(
+            {'payments': payment_clusters, 'health-policy': [], 'ai-finance': []},
+            topics_to_search, [], self.registry, self.history, NOW,
+            passed_candidates={'payments': payment_clusters, 'health-policy': [], 'ai-finance': []},
+            enabled=True, topic_floor_search=True)
+
+        queried = [provider for provider, _query in self.queries]
+        self.assertEqual(len(queried), 4)
+        self.assertNotIn('feeds', queried, 'the topic floor uses open-web providers only')
+        self.assertLessEqual(report['search_requests'], 2 * len(topics_to_search))
+        self.assertEqual(report['planner_queries'], 2 * len(topics_to_search))
+        self.assertTrue(report['topic_floor'])
+        self.assertEqual(report['candidates_added'], 2)
+        self.assertEqual(len(pool['payments']), 1)
+        self.assertEqual(len(pool['health-policy']), 1)
+        self.assertEqual(len(pool['ai-finance']), 1)
+        self.assertEqual(len(bodies), 2)
+
     def test_quality_prefers_relevance_and_credibility_without_a_recency_gate(self):
         self.rows = [self.hint('Seven insights', host='blog'), self.hint('Top 7 payment tips', 'tips'),
                      self.hint('Earlier timetable', 'old', date='2026-11-16T11:00:00Z'),
@@ -494,7 +534,7 @@ class FillTests(unittest.TestCase):
         observed = []
 
         def fallback(pool, topics, *_args, **kwargs):
-            observed.append((topics, kwargs.get('enabled'), kwargs.get('search_first')))
+            observed.append((topics, kwargs.get('enabled'), kwargs.get('topic_floor_search')))
             report = empty_report(True)
             report['triggered'] = True
             return pool, {}, report
