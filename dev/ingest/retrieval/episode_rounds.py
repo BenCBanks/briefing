@@ -103,7 +103,7 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
         # their own deadline are skipped for the rest of this run.
         while candidates and len(reads) < policy['max_reads'] and len(attempted) < policy['max_reads'] + 8:
             check()
-            if budget.remaining() <= 0:
+            if clock() >= research_deadline:
                 break
             selected = candidates[:min(MAX_CONCURRENT_SOURCE_READS, policy['max_reads']-len(reads), policy['max_reads']+8-len(attempted))]
             del candidates[:len(selected)]
@@ -135,7 +135,11 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
                         if isinstance(body, str) and len(_sentences(body)) >= 2:
                             reads[candidate.url] = (candidate, body)
                     except Exception:
-                        pass
+                        if source_budget.remaining() <= 0:
+                            timed_out_reads += 1
+                            host = urlsplit(candidate.url).hostname
+                            if host:
+                                slow_hosts.add(host)
             finally:
                 pool.shutdown(wait=False, cancel_futures=True)
             counts.update(sources_read=len(reads), sources=len(reads))
