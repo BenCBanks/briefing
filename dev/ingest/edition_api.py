@@ -2,6 +2,7 @@
 
 from pathlib import Path
 import json
+from datetime import datetime
 
 from . import generation_api
 from .core import STATE_DIR
@@ -48,6 +49,43 @@ def _legacy_words_only_profile(path=None):
     return isinstance(value, dict) and set(value) == {'words'} and isinstance(value.get('words'), str)
 
 
+def _latest_prior_profile_directory(root, active_id):
+    """Find the newest generated edition for an older active-profile identity."""
+    root = Path(root)
+    candidates = []
+    profiles = root / 'profiles'
+    if profiles.is_dir():
+        candidates.extend(path for path in profiles.iterdir()
+                          if not path.is_symlink() and path.is_dir() and path.name != active_id)
+    # Pre-profile editions remain pinned to the profile that owned them. They
+    # are eligible as a stale fallback, but never migrated into the new profile.
+    if (root / 'legacy-profile-owner.json').is_file():
+        owner = legacy_profile_owner(root)
+        if owner and owner != active_id:
+            candidates.append(root)
+    found = []
+    for directory in candidates:
+        try:
+            bundle = json.loads((directory / 'current.json').read_text(encoding='utf-8'))
+            editions = bundle.get('editions', {}).get('editions', [])
+            edition = next((row for row in editions if isinstance(row, dict) and
+                            row.get('generated') is True and row.get('kind') == 'daily'), None)
+            if not edition:
+                continue
+            edition_id = edition.get('profile_id')
+            if directory.parent.name == 'profiles' and edition_id != directory.name:
+                continue
+            generated = edition.get('generated_at')
+            try:
+                stamp = datetime.fromisoformat(generated.replace('Z', '+00:00')).timestamp()
+            except (AttributeError, TypeError, ValueError, OverflowError):
+                stamp = (directory / 'current.json').stat().st_mtime
+            found.append((stamp, directory))
+        except (OSError, ValueError, TypeError, AttributeError):
+            continue
+    return max(found, default=(None, None))[1]
+
+
 def edition_response(directory=None, profile='default', *, include_history=True):
     if type(include_history) is not bool:
         raise ValueError('include_history must be a boolean')
@@ -62,6 +100,11 @@ def edition_response(directory=None, profile='default', *, include_history=True)
                     set_legacy_profile_owner(profile_identifier(current_profile), LEGACY_GENERATED_DIR)
                 if legacy_migration_allowed(current_profile, LEGACY_GENERATED_DIR):
                     migrate_legacy_generated_files(LEGACY_GENERATED_DIR, directory)
+            if not (directory / 'current.json').is_file() and not (directory / 'editions.json').is_file():
+                prior = _latest_prior_profile_directory(generation_api.GENERATED_DIR,
+                                                        profile_identifier(current_profile))
+                if prior is not None:
+                    directory = prior
         except (OSError, ValueError, TypeError):
             owner = legacy_profile_owner(LEGACY_GENERATED_DIR)
             legacy_words_only = _legacy_words_only_profile() and owner is None
@@ -71,6 +114,7 @@ def edition_response(directory=None, profile='default', *, include_history=True)
     directory = Path(directory or GENERATED_DIR)
     if use_state_default or directory == Path(GENERATED_DIR):
         migrate_legacy_generated_files(LEGACY_GENERATED_DIR, GENERATED_DIR)
+    profile_stale = False
     try:
         try:
             bundle = json.loads((directory / 'current.json').read_text(encoding='utf-8'))
@@ -91,10 +135,10 @@ def edition_response(directory=None, profile='default', *, include_history=True)
                 active_id = profile_identifier(current_profile)
                 edition_profile_id = current.get('profile_id')
                 if edition_profile_id and edition_profile_id != active_id:
-                    return 200, {'generated': False, 'edition': None, 'sources': [], 'history': []}
+                    profile_stale = True
                 owner = legacy_profile_owner(LEGACY_GENERATED_DIR)
                 if not edition_profile_id and (LEGACY_GENERATED_DIR / 'legacy-profile-owner.json').exists() and owner != active_id:
-                    return 200, {'generated': False, 'edition': None, 'sources': [], 'history': []}
+                    profile_stale = True
                 if not edition_profile_id and not (LEGACY_GENERATED_DIR / 'legacy-profile-owner.json').exists():
                     set_legacy_profile_owner(active_id, LEGACY_GENERATED_DIR)
         if not isinstance(source_rows, list):
@@ -104,7 +148,8 @@ def edition_response(directory=None, profile='default', *, include_history=True)
             if not isinstance(section, dict) or not set(section.get('source_ids', [])) <= source_ids:
                 return 500, {'error': 'generated_source_reference_invalid'}
         history = _history_rows(directory, {current.get('revision_id')}) if include_history else []
-        return 200, {'generated': True, 'edition': current, 'sources': source_rows, 'history': history}
+        return 200, {'generated': True, 'stale': profile_stale, 'edition': current,
+                     'sources': source_rows, 'history': history}
     except FileNotFoundError:
         history = _history_rows(directory) if include_history else []
         return 200, {'generated': False, 'edition': None, 'sources': [], 'history': history}

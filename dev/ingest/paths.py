@@ -57,6 +57,10 @@ def profile_identifier(profile):
         # Behavior weights affect editorial allocation, not the reader's topic
         # identity or the location of their edition history and cached audio.
         identity.pop('behavior_weights', None)
+        # Local source subscriptions change where evidence is gathered, not the
+        # reader's editorial profile. Keep the current edition visible when
+        # they opt into or out of local sources.
+        identity.pop('local_sources', None)
     canonical = json.dumps(identity, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     return hashlib.sha256(canonical.encode('utf-8')).hexdigest()[:24]
 
