@@ -551,6 +551,22 @@ class FillTests(unittest.TestCase):
         self.assertEqual(observed[0][1:], (True, True))
         self.assertTrue(detail['retrieval_fill']['triggered'])
 
+    def test_topic_floor_search_exception_does_not_fail_daily(self):
+        with patch('dev.ingest.retrieval_fill.fill_candidates',
+                   side_effect=RuntimeError('fixture search failure')):
+            with self.assertLogs('dev.ingest.write_edition', level='WARNING') as captured:
+                editions, _sources, detail = generate_edition(
+                    {'topics': TOPICS}, [], self.registry, NOW,
+                    call_json=lambda *_args, **_kwargs: self.fail('empty feed reached writer'),
+                    max_candidate_attempts=3, daily_coverage_fallback_enabled=True)
+
+        self.assertEqual(len(editions['editions']), 1)
+        self.assertEqual(editions['editions'][0]['sections'], [])
+        self.assertTrue(detail['retrieval_fill']['topic_floor'])
+        self.assertFalse(detail['retrieval_fill']['triggered'])
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn('continuing without the search fallback', captured.output[0])
+
     def test_story_quality_gate_all_topics_and_broad_fallback(self):
         junk = {'url': 'https://nerdwallet.com/travel/news', 'source_id': 'payments',
                 'title': 'Chase Expands Credit Card Transfer Partners', 'published': DATE,
