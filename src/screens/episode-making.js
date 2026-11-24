@@ -83,7 +83,50 @@ function appendDoneCard(page, job, node, hasReadyAudio, navigate) {
   actions.append(open, another); card.append(actions); page.append(card);
 }
 
-export function updateEpisodeMakingView({ content, node, job, elapsed, totalElapsed = elapsed, navigate, onRetry }) {
+function updateStreamingChapters(page, node, job, onPlayChapter) {
+  const stream = job.streaming;
+  const ready = Array.isArray(stream?.ready_chapters)
+    ? stream.ready_chapters.filter(row => row && typeof row === 'object' && typeof row.id === 'string') : [];
+  const expected = Math.max(ready.length, Number.isInteger(stream?.expected_chapters) ? stream.expected_chapters : 0);
+  if (!stream || expected < 1) {
+    page.querySelector('.episode-streaming-chapters')?.remove();
+    return;
+  }
+  const signature = JSON.stringify([stream.status, expected, ready.map(row => [row.id, row.title, row.audio_url, row.duration_seconds])]);
+  let panel = page.querySelector('.episode-streaming-chapters');
+  if (!panel) {
+    panel = node('section', null, 'episode-streaming-chapters');
+    panel.setAttribute('aria-labelledby', 'episode-streaming-heading');
+    const heading = node('h2', 'Chapters'); heading.id = 'episode-streaming-heading';
+    panel.append(heading, node('p', '', 'episode-streaming-progress'), node('ol', null, 'episode-streaming-list'));
+    const stages = page.querySelector('.episode-stage-list');
+    const note = page.querySelector('.episode-progress-note');
+    if (stages) stages.before(panel); else if (note) note.after(panel); else page.append(panel);
+  }
+  if (panel.dataset.renderSignature === signature) return;
+  panel.dataset.renderSignature = signature;
+  panel.querySelector('.episode-streaming-progress').textContent = `${ready.length} of ${expected} chapters ready`;
+  const list = panel.querySelector('.episode-streaming-list');
+  list.replaceChildren();
+  for (let index = 0; index < expected; index += 1) {
+    const chapter = ready[index];
+    const row = node('li', null, 'episode-streaming-row');
+    if (chapter) {
+      const title = chapter.title || `Chapter ${index + 1}`;
+      row.append(node('span', title, 'episode-streaming-title'));
+      const play = node('button', 'Play', 'primary episode-streaming-play'); play.type = 'button';
+      play.setAttribute('aria-label', `Play ${title}`);
+      play.addEventListener('click', () => onPlayChapter(chapter));
+      row.append(play);
+    } else {
+      row.append(node('span', `Chapter ${index + 1}`, 'episode-streaming-title'));
+      row.append(node('span', stream.status === 'complete' || job.done ? 'Not recorded' : 'Still being made', 'episode-streaming-status'));
+    }
+    list.append(row);
+  }
+}
+
+export function updateEpisodeMakingView({ content, node, job, elapsed, totalElapsed = elapsed, navigate, onRetry, onPlayChapter }) {
   const page = content.querySelector('.episode-making-page');
   if (!page) return;
   const kicker = page.querySelector('.episode-making-kicker');
@@ -111,10 +154,11 @@ export function updateEpisodeMakingView({ content, node, job, elapsed, totalElap
   });
   const activityKey = `${job.done ? 'done' : job.stageIndex}:${JSON.stringify(job.counts)}`;
   if (job.activityKey !== activityKey) { job.activityKey = activityKey; renderActivityPanel(page.querySelector('.episode-progress-note'), job); }
+  updateStreamingChapters(page, node, job, onPlayChapter);
   if (job.done && !page.querySelector('.episode-done-card')) appendDoneCard(page, job, node, episodeHasReadyAudio, navigate);
 }
 
-export function renderEpisodeMakingPage({ content, node, link, job, navigate, onCancel, onRetry }) {
+export function renderEpisodeMakingPage({ content, node, link, job, navigate, onCancel, onRetry, onPlayChapter }) {
   if (!job) {
     content.append(node('h1', 'No episode is being made'), link('Return to episode request', '#ask-episode', 'button-link'));
     return;
@@ -149,6 +193,6 @@ export function renderEpisodeMakingPage({ content, node, link, job, navigate, on
   if (job.announcedStage < 0) announceEpisodeStage(content, job, `${episodeStageTitle(job, job.stageIndex)}. ${EPISODE_STAGE_FIXTURES[job.stageIndex].detail}`);
   if (job.done) announceEpisodeStage(content, job, 'Your episode is ready.');
   updateEpisodeMakingView({ content, node, job, elapsed: Date.now() - job.stageStartedAt,
-    totalElapsed: Date.now() - job.startedAt, navigate, onRetry });
+    totalElapsed: Date.now() - job.startedAt, navigate, onRetry, onPlayChapter });
   if (job.done) appendDoneCard(page, job, node, episodeHasReadyAudio, navigate);
 }

@@ -2038,6 +2038,7 @@ async function startEpisodeJob(mode) {
       costEstimate: result.cost_estimate?.label, jobId: result.job_id, request, minutes: episodeDraft.minutes, mode,
       status: result.status || 'queued',
       stage: result.stage || 'queued', counts: result.counts || { chapters: 0, sentences: 0, sources: 0 },
+      streaming: result.streaming || null,
       startedAt: Date.now(), stageStartedAt: Date.now(), stageIndex: 0,
       announcedStage: -1, activityKey: '', done: false,
     };
@@ -2080,6 +2081,7 @@ async function pollEpisodeJob(job) {
     job.status = result.status || nextStage;
     job.message = result.message || '';
     job.failureReason = result.failure_reason || result.error || '';
+    job.streaming = result.streaming || null;
     job.episode = result.episode || job.episode || null;
     job.audio_status = result.audio_status || job.episode?.audio_status || job.episode?.audio?.status || '';
     job.shorterThanRequested = Boolean(result.shorter_than_requested || result.shortfall_notice ||
@@ -2103,12 +2105,39 @@ function episodeMakingRetry(job) {
 }
 
 function updateEpisodeMakingView(job, elapsed, totalElapsed = elapsed) {
-  updateEpisodeMakingScreen({ content, node, job, elapsed, totalElapsed, navigate, onRetry: episodeMakingRetry });
+  updateEpisodeMakingScreen({ content, node, job, elapsed, totalElapsed, navigate, onRetry: episodeMakingRetry,
+    onPlayChapter: chapter => playStreamingChapter(job, chapter) });
+}
+
+function playStreamingChapter(job, chapter) {
+  if (!job?.jobId || typeof chapter?.id !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9_-]{0,63}$/.test(chapter.id)) return;
+  const expectedPath = `/api/episodes/${encodeURIComponent(job.jobId)}/chapters/${encodeURIComponent(chapter.id)}/audio`;
+  let audioUrl;
+  try {
+    const parsed = new URL(chapter.audio_url, location.origin);
+    if (parsed.origin !== location.origin || parsed.pathname !== expectedPath || parsed.search) return;
+    audioUrl = parsed.pathname;
+  } catch { return; }
+  const duration = Number(chapter.duration_seconds);
+  if (!Number.isFinite(duration) || duration <= 0) return;
+  const revisionId = job.episode?.revision_id || `streaming-${job.jobId}`;
+  const scriptHash = `${revisionId}-${chapter.id}`;
+  const title = job.episode?.title || job.request || 'Your episode';
+  const playable = {
+    id: job.jobId, kind: 'episode', title, revision_id: revisionId, script_hash: scriptHash,
+    requested_minutes: job.minutes, duration_minutes: duration / 60, audio_status: 'recorded',
+    audio: { status: 'recorded', revision_id: revisionId, script_hash: scriptHash,
+      url: audioUrl, duration_seconds: duration },
+    chapters: [{ id: chapter.id, title: chapter.title || 'Chapter 1', start_seconds: 0,
+      end_seconds: duration, audio_start_seconds: 0, audio_duration_seconds: duration }],
+  };
+  player.playRecording(playable, { chapterId: chapter.id });
 }
 
 function renderEpisodeMakingPage() {
   renderEpisodeMakingScreen({ content, node, link, job: episodeJob, navigate,
-    onCancel: cancelEpisodeJob, onRetry: episodeMakingRetry });
+    onCancel: cancelEpisodeJob, onRetry: episodeMakingRetry,
+    onPlayChapter: chapter => playStreamingChapter(episodeJob, chapter) });
 }
 
 function resetBrowserChoices() {
