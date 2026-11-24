@@ -3,8 +3,10 @@ from contextlib import redirect_stdout
 import io
 import tempfile
 from pathlib import Path
+from decimal import Decimal
 
-from dev.any_topic import PROMPTS, evaluate_prompt, render_report, run_pass, validate_prompts
+from dev.any_topic import (PROMPTS, evaluate_prompt, likely_insufficient_reason,
+                           render_report, run_pass, validate_prompts, validate_run_limits)
 
 
 class AnyTopicCoverageTest(unittest.TestCase):
@@ -99,6 +101,24 @@ class AnyTopicCoverageTest(unittest.TestCase):
         self.assertIn('| retrieval_error | discovery |', report)
         self.assertIn('| not_measured | provider_unavailable |', report)
 
+    def test_grounded_report_compares_matching_free_mode_counts_by_type(self):
+        with tempfile.TemporaryDirectory() as temp:
+            free_report = Path(temp) / 'free.md'
+            free_report.write_text(
+                '## Results by prompt type\n\n'
+                '| Type | Prompts | Retrieval-sufficient | Insufficient | Retrieval errors | Not measured | Average seconds |\n'
+                '|---|---:|---:|---:|---:|---:|---:|\n'
+                '| Explainer | 6 | 2 | 3 | 1 | 0 | 10.00 |\n',
+                encoding='utf-8')
+            grounded = evaluate_prompt(
+                PROMPTS[0], search=lambda *_args: ([object()], {'gemini': {'status': 'ok'}}),
+                fetch=lambda *_args, **_kwargs: 'fictional body', registry=[],
+                evidence_builder=lambda *_args: ([{}], {f'e{i}': {} for i in range(5)}))
+            report = render_report([grounded], '2026-11-24-grounded', mode='grounded',
+                                   free_report_path=free_report)
+        self.assertIn('## Free and grounded results by prompt type', report)
+        self.assertIn('| Explainer | 6 | 2 | 3 | 1 | 0 | 0 | 0 |', report)
+
     def test_rate_limited_prompt_retries_and_completed_results_resume(self):
         calls = []
 
@@ -124,6 +144,45 @@ class AnyTopicCoverageTest(unittest.TestCase):
                                    spacing_seconds=0, resume_path=progress)
             self.assertEqual(len(resumed), 60)
             self.assertEqual(len(calls), 61)
+
+    def test_grounded_run_reserves_cost_and_labels_unmeasured_prompts(self):
+        calls = []
+
+        def search(prompt, _freshness):
+            calls.append(prompt)
+            return [], {'gemini': {'status': 'ok'}}, Decimal('0.20')
+
+        with redirect_stdout(io.StringIO()):
+            rows = run_pass(PROMPTS[:3], search=search,
+                            fetch=lambda *_args, **_kwargs: None, registry=[],
+                            max_cost=Decimal('0.25'), max_next_cost=Decimal('0.10'))
+        self.assertEqual(len(calls), 1)
+        self.assertEqual(rows[0]['model_cost_usd'], 0.2)
+        self.assertEqual([row['outcome'] for row in rows], [
+            'insufficient_evidence', 'not_measured', 'not_measured'])
+        self.assertTrue(all(row['drop_stage'] == 'cost_cap' for row in rows[1:]))
+
+    def test_likely_reason_points_to_reed_fallback_target(self):
+        self.assertEqual(likely_insufficient_reason({
+            'outcome': 'insufficient_evidence', 'category': 'One-word broad topic',
+            'drop_stage': 'discovery'}), 'too broad or ambiguous')
+        self.assertEqual(likely_insufficient_reason({
+            'outcome': 'insufficient_evidence', 'category': 'Comparison',
+            'drop_stage': 'article_read'}), 'comparison needs evidence for both sides')
+        self.assertIn('niche', likely_insufficient_reason({
+            'outcome': 'insufficient_evidence', 'category': 'Niche and technical',
+            'drop_stage': 'article_read'}))
+        self.assertIn('recent', likely_insufficient_reason({
+            'outcome': 'insufficient_evidence', 'category': 'Very recent',
+            'drop_stage': 'discovery'}))
+
+    def test_grounded_mode_requires_a_cost_ceiling_beyond_estimate_sample(self):
+        validate_run_limits('grounded', 5, None)
+        validate_run_limits('grounded', None, Decimal('1.20'))
+        with self.assertRaises(ValueError):
+            validate_run_limits('grounded', None, None)
+        with self.assertRaises(ValueError):
+            validate_run_limits('free', None, Decimal('1.20'))
 
 
 if __name__ == '__main__':
