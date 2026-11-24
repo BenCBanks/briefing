@@ -317,12 +317,35 @@ _ARTICLE_VARIANTS = {
 }
 
 
-def article_variant_urls(url):
-    """Return a tiny same-host publisher-specific list; every URL is guarded again."""
+class _AmpLinkParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.hrefs = []
+
+    def handle_starttag(self, tag, attrs):
+        attrs = dict(attrs)
+        rel = {part.casefold() for part in attrs.get('rel', '').split()}
+        href = attrs.get('href')
+        if tag.casefold() == 'link' and 'amphtml' in rel and isinstance(href, str):
+            self.hrefs.append(href)
+
+
+def article_variant_urls(url, html_body=None):
+    """Return same-host AMP/publisher variants; every URL is guarded again."""
     parts = urlsplit(url)
     host = (parts.hostname or '').lower().removeprefix('www.')
     strategies = _ARTICLE_VARIANTS.get(host, ())
     variants = []
+    if isinstance(html_body, bytes) and html_body:
+        parser = _AmpLinkParser()
+        try:
+            parser.feed(html_body[:MAX_RESPONSE_BYTES].decode('utf-8', errors='replace'))
+        except Exception:
+            parser.hrefs = []
+        for href in parser.hrefs:
+            candidate = canonical_link(urljoin(url, href))
+            if candidate and urlsplit(candidate).hostname == parts.hostname:
+                variants.append(candidate)
     path = parts.path or '/'
     for strategy in strategies:
         if strategy in {'amp', 'print'}:
@@ -341,7 +364,7 @@ def article_variant_urls(url):
             continue
         if candidate != url and candidate not in variants and len(variants) < 2:
             variants.append(candidate)
-    return variants
+    return list(dict.fromkeys(candidate for candidate in variants if candidate != canonical_link(url)))
 
 
 class _PlainTextParser(HTMLParser):
@@ -659,7 +682,7 @@ def fetch_article_text(url, source, opener=None, robots_cache_path=ROBOTS_CACHE_
         best_text = result.text or ''
         best_metadata = dict(metadata) if isinstance(metadata, dict) else None
         if _allow_variants:
-            for variant_url in article_variant_urls(canonical):
+            for variant_url in article_variant_urls(canonical, body):
                 variant_metadata = {}
                 variant_text = fetch_article_text(
                     variant_url, source, opener=opener, robots_cache_path=robots_cache_path,
