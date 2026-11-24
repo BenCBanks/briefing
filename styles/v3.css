@@ -47,7 +47,7 @@ main,body.is-reader main,body.has-player main{width:100%;max-width:680px;padding
 
 /* Vale · story reading and player hierarchy on narrow screens. */
 @media(max-width:600px){
-  body.is-today main{padding-bottom:calc(84px + env(safe-area-inset-bottom))}
+  body.is-today main{padding-bottom:calc(60px + env(safe-area-inset-bottom))}
   body.has-player main,body.is-reader.has-player main{padding-bottom:calc(156px + env(safe-area-inset-bottom))}
   body.is-today.has-player main{padding-bottom:calc(127px + env(safe-area-inset-bottom))}
   .mini-player,body.is-reader .mini-player{height:auto;min-height:68px;padding-block:0}
@@ -105,6 +105,7 @@ main,body.is-reader main,body.has-player main{width:100%;max-width:680px;padding
 
 .today-end-actions button{min-width:44px}
 @media(max-width:320px){.library-filters{display:flex;flex-wrap:wrap;width:100%;max-width:100%}.library-filters button{flex:1 1 auto;min-width:44px;padding:0 8px}.story-source-line{flex-wrap:wrap}.story-source-line>span{flex:1 1 100%}}
+@media(max-width:320px){body.is-today main{padding-bottom:calc(84px + env(safe-area-inset-bottom))}}
 @media(max-width:320px){.main-nav a,.main-nav a[aria-current=page]{min-width:0;padding-inline:1px}.main-nav-label{max-width:100%;white-space:normal;overflow-wrap:anywhere;word-break:normal}}
 body.is-reader .back-to-audio,.back-to-audio{bottom:calc(140px + env(safe-area-inset-bottom))}
 @media(min-width:900px){body.is-reader .back-to-audio,.back-to-audio{bottom:20px}}
