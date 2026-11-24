@@ -26,6 +26,7 @@ from dev.ingest.episodes.generate import (EpisodeCancelled, EpisodeError, Gemini
                                          balance_chapter_targets, evidence_pack, generate_episode, transcript, _score_text,
                                          _chapter_schema_error, _fallback_episode)
 from dev.ingest.episodes.policy import WORDS_PER_MINUTE
+from dev.ingest.episodes.comparison import comparison_questions
 from dev.ingest.jobs import EpisodeJobStore
 from dev.ingest.retrieval import Candidate
 
@@ -173,6 +174,18 @@ class EpisodeGenerationTests(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def test_explicit_comparison_topics_get_two_side_questions_and_compare_chapter(self):
+        self.assertEqual(comparison_questions('Solar power vs wind power'), [
+            'What is known about Solar power?',
+            'What is known about wind power?',
+            'How do Solar power and wind power compare?'])
+        self.assertEqual(comparison_questions('Solar power versus wind power?'), [
+            'What is known about Solar power?',
+            'What is known about wind power?',
+            'How do Solar power and wind power compare?'])
+        self.assertIsNone(comparison_questions('solar power and wind power'))
+        self.assertIsNone(comparison_questions('solar power vs solar power'))
 
     def test_frozen_script_citations_locators_and_honest_duration(self):
         stages = []

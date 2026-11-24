@@ -933,6 +933,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                 or len({q.strip().casefold() for q in questions}) != len(questions)):
             raise EpisodeError('invalid_research_plan')
         questions = [q.strip() for q in questions]
+        from .comparison import comparison_questions
+        questions = comparison_questions(topic) or questions
         from ..retrieval.episode_rounds import research_episode
         def research_progress(name, latest):
             counts.update(latest)
