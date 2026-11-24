@@ -24,7 +24,8 @@ from dev.ingest.episodes.generate import (EpisodeCancelled, EpisodeError, Gemini
                                          PLAN_PROMPT, STYLE_TARGET_EXAMPLE, SYSTEM_PROMPT, WEEKLY_SYNTHESIS_PROMPT,
                                          VERIFY_PROMPT, deterministic_check,
                                          balance_chapter_targets, evidence_pack, generate_episode, transcript, _score_text,
-                                         _chapter_schema_error, _fallback_episode)
+                                         _chapter_schema_error, _fallback_episode,
+                                         _hybrid_background_draft_valid, _is_explainer_request)
 from dev.ingest.episodes.policy import WORDS_PER_MINUTE
 from dev.ingest.episodes.comparison import comparison_questions
 from dev.ingest.jobs import EpisodeJobStore
@@ -774,11 +775,56 @@ class EpisodeGenerationTests(unittest.TestCase):
         with patch.dict('os.environ', {'BRIEFING_EPISODE_HYBRID': 'on',
                                        'BRIEFING_EPISODE_FALLBACK_MODEL': 'off'}):
             explainer = generate_episode('How do fictional parcel lockers work?', **self.kwargs)
-            current = generate_episode('What is NASA testing next?', **self.kwargs)
+            current = generate_episode('What is NASA testing for its next moon mission?', **self.kwargs)
         self.assertEqual(explainer['verification']['fallback'], 'general_background')
         self.assertIn('general background, not current reporting', explainer['transcript'])
+        self.assertTrue(explainer['verification']['hybrid_background'])
+        self.assertIn('The broad explanation comes from general knowledge.', explainer['transcript'])
         self.assertEqual(current['verification']['fallback'], 'general_background')
         self.assertIn('couldn', current['transcript'])
+        self.assertFalse(current['verification']['hybrid_background'])
+        self.assertFalse(_is_explainer_request('What is NASA testing for its next moon mission?'))
+        self.assertFalse(_is_explainer_request('What changed in payment policy this year?'))
+        self.assertTrue(_is_explainer_request('How do instant payment systems work?'))
+
+    def test_hybrid_sourced_specifics_are_kept_and_unsourced_specifics_are_rejected(self):
+        source_text = 'A fictional parcel locker uses a collection code entered at its door.'
+        evidence = {'E-HYB-1': {'id': 'E-HYB-1', 'text': source_text,
+                                'source_id': 'source-1', 'source_number': 1}}
+        good = {'chapters': [{'title': 'How collection works', 'title_evidence_ids': ['E-HYB-1'],
+                 'sentences': [
+                     {'text': 'This is general background, not current reporting.',
+                      'kind': 'opening', 'evidence_ids': []},
+                     {'text': 'A parcel locker uses a collection code entered at its door.',
+                      'kind': 'claim', 'evidence_ids': ['E-HYB-1']},
+                     {'text': 'The system can be understood through its purpose and trade-offs.',
+                      'kind': 'editorial', 'evidence_ids': []}]}], 'could_not_confirm': []}
+        self.assertTrue(_hybrid_background_draft_valid(good, evidence))
+        for bad_sentence in (
+                'The locker opened in 2024 and serves 12,000 people.',
+                'NASA designed the locker for a current mission.',
+                'The locker is currently the fastest option.'):
+            bad = deepcopy(good)
+            bad['chapters'][0]['sentences'][2]['text'] = bad_sentence
+            with self.subTest(sentence=bad_sentence):
+                self.assertFalse(_hybrid_background_draft_valid(bad, evidence))
+        uncited_specific = deepcopy(good)
+        uncited_specific['chapters'][0]['sentences'][1].update(
+            text='The locker uses 12 collection codes each day.', evidence_ids=[])
+        self.assertFalse(_hybrid_background_draft_valid(uncited_specific, evidence))
+
+    def test_hybrid_sensitive_explainer_keeps_safety_note_and_flag_off_has_no_boundary(self):
+        self.kwargs['fetcher'] = lambda *a, **k: None
+        with patch.dict('os.environ', {'BRIEFING_EPISODE_HYBRID': 'on',
+                                       'BRIEFING_EPISODE_FALLBACK_MODEL': 'off'}):
+            sensitive = generate_episode('How does medical debt work?', **self.kwargs)
+        self.assertIn('qualified professional', sensitive['transcript'])
+        self.assertIn('general knowledge', sensitive['transcript'])
+        with patch.dict('os.environ', {'BRIEFING_EPISODE_HYBRID': 'off',
+                                       'BRIEFING_EPISODE_FALLBACK_MODEL': 'off'}):
+            ordinary = generate_episode('How do fictional parcel lockers work?', **self.kwargs)
+        self.assertFalse(ordinary['verification']['hybrid_background'])
+        self.assertNotIn('The broad explanation comes from general knowledge.', ordinary['transcript'])
 
     def test_thin_evidence_fallback_repeats_only_extracted_sentence(self):
         evidence = {'E-1': {'id': 'E-1', 'text': 'A fictional source describes a parcel locker trial.',
