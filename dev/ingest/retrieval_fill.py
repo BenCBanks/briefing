@@ -1,5 +1,6 @@
 """Opt-in, transient daily supply. No writer, registry or rights-policy overrides."""
 from collections import Counter
+from datetime import timedelta
 import math
 import re
 import time
@@ -17,7 +18,7 @@ REASONS = ('low_tier', 'listicle', 'source_risk', 'source_policy', 'rights_regis
            'missing_title', 'no_evidence', 'topic_scope', 'deadline', 'invalid_url',
            'denied_publisher', 'affiliate_promo', 'consumer_card_offer',
            'press_release_url', 'press_release_title',
-           'insufficient_full_text_evidence', 'semantic_irrelevance', 'scorecard_dropped',
+           'insufficient_full_text_evidence', 'semantic_irrelevance', 'outside_window', 'scorecard_dropped',
            'no_verified_story', 'writer_error', 'extraction_error', 'time_limit', 'gemini_call_limit')
 
 
@@ -27,7 +28,7 @@ def empty_report(enabled=False):
             'first_round_passed': 0, 'first_round_readable': 0, 'second_round_passed': 0,
             'search_first': False, 'planner_queries': 0, 'retrieval_rounds': 0,
             'guarded_reads': 0, 'quality_passed': 0, 'novelty_passed': 0,
-            'rejected': {}, 'provider_statuses': {}}
+            'rejected': {}, 'provider_statuses': {}, 'providers': {}}
 
 
 def safe_report(value):
@@ -48,6 +49,14 @@ def safe_report(value):
     report['provider_statuses'] = {key: count for key, count in provider_statuses.items()
                                    if key in {'ok', 'empty', 'unavailable', 'cost_cap_reached'}
                                    and type(count) is int and count >= 0}
+    providers = value.get('providers') if isinstance(value.get('providers'), dict) else {}
+    report['providers'] = {}
+    for name, outcomes in providers.items():
+        if name not in {'feeds', 'gdelt', 'gemini', 'perplexity'} or not isinstance(outcomes, dict):
+            continue
+        report['providers'][name] = {key: count for key, count in outcomes.items()
+                                     if key in {'ok', 'empty', 'unavailable', 'cost_cap_reached'}
+                                     and type(count) is int and count >= 0}
     return report
 
 
@@ -110,7 +119,7 @@ def fill_candidates(topic_candidates, topics, items, registry, history, now, *, 
             len({cluster['id'] for clusters in fresh.values() for cluster in clusters}) >= 3):
         return topic_candidates, bodies, report
     report['triggered'] = True
-    rejected, statuses = Counter(), Counter()
+    rejected, statuses, provider_outcomes = Counter(), Counter(), {}
     result = {key: list(rows) for key, rows in topic_candidates.items()}
     goal_per_topic = max(1, math.ceil(3 / max(1, len(topics))))
     underfilled = (list(topics) if search_first else
@@ -205,10 +214,13 @@ def fill_candidates(topic_candidates, topics, items, registry, history, now, *, 
                                          before_gemini_call=before_model_call)
                 topic_hints.extend(retrieve(query, selected, budget))
                 report['grounding_requests'] += budget.grounding_requests
-                for status in budget.statuses.values():
+                for provider_name, status in budget.statuses.items():
                     key = status.get('status')
-                    statuses['ok' if key == 'ok' else 'empty' if key == 'no results' else
-                             'cost_cap_reached' if key == 'cost_cap_reached' else 'unavailable'] += 1
+                    outcome = ('ok' if key == 'ok' else 'empty' if key == 'no results' else
+                               'cost_cap_reached' if key == 'cost_cap_reached' else 'unavailable')
+                    statuses[outcome] += 1
+                    if provider_name in {'feeds', 'gdelt', 'gemini', 'perplexity'}:
+                        provider_outcomes.setdefault(provider_name, Counter())[outcome] += 1
             if not search_first:
                 break
             unique_urls = {repeats.canonical_url(row.url) for row in topic_hints
@@ -248,6 +260,10 @@ def fill_candidates(topic_candidates, topics, items, registry, history, now, *, 
             source = source_for(hint, registry)
             identity = repeats.canonical_url(hint.url)
             item['source_id'] = source.get('id')
+            published = core.parse_date(item.get('published'))
+            if search_first and published and published < now - timedelta(days=90):
+                rejected['outside_window'] += 1
+                continue
             reason = _feed_candidate_rejection(
                 item, source, topic, now=now, prior=prior, seen=seen,
                 maps=maps, rights_doc=rights_doc, cluster_items_fn=cluster_items)
@@ -308,4 +324,5 @@ def fill_candidates(topic_candidates, topics, items, registry, history, now, *, 
             report['candidates_added'] += 1
     report['rejected'] = dict(rejected)
     report['provider_statuses'] = dict(statuses)
+    report['providers'] = {name: dict(outcomes) for name, outcomes in provider_outcomes.items()}
     return result, bodies, report

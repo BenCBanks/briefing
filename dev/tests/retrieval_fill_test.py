@@ -218,6 +218,18 @@ class FillTests(unittest.TestCase):
         self.assertEqual(safe['guarded_reads'], 2)
         self.assertNotIn('http', json.dumps(safe))
 
+    def test_search_first_rejects_articles_older_than_ninety_days(self):
+        old_date = (NOW - timedelta(days=91)).isoformat()
+        self.rows = [self.hint('Payment network adopts new settlement timetable',
+                               'outside-search-window', date=old_date)]
+        merged, bodies, report = fill.fill_candidates(
+            {'payments': []}, TOPICS, [], self.registry, self.history, NOW,
+            enabled=True, search_first=True)
+        self.assertEqual(merged, {'payments': []})
+        self.assertEqual(bodies, {})
+        self.assertEqual(report['rejected']['outside_window'], 1)
+        self.assertEqual(self.reads, [])
+
     def test_quality_prefers_relevance_and_credibility_without_a_recency_gate(self):
         self.rows = [self.hint('Seven insights', host='blog'), self.hint('Top 7 payment tips', 'tips'),
                      self.hint('Earlier timetable', 'old', date='2026-11-16T11:00:00Z'),
@@ -468,13 +480,36 @@ class FillTests(unittest.TestCase):
     def test_deadline_and_default_off_do_not_start_fill_after_failure(self):
         import time
         with patch.dict(os.environ, {'BRIEFING_RETRIEVAL_FILL': 'off'}):
-            result = generate_edition({'topics': TOPICS}, [], self.registry, NOW, call_json=lambda *a: None)
+            result = generate_edition({'topics': TOPICS}, [], self.registry, NOW,
+                                      call_json=lambda *a: None, max_candidate_attempts=0)
         self.assertFalse(result[2]['retrieval_fill']['triggered'])
         callback = self.patch(patch('dev.ingest.retrieval_fill.build_providers'))
         result = generate_edition({'topics': TOPICS}, [], self.registry, NOW,
                                   call_json=lambda *a: None, deadline=time.monotonic() - 1)
         callback.assert_not_called()
         self.assertFalse(result[2]['retrieval_fill']['triggered'])
+
+    def test_missing_topic_uses_open_web_fallback_even_when_feed_fill_flag_is_off(self):
+        from dev.ingest.retrieval_fill import empty_report
+        observed = []
+
+        def fallback(pool, topics, *_args, **kwargs):
+            observed.append((topics, kwargs.get('enabled'), kwargs.get('search_first')))
+            report = empty_report(True)
+            report['triggered'] = True
+            return pool, {}, report
+
+        with patch.dict(os.environ, {'BRIEFING_RETRIEVAL_FILL': 'off'}), \
+             patch('dev.ingest.retrieval_fill.fill_candidates', side_effect=fallback):
+            _editions, _sources, detail = generate_edition(
+                {'topics': TOPICS}, [], self.registry, NOW,
+                call_json=lambda *_args, **_kwargs: None, max_candidate_attempts=3,
+                daily_coverage_fallback_enabled=True)
+
+        self.assertEqual(len(observed), 1)
+        self.assertEqual([topic['id'] for topic in observed[0][0]], ['payments'])
+        self.assertEqual(observed[0][1:], (True, True))
+        self.assertTrue(detail['retrieval_fill']['triggered'])
 
     def test_story_quality_gate_all_topics_and_broad_fallback(self):
         junk = {'url': 'https://nerdwallet.com/travel/news', 'source_id': 'payments',

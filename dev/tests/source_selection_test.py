@@ -101,6 +101,15 @@ class SourceSelectionTest(unittest.TestCase):
         self.assertNotIn('url', json.dumps(report).lower())
         self.assertNotIn(BODY, json.dumps(report))
 
+    def test_candidate_pool_can_keep_more_same_outlet_options_until_readability_is_known(self):
+        selected, report = select_daily_clusters(clusters(), REGISTRY, DATA['topic'],
+                                                  limit=8, max_per_outlet=8, now=NOW)
+        payments_dive = sum('Payments Dive' in row['outlet'] and row['action'] == 'kept'
+                            for row in report['items'])
+        self.assertEqual(report['max_per_outlet'], 8)
+        self.assertGreater(payments_dive, 2,
+                           'candidate exploration may keep alternatives; final publication still uses two')
+
     def test_daily_preserves_caller_order_across_source_tiers(self):
         registry = [
             {'id': 'low', 'name': 'Low-quality site', 'tier': 'low-quality', 'topics': ['payments']},
