@@ -910,6 +910,10 @@ class EpisodeGenerationTests(unittest.TestCase):
         self.assertTrue(any('repair_hint' in payload for _, payload in outline_calls))
         self.assertEqual(outline_calls[0][1]['evidence'], outline_calls[1][1]['evidence'],
                          'the rewrite reuses the same evidence without new research')
+        self.kwargs['client'] = Client()
+        with patch.dict('os.environ', {'BRIEFING_EPISODE_OUTLINE_WRITER': 'off'}):
+            default_episode = generate_episode(TOPIC, 5, 'explainer', **self.kwargs)
+        self.assertNotIn('outline_pre_audio', default_episode['verification'])
 
     def test_thin_evidence_fallback_repeats_only_extracted_sentence(self):
         evidence = {'E-1': {'id': 'E-1', 'text': 'A fictional source describes a parcel locker trial.',

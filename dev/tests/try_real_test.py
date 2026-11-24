@@ -8,12 +8,25 @@ from contextlib import redirect_stdout
 from io import StringIO
 from unittest.mock import patch
 
-from dev.try_real import (_print_funnel, assert_isolated_state, fictional_profile,
+from dev.try_real import (_print_funnel, _print_result, assert_isolated_state, fictional_profile,
                           isolated_run, ledger_cost_delta)
 from dev.ingest.usage import UsageCapReached, UsageLedger
 
 
 class TryRealTests(unittest.TestCase):
+    def test_episode_report_pairs_research_speed_with_evidence_counts(self):
+        output = StringIO()
+        result = {'word_count': 80, 'duration_minutes': 1, 'transcript': 'A fictional script.',
+                  'sources_read': 7, 'audio': {'status': 'not_recorded'},
+                  'timing': {'research_and_reading_seconds': 42.5},
+                  'retrieval': {'research_budget': {
+                      'research_elapsed_seconds': 42.5, 'research_budget_seconds': 165,
+                      'slow_hosts_dropped': 2, 'read_timeouts': 3}}}
+        with redirect_stdout(output):
+            _print_result('episode', result, {'daily': {'estimated_cost_usd': 0}}, 0)
+        self.assertIn('Evidence: 7 sources read; 2 slow hosts dropped; 3 source timeouts; research 42.50s / 165s budget',
+                      output.getvalue())
+
     def test_refuses_live_state_root_and_children(self):
         live = Path.home() / '.local' / 'state' / 'briefing'
         for path in (live, live / 'status.json'):

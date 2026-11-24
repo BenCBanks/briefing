@@ -160,6 +160,22 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
         timing = result.get('timing')
         if isinstance(timing, dict):
             print('Stage timing: ' + json.dumps(timing, sort_keys=True))
+        retrieval = result.get('retrieval') if isinstance(result.get('retrieval'), dict) else {}
+        research = retrieval.get('research_budget') if isinstance(retrieval.get('research_budget'), dict) else {}
+        sources_read = result.get('sources_read', retrieval.get('sources_read'))
+        evidence_count = f'{sources_read} sources read' if isinstance(sources_read, int) else 'sources read unavailable'
+        hosts_dropped = research.get('slow_hosts_dropped')
+        timeouts = research.get('read_timeouts')
+        elapsed = research.get('research_elapsed_seconds')
+        budget = research.get('research_budget_seconds')
+        details = []
+        if isinstance(hosts_dropped, int):
+            details.append(f'{hosts_dropped} slow hosts dropped')
+        if isinstance(timeouts, int):
+            details.append(f'{timeouts} source timeouts')
+        if isinstance(elapsed, (int, float)) and isinstance(budget, (int, float)):
+            details.append(f'research {elapsed:.2f}s / {budget}s budget')
+        print('Evidence: ' + evidence_count + ('; ' + '; '.join(details) if details else ''))
         audio = result.get('audio') if isinstance(result.get('audio'), dict) else {}
         print('Audio: ' + str(audio.get('status', 'not_recorded')))
         text = result.get('transcript') or ''
