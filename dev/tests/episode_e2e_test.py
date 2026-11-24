@@ -224,12 +224,13 @@ class EpisodeEndToEndTests(unittest.TestCase):
                                  {row['text'] for row in topic['questions']})
                 self.assertEqual(metadata['planner']['topic'], topic['label'])
 
-    def test_thin_evidence_fails_without_writing_and_partial_coverage_keeps_gap(self):
+    def test_thin_evidence_publishes_grounded_partial_and_keeps_gap(self):
         fixture = deepcopy(self.fixture)
         for query in fixture['searches']:
             fixture['searches'][query] = fixture['searches'][query][:1]
-        with self.assertRaisesRegex(InsufficientEvidence, '^insufficient_evidence$'):
-            self.generate(fixture)
+        episode = self.generate(fixture)
+        self.assertEqual(episode['verification']['fallback'], 'general_background')
+        self.assertIn('usable sources', episode['transcript'])
         self.assertFalse(any('chapter_assignment' in p for p in self.model.payloads))
         fixture = deepcopy(self.fixture)
         last = fixture['plan']['questions'][-1]
@@ -265,9 +266,10 @@ class EpisodeEndToEndTests(unittest.TestCase):
         ecology_model = MockLLM(ecology)
         ecology_dependencies = self.dependencies(ecology)
         ecology_dependencies.update(planner=ecology_model.planner, client=ecology_model)
-        with self.assertRaisesRegex(InsufficientEvidence, '^insufficient_evidence$'):
-            generate_episode(ecology['topic'], 5, state_dir=self.root / 'ecology',
-                             episode_id='e' * 32, **ecology_dependencies)
+        partial = generate_episode(ecology['topic'], 5, state_dir=self.root / 'ecology',
+                                   episode_id='e' * 32, **ecology_dependencies)
+        self.assertEqual(partial['verification']['fallback'], 'general_background')
+        self.assertIn('usable sources', partial['transcript'])
         self.assertFalse(any('chapter_assignment' in payload for payload in ecology_model.payloads),
                          'thin non-news evidence stops before a writer can fill the gap')
 
@@ -317,8 +319,10 @@ class EpisodeEndToEndTests(unittest.TestCase):
                         row['text'] = 'Invented evidence absent from the document.'
                 else:
                     document['body'] = ''
-            with self.subTest(mode=mode), self.assertRaises(InsufficientEvidence):
-                self.generate(fixture)
+            with self.subTest(mode=mode):
+                episode = self.generate(fixture)
+                self.assertEqual(episode['verification']['fallback'], 'general_background')
+                self.assertIn('general background', episode['transcript'])
 
     def test_repair_is_checked_again_and_cannot_erase_research_gaps(self):
         fixture = deepcopy(self.fixture)
@@ -399,8 +403,9 @@ class EpisodeEndToEndTests(unittest.TestCase):
             self.generate(providers=[])
         with self.assertRaises(EpisodeCancelled):
             self.generate(cancelled=lambda: True)
-        with self.assertRaises(InsufficientEvidence):
-            self.generate(research_limits=ResearchLimits(max_rounds=1))
+        fallback = self.generate(research_limits=ResearchLimits(max_rounds=1))
+        self.assertEqual(fallback['verification']['fallback'], 'general_background')
+        self.assertIn('usable sources', fallback['transcript'])
         deps = self.dependencies()
         deps['clock'] = Mock(side_effect=range(1000))
         with self.assertRaisesRegex(EpisodeError, '^episode_deadline$'):
