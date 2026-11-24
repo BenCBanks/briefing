@@ -137,6 +137,16 @@ class Client:
     def __call__(self, system, payload, schema, timeout):
         self.calls += 1
         self.payloads.append(deepcopy(payload))
+        if payload.get('mode') == 'general_background':
+            return {'chapters': [{'title': 'General background', 'title_evidence_ids': [],
+                                  'sentences': [
+                                      {'text': 'This is general background, not current reporting.',
+                                       'kind': 'opening', 'evidence_ids': []},
+                                      {'text': 'The concept can be understood by looking at its basic purpose, moving parts, and usual trade-offs.',
+                                       'kind': 'editorial', 'evidence_ids': []},
+                                      {'text': 'That structure gives you a useful starting point without pretending to answer a specific current question.',
+                                       'kind': 'closing', 'evidence_ids': []}]}],
+                    'could_not_confirm': []}
         if 'question_count' in payload:
             return {'questions': ['How does the fictional parcel locker trial work?',
                                   'When can residents use the fictional parcel lockers?',
@@ -730,6 +740,14 @@ class EpisodeGenerationTests(unittest.TestCase):
         sensitive = generate_episode('What should I ask my doctor about headaches?', **self.kwargs)
         self.assertIn('qualified professional', sensitive['transcript'])
         self.assertNotIn('script_checks_failed', sensitive['transcript'])
+
+    def test_flagged_general_background_uses_host_pass_and_keeps_stub_as_fallback(self):
+        self.kwargs['fetcher'] = lambda *a, **k: None
+        with patch.dict('os.environ', {'BRIEFING_EPISODE_FALLBACK_MODEL': 'on'}):
+            episode = generate_episode('What is a fictional parcel locker?', **self.kwargs)
+        self.assertEqual(episode['verification']['fallback'], 'general_background')
+        self.assertIn('general background, not current reporting', episode['transcript'])
+        self.assertGreaterEqual(self.client.calls, 2)
 
     def test_thin_evidence_fallback_repeats_only_extracted_sentence(self):
         evidence = {'E-1': {'id': 'E-1', 'text': 'A fictional source describes a parcel locker trial.',
