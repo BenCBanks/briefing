@@ -25,6 +25,7 @@ class FlagsTests(unittest.TestCase):
             self.assertFalse(flag_enabled('search_first'))
             self.assertFalse(flag_enabled('daily_narration'))
             self.assertFalse(flag_enabled('episode_streaming'))
+            self.assertFalse(flag_enabled('accounts'))
             self.assertTrue(flag_enabled('writer'))
             self.assertFalse(flag_enabled('relevance_tune'))
             self.assertEqual(setting('episodes'), 'real')

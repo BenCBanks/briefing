@@ -19,6 +19,8 @@ DEFAULTS = {
     # Outline-first daily writing is opt-in until fixture and live acceptance pass.
     'daily_outline_writer': False,
     'episode_streaming': False,
+    # Reader accounts are staged separately from the single-reader experience.
+    'accounts': False,
     'episodes': 'real',
     # Additional bounded generation controls are reported with the main flags.
     'relevance_tune': False,
