@@ -40,6 +40,7 @@ import { describeRoute, restoreRouteView } from './screens/route-controller.js';
 import { createNavigationController } from './screens/navigation-controller.js';
 import { createDetailRouteController } from './screens/detail-routes.js';
 import { createEditionDataLoader } from './edition/data-loader.js';
+import { createEditionRefreshController } from './edition/refresh-controller.js';
 import { renderRouteContent } from './screens/route-renderer.js';
 import { createTopicsManagementController } from './screens/topics-management-controller.js';
 
@@ -399,39 +400,30 @@ loadEpisodeCards = createEpisodeListScreen({
 });
 function episodeCardsSkeleton() { return createEpisodeCardsSkeleton(node); }
 
-function clearNetworkBanner() {
-  const scrollY = window.scrollY;
-  networkBanner?.remove();
-  networkBanner = null;
-  if (window.scrollY !== scrollY) window.scrollTo({ top: scrollY, behavior: 'instant' });
-}
+let editionRefreshController;
+function clearNetworkBanner(...args) { return editionRefreshController.clearNetworkBanner(...args); }
+function showNetworkBanner(...args) { return editionRefreshController.showNetworkBanner(...args); }
 
-function showNetworkBanner(kind, hasSavedBriefing = Boolean(pack || showingCachedPack)) {
-  const copy = {
-    offline: hasSavedBriefing ? 'You’re offline. Your saved briefing is still here.' : 'You’re offline. Connect to load your briefing.',
-    slow: hasSavedBriefing ? 'This is taking longer than usual. Your saved briefing is still here.' : 'This is taking longer than usual. You can retry when ready.',
-    failed: hasSavedBriefing ? 'Updates could not be checked. Your saved briefing is still here.' : 'Your briefing could not be loaded just now. You can try again.',
-    checking: 'Connection restored. Checking for updates.',
-  }[kind] || 'Your connection needs attention. You can try again.';
-  if (!networkBanner?.isConnected) {
-    networkBanner = node('aside', null, 'network-banner cache-notice');
-    networkBanner.setAttribute('role', 'status');
-    networkBanner.setAttribute('aria-live', 'polite');
-    const message = node('p', copy, 'network-banner-copy');
-    const retry = node('button', hasSavedBriefing ? 'Retry updates' : 'Retry', 'network-banner-retry'); retry.type = 'button';
-    retry.addEventListener('click', () => {
-      if (editionRefreshInFlight) return;
-      retry.disabled = true; retry.textContent = 'Checking…';
-      void refreshInitialPack().finally(() => {
-        if (retry.isConnected) { retry.disabled = false; retry.textContent = hasSavedBriefing ? 'Retry updates' : 'Retry'; }
-      });
-    });
-    networkBanner.append(message, retry);
-    app.insertBefore(networkBanner, content);
-  } else {
-    networkBanner.querySelector('.network-banner-copy').textContent = copy;
-  }
-}
+editionRefreshController = createEditionRefreshController({
+  app, content, node, window, location, document, navigator, history, player,
+  localStorage, sessionStorage, focusToken, profileBuildKey, episodeCardsSkeleton, todayListSkeleton,
+  loadPack, fetchSavedServerProfile, currentEdition, getProfile, pendingTopicsUpdate, saveProfile,
+  includeNewerCachedEdition, latestGeneratedDaily, newerEdition, invalidateMaterialCorrections,
+  withNarrationTopics, saveState, syncListeningControls, syncAudioVerification, route, writeEditionCache,
+  get pack() { return pack; }, set pack(value) { pack = value; },
+  get showingCachedPack() { return showingCachedPack; }, set showingCachedPack(value) { showingCachedPack = value; },
+  get editionCheckSucceeded() { return editionCheckSucceeded; },
+  get editionRefreshInFlight() { return editionRefreshInFlight; }, set editionRefreshInFlight(value) { editionRefreshInFlight = value; },
+  get lastEditionCheckAt() { return lastEditionCheckAt; }, set lastEditionCheckAt(value) { lastEditionCheckAt = value; },
+  get slowNetworkTimer() { return slowNetworkTimer; }, set slowNetworkTimer(value) { slowNetworkTimer = value; },
+  get networkBanner() { return networkBanner; }, set networkBanner(value) { networkBanner = value; },
+  get interestProfile() { return interestProfile; }, set interestProfile(value) { interestProfile = value; },
+  get editionJustUpdatedAt() { return editionJustUpdatedAt; }, set editionJustUpdatedAt(value) { editionJustUpdatedAt = value; },
+  get buildAttempt() { return buildAttempt; },
+  get buildNotice() { return buildNotice; }, set buildNotice(value) { buildNotice = value; },
+  get state() { return state; }, set state(value) { state = value; },
+  get cachedPackIdentity() { return cachedPackIdentity; }, set cachedPackIdentity(value) { cachedPackIdentity = value; },
+});
 
 function validArray(...args) { return editionDataController.validArray(...args); }
 async function readJson(...args) { return editionDataController.readJson(...args); }
@@ -1249,129 +1241,12 @@ document.addEventListener('click', event => {
   const root = isRoot ? hash.slice(1) : rootForHash(location.hash);
   navigate(hash, { root, parentHash: isRoot ? null : (location.hash || '#today'), parentScroll: window.scrollY, parentFocus: focusToken() });
 });
-function cacheIdentity() {
-  return JSON.stringify([interestProfile ? profileBuildKey(interestProfile) : 'sample', localStorage.getItem('briefing:v1:built-profile-key')]);
-}
-
-function keepReadingPosition() {
-  const scrollY = window.scrollY;
-  const focus = focusToken();
-  const paragraphs = [...content.querySelectorAll('.edition-section p, .deep-dive-section p')];
-  const anchor = paragraphs.find(paragraph => paragraph.getBoundingClientRect().bottom > 0);
-  const section = anchor?.closest('.edition-section, .deep-dive-section');
-  const index = section ? [...section.querySelectorAll('p')].indexOf(anchor) : -1;
-  const offset = anchor?.getBoundingClientRect().top;
-  history.replaceState({ ...history.state, viewState: { scrollY, focus } }, '', location.href);
-  return () => requestAnimationFrame(() => requestAnimationFrame(() => {
-    const replacement = section && document.getElementById(section.id)?.querySelectorAll('p')[index];
-    if (replacement) window.scrollBy({ top: replacement.getBoundingClientRect().top - offset, behavior: 'instant' });
-  }));
-}
-
-function cachedFailure() {
-  showNetworkBanner(navigator.onLine === false ? 'offline' : 'failed', Boolean(pack || showingCachedPack));
-}
-
-function renderAppLoading() {
-  const loading = node('section', null, 'app-loading');
-  loading.setAttribute('role', 'status'); loading.setAttribute('aria-busy', 'true');
-  if (location.hash.startsWith('#ask')) {
-    loading.classList.add('app-loading-on-demand');
-    loading.append(node('h1', 'Your on-demand briefings are loading'), node('p', 'Getting your saved list ready.'));
-    loading.append(episodeCardsSkeleton());
-  } else {
-    loading.append(node('h1', 'Your briefing is loading'), node('p', 'Getting today’s stories ready.'), todayListSkeleton());
-  }
-  content.replaceChildren(loading);
-}
-
-async function refreshInitialPack({ background = false } = {}) {
-  if (editionRefreshInFlight) return;
-  editionRefreshInFlight = true;
-  lastEditionCheckAt = Date.now();
-  clearTimeout(slowNetworkTimer);
-  slowNetworkTimer = setTimeout(() => {
-    if (editionRefreshInFlight) showNetworkBanner('slow', Boolean(pack || showingCachedPack));
-  }, 5000);
-  if (!background && !pack) renderAppLoading();
-  const initialAttempt = buildAttempt;
-  try {
-    // Ask the server for its active-profile edition on fresh browsers too. The
-    // server profile and edition are authoritative; local storage is only a cache.
-    let [data, serverProfile] = await Promise.all([loadPack(true), fetchSavedServerProfile()]);
-    if (initialAttempt !== buildAttempt) return;
-    const previousPack = pack;
-    const previousDaily = previousPack ? currentEdition('daily') : null;
-    const localProfile = getProfile();
-    const serverProfileChanged = Boolean(!pendingTopicsUpdate() && serverProfile && (!localProfile || profileBuildKey(serverProfile) !== profileBuildKey(localProfile)));
-    interestProfile = serverProfileChanged ? saveProfile(serverProfile, { server: false }) : localProfile;
-    if (!editionCheckSucceeded && previousPack && !serverProfileChanged) {
-      cachedFailure();
-      return;
-    }
-    data = includeNewerCachedEdition(data, previousPack, serverProfileChanged);
-    const latestDaily = latestGeneratedDaily(data.editions);
-    const editionArrived = background && newerEdition(latestDaily, previousDaily);
-    if (editionArrived) editionJustUpdatedAt = Date.now();
-    const unchanged = Boolean(previousPack && !serverProfileChanged && JSON.stringify(previousPack) === JSON.stringify(data));
-    const restoreScroll = background && location.hash === '#today' && !unchanged ? window.scrollY : null;
-    const restorePosition = showingCachedPack && !unchanged ? keepReadingPosition() : null;
-    pack = data;
-    showingCachedPack = false;
-    const activeGenerated = data.editions.find(item => item.kind === 'daily' && item.generated === true);
-    if (serverProfile && activeGenerated && !pendingTopicsUpdate()) {
-      localStorage.setItem('briefing:v1:built-profile-key', profileBuildKey(serverProfile));
-    }
-    if (serverProfileChanged) {
-      buildNotice = '';
-      sessionStorage.removeItem('briefing:build-error');
-    }
-    if (!editionCheckSucceeded) showNetworkBanner('failed', true);
-    else if (navigator.onLine !== false) clearNetworkBanner();
-    if (!location.hash && !interestProfile) {
-      history.replaceState({ routeContext: { root: 'today', parentHash: null, interestReturnHash: '#today', firstRun: true } }, '', '#interests/describe');
-    }
-    // Corrections invalidate stored/current playback before the verification gate opens.
-    invalidateMaterialCorrections();
-    const saved = state.activeAudio;
-    player.setVerified(true);
-    if (saved) {
-      const item = [...pack.editions, ...pack.deepDives].find(entry => entry.id === saved.id && entry.revision_id === saved.revisionId);
-      if (item) player.restore(withNarrationTopics({ ...item, kind: item.kind || 'deep-dive' }));
-      else {
-        state.activeAudio = null;
-        state = saveState(state);
-        const corrected = pack.editions.find(entry => entry.id === saved.id && entry.corrections?.some(correction => correction.previous_revision_id === saved.revisionId));
-        if (corrected) sessionStorage.setItem('briefing:correction-audio-notice', 'The prior recording is no longer available for this corrected edition.');
-      }
-    }
-    if (unchanged) {
-      // Keep every reading node, expanded source, focused control and scroll position.
-      player.refresh(); syncListeningControls(); syncAudioVerification();
-      writeEditionCache(cacheIdentity(), pack); cachedPackIdentity = pack;
-    } else if (!background || location.hash === '#today') {
-      route();
-      restorePosition?.();
-      if (restoreScroll !== null) requestAnimationFrame(() => window.scrollTo({ top: restoreScroll, behavior: 'instant' }));
-    } else {
-      writeEditionCache(cacheIdentity(), pack); cachedPackIdentity = pack;
-    }
-  } catch (error) {
-    if (showingCachedPack) { cachedFailure(); return; }
-    showNetworkBanner(navigator.onLine === false ? 'offline' : 'failed', false);
-    content.textContent = '';
-    content.append(node('h1', 'Your briefing is unavailable'), node('p', 'Please try again in a moment.', 'error'));
-  } finally {
-    clearTimeout(slowNetworkTimer); slowNetworkTimer = null;
-    editionRefreshInFlight = false;
-  }
-}
-
-function revalidateLatestEdition({ timer = false } = {}) {
-  if (document.visibilityState !== 'visible' || editionRefreshInFlight) return;
-  if (!timer && Date.now() - lastEditionCheckAt < 5 * 60 * 1000) return;
-  void refreshInitialPack({ background: true });
-}
+function cacheIdentity(...args) { return editionRefreshController.cacheIdentity(...args); }
+function keepReadingPosition(...args) { return editionRefreshController.keepReadingPosition(...args); }
+function cachedFailure(...args) { return editionRefreshController.cachedFailure(...args); }
+function renderAppLoading(...args) { return editionRefreshController.renderAppLoading(...args); }
+async function refreshInitialPack(...args) { return editionRefreshController.refreshInitialPack(...args); }
+function revalidateLatestEdition(...args) { return editionRefreshController.revalidateLatestEdition(...args); }
 
 document.addEventListener('visibilitychange', () => revalidateLatestEdition());
 window.addEventListener('pageshow', () => revalidateLatestEdition());
