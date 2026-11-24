@@ -29,6 +29,7 @@ LOCKOUT_SECONDS = 15 * 60
 COMMON_PASSWORDS = frozenset({
     '1234567890', 'password123', 'qwerty12345', 'letmein1234',
     'welcome1234', 'correcthorsebatterystaple', 'iloveyou1234',
+    'admin123456', 'abc1234567', 'password1!', 'monkey12345',
 })
 _lock = threading.RLock()
 _attempts: dict[tuple[str, str], list[float]] = {}
@@ -81,7 +82,8 @@ def _password_record(password, salt=None):
         raise AccountError(400, 'password_too_common')
     salt = salt or secrets.token_bytes(16)
     digest = hashlib.scrypt(password.encode('utf-8'), salt=salt,
-                            n=SCRYPT_N, r=SCRYPT_R, p=SCRYPT_P)
+                            n=SCRYPT_N, r=SCRYPT_R, p=SCRYPT_P,
+                            maxmem=128 * 1024 * 1024)
     return {'v': 1, 'salt': salt.hex(), 'hash': digest.hex(),
             'n': SCRYPT_N, 'r': SCRYPT_R, 'p': SCRYPT_P}
 
@@ -93,8 +95,12 @@ def _verify(password, record):
         salt = bytes.fromhex(record['salt'])
         expected = bytes.fromhex(record['hash'])
         params = (int(record['n']), int(record['r']), int(record['p']))
+        if (params[0] < 2**12 or params[0] > 2**16 or params[0] & (params[0] - 1) or
+                not 1 <= params[1] <= 16 or not 1 <= params[2] <= 4):
+            return False, False
         actual = hashlib.scrypt(password.encode('utf-8'), salt=salt,
-                                n=params[0], r=params[1], p=params[2])
+                                n=params[0], r=params[1], p=params[2],
+                                maxmem=128 * 1024 * 1024)
         matches = hmac.compare_digest(actual, expected)
         return matches, (matches and (record.get('v') != 1 or params != (SCRYPT_N, SCRYPT_R, SCRYPT_P)))
     except (KeyError, TypeError, ValueError, AttributeError):

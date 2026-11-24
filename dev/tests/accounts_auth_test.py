@@ -62,6 +62,9 @@ class AccountAuthTests(unittest.TestCase):
         self.assertEqual(status, 201)
         self.assertIn('HttpOnly', cookie); self.assertIn('SameSite=Lax', cookie); self.assertIn('Secure', cookie)
         old_cookie = cookie.split(';', 1)[0]
+        from dev import accounts
+        session_store = (accounts._root() / 'sessions.json').read_text()
+        self.assertNotIn(old_cookie.split('=', 1)[1], session_store)
         csrf = result['csrf_token']
         status, me, _ = self.request('GET', '/api/account/me', cookie=old_cookie)
         self.assertEqual(status, 200); self.assertEqual(me['account']['name'], 'reader-a')
@@ -70,6 +73,7 @@ class AccountAuthTests(unittest.TestCase):
         status, login_result, rotated = self.request('POST', '/api/account/login',
                                                      {'account': 'reader-a', 'password': 'correct horse battery staple'})
         self.assertEqual(status, 200); self.assertNotEqual(rotated.split(';', 1)[0], old_cookie)
+        self.assertEqual(accounts.session(old_cookie.split('=', 1)[1]), None)
         status, _, _ = self.request('POST', '/api/account/logout', {'csrf_token': login_result['csrf_token']}, cookie=rotated.split(';', 1)[0])
         self.assertEqual(status, 204)
 
@@ -147,6 +151,19 @@ class AccountAuthTests(unittest.TestCase):
         self.assertIn('Max-Age=0', expired)
         self.assertIsNone(accounts.session(token_cookie.split('=', 1)[1]))
         self.assertFalse((accounts._root() / 'readers' / body['account']['id']).exists())
+
+    def test_invite_is_single_use_and_password_hash_is_upgraded_on_login(self):
+        from dev import accounts
+        account, _, _ = accounts.signup('fictional-invite', 'reader-rehash',
+                                        'long fictional password phrase', '127.0.0.1')
+        with self.assertRaises(accounts.AccountError) as reused:
+            accounts.signup('fictional-invite', 'reader-other',
+                            'another fictional password phrase', '127.0.0.1')
+        self.assertEqual(reused.exception.code, 'invalid_invite_code')
+        with patch.object(accounts, 'SCRYPT_N', 2**15):
+            accounts.login('reader-rehash', 'long fictional password phrase', '127.0.0.2')
+        stored = accounts._read('accounts.json', {})['reader-rehash']['password']
+        self.assertEqual(stored['n'], 2**15)
 
 
 if __name__ == '__main__':
