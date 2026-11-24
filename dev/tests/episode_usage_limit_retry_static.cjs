@@ -61,6 +61,7 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
     EPISODE_MODES: [{ id: 'deep-dive' }],
     episodeTopicSuggestions: () => [],
     loadEpisodeCards: cards => { if (httpFailure) cards.append(unrelatedReadyCard); },
+    syncOnDemandBadge: () => {},
     syncProfile: async () => {}, interestProfile: {}, pack: { topics: [] },
     episodeModeStyle: () => 'explainer',
     location: { hash: '#ask-episode' }, window: { scrollY: 0 }, clearTimeout,
