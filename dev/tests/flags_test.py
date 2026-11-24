@@ -24,6 +24,7 @@ class FlagsTests(unittest.TestCase):
             self.assertFalse(flag_enabled('retrieval_fill'))
             self.assertFalse(flag_enabled('search_first'))
             self.assertFalse(flag_enabled('daily_narration'))
+            self.assertFalse(flag_enabled('episode_streaming'))
             self.assertTrue(flag_enabled('writer'))
             self.assertFalse(flag_enabled('relevance_tune'))
             self.assertEqual(setting('episodes'), 'real')
@@ -91,6 +92,8 @@ class FlagsTests(unittest.TestCase):
             with patch.dict(os.environ, {'BRIEFING_EPISODES': 'pretend'}):
                 self.assertEqual(setting_details('episodes')['source'], 'file')
                 self.assertEqual(setting('episodes'), 'fake')
+            with patch.dict(os.environ, {'BRIEFING_EPISODE_STREAMING': 'on'}):
+                self.assertTrue(flag_enabled('episode_streaming'))
             effective = effective_flags()
             self.assertNotIn('unrecognized', effective)
             self.assertNotIn('unrecognized', non_default_flags())

@@ -142,9 +142,10 @@ flowchart TD
     Verify --> Repair[Bounded rewrite or prune and recheck]
     Repair --> Result{Verified script?}
     Result -- no --> Failed[Persist safe failure]
-    Result -- yes --> Text[Persist done; audio not_recorded]
+    Result -- yes --> Text[Persist verified episode]
+    Text --> Audio[Record chapter audio]
     Fake --> FixtureDone[Persist done with fictional text]
-    Text -. separate invocation .-> Audio[episodes_audio.py]
+    Audio -. streaming flag on .-> Stream[Publish each recorded chapter]
 ```
 
 Requests contain exactly `topic`, `length` (5, 10 or 15 minutes) and `style`
@@ -154,11 +155,22 @@ and characters. `GET /api/episodes`, `GET /api/episodes/<job-id>` and
 all creations that day, including failed/cancelled jobs. A new request is a new
 job; there is no request idempotency key or implemented retry endpoint.
 
+With `BRIEFING_EPISODE_STREAMING=on`, real jobs expose a `streaming` object in
+the episode response: `status` is `making`, `playable` after the first chapter
+recording, then `complete`; `expected_chapters`, `ready_chapters`, and a
+0-to-1 `progress` value describe what is ready. Each ready row links to
+`GET /api/episodes/<job-id>/chapters/<chapter-id>/audio`. Chapter WAVs are
+published as immutable per-job files under the profile's private job directory.
+If later chapter audio fails after the first chapter, the job finishes with the
+recorded chapters and a plain spoken closing beat when TTS can record it. The
+flag is off by default; the ordinary complete-audio flow is unchanged.
+
 Job stages are `queued`, `researching`, `reading`, `checking`, `writing`,
 `recording`; terminal states are `done`, `failed`, `cancelled`. Fake jobs simulate
 stages with a four-second delay and at most three attempts. Real jobs have one
-attempt and share a process-local semaphore of size one. They generate text,
-not an audio recording: `done` does not imply playable audio. Cancellation is
+attempt and share a process-local semaphore of size one. With streaming off,
+the established job and audio behavior applies. With streaming on, the API
+reports playable chapter WAVs during recording. Cancellation is
 checked around expensive work; it cannot undo a provider charge already incurred.
 JSON survives a restart, but daemon threads, cancellation events and the
 semaphore do not. Startup does not resume interrupted jobs; there are no leases,
@@ -319,7 +331,8 @@ many module constants bind it at import. No `XDG_STATE_HOME` override is read.
 | `generation.lock`, `ingestion.disabled` | Cross-process daily lock; presence-based ingestion kill switch |
 | `generated/default/`, `generated/profiles/<profile-id>/` | Atomic current bundle, exports, prior exports, seven-revision history, `jobs/<job-id>.scorecard.json` diagnostics |
 | `generated/legacy-profile-owner.json` | Legacy migration ownership; original top-level files remain recovery copies |
-| `episode-jobs/profiles/<profile-id>/<job-id>.json` | Request, timestamps, stage, counts, terminal result and generated episode text; no automatic retention sweep |
+| `episode-jobs/profiles/<profile-id>/<job-id>.json` | Request, timestamps, stage, counts, terminal result and generated episode text; pruned with expired episode jobs after 90 days |
+| `episode-jobs/profiles/<profile-id>/.<job-id>-stream/` | Private per-chapter WAVs published during opt-in streaming; removed with the expired episode job |
 | `episode-jobs/retrieval/retrieval-counts.json` | Real episode search request counter; resets its bucket on UTC date change |
 | `episodes/profiles/<profile-id>/audio/<episode-id>/<asset-key>/` | Versioned WAVs and manifest; no automatic old-asset pruning |
 | `corrections/profiles/<profile-id>/*.jsonl` | Correction events, private evidence quotes and retained snapshots; per-profile publication lock |
@@ -369,6 +382,8 @@ for production settings.
 | `BRIEFING_DAILY_TARGET_MIN` | Five minutes | Daily writer |
 | `BRIEFING_EPISODE_THINKING` | `off` | Episode model client |
 | `BRIEFING_EPISODE_FALLBACK_MODEL` | Off; `on` enables guarded sparse-evidence host pass | Episode fallback writer |
+| `BRIEFING_EPISODE_STREAMING` | Off; `on` publishes chapter recordings as they finish | Episode jobs and audio renderer |
+| `BRIEFING_EPISODE_STREAMING` | Off; `on` publishes completed chapter recordings during generation | Episode job store and audio renderer |
 | `BRIEFING_EXTRACTION`, `BRIEFING_EVIDENCE_PACKS` | Off; `on` enables | Retrieval and daily evidence |
 | `BRIEFING_CREDIBILITY`, `BRIEFING_RELEVANCE`, `BRIEFING_RELEVANCE_TUNE` | Off; `1`/`on` enables | Retrieval and daily scoring |
 | `BRIEFING_RETRIEVAL_FILL`, `BRIEFING_RETRIEVAL_RESILIENCE` | Off; `on` enables | Retrieval controls |

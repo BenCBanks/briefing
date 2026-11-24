@@ -484,7 +484,7 @@ def _render_episode_audio_unlocked(episode: dict, profile_id: str, *, provider=N
                                    state_dir: Path | str = STATE_DIR,
                                    max_segment_attempts: int = MAX_SEGMENT_ATTEMPTS,
                                    tts_output_token_limit: int | None = None,
-                                   cancelled=lambda: False, progress=None,
+                                   cancelled=lambda: False, progress=None, chapter_ready=None,
                                    reuse_from_episode: dict | None = None,
                                    changed_chapter_id: str | None = None) -> dict:
     """Render scripts and stitch one asset while its identity lock is held."""
@@ -702,6 +702,11 @@ def _render_episode_audio_unlocked(episode: dict, profile_id: str, *, provider=N
                 row['reused_from_revision_id'] = reuse_from_episode.get('revision_id')
             segment_rows.append(row)
             offset += info.duration_seconds
+            if chapter_ready:
+                # The callback receives a complete validated WAV only after its
+                # chapter has been durably written inside the private staging
+                # directory. It may publish a separate immutable playback copy.
+                chapter_ready(dict(row), audio_bytes)
             if progress:
                 progress(round(offset, 6))
             check()
@@ -774,7 +779,7 @@ def render_episode_audio(episode: dict, profile_id: str, *, provider=None,
                          state_dir: Path | str = STATE_DIR,
                          max_segment_attempts: int = MAX_SEGMENT_ATTEMPTS,
                          tts_output_token_limit: int | None = None,
-                         cancelled=lambda: False, progress=None,
+                         cancelled=lambda: False, progress=None, chapter_ready=None,
                          reuse_from_episode: dict | None = None,
                          changed_chapter_id: str | None = None) -> dict:
     """Serialize identical asset renders and reuse the winner's complete cache entry."""
@@ -817,7 +822,8 @@ def render_episode_audio(episode: dict, profile_id: str, *, provider=None,
             max_segment_attempts=max_segment_attempts,
             tts_output_token_limit=tts_output_token_limit,
             cancelled=cancelled,
-            progress=progress, reuse_from_episode=reuse_from_episode,
+            progress=progress, chapter_ready=chapter_ready,
+            reuse_from_episode=reuse_from_episode,
             changed_chapter_id=changed_chapter_id)
     finally:
         fcntl.flock(lock_fd, fcntl.LOCK_UN)

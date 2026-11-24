@@ -126,5 +126,10 @@ active.
 - For every `try_real` episode, compare research elapsed time with sources read,
   slow hosts dropped, and timeouts in the same log. A faster run that loses
   usable evidence is a regression.
+- These `try_real` episode commands call the generation and audio functions
+  directly; they do not exercise the job API's opt-in chapter streaming path.
+  Keep `BRIEFING_EPISODE_STREAMING` off for this budgeted batch. Measure
+  first-chapter availability and full completion only in a separately budgeted
+  job-backed run after the streaming backend is merged.
 - Keep the broad single-word result even if it is honestly short or falls back;
   do not pad it to meet the requested duration.

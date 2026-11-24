@@ -373,6 +373,8 @@ class EpisodeJobStore:
             self.max_attempts = 1
         self.real_generator = real_generator
         self.generator = generator or fake_episode
+        from .flags import flag_enabled
+        self.streaming_enabled = flag_enabled('episode_streaming')
         configured_tts = os.environ.get('BRIEFING_TTS', '1')
         if configured_tts not in {'0', '1'}:
             raise ValueError('BRIEFING_TTS must be 0 or 1.')
@@ -1467,6 +1469,52 @@ class EpisodeJobStore:
             return None
         return directory / f'{job_id}.json'
 
+    def streaming_chapter_path(self, profile_id: str, job_id: str, chapter_id: str) -> Path | None:
+        """Return an existing contained preview recording, rejecting symlinks."""
+        if (not re.fullmatch(r'[a-f0-9]{24}', str(profile_id)) or
+                not _JOB_ID.fullmatch(str(job_id)) or
+                not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', str(chapter_id))):
+            return None
+        root = self.root.resolve()
+        profile_dir = self.root / profile_id
+        stream_dir = profile_dir / f'.{job_id}-stream'
+        path = stream_dir / f'{chapter_id}.wav'
+        for candidate in (self.root, profile_dir, stream_dir, path):
+            if candidate.is_symlink():
+                return None
+            try:
+                if not candidate.resolve().is_relative_to(root):
+                    return None
+            except OSError:
+                return None
+        return path if path.is_file() else None
+
+    def _store_stream_chapter(self, directory: Path, job_id: str, row: dict,
+                              chapter: dict, audio_bytes: bytes) -> None:
+        if not self.streaming_enabled or not isinstance(audio_bytes, bytes) or not audio_bytes:
+            return
+        profile_id = directory.name
+        chapter_id = chapter.get('id') if isinstance(chapter, dict) else None
+        if (not isinstance(chapter_id, str) or
+                not re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9_-]{0,63}', chapter_id)):
+            raise ValueError('streaming chapter identity is invalid')
+        profile_dir = self.root / profile_id
+        stream_dir = profile_dir / f'.{job_id}-stream'
+        for candidate in (self.root, profile_dir, stream_dir):
+            if candidate.is_symlink() or not candidate.resolve().is_relative_to(self.root.resolve()):
+                raise ValueError('streaming audio path is invalid')
+        stream_dir.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(stream_dir, 0o700)
+        from .state_io import atomic_write_bytes
+        target = stream_dir / f'{chapter_id}.wav'
+        if target.is_symlink():
+            raise ValueError('streaming audio path is invalid')
+        if target.exists():
+            if target.read_bytes() != audio_bytes:
+                raise ValueError('a published chapter recording cannot be changed')
+            return
+        atomic_write_bytes(target, audio_bytes, mode=0o600)
+
     def _today_count(self, directory: Path, today: date | None = None) -> int:
         today = today or self._now().astimezone(EASTERN).date()
         count = 0
@@ -1609,6 +1657,9 @@ class EpisodeJobStore:
                     'quality_metrics': _quality_metrics({'length': length, 'cost_estimate_cents': estimate_cents}),
                     'episode': None,
                 }
+                if self.streaming_enabled:
+                    job['streaming'] = {'status': 'making', 'expected_chapters': None,
+                                        'ready_chapters': [], 'progress': 0.0}
                 if idempotency_hash:
                     job['idempotency_hash'] = idempotency_hash
                     job['idempotency_fingerprint'] = fingerprint
@@ -1772,6 +1823,36 @@ class EpisodeJobStore:
                 self._mutate(directory, job_id, status=stage, stage=stage, counts=counts,
                              quality_metrics=metrics)
 
+        episode = None
+
+        def publish_chapter(row, audio_bytes):
+            current = self._read(path) or {}
+            chapters = episode.get('chapters') if isinstance(episode, dict) else []
+            chapter = next((item for item in chapters if isinstance(item, dict) and
+                            item.get('id') == row.get('chapter_id')), {})
+            if not chapter and row.get('chapter_id') == 'streaming-close':
+                chapter = {'id': 'streaming-close', 'title': row.get('title') or 'A final note'}
+            self._store_stream_chapter(directory, job_id, row, chapter, audio_bytes)
+            stream = current.get('streaming') if isinstance(current.get('streaming'), dict) else {}
+            ready = list(stream.get('ready_chapters', []))
+            chapter_id = row.get('chapter_id')
+            if not any(item.get('id') == chapter_id for item in ready if isinstance(item, dict)):
+                start_seconds = row.get('start_seconds')
+                if chapter_id == 'streaming-close':
+                    start_seconds = sum(item.get('duration_seconds', 0) for item in ready
+                                        if isinstance(item, dict) and
+                                        isinstance(item.get('duration_seconds'), (int, float)))
+                ready.append({'id': chapter_id, 'title': row.get('title') or chapter.get('title') or 'Chapter',
+                              'audio_start_seconds': start_seconds,
+                              'duration_seconds': row.get('duration_seconds'),
+                              'audio_url': f'/api/episodes/{job_id}/chapters/{chapter_id}/audio'})
+            expected = len(chapters)
+            count = len(ready)
+            self._mutate(directory, job_id, streaming={
+                'status': 'playable' if count < expected else 'making',
+                'expected_chapters': expected, 'ready_chapters': ready,
+                'progress': round(count / max(1, expected), 3)})
+
         while not _REAL_WORKER.acquire(timeout=.1):
             if cancelled():
                 return
@@ -1806,6 +1887,10 @@ class EpisodeJobStore:
                           'claims_matched': sum(s.get('kind') == 'claim' for c in episode['chapters'] for s in c['sentences']),
                           'audio_seconds': 0}
                 progress('recording', counts)
+                if self.streaming_enabled:
+                    self._mutate(directory, job_id, streaming={
+                        'status': 'making', 'expected_chapters': len(episode['chapters']),
+                        'ready_chapters': [], 'progress': 0.0})
                 def audio_progress(seconds):
                     counts['audio_seconds'] = seconds
                     progress('recording', dict(counts))
@@ -1813,9 +1898,23 @@ class EpisodeJobStore:
                     rendered = (self.audio_renderer or render_episode_audio)(
                         episode, job['profile_id'], state_dir=self.state_dir,
                         voice_file=self.state_dir / 'voice.json', cancelled=cancelled,
-                        progress=audio_progress, max_segment_attempts=1)
+                        progress=audio_progress, chapter_ready=(publish_chapter if self.streaming_enabled else None),
+                        max_segment_attempts=1)
                     if cancelled():
                         return
+                    if self.streaming_enabled and rendered.get('cached'):
+                        manifest = rendered.get('manifest') if isinstance(rendered.get('manifest'), dict) else {}
+                        asset_dir = rendered.get('directory')
+                        for row in manifest.get('chapters', []):
+                            if not isinstance(row, dict) or not isinstance(asset_dir, Path):
+                                continue
+                            filename = row.get('file')
+                            if not isinstance(filename, str) or not re.fullmatch(r'chapter-\d{2}\.wav', filename):
+                                continue
+                            try:
+                                publish_chapter(row, (asset_dir / filename).read_bytes())
+                            except OSError:
+                                continue
                     episode = rendered['episode']
                     episode['audio']['url'] = f'/api/episodes/{job_id}/audio'
                     episode['audio']['status'] = 'recorded'
@@ -1836,18 +1935,187 @@ class EpisodeJobStore:
                                                cost_record=episode['cost_record'],
                                                job_retries=job.get('attempt', 1) - 1)
                 episode['quality_metrics'] = metrics
+                final_ready = ((self._read(path) or {}).get('streaming', {}).get('ready_chapters', [])
+                               if self.streaming_enabled else [])
+                stream_final = ({'streaming': {
+                    'status': 'complete', 'expected_chapters': len(episode['chapters']),
+                    'ready_chapters': final_ready,
+                    'progress': round(len(final_ready) / max(1, len(episode['chapters'])), 3)}}
+                    if self.streaming_enabled else {})
                 self._mutate(directory, job_id, status='done', stage='done',
                              finished_at=self._timestamp(), episode=episode, counts=counts,
                              audio_status=episode['audio_status'],
+                             **stream_final,
                              cost_record=episode['cost_record'],
                              quality_metrics=metrics,
                              shorter_than_requested=episode['shorter_than_requested'],
                              message=episode.get('shortfall_notice'))
         except EpisodeCancelled:
+            if self.streaming_enabled:
+                current = self._read(path) or {}
+                stream = current.get('streaming') if isinstance(current.get('streaming'), dict) else {}
+                self._mutate(directory, job_id, streaming={**stream, 'status': 'cancelled'})
             return
         except Exception as error:
             if cancelled():
                 return
+            current = self._read(path) or {}
+            stream = current.get('streaming') if isinstance(current.get('streaming'), dict) else {}
+            ready = stream.get('ready_chapters') if isinstance(stream.get('ready_chapters'), list) else []
+            if self.streaming_enabled and ready and isinstance(episode, dict):
+                published = {row.get('id') for row in ready if isinstance(row, dict)}
+                completed = [chapter for chapter in episode.get('chapters', [])
+                             if isinstance(chapter, dict) and chapter.get('id') in published]
+                if completed:
+                    try:
+                        # Preserve every already-published chapter. A separate
+                        # final beat says plainly that the recording stopped early.
+                        closing = {'id': 'streaming-close', 'title': 'A final note',
+                                   'sentences': [{'id': 'streaming-close-s1',
+                                                  'text': "That's all I could confirm.",
+                                                  'kind': 'closing', 'source_ids': [],
+                                                  'source_numbers': [], 'evidence_ids': []}],
+                                   'spoken_text': "That's all I could confirm."}
+                        partial = {**episode, 'chapters': [*completed, closing]}
+                        partial['transcript'] = '\n\n'.join(
+                            ' '.join(row.get('text', '') for row in chapter.get('sentences', [])
+                                     if isinstance(row, dict)) for chapter in partial['chapters'])
+                        partial['word_count'] = len(re.findall(r"[\w]+(?:['’][\w]+)?", partial['transcript']))
+                        partial['script_hash'] = hashlib.sha256(partial['transcript'].encode('utf-8')).hexdigest()
+                        partial['revision_id'] = f"episode-{partial['script_hash'][:16]}"
+                        used_source_ids = {source_id for chapter in completed
+                                           for sentence in chapter.get('sentences', [])
+                                           if isinstance(sentence, dict)
+                                           for source_id in sentence.get('source_ids', [])
+                                           if isinstance(source_id, str)}
+                        partial['sources'] = [dict(source) for source in episode.get('sources', [])
+                                              if isinstance(source, dict) and source.get('id') in used_source_ids]
+                        source_numbers = {source.get('number'): index for index, source in
+                                          enumerate(partial['sources'], 1)}
+                        for index, source in enumerate(partial['sources'], 1):
+                            source['number'] = index
+                        for chapter in completed:
+                            for sentence in chapter.get('sentences', []):
+                                if isinstance(sentence, dict):
+                                    sentence['source_numbers'] = [source_numbers[number]
+                                        for number in sentence.get('source_numbers', [])
+                                        if number in source_numbers]
+                        partial['source_count'] = len(partial['sources'])
+                        partial['shorter_than_requested'] = True
+                        partial['partial'] = True
+                        partial['partial_reasons'] = list(dict.fromkeys(
+                            [*(episode.get('partial_reasons') or []), 'recording_stopped_early']))
+                        close_id = 'streaming-close'
+                        close_row = {'chapter_id': close_id, 'title': closing['title'],
+                                     'duration_seconds': 0.0}
+                        # Try to record the honest ending as its own immutable
+                        # chapter; a failed closing render does not discard audio
+                        # that is already playable.
+                        self._store_stream_chapter(directory, job_id, close_row, closing, b'')
+                        if self.tts_enabled:
+                            from .episodes_audio import render_episode_audio
+                            renderer = self.audio_renderer or render_episode_audio
+                            closing_text = closing['spoken_text']
+                            closing_hash = hashlib.sha256(closing_text.encode('utf-8')).hexdigest()
+                            close_episode = {**partial, 'chapters': [closing],
+                                             'transcript': closing_text,
+                                             'script_hash': closing_hash,
+                                             'revision_id': f'episode-{closing_hash[:16]}'}
+                            rendered_close = renderer(
+                                close_episode, job['profile_id'], state_dir=self.state_dir,
+                                voice_file=self.state_dir / 'voice.json', cancelled=cancelled,
+                                chapter_ready=publish_chapter, max_segment_attempts=1)
+                            if not isinstance(rendered_close, dict):
+                                raise ValueError('closing audio was not rendered')
+                        final_stream = (self._read(path) or {}).get('streaming') or stream
+                        final_ready = final_stream.get('ready_chapters', [])
+                        for chapter in partial['chapters']:
+                            row = next((item for item in final_ready if isinstance(item, dict) and
+                                        item.get('id') == chapter.get('id')), None)
+                            if row:
+                                chapter['audio_start_seconds'] = row.get('audio_start_seconds')
+                                chapter['audio_duration_seconds'] = row.get('duration_seconds')
+                        measured_seconds = sum(row.get('duration_seconds', 0) for row in final_ready
+                                               if isinstance(row, dict) and
+                                               isinstance(row.get('duration_seconds'), (int, float)))
+                        partial['duration_minutes'] = round(measured_seconds / 60, 2)
+                        partial['spoken_minutes'] = partial['duration_minutes']
+                        partial['duration_basis'] = 'measured rendered chapter audio'
+                        partial['shortfall_notice'] = "That's all I could confirm."
+                        partial['audio'] = {'status': 'partial_recorded',
+                                            'script_hash': partial['script_hash'],
+                                            'revision_id': partial['revision_id']}
+                        partial['audio_status'] = 'partial_recorded'
+                        partial['streaming_status'] = 'complete'
+                        partial['message'] = "That's all I could confirm."
+                        cost_record = (self.ledger or process_ledger()).episode_record(job_id)
+                        latest_stream = (self._read(path) or {}).get('streaming') or stream
+                        stream_done = {**latest_stream, 'status': 'complete',
+                                       'expected_chapters': len(partial['chapters']),
+                                       'progress': round(len(final_ready) / max(1, len(partial['chapters'])), 3),
+                                       'shortened': True,
+                                       'message': "That's all I could confirm."}
+                        final_counts = {**(self._read(path) or {}).get('counts', {}),
+                                        'chapters': len(partial['chapters']),
+                                        'chapters_written': len(partial['chapters']),
+                                        'sentences': sum(len(chapter.get('sentences', []))
+                                                         for chapter in partial['chapters']),
+                                        'sources': partial['source_count'],
+                                        'audio_seconds': round(measured_seconds)}
+                        partial['quality_metrics'] = _quality_metrics(
+                            current, partial, stage_seconds=stage_seconds, cost_record=cost_record)
+                        self._mutate(directory, job_id, status='done', stage='done',
+                                     finished_at=self._timestamp(), episode=partial,
+                                     counts=final_counts, quality_metrics=partial['quality_metrics'],
+                                     audio_status='partial_recorded', streaming=stream_done,
+                                     message="That's all I could confirm.", cost_record=cost_record)
+                        return
+                    except EpisodeCancelled:
+                        self._mutate(directory, job_id, streaming={**stream, 'status': 'cancelled'})
+                        return
+                    except Exception:
+                        # Keep the text-only honest ending if its short TTS
+                        # attempt cannot complete; never erase ready chapters.
+                        partial['audio_status'] = 'partial_recorded'
+                        partial['audio'] = {'status': 'partial_recorded',
+                                            'script_hash': partial['script_hash'],
+                                            'revision_id': partial['revision_id']}
+                        final_stream = (self._read(path) or {}).get('streaming') or stream
+                        final_ready = final_stream.get('ready_chapters', [])
+                        measured_seconds = sum(row.get('duration_seconds', 0) for row in final_ready
+                                               if isinstance(row, dict) and
+                                               isinstance(row.get('duration_seconds'), (int, float)))
+                        for chapter in partial['chapters']:
+                            row = next((item for item in final_ready if isinstance(item, dict) and
+                                        item.get('id') == chapter.get('id')), None)
+                            if row:
+                                chapter['audio_start_seconds'] = row.get('audio_start_seconds')
+                                chapter['audio_duration_seconds'] = row.get('duration_seconds')
+                        partial['duration_minutes'] = round(measured_seconds / 60, 2)
+                        partial['spoken_minutes'] = partial['duration_minutes']
+                        partial['duration_basis'] = 'measured rendered chapter audio'
+                        partial['shortfall_notice'] = "That's all I could confirm."
+                        cost_record = (self.ledger or process_ledger()).episode_record(job_id)
+                        partial['quality_metrics'] = _quality_metrics(
+                            current, partial, stage_seconds=stage_seconds, cost_record=cost_record)
+                        final_counts = {**(self._read(path) or {}).get('counts', {}),
+                                        'chapters': len(partial['chapters']),
+                                        'chapters_written': len(partial['chapters']),
+                                        'sentences': sum(len(chapter.get('sentences', []))
+                                                         for chapter in partial['chapters']),
+                                        'sources': partial['source_count'],
+                                        'audio_seconds': round(measured_seconds)}
+                        stream_done = {**final_stream, 'status': 'complete',
+                                       'expected_chapters': len(partial['chapters']),
+                                       'progress': round(len(final_ready) / max(1, len(partial['chapters'])), 3),
+                                       'shortened': True,
+                                       'message': "That's all I could confirm."}
+                        self._mutate(directory, job_id, status='done', stage='done',
+                                     finished_at=self._timestamp(), episode=partial,
+                                     counts=final_counts, quality_metrics=partial['quality_metrics'],
+                                     audio_status='partial_recorded', streaming=stream_done,
+                                     message="That's all I could confirm.")
+                        return
             episode_error_code = (error.args[0] if isinstance(error, EpisodeError) and error.args and
                                   isinstance(error.args[0], str) else None)
             reason = ('cost_cap_reached' if isinstance(error, UsageCapReached) else
@@ -1865,6 +2133,9 @@ class EpisodeJobStore:
                          message=(BUDGET_MESSAGE if reason == 'cost_cap_reached' else
                                   INSUFFICIENT_EVIDENCE_MESSAGE if reason == 'insufficient_evidence' else
                                   'The episode could not be completed.'),
+                         **({'streaming': {**stream, 'status': 'complete',
+                                           'message': 'The episode could not be completed.'}}
+                            if self.streaming_enabled else {}),
                          cost_record=cost_record, quality_metrics=metrics)
         finally:
             _REAL_WORKER.release()
@@ -1975,6 +2246,9 @@ class EpisodeJobStore:
             elif job.get('status') != 'cancelled':
                 job.update(status='cancelled', stage='cancelled', finished_at=self._timestamp(),
                            updated_at=self._timestamp())
+                if self.streaming_enabled:
+                    stream = job.get('streaming') if isinstance(job.get('streaming'), dict) else {}
+                    job['streaming'] = {**stream, 'status': 'cancelled'}
                 self._write(path, job)
         if finished_job:
             return 409, {'error': 'job_already_finished', 'job': self._positioned_view(finished_job)}

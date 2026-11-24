@@ -807,6 +807,12 @@ class Handler(BaseHTTPRequestHandler):
         if audio_match:
             self._get_episode_audio(audio_match.group(1))
             return
+        streaming_audio_match = re.fullmatch(
+            r'/api/episodes/([a-f0-9]{32})/chapters/([A-Za-z0-9][A-Za-z0-9_-]{0,63})/audio',
+            episode_path)
+        if streaming_audio_match:
+            self._get_streaming_chapter_audio(*streaming_audio_match.groups())
+            return
         if request.path == '/api/daily/audio':
             self._get_daily_audio()
             return
@@ -1053,6 +1059,70 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(404, {'error': 'audio_not_rendered'})
             return
         self._send_episode_audio(audio_path, manifest)
+
+    def _get_streaming_chapter_audio(self, episode_id, chapter_id):
+        """Serve only an already-published immutable chapter WAV for this profile."""
+        profile_status, profile_result = profile_response()
+        if profile_status != 200:
+            self._send_json(profile_status, profile_result)
+            return
+        profile = profile_result['profile']
+        job = EPISODE_JOBS.get(profile, episode_id)
+        if job:
+            try:
+                job = CORRECTIONS.apply_job(job, profile)
+            except CorrectionError as error:
+                self._send_json(error.status, _public_error(error))
+                return
+        if isinstance(job, dict) and job.get('updated'):
+            self._send_json(409, {'error': 'audio_stale', 're_render_required': True})
+            return
+        stream = job.get('streaming') if isinstance(job, dict) else None
+        ready = stream.get('ready_chapters') if isinstance(stream, dict) else None
+        if (not isinstance(job, dict) or not isinstance(ready, list) or
+                not any(isinstance(row, dict) and row.get('id') == chapter_id for row in ready)):
+            self._send_json(404, {'error': 'chapter_audio_not_ready'})
+            return
+        path_reader = getattr(EPISODE_JOBS, 'streaming_chapter_path', None)
+        audio_path = path_reader(profile_identifier(profile), episode_id, chapter_id) if callable(path_reader) else None
+        if audio_path is None:
+            self._send_json(404, {'error': 'chapter_audio_not_ready'})
+            return
+        try:
+            audio = audio_path.read_bytes()
+            episodes_audio._read_wav(audio)
+        except (OSError, ValueError, episodes_audio.EpisodeAudioError):
+            self._send_json(404, {'error': 'chapter_audio_not_ready'})
+            return
+        start, end, partial = 0, len(audio) - 1, False
+        range_header = self.headers.get('Range', '')
+        if range_header:
+            try:
+                unit, bounds = range_header.split('=', 1)
+                first, last = bounds.split('-', 1)
+                if unit != 'bytes' or not first.isdigit() or (last and not last.isdigit()):
+                    raise ValueError()
+                start = int(first)
+                end = min(int(last), len(audio) - 1) if last else len(audio) - 1
+                if start > end or start >= len(audio):
+                    raise ValueError()
+                partial = True
+            except ValueError:
+                self.send_response(416)
+                self.send_header('Content-Range', f'bytes */{len(audio)}')
+                self.send_header('Content-Length', '0')
+                self.end_headers()
+                return
+        self.send_response(206 if partial else 200)
+        self.send_header('Content-Type', 'audio/wav')
+        self.send_header('Content-Length', str(end - start + 1))
+        self.send_header('Accept-Ranges', 'bytes')
+        self.send_header('Cache-Control', 'no-store')
+        self.send_header('X-Content-Type-Options', 'nosniff')
+        if partial:
+            self.send_header('Content-Range', f'bytes {start}-{end}/{len(audio)}')
+        self.end_headers()
+        self.wfile.write(audio[start:end + 1])
 
     def _get_daily_audio(self):
         profile_status, profile_result = profile_response()

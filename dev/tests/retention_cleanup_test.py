@@ -43,6 +43,9 @@ def make_state(root, *, saved_list=True):
 
     jobs = root / 'episode-jobs/profiles' / PROFILE
     write_json(jobs / 'expired-job.json', {'job_id': 'expired-job', 'created_at': (NOW - timedelta(days=100)).isoformat()})
+    stream = jobs / '.expired-job-stream'
+    stream.mkdir()
+    (stream / 'chapter-one.wav').write_bytes(b'fixture partial chapter audio')
     write_json(jobs / 'recent-job.json', {'job_id': 'recent-job', 'created_at': (NOW - timedelta(days=10)).isoformat()})
 
     audio = root / 'episodes/profiles' / PROFILE / 'audio'
@@ -92,6 +95,7 @@ class RetentionCleanupTests(unittest.TestCase):
             self.assertIn('filesystem free', report)
             self.assertEqual((root / 'generated/profiles' / PROFILE / 'editions-history.json').read_bytes(), before)
             self.assertTrue((root / 'episode-jobs/profiles' / PROFILE / 'expired-job.json').exists())
+            self.assertTrue((root / 'episode-jobs/profiles' / PROFILE / '.expired-job-stream').exists())
             self.assertTrue((root / 'episodes/profiles' / PROFILE / 'audio/expired-audio').exists())
             missing_saved_list = plan_cleanup(root, now=NOW,
                 saved_ids_file=root / 'missing-saved-ids.json')
@@ -111,6 +115,7 @@ class RetentionCleanupTests(unittest.TestCase):
             self.assertTrue((root / 'generated/profiles' / PROFILE / 'current.json').exists())
             self.assertFalse((root / 'generated/profiles' / PROFILE / 'previous.json').exists())
             self.assertFalse((root / 'episode-jobs/profiles' / PROFILE / 'expired-job.json').exists())
+            self.assertFalse((root / 'episode-jobs/profiles' / PROFILE / '.expired-job-stream').exists())
             audio = root / 'episodes/profiles' / PROFILE / 'audio'
             self.assertFalse((audio / 'expired-audio' / ('a' * 64)).exists())
             self.assertTrue((audio / 'saved-audio').exists())

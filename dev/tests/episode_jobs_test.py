@@ -64,6 +64,13 @@ class EpisodeJobStoreTests(unittest.TestCase):
     def tearDown(self):
         self.temp.cleanup()
 
+    def test_streaming_fields_remain_absent_by_default(self):
+        self.assertFalse(self.store.streaming_enabled)
+        _status, created = self.store.submit(PROFILE, REQUEST, start=False)
+        self.assertNotIn('streaming', created)
+        self.store.run_pending(PROFILE, created['job_id'])
+        self.assertNotIn('streaming', self.store.get(PROFILE, created['job_id']))
+
     def _approval_replace_fixture(self, operation_id, profile=PROFILE):
         _status, created = self.store.submit(profile, REQUEST, start=False)
         job_id = created['job_id']
@@ -1999,6 +2006,134 @@ class EpisodeJobStoreTests(unittest.TestCase):
         self.assertEqual(job['episode']['audio']['url'], f"/api/episodes/{created['job_id']}/audio")
         self.assertEqual(job['episode']['duration_minutes'], round(12.5 / 60, 2))
 
+    def test_streaming_publishes_first_chapter_before_later_audio_and_completes(self):
+        generated = fake_episode({'job_id': 'episode-fixture', 'topic': REQUEST['topic'],
+                                  'length': 3, 'style': 'news-brief'})
+        generated.update(id='episode-fixture', source_count=2, sources_read=2,
+                         shorter_than_requested=False, quality_rubric={'passed': True},
+                         verification={'passed': True}, partial_quality=False, audio={})
+        for chapter in generated['chapters']:
+            chapter['spoken_text'] = ' '.join(row['text'] for row in chapter['sentences'])
+        output = BytesIO()
+        with wave.open(output, 'wb') as writer:
+            writer.setnchannels(1); writer.setsampwidth(2); writer.setframerate(1000)
+            writer.writeframes(b'\0\0' * 100)
+        snapshots = []
+        store = None
+
+        def renderer(episode, _profile_id, **kwargs):
+            callback = kwargs['chapter_ready']
+            for chapter in episode['chapters']:
+                callback({'chapter_id': chapter['id'], 'title': chapter['title'],
+                          'duration_seconds': 0.1}, output.getvalue())
+                current = store.get(PROFILE, created['job_id'])
+                snapshots.append(current['streaming'].copy())
+            return {'episode': episode, 'manifest': {'duration_seconds': 12.5, 'voice_name': 'Sulafat'}}
+
+        with patch.dict('os.environ', {'BRIEFING_EPISODES': 'real', 'BRIEFING_TTS': '1',
+                                       'BRIEFING_EPISODE_STREAMING': 'on'}):
+            store = EpisodeJobStore(self.temp.name, stage_delay=0,
+                real_generator=lambda *_args, **_kwargs: generated, audio_renderer=renderer,
+                ledger=self.ledger(), key_available=lambda: True)
+            status, created = store.submit(PROFILE, {**REQUEST, 'length': 3}, start=False)
+            store.run_pending(PROFILE, created['job_id'])
+        job = store.get(PROFILE, created['job_id'])
+        self.assertEqual(status, 202)
+        self.assertEqual(snapshots[0]['status'], 'playable')
+        self.assertEqual(snapshots[0]['expected_chapters'], 3)
+        self.assertEqual(len(snapshots[0]['ready_chapters']), 1)
+        self.assertAlmostEqual(snapshots[0]['progress'], 1 / 3, places=3)
+        self.assertEqual(job['streaming']['status'], 'complete')
+        self.assertEqual(len(job['streaming']['ready_chapters']), 3)
+        first = job['streaming']['ready_chapters'][0]
+        audio_path = store.streaming_chapter_path(profile_identifier(PROFILE), created['job_id'], first['id'])
+        self.assertEqual(audio_path.read_bytes(), output.getvalue())
+        with self.assertRaisesRegex(ValueError, 'cannot be changed'):
+            store._store_stream_chapter(store._profile_dir(PROFILE), created['job_id'],
+                {'chapter_id': first['id']}, generated['chapters'][0], output.getvalue() + b'changed')
+
+    def test_streaming_failure_in_third_chapter_finishes_short_with_honest_closing(self):
+        generated = fake_episode({'job_id': 'episode-fixture', 'topic': REQUEST['topic'],
+                                  'length': 3, 'style': 'news-brief'})
+        generated.update(id='episode-fixture', source_count=2, sources_read=2,
+                         shorter_than_requested=False, quality_rubric={'passed': True},
+                         verification={'passed': True}, partial_quality=False, audio={})
+        for chapter in generated['chapters']:
+            chapter['spoken_text'] = ' '.join(row['text'] for row in chapter['sentences'])
+        output = BytesIO()
+        with wave.open(output, 'wb') as writer:
+            writer.setnchannels(1); writer.setsampwidth(2); writer.setframerate(1000)
+            writer.writeframes(b'\0\0' * 100)
+        store = None
+        calls = []
+
+        def renderer(episode, _profile_id, **kwargs):
+            calls.append([chapter['id'] for chapter in episode['chapters']])
+            for index, chapter in enumerate(episode['chapters']):
+                if len(episode['chapters']) > 1 and index == 2:
+                    raise RuntimeError('fixture chapter three TTS failure')
+                kwargs['chapter_ready']({'chapter_id': chapter['id'], 'title': chapter['title'],
+                                         'duration_seconds': 0.1}, output.getvalue())
+            return {'episode': episode, 'manifest': {'duration_seconds': 0.1, 'voice_name': 'Sulafat'}}
+
+        with patch.dict('os.environ', {'BRIEFING_EPISODES': 'real', 'BRIEFING_TTS': '1',
+                                       'BRIEFING_EPISODE_STREAMING': 'on'}):
+            store = EpisodeJobStore(self.temp.name, stage_delay=0,
+                real_generator=lambda *_args, **_kwargs: generated, audio_renderer=renderer,
+                ledger=self.ledger(), key_available=lambda: True)
+            _status, created = store.submit(PROFILE, {**REQUEST, 'length': 3}, start=False)
+            store.run_pending(PROFILE, created['job_id'])
+        job = store.get(PROFILE, created['job_id'])
+        self.assertEqual(job['status'], 'done')
+        self.assertEqual(job['streaming']['status'], 'complete')
+        self.assertTrue(job['streaming']['shortened'])
+        self.assertEqual(job['message'], "That's all I could confirm.")
+        self.assertEqual([chapter['id'] for chapter in job['episode']['chapters']],
+                         ['what-changed', 'why-it-matters', 'streaming-close'])
+        self.assertEqual(job['episode']['transcript'].split('\n\n')[-1],
+                         "That's all I could confirm.")
+        self.assertEqual(job['episode']['script_hash'], sha256(
+            job['episode']['transcript'].encode('utf-8')).hexdigest())
+        self.assertEqual(job['episode']['chapters'][0]['spoken_text'],
+                         generated['chapters'][0]['spoken_text'])
+        self.assertEqual(job['streaming']['progress'], 1.0)
+        self.assertEqual(calls[-1], ['streaming-close'])
+
+    def test_streaming_cancel_midway_stops_and_keeps_only_published_chapter(self):
+        from dev.ingest.episodes.generate import EpisodeCancelled
+        generated = fake_episode({'job_id': 'episode-fixture', 'topic': REQUEST['topic'],
+                                  'length': 3, 'style': 'news-brief'})
+        generated.update(id='episode-fixture', source_count=2, sources_read=2,
+                         shorter_than_requested=False, quality_rubric={'passed': True},
+                         verification={'passed': True}, partial_quality=False, audio={})
+        for chapter in generated['chapters']:
+            chapter['spoken_text'] = ' '.join(row['text'] for row in chapter['sentences'])
+        output = BytesIO()
+        with wave.open(output, 'wb') as writer:
+            writer.setnchannels(1); writer.setsampwidth(2); writer.setframerate(1000)
+            writer.writeframes(b'\0\0' * 100)
+        store = None
+        created = {}
+
+        def renderer(episode, _profile_id, **kwargs):
+            chapter = episode['chapters'][0]
+            kwargs['chapter_ready']({'chapter_id': chapter['id'], 'title': chapter['title'],
+                                    'duration_seconds': 0.1}, output.getvalue())
+            store.cancel(PROFILE, created['job_id'])
+            raise EpisodeCancelled('cancelled')
+
+        with patch.dict('os.environ', {'BRIEFING_EPISODES': 'real', 'BRIEFING_TTS': '1',
+                                       'BRIEFING_EPISODE_STREAMING': 'on'}):
+            store = EpisodeJobStore(self.temp.name, stage_delay=0,
+                real_generator=lambda *_args, **_kwargs: generated, audio_renderer=renderer,
+                ledger=self.ledger(), key_available=lambda: True)
+            _status, created = store.submit(PROFILE, {**REQUEST, 'length': 3}, start=False)
+            store.run_pending(PROFILE, created['job_id'])
+        job = store.get(PROFILE, created['job_id'])
+        self.assertEqual(job['status'], 'cancelled')
+        self.assertEqual(job['streaming']['status'], 'cancelled')
+        self.assertEqual(len(job['streaming']['ready_chapters']), 1)
+
     def test_tts_disabled_keeps_the_episode_and_marks_audio_disabled(self):
         generated = fake_episode({'job_id': 'episode-fixture', 'topic': REQUEST['topic'],
                                   'length': 3, 'style': 'news-brief'})
@@ -2193,6 +2328,34 @@ class EpisodeJobRouteTests(unittest.TestCase):
         self.assertEqual(self.request('/api/episodes/%2e%2e%2fsecret')[0], 404)
         self.assertEqual(self.request('/api/episodes/not-a-job-id')[0], 404)
         self.assertEqual(self.request(f'/api/episodes/{job_id}/cancel', 'POST')[0], 409)
+
+    def test_streaming_episode_api_exposes_ready_state_and_serves_only_ready_chapter_audio(self):
+        output = BytesIO()
+        with wave.open(output, 'wb') as writer:
+            writer.setnchannels(1); writer.setsampwidth(2); writer.setframerate(1000)
+            writer.writeframes(b'\0\0' * 100)
+        with patch.dict(os.environ, {'BRIEFING_EPISODE_STREAMING': 'on'}):
+            self.store.streaming_enabled = True
+            _status, created = self.store.submit(PROFILE, REQUEST, start=False)
+            chapter = {'id': 'fictional-chapter-one', 'title': 'A first answer'}
+            row = {'chapter_id': chapter['id'], 'title': chapter['title'], 'duration_seconds': 0.1}
+            self.store._store_stream_chapter(
+                self.store._profile_dir(PROFILE), created['job_id'], row, chapter, output.getvalue())
+            self.store._mutate(self.store._profile_dir(PROFILE), created['job_id'], streaming={
+                'status': 'playable', 'expected_chapters': 3, 'progress': 1 / 3,
+                'ready_chapters': [{'id': chapter['id'], 'title': chapter['title'],
+                                    'audio_url': f"/api/episodes/{created['job_id']}/chapters/{chapter['id']}/audio"}]})
+        status, job = self.request(f"/api/episodes/{created['job_id']}")
+        self.assertEqual(status, 200)
+        self.assertEqual(job['streaming']['status'], 'playable')
+        self.assertEqual(job['streaming']['expected_chapters'], 3)
+        self.assertEqual(len(job['streaming']['ready_chapters']), 1)
+        with urlopen(self.base + job['streaming']['ready_chapters'][0]['audio_url'], timeout=3) as response:
+            self.assertEqual(response.status, 200)
+            self.assertEqual(response.headers.get_content_type(), 'audio/wav')
+            self.assertEqual(response.read(), output.getvalue())
+        missing = f"/api/episodes/{created['job_id']}/chapters/not-ready/audio"
+        self.assertEqual(self.request(missing)[0], 404)
 
     def test_invalid_post_and_active_cancellation(self):
         self.assertEqual(self.request('/api/episodes', 'POST',

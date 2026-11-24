@@ -286,6 +286,12 @@ def plan_cleanup(state_dir: Path | str = STATE_DIR, *, now: datetime | None = No
         actions.append(_action('delete_file', job_path, size))
         counts['episode_files'] += 1
         bytes_planned['episodes'] += size
+        profile_dir = job_path.parent
+        stream_dir = profile_dir / f'.{job_path.stem}-stream'
+        stream_size = _tree_size(stream_dir)
+        if stream_size is not None and _safe_path(root, stream_dir):
+            actions.append(_action('delete_tree', stream_dir, stream_size))
+            bytes_planned['episodes'] += stream_size
 
     keep_ids, saved_warning = _saved_ids(root, Path(saved_ids_file).expanduser() if saved_ids_file else None)
     saved_markers = set(keep_ids)
