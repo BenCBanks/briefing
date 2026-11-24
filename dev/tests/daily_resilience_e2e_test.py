@@ -37,6 +37,8 @@ def _edition(local_date, *, topics=('fictional-topic',), narration=None, audio=N
              'daily_briefing': {'spoken_words': 900, 'target_spoken_words': 750}}
     if narration is not None:
         value['daily_narration'] = narration
+        value['daily_briefing'] = {'briefing_script': [], 'background_segments': [],
+                                   'spoken_words': 0, 'duration_seconds': 0, 'text_only': True}
     if audio is not None:
         value['audio'] = audio
     return value, sources
@@ -56,7 +58,7 @@ class DailyResilienceEndToEndTests(unittest.TestCase):
         self.yesterday = (datetime.fromisoformat(self.today) - timedelta(days=1)).date().isoformat()
         self.environment = {
             'BRIEFING_TESTING': '1', 'BRIEFING_STATE_DIR': str(self.state),
-            'BRIEFING_TEST_LEDGER_DIR': self.ledger.name, 'BRIEFING_TTS': 'disabled',
+            'BRIEFING_TEST_LEDGER_DIR': self.ledger.name,
         }
 
     def tearDown(self):
@@ -125,19 +127,25 @@ class DailyResilienceEndToEndTests(unittest.TestCase):
         def fake_audio(_edition, **_kwargs):
             if case == 'tts_fails':
                 raise RuntimeError('fixture TTS failure')
-            return {'audio_status': 'pending', 'audio_url': None, 'reason': 'fixture_pending'}
+            if case in {'narration_raises', 'narration_too_short'}:
+                return {'audio_status': 'pending', 'audio_url': None, 'reason': 'no_spoken_stories'}
+            return {'audio_status': 'ready', 'audio_url': '/api/daily/audio'}
+
+        def fake_persist(_profile, current_edition, audio):
+            current_edition['audio'] = audio
+            self._persist_edition(current_edition, sources)
+            return audio
 
         with patch.dict(os.environ, self.environment), \
-                patch.object(daily_guard, 'check_content', return_value=[{'passed': True}]), \
-                patch.object(daily, '_persist_daily_audio', side_effect=lambda _p, _e, audio: audio):
+                patch.object(daily_guard, 'check_content', return_value=[{'passed': True}]):
             code, result = daily.run_daily(
                 profile_loader=lambda: self.profile, start=fake_start, get_job=fake_get_job,
                 sleep=lambda _seconds: None, report_writer=daily.write_run_report,
                 daily_audio_renderer=fake_audio,
-                daily_audio_persister=lambda _profile, _edition, value: value)
+                daily_audio_persister=fake_persist)
             status_value = json.loads((self.state / 'status.json').read_text(encoding='utf-8'))
             decision, reasons = daily_guard.inspect_state(
-                self.state, budget_checker=lambda _edition: False)
+                self.state, budget_checker=lambda _edition: case == 'tts_fails')
 
         if case in {'feed_timeout', 'provider_rate_limit'}:
             self.assertEqual(code, 1)
@@ -151,17 +159,23 @@ class DailyResilienceEndToEndTests(unittest.TestCase):
             self.assertEqual(status_value['ok'], True)
             self.assertEqual(status_value['daily_run']['status'], 'complete')
             self.assertEqual(self._read_edition()['local_date'], self.today)
-            self.assertFalse(decision)
             self.assertNotIn('today_edition_missing', reasons)
             if case in {'narration_raises', 'narration_too_short'}:
                 self.assertEqual(status_value['daily_run']['daily_narration']['status'], 'fallback')
+                self.assertEqual(self._read_edition()['daily_briefing']['briefing_script'], [])
+                self.assertTrue(self._read_edition()['daily_briefing']['text_only'])
+                self.assertTrue(decision)
+                self.assertIn('spoken_under_3_minutes', reasons)
             if case == 'tts_fails':
                 self.assertEqual(result['daily_audio']['audio_status'], 'pending')
                 self.assertEqual(status_value['daily_run']['daily_audio']['audio_status'], 'pending')
+                self.assertTrue(decision)
+                self.assertIn('audio_missing_within_cap', reasons)
             if case == 'topic_empty':
                 topic_supply = status_value['daily_run']['topic_supply']
                 self.assertEqual(next(row['stories'] for row in topic_supply
                                       if row['topic_id'] == 'other-fictional-topic'), 0)
+                self.assertFalse(decision)
 
     def test_narration_exceptions_short_output_tts_and_thin_topic_publish_truthfully(self):
         for case in ('narration_raises', 'narration_too_short', 'tts_fails', 'topic_empty'):
