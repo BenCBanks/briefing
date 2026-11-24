@@ -62,9 +62,17 @@ async function run() {
     assert.ok(await dialog.evaluate(element => element.scrollWidth <= element.clientWidth), 'player sheet has no horizontal overflow');
     assert.ok(await dialog.locator('[data-player-seek]').evaluate(input => input.getBoundingClientRect().width >= 320), 'scrubber spans the phone sheet');
     await screenshot(page, 'player-main-light-390');
+    const timeAtNormalSpeed = Number((await dialog.locator('[data-player-now-length]').innerText()).match(/\d+/)[0]);
+    await dialog.locator('[data-player-speed="2"]').click();
+    await assertNeutralSpeed(dialog);
+    const timeAtDoubleSpeed = Number((await dialog.locator('[data-player-now-length]').innerText()).match(/\d+/)[0]);
+    assert.ok(timeAtDoubleSpeed < timeAtNormalSpeed,
+      `remaining minutes follow selected playback speed (${timeAtNormalSpeed} at 1×, ${timeAtDoubleSpeed} at 2×)`);
+    await screenshot(page, 'player-speed-2x-light-390');
     await page.emulateMedia({ colorScheme: 'dark' });
     await assertNeutralSpeed(dialog);
     await screenshot(page, 'player-main-dark-390');
+    await screenshot(page, 'player-speed-2x-dark-390');
     await page.emulateMedia({ colorScheme: 'light' });
     await dialog.getByRole('button', { name: 'Chapters' }).click();
     assert.ok(await dialog.locator('.player-chapter-row').count() >= 3, 'chapter view lists each fixture story');
