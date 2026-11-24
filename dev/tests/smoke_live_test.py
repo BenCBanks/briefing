@@ -67,7 +67,8 @@ def good_responses(local_date='2026-11-17'):
         '/api/edition?profile=active&history=1': (200, json.dumps(edition_body(local_date))),
         '/api/status': (200, json.dumps({'ok': True})),
         '/': (200, '<html><main id="content"></main><div id="player-root"></div><script type="module" src="/src/app.js"></script></html>'),
-        '/src/app.js': (200, 'function startListening(item) { return true; } function openTranscript(selected) { return true; }'),
+        '/src/app.js': (200, 'createStoryInteractionController'),
+        '/src/screens/story-interactions.js': (200, 'function startListening(item) { return true; } function openTranscript(selected) { return true; }'),
         '/src/player.js': (200, 'function listen(item, options) { return true; }'),
         '/src/edition/edition.js': (200, 'export function renderEdition(container) { return true; }'),
     }

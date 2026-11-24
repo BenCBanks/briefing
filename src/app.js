@@ -30,6 +30,7 @@ import { renderEarlierScreen } from './screens/earlier.js';
 import { renderInterestDescribe as renderInterestDescribeScreen, renderInterestConfirm as renderInterestConfirmScreen, renderInterestBuild as renderInterestBuildScreen } from './screens/interests.js';
 import { createInterestFlowController } from './screens/interest-flow-controller.js';
 import { createEpisodeJobController } from './screens/episode-job-controller.js';
+import { createStoryInteractionController } from './screens/story-interactions.js';
 import { renderInterestsManagementScreen } from './screens/interests-management.js';
 import { episodeHistoryState, episodeHistoryDismissed, saveEpisodeHistoryDismissed, renderEpisodeHistory as renderEpisodeHistoryScreen, renderEpisodeMakingFromHistory as renderEpisodeMakingFromHistoryScreen } from './screens/episode-history.js';
 import { EPISODE_STAGE_FIXTURES, announceEpisodeStage as announceEpisodeStageView, episodeStageIndex, episodeStageTitle, episodeHasReadyAudio, episodeLengthCopy, renderEpisodeMakingPage as renderEpisodeMakingScreen, updateEpisodeMakingView as updateEpisodeMakingScreen } from './screens/episode-making.js';
@@ -250,6 +251,58 @@ function rememberEditionMode(id, mode) {
     localStorage.setItem(EDITION_MODE_KEY, JSON.stringify(modes));
   } catch { /* The current view still works if local storage is unavailable. */ }
 }
+
+const storyInteractionController = createStoryInteractionController({
+  content, node, recordSignal, behaviorWeights, saveProfile, clearSignals, saveState,
+  invalidateAudioProgress, audioScriptText, hasMaterialCorrection, currentRevision, showToast,
+  compareRevision, personalized, visibleSections, focusToken, navigateTranscript,
+  navigate, route, invalidatedEditionAudio,
+  get player() { return player; },
+  get syncListeningControls() { return syncListeningControls; },
+  get refreshListenControls() { return refreshListenControls; },
+  get withNarrationTopics() { return withNarrationTopics; },
+  get interestProfile() { return interestProfile; },
+  set interestProfile(value) { interestProfile = value; },
+  get pack() { return pack; },
+  set pack(value) { pack = value; },
+  get readingObserver() { return readingObserver; },
+  set readingObserver(value) { readingObserver = value; },
+  get lastSignalRoute() { return lastSignalRoute; },
+  set lastSignalRoute(value) { lastSignalRoute = value; },
+  get transcriptReturnTo() { return transcriptReturnTo; },
+  set transcriptReturnTo(value) { transcriptReturnTo = value; },
+  get transcriptReturnHash() { return transcriptReturnHash; },
+  set transcriptReturnHash(value) { transcriptReturnHash = value; },
+  get state() { return state; },
+  set state(value) { state = value; },
+});
+const {
+  topicIdFor,
+  signalForItem,
+  resetBehaviorWeighting,
+  signalCurrent,
+  toggleSave,
+  setFeedback,
+  listenText,
+  listenEstimate,
+  listenEstimateWithUnit,
+  browserCanSpeak,
+  canListen,
+  startListening,
+  currentEdition,
+  stopCorrectedEditionAudio,
+  invalidateMaterialCorrections,
+  transcriptDestination,
+  readerAlreadyShows,
+  paragraphAt,
+  trackReadingPlace,
+  currentTranscriptItem,
+  transcriptLabel,
+  openTranscript,
+  trackRouteSignals,
+  beginStoryVisit,
+  finishStoryVisit,
+} = storyInteractionController;
 
 const playerIntegration = createAppPlayer({
   root: document.querySelector('#player-root'), content, node,
@@ -721,276 +774,6 @@ function back() {
   if (parent && history.length > 1) history.back();
   else backTo(returnTo);
 }
-function topicIdFor(item, sectionId = null) {
-  if (!item) return 'unknown';
-  if (item.topic_id) return item.topic_id;
-  const section = (item.sections || []).find(row => row.id === sectionId) || item.sections?.[0];
-  return section?.topic_ids?.[0] || section?.topic_id || item.coverage?.[0]?.topic_id || 'unknown';
-}
-function signalForItem(type, item, sectionId = null) {
-  if (!item) return false;
-  const section = (item.sections || []).find(row => row.id === sectionId) || item.sections?.[0];
-  const recorded = recordSignal(type, section?.id || item.id, topicIdFor(item, sectionId));
-  if (recorded && interestProfile?.topics?.length) {
-    const topicIds = interestProfile.topics.map(topic => topic.id);
-    interestProfile = saveProfile({ ...interestProfile, behavior_weights: behaviorWeights(topicIds) });
-  }
-  return recorded;
-}
-
-function resetBehaviorWeighting() {
-  clearSignals();
-  if (interestProfile) {
-    interestProfile = saveProfile({ ...interestProfile, behavior_weights: {} });
-  }
-}
-function signalCurrent(type, storyId = null) {
-  const hash = location.hash || '#today';
-  if (hash.startsWith('#edition/')) {
-    const parts = hash.slice(1).split('/').map(decodeURIComponent);
-    const item = pack?.editions.find(entry => entry.id === parts[2] && entry.kind === parts[1]);
-    return signalForItem(type, item, storyId || parts[3]);
-  }
-  if (hash.startsWith('#explanation/') || hash.startsWith('#topic/')) {
-    const id = decodeURIComponent(hash.slice(hash.indexOf('/') + 1));
-    const item = pack?.deepDives.find(entry => entry.id === id || entry.topic_id === id);
-    return signalForItem(type, item);
-  }
-  return false;
-}
-function toggleSave(id, revisionId = null, rerender = true) {
-  const adding = !state.savedIds.includes(id);
-  if (state.savedIds.includes(id)) {
-    state.savedIds = state.savedIds.filter(x => x !== id);
-    delete state.savedRevisions[id];
-  } else {
-    state.savedIds = [...state.savedIds, id];
-    if (revisionId) state.savedRevisions[id] = revisionId;
-  }
-  state = saveState(state);
-  if (adding) {
-    const item = [...(pack?.editions || []), ...(pack?.deepDives || [])].find(entry => entry.id === id);
-    const parts = (location.hash || '').startsWith('#edition/') ? location.hash.slice(1).split('/').map(decodeURIComponent) : [];
-    signalForItem('save', item, parts[3] || null);
-  }
-  showToast(adding ? 'Saved for later.' : 'Removed from saved items.');
-  if (rerender) route();
-}
-function setFeedback(id, category) {
-  state.feedback[id] = category; state = saveState(state);
-  const type = { more: 'more', less: 'less', mute: 'mute' }[category];
-  if (type) signalCurrent(type, id);
-  route();
-}
-// Interface · pass 010: shared read/listen estimates for Interface-owned surfaces.
-function listenText(item) {
-  if (typeof item === 'string') return item;
-  const sections = item?.sections || [];
-  if (sections.length) return sections.map(section => audioScriptText(section) || `${section.heading || ''}. ${section.body || ''}`).join(' ');
-  return `${item?.title || ''}. ${item?.body || ''}`;
-}
-
-function listenEstimate(item) {
-  return player.estimateListenMinutes(listenText(item));
-}
-
-function listenEstimateWithUnit(item) { return `${listenEstimate(item)} min`; }
-
-function browserCanSpeak() {
-  return typeof window.speechSynthesis !== 'undefined' && typeof window.SpeechSynthesisUtterance === 'function';
-}
-
-function canListen(item) {
-  return Boolean(item && browserCanSpeak() &&
-    !invalidatedEditionAudio.has(item.id) && !hasMaterialCorrection(item));
-}
-
-function startListening(item) {
-  if (!canListen(item)) return;
-  item = withNarrationTopics(item);
-  if (player.item?.id === item.id && player.item?.revision_id === item.revision_id) player.play({ ...item, start_section_id: null });
-  else {
-    const saved = state.readingProgress[item.id];
-    const fromParagraph = saved?.revisionId === item.revision_id ? saved.paragraphIndex : 0;
-    player.listen(item, { fromParagraph });
-  }
-}
-
-function currentEdition(kind) {
-  const ids = [...new Set(pack.editions.filter(item => item.kind === kind).map(item => item.id))];
-  const editions = ids.map(id => currentRevision(pack.editions, id, item => item.kind === kind)).filter(Boolean);
-  const latest = editions.sort(compareRevision).at(-1);
-  return latest ? personalized(latest) : null;
-}
-
-function stopCorrectedEditionAudio(id) {
-  if (!id) return;
-  invalidatedEditionAudio.add(id);
-  for (const edition of pack?.editions || []) {
-    if (edition.id === id && edition.audio) {
-      edition.audio.state = 'superseded';
-      edition.audio.superseded = true;
-    }
-  }
-  const stopped = player.invalidate(id);
-  const hadProgress = Boolean(state.progress[id]);
-  const wasActive = state.activeAudio?.id === id;
-  if (hadProgress || wasActive) state = invalidateAudioProgress(state, id);
-  document.querySelectorAll('[data-audio-action]').forEach(button => {
-    if (button.dataset.audioAction === id) button.remove();
-  });
-  if (stopped || wasActive) sessionStorage.setItem('briefing:correction-audio-notice', 'The prior recording is no longer available for this corrected edition.');
-  syncListeningControls();
-  refreshListenControls();
-}
-
-function invalidateMaterialCorrections() {
-  for (const edition of pack?.editions || []) {
-    if (hasMaterialCorrection(edition)) stopCorrectedEditionAudio(edition.id);
-  }
-}
-
-// The same hook is used by content refreshes and correction updates arriving during playback.
-window.addEventListener('briefing:material-correction', event => stopCorrectedEditionAudio(event.detail?.id));
-
-function transcriptDestination(id, kind) {
-  if (!transcriptReturnTo || transcriptReturnHash !== (location.hash || '#today')) return false;
-  if (kind === 'deep-dive') return location.hash === `#explanation/${encodeURIComponent(id)}`;
-  const base = `#edition/${encodeURIComponent(kind)}/${encodeURIComponent(id)}`;
-  return location.hash === base || location.hash.startsWith(`${base}/`);
-}
-
-function readerAlreadyShows(item) {
-  const hash = location.hash || '#today';
-  if (item.kind === 'deep-dive') {
-    return hash === `#explanation/${encodeURIComponent(item.id)}` || hash === `#topic/${encodeURIComponent(item.topic_id)}`;
-  }
-  const editionBase = `#edition/${encodeURIComponent(item.kind)}/${encodeURIComponent(item.id)}`;
-  return hash === editionBase || hash.startsWith(`${editionBase}/`);
-}
-
-function paragraphAt(section, index) {
-  return section?.querySelector(`[data-narration-index="${Number(index) || 0}"]`) || section?.querySelectorAll('p')[index];
-}
-
-function trackReadingPlace(id, revisionId, selector) {
-  readingObserver?.disconnect();
-  readingObserver = new IntersectionObserver(entries => {
-    for (const entry of entries) {
-      if (!entry.isIntersecting) continue;
-      const section = entry.target.closest('.edition-section, .deep-dive-section');
-      const paragraphIndex = entry.target.hasAttribute('data-narration-index') ? Number(entry.target.dataset.narrationIndex) : [...section.querySelectorAll('p')].indexOf(entry.target);
-      if (player.status === 'playing' && player.item?.id === id) continue;
-      const prior = state.readingProgress[id];
-      if (prior?.revisionId === revisionId && prior.storyId === section.id && prior.paragraphIndex === paragraphIndex && prior.mode === 'read') continue;
-      state.readingProgress[id] = { storyId: section.id, paragraphIndex: Math.max(0, paragraphIndex), mode: 'read', updatedAt: new Date().toISOString(), revisionId };
-      state = saveState(state);
-    }
-  }, { rootMargin: '0px 0px -65% 0px', threshold: 0 });
-  content.querySelectorAll(`${selector} p`).forEach(paragraph => readingObserver.observe(paragraph));
-}
-
-function currentTranscriptItem(selected) {
-  if (!selected || !pack) return { available: false };
-  const pool = selected.kind === 'deep-dive' ? pack.deepDives : pack.editions;
-  const entry = currentRevision(pool, selected.id, item => selected.kind === 'deep-dive' || item.kind === selected.kind);
-  if (!entry) return { available: false };
-  const current = selected.kind === 'deep-dive' ? { ...entry, kind: 'deep-dive' } : entry;
-  const selectedAudioMismatch = selected.audio?.state === 'recorded' &&
-    (selected.audio.revision_id !== selected.revision_id || selected.audio.script_hash !== selected.script_hash);
-  const corrected = current.revision_id !== selected.revision_id || current.script_hash !== selected.script_hash;
-  const correction = current.corrections?.find(item => item.previous_revision_id === selected.revision_id &&
-    (!item.revision_id || item.revision_id === current.revision_id)) || null;
-  return { available: true, current, corrected, selectedAudioMismatch, correction };
-}
-
-function transcriptLabel(selected) {
-  return 'Read along';
-}
-
-function openTranscript(selected) {
-  const resolved = currentTranscriptItem(selected);
-  if (!resolved.available) return { available: false };
-  const { current, corrected, selectedAudioMismatch } = resolved;
-  if (readerAlreadyShows(current)) return { available: true, correctedItem: corrected || selectedAudioMismatch ? current : null, navigate: () => {
-    const place = state.readingProgress[current.id];
-    const story = content.querySelector(`#${CSS.escape(place?.storyId || '')}`);
-    const paragraph = paragraphAt(story, place?.paragraphIndex || 0);
-    paragraph?.scrollIntoView({ behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'instant' : 'smooth', block: 'center' });
-    paragraph?.classList.add('spoken-paragraph');
-  } };
-  transcriptReturnTo = { hash: location.hash || '#today', sectionId: null, scrollY: window.scrollY, focus: focusToken() };
-  const saved = state.readingProgress[current.id];
-  const validAnchor = !corrected && saved?.revisionId === current.revision_id && current.sections.some(section => section.id === saved.storyId);
-  const correctionSection = corrected ? current.corrections?.find(item => item.severity === 'material')?.section_ids?.[0] : null;
-  const placement = { id: current.id, sectionId: validAnchor ? saved.storyId : correctionSection || visibleSections(current)[0]?.id, paragraphIndex: validAnchor ? saved.paragraphIndex : 0, correction: corrected };
-  const itemHash = current.kind === 'deep-dive'
-    ? `#explanation/${encodeURIComponent(current.id)}`
-    : `#edition/${encodeURIComponent(current.kind)}/${encodeURIComponent(current.id)}/${encodeURIComponent(placement.sectionId || '')}`;
-  transcriptReturnHash = itemHash;
-  return {
-    available: true,
-    correctedItem: corrected || selectedAudioMismatch ? current : null,
-    navigate: () => navigateTranscript(itemHash, placement),
-  };
-}
-
-function trackRouteSignals(routeHash, routeName) {
-  if (lastSignalRoute === routeHash) return;
-  lastSignalRoute = routeHash;
-  const context = history.state?.routeContext || {};
-  if (routeName.startsWith('source/')) {
-    const sourceId = routeName.slice(7);
-    const parent = context.parentHash || '';
-    if (parent.startsWith('#edition/')) {
-      const parts = parent.slice(1).split('/').map(decodeURIComponent);
-      const edition = pack?.editions.find(item => item.id === parts[2] && item.kind === parts[1]);
-      signalForItem('sourceOpen', edition, context.sectionId || parts[3]);
-    } else if (parent.startsWith('#explanation/') || parent.startsWith('#topic/')) {
-      const id = decodeURIComponent(parent.slice(parent.indexOf('/') + 1));
-      const dive = pack?.deepDives.find(item => item.id === id || item.topic_id === id);
-      signalForItem('sourceOpen', dive);
-    } else {
-      const edition = pack?.editions.find(item => item.sections?.some(section => section.source_ids?.includes(sourceId)));
-      const section = edition?.sections.find(row => row.source_ids?.includes(sourceId));
-      signalForItem('sourceOpen', edition, section?.id);
-    }
-  } else if (routeName.startsWith('explanation/') || routeName.startsWith('topic/')) {
-    const id = decodeURIComponent(routeName.slice(routeName.indexOf('/') + 1));
-    const dive = pack?.deepDives.find(item => item.id === id || item.topic_id === id);
-    if (dive) {
-      const storyId = context.parentHash?.startsWith('#edition/') && context.sectionId
-        ? context.sectionId
-        : context.sectionId && dive.sections?.some(section => section.id === context.sectionId)
-          ? context.sectionId : dive.sections?.[0]?.id || dive.id;
-      recordSignal('explainOpen', storyId, topicIdFor(dive));
-    }
-  }
-}
-
-let storyVisit = null;
-let storyReadObserver = null;
-function beginStoryVisit(item, sectionId, routeHash) {
-  const section = item.sections?.find(row => row.id === sectionId) || item.sections?.[0];
-  if (!section) return;
-  if (storyVisit?.routeHash === routeHash) return;
-  storyReadObserver?.disconnect(); storyReadObserver = null;
-  storyVisit = { item, section, routeHash, pastFirstParagraph: false };
-  const paragraphs = [...content.querySelectorAll('.edition-section p')];
-  const second = paragraphs[1];
-  if (second && 'IntersectionObserver' in window) {
-    storyReadObserver = new IntersectionObserver(entries => {
-      if (entries.some(entry => entry.isIntersecting && entry.intersectionRatio >= 0.6)) storyVisit && (storyVisit.pastFirstParagraph = true);
-    }, { threshold: 0.6 });
-    storyReadObserver.observe(second);
-  }
-}
-function finishStoryVisit(nextHash) {
-  if (!storyVisit || storyVisit.routeHash === nextHash) return;
-  if (!storyVisit.pastFirstParagraph) signalForItem('skip', storyVisit.item, storyVisit.section.id);
-  storyReadObserver?.disconnect(); storyReadObserver = null; storyVisit = null;
-}
-
 function renderEditionPage(kind, exactEdition = null, sectionId = null) {
   return renderEditionPageScreen(kind, exactEdition, sectionId);
 }
