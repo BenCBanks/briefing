@@ -125,10 +125,13 @@ async function openFlow(browser, streamingEnabled) {
     await capture(page, 'episode-streaming-playable-dark-390');
     await page.emulateMedia({ colorScheme: 'light' });
 
+    const chapterAudio = page.waitForResponse(response =>
+      response.url().includes(`/api/episodes/${jobId}/chapters/${firstChapter.id}/audio`) && response.ok());
     await chapters.getByRole('button', { name: 'Play The harbor update' }).click();
     await page.locator('.player-dialog[open]').waitFor();
     await page.waitForFunction(() => document.querySelector('.player-dialog [data-player-title]')?.textContent === 'What changed in the fictional harbor?');
     await page.waitForFunction(() => document.querySelector('.player-dialog [data-player-phase]')?.textContent.includes('The harbor update'));
+    await chapterAudio;
     assert.ok(flow.audioRequests >= 1, 'playing chapter one requests its profile-scoped chapter audio URL');
 
     await page.locator('.player-dialog [data-player-close]').click();
