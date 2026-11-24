@@ -190,7 +190,7 @@ def _speak_text(text: str) -> str:
     # verified story. Otherwise say its letters without guessing its meaning.
     def speak_acronym(match: re.Match) -> str:
         acronym = match.group(1)
-        if acronym in {'NASA', 'ACH'}:
+        if acronym == 'NASA':
             return acronym
         prefix = text[:match.start()].rstrip()
         prefix = re.split(r'[.!?]\s+', prefix)[-1]
@@ -200,11 +200,11 @@ def _speak_text(text: str) -> str:
             prefix)
         # Only a source's explicit parenthetical pairing licenses an expansion.
         expanded = has_parenthetical_expansion and phrase_match is not None
-        replacement = 'or ' + '-'.join(acronym) if expanded else '-'.join(acronym)
+        replacement = 'or ' + ' '.join(acronym) if expanded else ' '.join(acronym)
         return replacement
 
     text = re.sub(r'\b([A-Z]{2,8})\b', speak_acronym, text)
-    text = re.sub(r'\s*\(\s*or ([A-Z](?:-[A-Z])+?)\s*\)', r', or \1', text)
+    text = re.sub(r'\s*\(\s*or ((?:[A-Z]\s+)+[A-Z])\s*\)', r', or \1', text)
 
     text = _NUMBER.sub(_spoken_number, text)
     # Provider prose occasionally contains a numeric token adjacent to an

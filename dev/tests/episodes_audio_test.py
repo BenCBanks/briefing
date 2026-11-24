@@ -134,7 +134,7 @@ class EpisodeAudioRenderTests(unittest.TestCase):
         fallback = _fingerprints(episode, chapters, DEFAULT_VOICE, 'gemini', DEFAULT_MODEL)
         self.assertEqual(fallback, (
             '2fb547545e1ff1f3bcd432f2ad3bd23b96c0b80958e42342760579632d1a754b',
-            '556292b5d15fe7c7883ffefc2af79fe65a77d27f01929fd7da3fd161ac663c04'))
+            '650d62e66d34fb4067117e49b8d26886cdb607950f12f872a2608f4bbdfd94a6'))
 
         transcript = '\n\n'.join(chapter['text'] for chapter in chapters)
         frozen_episode = {
@@ -145,13 +145,13 @@ class EpisodeAudioRenderTests(unittest.TestCase):
         self.assertEqual(_fingerprints(
             frozen_episode, chapters, DEFAULT_VOICE, 'gemini', DEFAULT_MODEL), (
                 '397147fad551e53dc2d61a77bdecd4204f5b98cac2022bb6b27d00aad0262a5a',
-                'a165d2c14fd3953b279badb769bdafbe74be19f0d0546d9cb3c46474571d95a4'))
+                'f43f6d95f43d673a97505ffe8c3e0c179bf3d1c32eb5321c631d95c36e8ac888'))
 
         self.assertEqual(_fingerprints(
             episode, chapters, DEFAULT_VOICE, 'gemini', DEFAULT_MODEL,
             tts_output_token_limit=4096, max_segment_attempts=3), (
                 '2fb547545e1ff1f3bcd432f2ad3bd23b96c0b80958e42342760579632d1a754b',
-                '81181dc20bd90428cda244c65bb399f9da3547c2fc18b2457925b8e3e4b46fcd'))
+                'f7a2ae1591bc35006913e073e17cb47af8a86b8d5fccd63b94e9816d19ebc556'))
 
     def test_fingerprints_wrapper_uses_local_normalizer_and_version_aliases(self):
         chapters = [
@@ -167,7 +167,7 @@ class EpisodeAudioRenderTests(unittest.TestCase):
             self.assertEqual(_fingerprints(
                 episode, chapters, DEFAULT_VOICE, 'gemini', DEFAULT_MODEL), (
                     '2fb547545e1ff1f3bcd432f2ad3bd23b96c0b80958e42342760579632d1a754b',
-                    'bc3f5ea8ec543f4f729bf9fab1452bb5784b23b41ffe6567e3121c7db9f9d9d5'))
+                    '8a1bba3a81c176311f5bbd6d7f35856aa0f1d5c5c8ca97ee69f46bd62cb40f44'))
         with patch.object(episodes_audio, 'NORMALIZER_VERSION', 'fictional-ear-test'):
             self.assertEqual(_fingerprints(
                 episode, chapters, DEFAULT_VOICE, 'gemini', DEFAULT_MODEL), (
@@ -274,7 +274,7 @@ class EpisodeAudioRenderTests(unittest.TestCase):
                 episode, episode['profile_id'], voice_name=DEFAULT_VOICE,
                 state_dir=self.state_dir)
             self.assertEqual((state, manifest, path), ('stale', None, None),
-                             'an ear-1 asset cannot satisfy current ear-2 audio identity')
+                             'an older normalization cannot satisfy current audio identity')
 
             updated = add_chapter_timestamps(
                 {'audio_state': 'recorded', 'episode': old['episode']},

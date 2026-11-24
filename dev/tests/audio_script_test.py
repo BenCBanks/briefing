@@ -50,7 +50,7 @@ class AudioScriptTests(unittest.TestCase):
 
         # Names in spoken claims are preserved from their exact verified text.
         story_names = re.findall(r"\b[A-Z][a-zA-Z’'-]{2,}\b|\b[A-Z]{2,8}\b", claim)
-        normalized_spoken = re.sub(r'(?<=[A-Z])-(?=[A-Z])', '', spoken)
+        normalized_spoken = re.sub(r'(?<=[A-Z])[- ](?=[A-Z])', '', spoken)
         for name in story_names:
             self.assertIn(name, claim)
             self.assertIn(name, normalized_spoken)
@@ -64,7 +64,7 @@ class AudioScriptTests(unittest.TestCase):
         self.assertIn(paragraph['text'], spoken,
                       'the normalized supported excerpt survives in the final spoken script')
         self.assertNotRegex(spoken, r'\d|\[1\]|https?://')
-        self.assertIn('Centers for Medicare and Medicaid Services, or C-M-S', spoken)
+        self.assertIn('Centers for Medicare and Medicaid Services, or C M S', spoken)
         self.assertEqual(script['source_attribution'], 'Source: River Ledger and Daily Ledger.')
         self.assertEqual(len(re.findall(r'(?im)^Source:', spoken)), 1, 'A story gets at most one spoken source line')
         self.assertNotRegex(spoken, r'(?i)\b(?:limits?|coverage|citations?)\b', 'Coverage and editorial notes stay silent')
@@ -76,7 +76,7 @@ class AudioScriptTests(unittest.TestCase):
         self.assertEqual(_speak_text('A fictional score fell to -3 percent.'),
                          'A fictional score fell to minus three percent.')
         self.assertEqual(_speak_text('A fictional fee was USD$18.'),
-                         'A fictional fee was U-S-D dollars eighteen.')
+                         'A fictional fee was U S D dollars eighteen.')
 
     def test_corrected_story_chapters_keep_order_opening_and_cited_display_separate(self):
         corrected_claim = (
@@ -153,7 +153,7 @@ class AudioScriptTests(unittest.TestCase):
 
     def test_common_pronounceable_names_and_acronyms_are_not_spelled_as_letters(self):
         spoken = _speak_text('NASA tested FedNow and ACH in a fictional exercise.')
-        self.assertEqual(spoken, 'NASA tested FedNow and ACH in a fictional exercise.')
+        self.assertEqual(spoken, 'NASA tested FedNow and A C H in a fictional exercise.')
 
     def test_spoken_clock_time_drops_colon_and_zero_minutes(self):
         self.assertEqual(_speak_text('The notice is scheduled for 11:00 a.m. Eastern.'),

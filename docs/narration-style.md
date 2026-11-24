@@ -32,7 +32,7 @@ Spell out numbers as they should be spoken. Use the amount and precision support
 
 Avoid digits, currency signs, percent signs, slashes, mathematical shorthand and unexplained abbreviations in spoken copy. The checker flags common cases; it cannot judge whether a number is accurate or whether rounding is safe.
 
-Write an acronym as the letters the host should say, or add a pronunciation entry in `dev/pronunciations.json`. For example, “A-P-I” and “F-D-I-C” cue letter names. Spell out titles and abbreviations such as “Doctor” instead of “Dr.” when those are the spoken words.
+Write an acronym as the letters the host should say, or add a pronunciation entry in `dev/pronunciations.json`. For example, “A P I” and “F D I C” cue letter names; “NASA” is spoken as a word. Keep mixed-case names such as “FedNow” in their natural spelling. Spell out titles and abbreviations such as “Doctor” instead of “Dr.” when those are the spoken words.
 
 Keep names in their readable spelling. Add a lexicon entry for a name that may be mispronounced. Entries use this provider-neutral shape:
 
