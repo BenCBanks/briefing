@@ -750,6 +750,17 @@ class EpisodeGenerationTests(unittest.TestCase):
         self.assertIn('general background, not current reporting', episode['transcript'])
         self.assertGreaterEqual(self.client.calls, 2)
 
+    def test_hybrid_flag_uses_general_background_only_for_explainers(self):
+        self.kwargs['fetcher'] = lambda *a, **k: None
+        with patch.dict('os.environ', {'BRIEFING_EPISODE_HYBRID': 'on',
+                                       'BRIEFING_EPISODE_FALLBACK_MODEL': 'off'}):
+            explainer = generate_episode('How do fictional parcel lockers work?', **self.kwargs)
+            current = generate_episode('What is NASA testing next?', **self.kwargs)
+        self.assertEqual(explainer['verification']['fallback'], 'general_background')
+        self.assertIn('general background, not current reporting', explainer['transcript'])
+        self.assertEqual(current['verification']['fallback'], 'general_background')
+        self.assertIn('couldn', current['transcript'])
+
     def test_thin_evidence_fallback_repeats_only_extracted_sentence(self):
         evidence = {'E-1': {'id': 'E-1', 'text': 'A fictional source describes a parcel locker trial.',
                             'source_id': 'source-1', 'source_number': 1}}
@@ -813,7 +824,7 @@ class EpisodeGenerationTests(unittest.TestCase):
         self.assertEqual(episode['retrieval']['read_attempts'], 13)
         self.assertEqual(len(fetched), len(set(fetched)))
         self.assertGreater(peak, 1)
-        self.assertLessEqual(peak, 4)
+        self.assertLessEqual(peak, 8)
 
     def test_chapter_writers_get_separate_budgets_and_full_script_is_checked(self):
         episode = generate_episode(TOPIC, 10, **self.kwargs)

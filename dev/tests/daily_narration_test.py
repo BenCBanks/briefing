@@ -22,6 +22,7 @@ from dev.ingest.daily_narration import (ENRICH_PROMPT, ENRICH_SCHEMA, NARRATION_
                                         _contains_read_takeaway, _has_high_read_takeaway_overlap,
                                         _review_writer_draft,
                                         _evidence_for_story,
+                                        _story_payload,
                                         _select_story_evidence,
                                         _spoken_text_key, _spoken_topic_label,
                                         _story_word_range, _target_story_words,
@@ -88,6 +89,15 @@ def _word_count(text):
 
 
 class DailyNarrationTests(unittest.TestCase):
+    def test_story_payload_tolerates_missing_topic_and_claim_lists(self):
+        edition = {'sections': [{'cluster_id': 'fictional-story', 'topic_ids': None,
+                                 'claim_links': None, 'heading': 'Fictional update'}],
+                   'daily_briefing': {}}
+        result, evidence = _story_payload(edition, {'topics': []}, {}, [])
+        self.assertEqual(result[0]['topics'], [])
+        self.assertEqual(result[0]['required_evidence_ids'], [])
+        self.assertEqual(evidence, {'fictional-story': []})
+
     def test_story_evidence_uses_source_identity_not_reused_local_citation_number(self):
         sources = [
             {'id': 'bridge-source', 'publisher': 'Fictional Bridge Desk', 'title': 'Bridge notice'},

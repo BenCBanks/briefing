@@ -1343,8 +1343,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                     from .daily_narration import write_spoken_script
                     narration_result = write_spoken_script(
                         edition, profile, runtime_evidence, sources['sources'],
-                        call_json=narration_call_json,
-                        caller='daily')
+                        call_json=narration_call_json)
                 except Exception as error:
                     # Preserve the candidate for diagnostics. The enabled
                     # publication gate below keeps the last good edition live.

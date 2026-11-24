@@ -13,7 +13,7 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
                      check, progress, fetcher=None, clock=time.monotonic):
     policy = length_policy(minutes)
     batches = [[] for _ in questions]
-    reads, attempted, hosts, discovered = {}, set(), {}, set()
+    reads, attempted, hosts, slow_hosts, discovered = {}, set(), {}, set(), set()
     history, queries, grounded, rounds = [], 0, 0, 0
     fetcher = fetcher or fetch_candidate
     # Reserve only the final writing/verification window; evidence gathering
@@ -84,7 +84,8 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
                     continue
                 candidate = batch[rank]
                 host = urlsplit(candidate.url).hostname
-                if candidate.url in attempted or candidate.url in queued or hosts.get(host, 0) >= 3:
+                if (candidate.url in attempted or candidate.url in queued or host in slow_hosts
+                        or hosts.get(host, 0) >= 3):
                     continue
                 queued.add(candidate.url)
                 candidates.append(candidate)
@@ -92,12 +93,14 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
         # Reads are independent network calls. Keep each source bounded so one
         # stalled host cannot consume the whole research window, while allowing
         # enough concurrent readers to cover the planned questions quickly.
-        budget = RetrievalBudget(timeout_seconds=max(.01, min(30, research_deadline-clock())), max_queries=0)
+        # A slow publisher should not hold the whole round. Eight readers run
+        # concurrently; hosts that miss this bound are skipped in later rounds.
+        budget = RetrievalBudget(timeout_seconds=max(.01, min(15, research_deadline-clock())), max_queries=0)
         while candidates and len(reads) < policy['max_reads'] and len(attempted) < policy['max_reads'] + 8:
             check()
             if budget.remaining() <= 0:
                 break
-            selected = candidates[:min(4, policy['max_reads']-len(reads), policy['max_reads']+8-len(attempted))]
+            selected = candidates[:min(8, policy['max_reads']-len(reads), policy['max_reads']+8-len(attempted))]
             del candidates[:len(selected)]
             attempted.update(c.url for c in selected)
             pool = ThreadPoolExecutor(max_workers=8, thread_name_prefix='episode-read')
@@ -108,6 +111,9 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
                 for candidate, future in work:
                     if future not in done:
                         future.cancel()
+                        host = urlsplit(candidate.url).hostname
+                        if host:
+                            slow_hosts.add(host)
                         continue
                     try:
                         body = future.result()

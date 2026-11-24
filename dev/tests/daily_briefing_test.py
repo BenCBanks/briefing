@@ -648,6 +648,9 @@ class DailyBriefingTests(unittest.TestCase):
             self.assertEqual(segment['sentences'][0]['citation_numbers'], [2])
             self.assertEqual(current_sources[1]['registry_id'], source['id'])
             self.assertEqual(current_sources[1]['source_sentence_count'], 2)
+            self.assertIsNone(provider('ai-chips', angle='how_it_works', remaining_words=200,
+                                       exclude_ids=[]),
+                              'a payments explainer cannot become AI chips background')
             self.assertEqual(provider('payments', angle='how_it_works', remaining_words=200,
                                       exclude_ids=[segment['segment_id']]), None)
 
