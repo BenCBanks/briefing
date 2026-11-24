@@ -232,7 +232,7 @@ async function run() {
     await limited.goto(`${baseURL}/#ask-episode`, { waitUntil: 'domcontentloaded' });
     await limited.locator('#episode-request-prompt').fill('Fictional river ferry service');
     await limited.getByRole('button', { name: 'Create episode' }).click();
-    await limited.getByRole('status').getByText('2 left today').waitFor();
+    await limited.getByRole('status').getByText('You can make 2 more episodes today.').waitFor();
     assert.equal(new URL(limited.url()).hash, '#ask-episode');
 
     const cancelPage = await newPage(browser);

@@ -110,7 +110,7 @@ async function main() {
     await saveShot(page, 'episode-topic-dark');
     failNextProfileWrite = true;
     await toggle.uncheck();
-    await page.getByText('Could not update your daily briefing. Try again.', { exact: true }).waitFor();
+    await page.getByText('We could not update your topics just now. Please try again.', { exact: true }).waitFor();
     assert.equal(await toggle.isChecked(), true, 'A failed profile save leaves the topic enabled locally');
 
     await page.getByRole('link', { name: 'Topics' }).click();

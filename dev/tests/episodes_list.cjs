@@ -30,7 +30,7 @@ async function openList(browser, options = {}) {
   const page = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: 'America/New_York', colorScheme: options.colorScheme || 'light' });
   page.setDefaultTimeout(7000);
   await page.addInitScript(({ saved }) => localStorage.setItem('briefing:v1:state', JSON.stringify({ savedIds: saved })), { saved: options.saved || [] });
-  await page.route('**/api/episodes', route => route.fulfill({ json: { jobs: options.jobs ?? jobs, left_today: 2 } }));
+  await page.route('**/api/episodes', route => route.fulfill({ json: { jobs: options.jobs ?? jobs, left_today: options.leftToday ?? 2 } }));
   await page.route('**/api/episodes/*', route => {
     const id = new URL(route.request().url()).pathname.split('/').at(-1);
     const job = (options.jobs ?? jobs).find(item => item.job_id === id);
@@ -54,7 +54,7 @@ async function run() {
     assert.equal(new URL(directMaking.url()).hash, `#episode-making/${makingID}`);
     assert.equal(await directMaking.locator('.episode-history-making h1').innerText(), 'Your episode is being made');
     assert.equal(await directMaking.locator('.episode-history-making .episode-topic').innerText(), 'Fictional weekend transit');
-    assert.equal(await directMaking.locator('.episode-history-making .episode-job-card-status').innerText(), 'Writing', 'A cold deep link reloads its current job stage from the API');
+    assert.equal(await directMaking.locator('.episode-history-making .episode-job-card-status').innerText(), 'Writing your episode.', 'A cold deep link explains its current stage in reader language');
     await directMaking.close();
 
     const page = await openList(browser, { saved: [readyID] });
@@ -63,6 +63,7 @@ async function run() {
     assert.equal(await rows.first().getAttribute('data-job-id'), makingID, 'Newest job sorts first');
     assert.equal(await rows.nth(1).getAttribute('data-job-id'), readyID);
     assert.deepEqual(await page.locator('.episode-status-chip').allTextContents(), ['Making', 'Ready', 'Failed', 'Cancelled']);
+    assert.equal(await page.getByText('You can make 2 more episodes today.', { exact: true }).count(), 1);
     const statusLayout = await page.locator('.episode-status-chip').evaluateAll(chips => chips.map(chip => {
       const ring = chip.querySelector('.episode-stage-ring').getBoundingClientRect();
       const label = chip.lastElementChild.getBoundingClientRect();
@@ -125,6 +126,11 @@ async function run() {
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true, 'List fits the phone viewport without horizontal scrolling');
     assert.equal(await page.locator('.episode-history-filter').evaluateAll(items => items.every(item => item.getBoundingClientRect().height >= 44)), true, 'Filter controls meet the 44px target');
     await page.close();
+
+    const exhausted = await openList(browser, { leftToday: 0 });
+    await exhausted.getByText("You have used today's three episodes. More tomorrow.", { exact: true }).waitFor();
+    assert.equal(await exhausted.getByText(/0 left today/, { exact: false }).count(), 0, 'A reader never sees a raw zero allowance');
+    await exhausted.close();
 
     const empty = await openList(browser, { jobs: [] });
     await empty.getByRole('heading', { name: 'Ask for your first episode' }).waitFor();
