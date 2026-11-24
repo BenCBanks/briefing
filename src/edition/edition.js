@@ -72,7 +72,7 @@ function plainSnippetText(value) {
 function humanTopicLabel(topicId) {
   const words = String(topicId || '').replace(/^custom-/i, '').replace(/[-_]+/g, ' ').trim().split(/\s+/).filter(Boolean);
   if (!words.length) return 'Topic';
-  const acronyms = { ai: 'AI', nc: 'NC', sc: 'SC', us: 'U.S.', cms: 'CMS', nba: 'NBA', nfl: 'NFL', fda: 'FDA', fed: 'Fed' };
+  const acronyms = { ai: 'AI', us: 'U.S.', cms: 'CMS', nba: 'NBA', nfl: 'NFL', fda: 'FDA', fed: 'Fed' };
   const small = new Set(['a', 'an', 'and', 'as', 'at', 'for', 'in', 'of', 'on', 'or', 'the', 'to']);
   const label = words.map((word, index) => {
     const lower = word.toLocaleLowerCase();

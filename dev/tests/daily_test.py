@@ -450,16 +450,16 @@ class DailyTests(unittest.TestCase):
     def test_ben_style_daily_run_publishes_at_least_three_stories(self):
         from dev.ingest import generation_api as daily_generation_api
         from dev.ingest import score_edition as daily_score_edition, write_edition as daily_write_edition
-        words = 'Payments and banking news, NC health insurance and finance policy, AI in finance. Skip crypto hype.'
+        words = 'Payments and banking news, health insurance and finance policy, AI in finance. Skip crypto hype.'
         profile = {'version': 1, 'words': words, 'minutes': 12, 'background': None,
                    'muted': [{'label': 'Crypto'}], 'topics': [
             {'id': 'payments-banking', 'label': 'Payments and banking', 'scope': 'Payments and banking news',
              'include': ['payments', 'banking'], 'exclude': [], 'depth': 'standard', 'cadence': 'daily',
              'mustFollow': False, 'sourcePhrase': 'Payments and banking news'},
-            {'id': 'nc-health-finance-policy', 'label': 'NC health insurance and finance policy',
-             'scope': 'NC health insurance and finance policy', 'include': ['health insurance', 'finance policy'],
+            {'id': 'health-insurance-finance-policy', 'label': 'health insurance and finance policy',
+             'scope': 'health insurance and finance policy', 'include': ['health insurance', 'finance policy'],
              'exclude': [], 'depth': 'standard', 'cadence': 'daily', 'mustFollow': False,
-             'sourcePhrase': 'NC health insurance and finance policy'},
+             'sourcePhrase': 'health insurance and finance policy'},
             {'id': 'ai-in-finance', 'label': 'AI in finance', 'scope': 'AI in financial services',
              'include': ['AI', 'finance'], 'exclude': [], 'depth': 'standard', 'cadence': 'daily',
              'mustFollow': False, 'sourcePhrase': 'AI in finance'}]}

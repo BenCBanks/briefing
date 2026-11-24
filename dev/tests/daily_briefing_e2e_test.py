@@ -87,7 +87,7 @@ def _story(story_id, topic_id, *, origin='feed', update=False, published='2026-1
     lead = story_id.split('-', 1)[0]
     entity = {
         'cedar': 'Cedar Bank', 'piedmont': 'Piedmont Network', 'triad': 'Triad Payments',
-        'carolina': 'Carolina Permit Office', 'builder': 'Carolina Builders Council',
+        'pinevale': 'Pinevale Permit Office', 'builder': 'Pinevale Builders Council',
         'cms': 'CMS', 'coverage': 'Health Coverage Council', 'regional': 'Regional Bank Council',
         'grid': 'Piedmont Grid', 'freight': 'Blue Ridge Freight',
     }.get(lead, lead.title())
@@ -95,8 +95,8 @@ def _story(story_id, topic_id, *, origin='feed', update=False, published='2026-1
         ('payments', 'cedar'): 'Cedar Bank moves its same-day transfer cutoff to 6 p.m.',
         ('payments', 'piedmont'): 'Piedmont Network reports an overnight instant-payments outage',
         ('payments', 'triad'): 'Triad Payments adds a transaction recall feature for businesses',
-        ('housing', 'carolina'): 'Carolina Permit Office speeds review of small-home plans',
-        ('housing', 'builder'): 'Carolina Builders Council finds permit waits vary by county',
+        ('housing', 'pinevale'): 'Pinevale Permit Office speeds review of small-home plans',
+        ('housing', 'builder'): 'Pinevale Builders Council finds permit waits vary by county',
         ('health-policy', 'cms'): 'CMS sets a December date for the next Medicaid review phase',
         ('health-policy', 'coverage'): 'Health Coverage Council reports rural enrollment delays',
         ('ai-finance', 'regional'): 'Regional Bank Council publishes an AI risk review',
@@ -202,7 +202,7 @@ class DailyBriefingEndToEndTests(unittest.TestCase):
         if name == 'rich':
             feed = [_story(story_id, topic_id) for story_id, topic_id in (
                 ('cedar-rich', 'payments'), ('piedmont-rich', 'payments'),
-                ('carolina-rich', 'housing'), ('builder-rich', 'housing'),
+                ('pinevale-rich', 'housing'), ('builder-rich', 'housing'),
                 ('cms-rich', 'health-policy'), ('coverage-rich', 'health-policy'))]
         elif name == 'one-item':
             feed = [_story('feed-one', 'payments')]

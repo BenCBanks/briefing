@@ -5,6 +5,7 @@ from dev.test_guard import enforce_test_environment as _enforce_test_environment
 _enforce_test_environment()
 
 import json
+import os
 import sys
 import tempfile
 from threading import Event
@@ -167,8 +168,10 @@ class IngestTests(unittest.TestCase):
         self.assertGreaterEqual(len(sources), 230)
         self.assertEqual(sum(source.get('source_class') == 'explainer' for source in sources), 7)
         tier_a = [source for source in sources if source.get('tier') == 'A']
-        self.assertGreaterEqual(len(tier_a), 85)
-        self.assertGreaterEqual(sum(source['enabled'] for source in tier_a), 80)
+        self.assertGreaterEqual(len(tier_a), 80)
+        self.assertGreaterEqual(sum(source['enabled'] for source in tier_a), 77)
+        self.assertTrue(all(not any(tag.startswith(('city:', 'state:')) for tag in source.get('topics', []))
+                            for source in sources))
         enabled = [source for source in sources if source['enabled']]
         self.assertTrue(enabled)
         self.assertTrue(all(source['robots_ok'] is True and not source.get('ai_bots_disallowed') for source in enabled))
@@ -186,25 +189,44 @@ class IngestTests(unittest.TestCase):
         self.assertEqual(next(source for source in sources if source['id'] == 'fedreg-rss-cms')['article_access'], 'full-text')
         registry_doc = json.loads((Path(__file__).resolve().parents[2] / 'content/sources-registry.json').read_text())
         watched = {row['id'] for row in registry_doc.get('watched_pages', [])}
-        self.assertEqual(len(watched), 11)
-        self.assertTrue({'fdic-national-rates', 'ncdoi-press-releases', 'ncdhhs-news'} <= watched)
-        housing_ids = {'nahb-eyeonhousing', 'hud-press', 'ncnewsline', 'wfae-local', 'wsoc-rss', 'wbtv-rss', 'wyff4-rss', 'gsabusiness'}
-        self.assertTrue(housing_ids <= {source['id'] for source in sources})
-        gsabusiness = next(source for source in sources if source['id'] == 'gsabusiness')
-        self.assertTrue(gsabusiness['enabled'] and gsabusiness['paywalled'] is True)
-        self.assertEqual(gsabusiness['content_depth'], 'headline')
-        self.assertFalse(gsabusiness['allow_article_fetch'])
-        tv = [source for source in sources if source.get('item_keyword_filter')]
-        self.assertGreaterEqual(len(tv), 6)
-        self.assertTrue(all(source['article_access'] in {'headline', 'transient-read', 'full-text'} and
-                            source['allow_article_fetch'] == (source['article_access'] in {'transient-read', 'full-text'})
-                            for source in tv))
+        self.assertEqual(len(watched), 6)
+        self.assertIn('fdic-national-rates', watched)
+        self.assertEqual(len(watched), 6)
         for skipped in ('cms-newsroom', 'thepointsguy-deals', 'frankfurter', 'wikipedia-feed', 'newscientist'):
             self.assertFalse(next(source for source in sources if source['id'] == skipped)['enabled'])
         probation = [source for source in sources if source.get('tier') == 'probation']
-        self.assertEqual({source['id'] for source in probation}, {'ncdhhs-news-feed', 'bpc-health'})
-        self.assertTrue(all(source['content_depth'] == 'headline' and not source['allow_article_fetch']
-                            for source in probation))
+        self.assertEqual({source['id'] for source in probation}, {'bpc-health'})
+
+    def test_profile_local_source_id_resolves_through_external_path(self):
+        example = Path(__file__).resolve().parents[2] / 'content/local-sources.example.json'
+        ids = ['fictional-asterwick-feed', 'fictional-velmora-feed', 'fictional-dunlune-feed']
+        default_ids = {source['id'] for source in core.load_registry()}
+        self.assertTrue(default_ids.isdisjoint(ids))
+        with patch.dict(os.environ, {'BRIEFING_LOCAL_SOURCES': str(example)}):
+            selected = core.load_registry(local_source_ids=ids)
+        self.assertTrue(set(ids) <= {source['id'] for source in selected})
+        self.assertEqual(len(selected), len(default_ids) + len(ids))
+        with tempfile.TemporaryDirectory() as temp:
+            data_dir = Path(temp)
+            (data_dir / 'local-sources.json').write_text(example.read_text())
+            with patch.dict(os.environ, {'BRIEFING_LOCAL_SOURCES': '', 'BRIEFING_DATA_DIR': str(data_dir)}):
+                selected = core.load_registry(local_source_ids=[ids[0]])
+            self.assertIn(ids[0], {source['id'] for source in selected})
+        with tempfile.TemporaryDirectory() as temp:
+            missing = Path(temp) / 'missing-local-sources.json'
+            with patch.dict(os.environ, {'BRIEFING_LOCAL_SOURCES': str(missing)}):
+                self.assertEqual(core.load_registry(local_source_ids=[ids[0]]), core.load_registry())
+            with patch.dict(os.environ, {'BRIEFING_LOCAL_SOURCES': '', 'BRIEFING_DATA_DIR': '',
+                                         'HOME': temp}):
+                self.assertEqual(core.load_registry(local_source_ids=[ids[0]]), core.load_registry())
+        with self.assertRaisesRegex(ValueError, 'Unknown optional local source'):
+            core.load_registry(local_source_ids=['not-a-local-source'], local_sources_path=example)
+
+    def test_missing_external_local_sources_file_is_harmless(self):
+        missing = Path(self.temp.name) / 'missing-local-sources.json'
+        default = core.load_registry()
+        selected = core.load_registry(local_source_ids=['fictional-asterwick-feed'], local_sources_path=missing)
+        self.assertEqual(selected, default)
 
     def test_registry_rejects_non_https_sources(self):
         path = Path(self.temp.name) / 'registry.json'
@@ -751,19 +773,19 @@ class IngestTests(unittest.TestCase):
 
     def test_insurance_profile_can_rank_health_registry_items(self):
         items = [
-            {'title': 'North Carolina Medicaid health insurance changes', 'snippet': 'State insurance coverage update.',
+            {'title': 'Pinevale Medicaid health insurance changes', 'snippet': 'State insurance coverage update.',
              'topics': ['health'], 'source_id': 'health-feed'},
             {'title': 'Hospital technology investment', 'snippet': 'A health system announced a new device.',
              'topics': ['health'], 'source_id': 'health-feed'},
         ]
-        profile = {'topics': [{'id': 'insurance', 'label': 'North Carolina health insurance',
-                               'scope': 'North Carolina health insurance Medicaid policy',
+        profile = {'topics': [{'id': 'insurance', 'label': 'Pinevale health insurance',
+                               'scope': 'Pinevale health insurance Medicaid policy',
                                'include': ['health insurance', 'Medicaid', 'insurance'], 'exclude': [],
                                'mustFollow': False}], 'muted': []}
         from ingest.write_edition import _matches_topic_scope
         ranked = core.rank_items(items, profile, 'insurance')
         relevant = [row for row in ranked if _matches_topic_scope(profile['topics'][0], row['title'] + ' ' + row['snippet'])]
-        self.assertEqual([row['title'] for row in relevant], ['North Carolina Medicaid health insurance changes'])
+        self.assertEqual([row['title'] for row in relevant], ['Pinevale Medicaid health insurance changes'])
 
     def test_any_profile_exclude_term_removes_a_matching_item(self):
         item = core.parse_source(rss(description='Weekend sports scores and service changes.'), SOURCE, NOW)

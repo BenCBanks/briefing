@@ -229,7 +229,6 @@ These entries were imported only when the report marked them as valid RSS/Atom f
 | `ftc-consumer-protection` | FTC consumer protection press releases | yes | snippet | INFERRED: US federal work, generally public domain (17 USC 105); no statement fetched on this host |
 | `ftc-press` | FTC press releases | yes | snippet | INFERRED: US federal work, generally public domain (17 USC 105); no statement fetched on this host |
 | `georgetown-chir` | Georgetown CHIR (Health Policy Matters) | yes | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `healthaffairs` | Health Affairs | no (AI crawler restriction) | snippet | OBSERVED feed copyright: © 2026 Health Affairs Publishing, LLC; no reuse licence read |
 | `healthsystemtracker` | Peterson-KFF Health System Tracker | yes | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `kff` | KFF | yes | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `kff-health-news` | KFF Health News | yes | snippet | UNVERIFIED: believed CC BY-ND republishing licence; republish page 404 today |
@@ -257,21 +256,17 @@ These pages did not have a validated eligible feed in the report/source check. T
 
 | ID | Page | State | Reuse and handling |
 |---|---|---|---|
-| `fdic-national-rates` | FDIC National Rates and Rate Caps | weekly watch | INFERRED: US federal work, generally public domain (17 USC 105); no reuse statement fetched. Store only page title, short snippet, current table values and digest; never store body. |
-| `ncdoi-press-releases` | North Carolina Department of Insurance press releases | weekly watch | UNVERIFIED: no reuse statement checked. Weekly change watch only; retain title, short snippet, URL and digest; never store body. |
-| `ncdhhs-news` | North Carolina Department of Health and Human Services news | weekly watch | UNVERIFIED: no reuse statement checked. Weekly change watch only; retain title, short snippet, URL and digest; never store body. |
 ## Manually validated probation feeds
 
 These feeds are disabled and excluded from retrieval until reuse terms and stable source behavior are established. They are not eligible for headline cards or generated edition writing during the disabled period.
 
 | ID | Publisher | Registry status | Reason | Rights note |
 |---|---|---:|---|---|
-| `ncdhhs-news-feed` | North Carolina Department of Health and Human Services news feed | disabled | reuse review pending | UNKNOWN: feed terms were not checked; weekly watch page is the fallback. |
 | `bpc-health` | Bipartisan Policy Center feed | disabled | reuse review pending | UNKNOWN: feed terms were not checked; headline-only probation. |
 
 Gemini may propose publisher names and official homepages for a profile topic with `python3 -m dev.ingest.discover --topic "health insurance" --topic-id health --dry-run`. Its output is only a candidate list: the application fetches the homepage/feed over checked HTTPS, checks robots and redirects, validates dates and items, samples accessible pages only when allowed, and scores the feed. Gemini-proposed candidates have unknown rights by default, are headline-only and cannot score above probation until rights are independently verified. No model-proposed feed URL is trusted.
 
-The weekly FDIC rates watch stores bounded table-cell values that contain rates, alongside the page title, short snippet, URL and content digest. It does not save the HTML page body. The NCDOI press page and NCDHHS news page are weekly title/snippet watches; the NCDHHS feed is separately available as headline-only probation.
+The weekly federal rates watch stores bounded table-cell values alongside the page title, short snippet, URL and content digest. It does not save the HTML page body. Optional reader-selected watches and probation feeds are defined only in the configured external file.
 
 ## Housing feeds from Faro’s 17 November report
 
@@ -279,14 +274,11 @@ Eligible tier A/B feeds are enabled only where the report verified HTTPS RSS/Ato
 
 | ID | Publisher/feed | Report depth | Reuse terms reported by Faro |
 |---|---|---|---|
-| `carolina-demography` | Carolina Demography | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `freddiemac-research` | Freddie Mac research | snippet | OBSERVED (PMMS page): may be used with proper attribution; alteration prohibited; other pages' terms not read |
 | `hud-press` | HUD press releases | snippet | INFERRED: US federal work, generally public domain (17 USC 105); no statement fetched on this host |
 | `nahb-eyeonhousing` | NAHB Eye on Housing | snippet | OBSERVED: no reuse or copyright statement on Eye on Housing page; assume headline, snippet and link |
 | `nahbnow` | NAHBNow | snippet | OBSERVED: no reuse or copyright statement on Eye on Housing page; assume headline, snippet and link |
-| `spartanburg-city-newsflash` | City of Spartanburg news flash | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `terner-feed` | Terner Center feed | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `ui-charlotte` | UNC Charlotte Urban Institute | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `architectmag` | Architect Magazine | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `archpaper` | The Architect's Newspaper | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `cityobservatory` | City Observatory | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
@@ -295,28 +287,16 @@ Eligible tier A/B feeds are enabled only where the report verified HTTPS RSS/Ato
 | `forestry-lumber` | Forisk / lumber | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `housingfinance` | Affordable Housing Finance | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `jlconline` | Journal of Light Construction | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `nchousing-coalition` | NC Housing Coalition | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `ncnewsline` | NC Newsline | snippet | OBSERVED feed copyright: NC Newsline; no reuse licence read |
 | `pew-stateline` | Stateline | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `realtor-research` | Realtor.com Research | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `redfin-news` | Redfin News | snippet | OBSERVED: Redfin data page states no terms; terms pages not read |
-| `scdailygazette` | SC Daily Gazette | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `shelterforce` | Shelterforce | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `wfae-business` | WFAE business | snippet | OBSERVED: feed copyright line says only 'Copyright'; terms not read |
-| `wfae-local` | WFAE local news | snippet | OBSERVED: feed copyright line says only 'Copyright'; terms not read |
-| `anderson-county` | Anderson County SC | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `census-nrc-xml` | Census economic indicators feed | snippet | INFERRED: US federal work; no reuse statement on NRC page (observed) |
 | `doe-buildings` | DOE Building Technologies | snippet | INFERRED: US federal work, generally public domain (17 USC 105); no statement fetched on this host |
 | `fedreg-hud` | Federal Register: HUD | snippet | INFERRED: US federal work, generally public domain (17 USC 105); no statement fetched on this host |
-| `fortmill` | Fort Mill SC news | snippet | INFERRED: US federal work, generally public domain (17 USC 105); no statement fetched on this host |
-| `nchfa` | NC Housing Finance Agency | snippet | UNVERIFIED: state agency; no statement fetched (likely public information) |
-| `ncrealtors` | NC Realtors | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `nlihc-rss` | NLIHC feed | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `schousing` | SC Housing | snippet | UNVERIFIED: state agency; no statement fetched (likely public information) |
-| `screaltors` | South Carolina Realtors | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `aei-housing` | AEI Housing Center | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `attom` | ATTOM data | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `carolinapublicpress` | Carolina Public Press | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `constructiondive` | Construction Dive | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `constructionexec` | Construction Executive | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `curbed` | Curbed | snippet | OBSERVED feed copyright: 2026; no reuse licence read |
@@ -325,34 +305,17 @@ Eligible tier A/B feeds are enabled only where the report verified HTTPS RSS/Ato
 | `housingwire` | HousingWire | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `madisons` | Madison's Lumber Reporter | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `mortgagenewsdaily` | Mortgage News Daily | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `ncpolicywatch` | NC Policy Watch | snippet | OBSERVED feed copyright: NC Newsline; no reuse licence read |
 | `nextcity-home` | Next City home | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `probuilder` | Professional Builder | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `proremodeler` | Pro Remodeler | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `strongtowns` | Strong Towns | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `wsoc-rss` | WSOC feed | headline; housing keyword filter | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `zillow-research` | Zillow Research | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `zonda` | Zonda | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `clemson-news` | Clemson University news | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `foxcarolina-rss` | FOX Carolina feed | headline; housing keyword filter | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `greenville-chamber` | Greenville Chamber | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `gsabusiness` | GSA Business Report | headline and link only; soft paywall marker | UNVERIFIED: no reuse statement seen; soft paywall marker reported; do not fetch or reproduce article text |
 | `habitat-news` | Habitat for Humanity newsroom | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `qcnews` | Queen City News | headline; housing keyword filter | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `wbtv-rss` | WBTV feed | headline; housing keyword filter | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `wcnc-rss` | WCNC feed | headline; housing keyword filter | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `wspa` | WSPA 7News | headline; housing keyword filter | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `wyff4-rss` | WYFF feed | headline; housing keyword filter | OBSERVED feed copyright: Hearst Television, Inc.; no reuse licence read |
 | `agc-news` | AGC news | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `anderson-city` | City of Anderson SC | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `atlanta-crem` | Atlanta Fed commercial real estate index | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `atlanta-hoam` | Atlanta Fed Home Ownership Affordability Monitor | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `bls-ppi` | BLS producer price index feed | snippet | INFERRED: US federal work, generally public domain (17 USC 105); no statement fetched on this host |
-| `richmondfed-rss` | Richmond Fed (Fifth District incl. NC, SC) | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
 | `cnbc-realestate` | CNBC real estate | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `upstate-sc-alliance` | Upstate SC Alliance | snippet | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `wcnc` | WCNC | headline; housing keyword filter | UNVERIFIED: no reuse statement seen; use headline, short snippet and link only |
-| `wfae-politics` | WFAE politics | snippet | OBSERVED: feed copyright line says only 'Copyright'; terms not read |
 
 ## Weekly housing data watches
 
@@ -360,11 +323,3 @@ Zillow CSVs are checked at most weekly, only after a fresh robots.txt check allo
 
 | ID | Dataset | Cadence | Rights/attribution |
 |---|---|---|---|
-| `zillow-zhvi-metro` | Zillow Home Value Index by metro | weekly | UNVERIFIED: Zillow data terms page returned 403; attribute Zillow; confirm terms before use. |
-| `zillow-zori-metro` | Zillow Observed Rent Index by metro | weekly | UNVERIFIED: Zillow data terms not read; attribute Zillow; confirm terms before use. |
-| `zillow-inventory-metro` | Zillow for-sale inventory by metro | weekly | UNVERIFIED: Zillow data terms not read; attribute Zillow; confirm terms before use. |
-| `fred-mortgage30` | FRED 30-year mortgage rate (Freddie Mac PMMS) | weekly | UNVERIFIED: underlying PMMS data carries Freddie Mac attribution terms; attribute Freddie Mac/FRED; do not alter values. |
-| `fred-housing-starts` | FRED housing starts (Census) | weekly | INFERRED: Census data is public; FRED series notes not read. Attribute Census/FRED. |
-| `fred-permits` | FRED new private housing permits (Census) | weekly | INFERRED: Census data is public; FRED series notes not read. Attribute Census/FRED. |
-| `fred-lumber-ppi` | FRED lumber and wood products PPI (BLS) | weekly | INFERRED: BLS data is public domain. Attribute BLS/FRED. |
-| `fred-rent-cpi` | FRED CPI rent of primary residence (BLS) | weekly | INFERRED: BLS data is public domain. Attribute BLS/FRED. |

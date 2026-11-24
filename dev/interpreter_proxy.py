@@ -397,9 +397,9 @@ def _normalise_interests(words, profile):
     merge_topic(r'\bpayments?\s+(?:and|&)\s+bank(?:s|ing)?\s+news\b', 'payments-banking',
                 'Payments and banking', 'News and developments in payments and banking.',
                 ['payments', 'banking'])
-    merge_topic(r'\b(?:NC|North Carolina)\s+health\s+insurance\s+and\s+finance\s+policy\b',
-                'nc-health-finance-policy', 'NC health insurance and finance policy',
-                'North Carolina health insurance and finance policy.',
+    merge_topic(r'\bhealth\s+insurance\s+and\s+finance\s+policy\b',
+                'health-insurance-finance-policy', 'Health insurance and finance policy',
+                'Health insurance and finance policy developments.',
                 ['health', 'insurance', 'finance', 'policy'])
     merge_topic(r'\b(?:AI|artificial intelligence)\s+in\s+finance\b', 'ai-in-finance',
                 'AI in finance', 'Artificial intelligence in financial services.',

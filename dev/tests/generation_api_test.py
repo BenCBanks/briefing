@@ -29,7 +29,7 @@ PROFILE = {'version': 1, 'words': 'Fictional payments and banking interests.', '
                                            'include': ['settlement'], 'exclude': [], 'depth': 'standard',
                                            'cadence': 'daily', 'mustFollow': False, 'sourcePhrase': 'payments'}],
            'muted': []}
-REAL_SHAPED_PROFILE = {'version': 1, 'words': 'payments and NC health insurance', 'minutes': 12,
+REAL_SHAPED_PROFILE = {'version': 1, 'words': 'payments and Pinevale health insurance', 'minutes': 12,
                       'background': None, 'topics': [{'id': 'payments', 'label': 'Payments',
                       'scope': 'Payment rails and bank services', 'include': ['payments'], 'exclude': [],
                       'depth': 'standard', 'cadence': 'daily', 'mustFollow': False,
@@ -38,6 +38,12 @@ REAL_SHAPED_PROFILE = {'version': 1, 'words': 'payments and NC health insurance'
 
 class GenerationApiTests(unittest.TestCase):
 
+    def test_profile_accepts_bounded_reader_selected_local_source_ids(self):
+        selected = generation_api.validate_profile({**PROFILE, 'local_sources': [
+            'fictional-larkspur-feed', 'fictional-mesa-feed']})
+        self.assertEqual(selected['local_sources'], ['fictional-larkspur-feed', 'fictional-mesa-feed'])
+        with self.assertRaises(ValueError):
+            generation_api.validate_profile({**PROFILE, 'local_sources': ['not/a/valid-id']})
 
 
 

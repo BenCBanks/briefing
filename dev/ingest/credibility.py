@@ -10,6 +10,7 @@ import json
 from pathlib import Path
 import re
 from urllib.parse import urlsplit
+from . import local_sources
 
 TIERS_PATH = Path(__file__).resolve().parents[2] / 'content/source-tiers.json'
 AUTHORITY = {'primary': 40, 'major': 32, 'trade': 23, 'blog': 10, 'unknown': 0}
@@ -103,15 +104,24 @@ def news_quality_reason(item, source=None, *, now=None, topic=None, require_revi
     return None
 
 
-@lru_cache(maxsize=1)
-def load_tiers():
+@lru_cache(maxsize=4)
+def load_tiers(local_sources_path=None):
     data = json.loads(TIERS_PATH.read_text(encoding='utf-8'))
     if data.get('version') != 1 or not isinstance(data.get('domains'), dict):
         raise ValueError('Invalid source tier seed')
-    for domain, row in data['domains'].items():
+    domains = dict(data['domains'])
+    try:
+        local = local_sources.load(local_sources_path)
+        if local is None:
+            local = {}
+        if local.get('version') == 1 and isinstance(local.get('domains'), dict):
+            domains.update(local['domains'])
+    except (OSError, ValueError, TypeError):
+        pass
+    for domain, row in domains.items():
         if domain != domain.lower() or row.get('tier') not in AUTHORITY or not row.get('reviewed_at'):
             raise ValueError('Invalid domain tier entry')
-    return data['domains']
+    return domains
 
 
 # Read the checked-in editorial seed once at import, outside the retrieval call.

@@ -185,8 +185,8 @@ class EditionApiTests(unittest.TestCase):
             old_profile = {'version': 1, 'words': 'Payments headlines', 'minutes': 12,
                            'topics': [{'id': 'payments', 'label': 'Payments', 'scope': '',
                                        'include': ['payments'], 'exclude': []}]}
-            changed_profile = {**old_profile, 'words': 'Payments and NC insurance policy',
-                               'topics': [{**old_profile['topics'][0], 'scope': 'North Carolina insurance policy'}]}
+            changed_profile = {**old_profile, 'words': 'Payments and insurance policy',
+                               'topics': [{**old_profile['topics'][0], 'scope': 'Pinevale insurance policy'}]}
             bundle = {'editions': {'editions': [legacy]}, 'sources': {'sources': [{'id': 'old-source'}]}}
             (generated / 'current.json').write_text(json.dumps(bundle))
             (generated / 'editions.json').write_text(json.dumps(bundle['editions']))

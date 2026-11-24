@@ -48,16 +48,16 @@ async function run() {
   assert.equal(remote.profile.topics[1].mustFollow, false, 'A remote model cannot add must-follow absent from the reader words');
   assert.deepEqual(remote.flags, ['instruction-like text removed']);
 
-  const onboardingWords = 'Payments and banking news, NC health insurance and finance policy, AI in finance. Skip crypto hype.';
+  const onboardingWords = 'Payments and banking news, health insurance and finance policy, AI in finance. Skip crypto hype.';
   const onboardingResult = await withFetch(async () => ({ ok: true, json: async () => ({ profile: {
     ...local, words: onboardingWords, minutes: 12, muted: [{ label: 'Crypto' }, { label: 'crypto' }],
     topics: [
       { id: 'payments-banking', label: 'Payments and Banking News', scope: 'Payment and banking news',
         include: ['payments', 'banking'], exclude: ['crypto hype'], depth: 'standard', cadence: 'daily',
         mustFollow: false, sourcePhrase: 'Payments and banking news' },
-      { id: 'nc-health-finance-policy', label: 'NC Health Insurance and Finance Policy', scope: 'NC insurance policy',
+      { id: 'health-insurance-finance-policy', label: 'Health Insurance and Finance Policy', scope: 'insurance policy',
         include: ['health insurance', 'finance policy'], exclude: [], depth: 'standard', cadence: 'daily',
-        mustFollow: false, sourcePhrase: 'NC health insurance and finance policy' },
+        mustFollow: false, sourcePhrase: 'health insurance and finance policy' },
       { id: 'ai-in-finance', label: 'AI in Finance', scope: 'Artificial intelligence in finance',
         include: ['AI', 'finance'], exclude: ['crypto hype'], depth: 'standard', cadence: 'daily',
         mustFollow: false, sourcePhrase: 'AI in finance' },
@@ -66,9 +66,9 @@ async function run() {
     ]
   }, question: null }) }), () => interpretProfile(onboardingWords, { topics, minutes: 12 }));
   assert.deepEqual(onboardingResult.profile.topics.map(topic => topic.label), [
-    'Payments and banking', 'NC health insurance and finance policy', 'AI in finance']);
+    'Payments and banking', 'Health insurance and finance policy', 'AI in finance']);
   assert.deepEqual(onboardingResult.profile.topics.map(topic => topic.id), [
-    'custom-payments-banking', 'custom-nc-health-finance-policy', 'custom-ai-in-finance']);
+    'custom-payments-banking', 'custom-health-insurance-finance-policy', 'custom-ai-in-finance']);
   assert.deepEqual(onboardingResult.profile.muted, [{ label: 'Crypto' }]);
   assert.ok(onboardingResult.profile.topics.every(topic => topic.exclude.length === 0));
 

@@ -28,11 +28,14 @@ class SourceRegistryCoverageTests(unittest.TestCase):
         self.registry = json.loads(REGISTRY_PATH.read_text(encoding='utf-8'))
         self.fixture = json.loads(FIXTURE_PATH.read_text(encoding='utf-8'))
         self.by_id = {row['id']: row for row in self.registry['sources']}
+        local = json.loads((ROOT / 'content/local-sources.example.json').read_text(encoding='utf-8'))
+        self.by_id.update({row['id']: row for row in local['sources']})
+        self.catalog = [*self.registry['sources'], *local['sources']]
 
-    def test_forty_additions_have_topics_readability_license_and_cadence(self):
+    def test_general_additions_have_topics_readability_license_and_cadence(self):
         added = [self.by_id[source_id] for source_id in self.fixture['added_ids']]
-        self.assertEqual(len(added), 40)
-        self.assertEqual(len({row['id'] for row in added}), 40)
+        self.assertEqual(len(added), 38)
+        self.assertEqual(len({row['id'] for row in added}), 38)
         self.assertTrue(all(row.get('topics') for row in added))
         self.assertTrue(all(row.get('readability') in {'good', 'usable', 'limited', 'unverified'}
                             for row in added))
@@ -50,7 +53,7 @@ class SourceRegistryCoverageTests(unittest.TestCase):
         self.assertTrue(all(row.get('disable_reason') for row in added if not row['enabled']))
 
     def test_coverage_spans_requested_any_domain_areas(self):
-        entries = self.registry['sources']
+        entries = self.catalog
         categories = {
             'payments': {'payments', 'fintech'},
             'health': {'health', 'insurance'},
@@ -89,20 +92,20 @@ class SourceRegistryCoverageTests(unittest.TestCase):
         self.assertTrue(any('invalid cadence' in error for error in lint_registry(bad)))
 
     def test_fixture_feed_candidates_map_into_energy_and_local_queries(self):
-        selected = [self.by_id['doe-buildings'], self.by_id['wfae-local']]
+        selected = [self.by_id['doe-buildings'], self.by_id['fictional-asterwick-feed']]
         items = [
             {'source_id': 'doe-buildings', 'title': 'Fictional energy efficiency standard updates',
              'url': 'https://www.energy.gov/fictional/one', 'published': '2026-11-18T10:00:00Z'},
-            {'source_id': 'wfae-local', 'title': 'Fictional Charlotte transit funding approved',
-             'url': 'https://www.wfae.org/fictional/two', 'published': '2026-11-18T09:00:00Z'},
+            {'source_id': 'fictional-asterwick-feed', 'title': 'Fictional Asterwick transit funding approved',
+             'url': 'https://asterwick.example.test/fictional/two', 'published': '2026-11-18T09:00:00Z'},
         ]
         provider = FeedProvider(items, registry=selected)
         energy = provider.search('energy', max_results=2, freshness=None,
                                  budget=RetrievalBudget(max_results=3, per_provider_results=3))
-        local = provider.search('Charlotte', max_results=2, freshness=None,
+        local = provider.search('Asterwick', max_results=2, freshness=None,
                                 budget=RetrievalBudget(max_results=3, per_provider_results=3))
         self.assertEqual([row.source_id for row in energy], ['doe-buildings'])
-        self.assertEqual([row.source_id for row in local], ['wfae-local'])
+        self.assertEqual([row.source_id for row in local], ['fictional-asterwick-feed'])
 
 
 if __name__ == '__main__':

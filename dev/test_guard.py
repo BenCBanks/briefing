@@ -39,3 +39,7 @@ def enforce_test_environment() -> None:
     if error:
         print(f'Refusing to run briefing tests: {error}.', file=sys.stderr)
         raise SystemExit(2)
+    if os.environ.get('BRIEFING_TESTING') == '1':
+        # Keep tests isolated from any external local-source catalog on this host.
+        os.environ['BRIEFING_LOCAL_SOURCES'] = str(
+            Path(__file__).resolve().parents[1] / 'content' / 'local-sources.example.json')

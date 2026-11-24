@@ -5,17 +5,6 @@ const slug = value => clean(value).toLocaleLowerCase().normalize('NFKD')
   .replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 48) || 'topic';
 const depthLabels = { headline: 'Headlines only', standard: 'Standard context', deeper: 'More depth and background' };
 
-function geographyFrom(text) {
-  const source = String(text || '');
-  const places = [];
-  if (/\bCharlotte\b/i.test(source)) places.push('Charlotte, North Carolina');
-  if (/\bUpstate(?:\s+(?:SC|South Carolina))?\b/i.test(source)) places.push('Upstate South Carolina');
-  if (!places.some(place => place.includes('North Carolina')) && /\b(?:NC|North Carolina)\b/i.test(source)) places.push('North Carolina');
-  if (!places.some(place => place.includes('South Carolina')) && /\bSouth Carolina\b/i.test(source)) places.push('South Carolina');
-  if (/\b(?:national|nationwide|across the U\.S\.)\b/i.test(source)) places.push('United States');
-  return unique(places).join(' · ');
-}
-
 function exclusionsFromWords(words) {
   const found = [];
   const re = /\b(?:skip|avoid|exclude|leave out|not interested in)\s+([^.!?;\n]+)/gi;
@@ -36,10 +25,7 @@ export function deriveInterestBrief(profile = {}) {
   const exclusions = Array.isArray(saved.exclusions)
     ? unique(saved.exclusions)
     : unique([...selected.flatMap(topic => topic.exclude || []), ...exclusionsFromWords(profile.words)]);
-  const geography = clean(saved.geography) || geographyFrom([
-    profile.words,
-    ...selected.flatMap(topic => [topic.scope, topic.sourcePhrase, ...(topic.include || [])]),
-  ].join(' '));
+  const geography = clean(saved.geography) || unique(selected.map(topic => topic.location).filter(Boolean)).join(' · ');
   const depths = unique(selected.map(topic => depthLabels[topic.depth] || 'Standard context'));
   const depth = ['headline', 'standard', 'deeper'].includes(saved.depth)
     ? saved.depth : depths.length === 1
@@ -82,12 +68,14 @@ export function applyInterestBrief(profile, changes = {}) {
     while (used.has(id)) id = `${slug(label)}-${suffix++}`;
     used.add(id);
     const topicDepth = depth === 'mixed' ? priorTopic?.depth || 'standard' : depth;
-    const scope = geography ? `${label} in ${geography}.` : priorTopic?.scope || label;
+    const location = geography || priorTopic?.location || '';
+    const scope = location ? `${label} in ${location}.` : priorTopic?.scope || label;
     return {
       ...(priorTopic || {}),
       id,
       label: label.slice(0, 60),
       scope: scope.slice(0, 180),
+      ...(location ? { location: location.slice(0, 120) } : {}),
       include: priorTopic?.include?.length ? priorTopic.include : [label],
       exclude: exclusions.slice(0, 8),
       depth: topicDepth,

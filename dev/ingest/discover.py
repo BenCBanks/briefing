@@ -413,11 +413,17 @@ def run_candidates(candidates, registry_path=REGISTRY_PATH, now=None, *, state_d
             'probation': sum(source.get('tier') == 'probation' for source in loaded)}
 
 
-def run_weekly_watches(registry_path=REGISTRY_PATH, state_path=DISCOVERY_STATE, now=None, fetcher=_fetch):
+def run_weekly_watches(registry_path=REGISTRY_PATH, state_path=DISCOVERY_STATE, now=None, fetcher=_fetch,
+                       local_source_ids=None, local_sources_path=None):
     """Poll configured watched pages weekly, keeping a bounded digest and display snippet only."""
     now = now or core.utc_now()
     registry_doc = json.loads(Path(registry_path).read_text(encoding='utf-8'))
-    pages = registry_doc.get('watched_pages', [])
+    pages = list(registry_doc.get('watched_pages', []))
+    selected = set(local_source_ids or [])
+    if selected:
+        local_doc = core.local_sources.load(local_sources_path)
+        if local_doc:
+            pages.extend(page for page in local_doc.get('watched_pages', []) if page.get('id') in selected)
     try:
         state = json.loads(Path(state_path).read_text(encoding='utf-8'))
         state = state if isinstance(state, dict) else {}
