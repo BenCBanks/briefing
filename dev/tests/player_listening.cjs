@@ -147,7 +147,7 @@ async function run() {
     assert.equal((await page.evaluate(id => JSON.parse(localStorage.getItem('briefing:v1:state')).readingProgress[id].mode, editionId)), 'listen', 'pausing preserves listen mode in the shared position');
     await page.locator('.today-listen-pill').click(); await page.locator('.mini-player-open').click();
     await page.locator('[data-player-toggle]').click();
-    assert.equal(await page.locator('.player-voice-label').innerText(), 'Voice: Sample A');
+    assert.equal(await page.locator('.player-voice-label').innerText(), 'Voice: Sulafat');
     assert.equal(await page.locator('[data-player-toggle] svg').count(), 1, 'full player uses an SVG glyph');
     assert.equal(await page.getByRole('heading', { name: 'Now playing' }).count(), 1, 'full player has a Now playing queue heading');
     assert.equal(await page.getByRole('heading', { name: 'Playing next' }).count(), 1, 'full player has a Playing next queue heading');
@@ -155,7 +155,7 @@ async function run() {
     assert.match(await page.locator('[data-player-now-length]').innerText(), /^\d+ min left$/, 'active chapter reports remaining listening time');
     assert.ok(await page.locator('.player-queue-row').count() > 0, 'queue lists the edition stories that follow the current chapter');
     assert.match(await page.locator('.player-queue-row').first().innerText(), /about \d+ min/, 'next stories show length estimates');
-    assert.equal(await page.locator('.player-voice-label').innerText(), 'Voice: Sample A', 'full player identifies the active narrator sample');
+    assert.equal(await page.locator('.player-voice-label').innerText(), 'Voice: Sulafat', 'full player identifies the active narrator sample');
     assert.equal(await page.locator('[data-player-voice]').count(), 0, 'full player does not expose a separate browser voice selector');
     const playerSeek = page.locator('[data-player-seek]');
     await playerSeek.evaluate(input => { input.value = '30'; input.dispatchEvent(new Event('change', { bubbles: true })); });

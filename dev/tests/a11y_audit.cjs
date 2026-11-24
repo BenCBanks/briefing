@@ -223,7 +223,7 @@ async function run() {
           }
           if (route.startsWith('episode/')) {
             assert.match(await page.locator('.episode-citation summary').first().getAttribute('aria-label'), /^Source 1, /);
-            assert.equal(await page.getByRole('button', { name: `Listen to ${firstEpisode.title}` }).isDisabled(), false, 'Recorded fixture audio offers a named Listen action');
+            assert.equal(await page.getByRole('button', { name: `Play episode: ${firstEpisode.title}` }).isDisabled(), false, 'Recorded fixture audio offers a named Listen action');
             const noAudioEpisode = episodes.find(episode => !episode.audio_recorded);
             await page.goto(`${baseURL}/?episodes=1#episode/${noAudioEpisode.id}`, { waitUntil: 'domcontentloaded' });
             await page.locator('.episode-page h1').waitFor();

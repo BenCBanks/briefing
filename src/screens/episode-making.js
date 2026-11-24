@@ -72,7 +72,7 @@ function appendDoneCard(page, job, node, hasReadyAudio, navigate) {
   const card = node('section', null, 'episode-done-card');
   card.append(node('p', audioReady ? 'Episode ready' : 'Transcript ready', 'episode-done-kicker'),
     node('h2', audioReady ? 'Your episode is ready' : 'Your transcript is ready'));
-  card.append(node('p', `You chose ${job.minutes} min`, 'episode-done-meta'));
+  card.append(node('p', `Episode length: ${job.minutes} ${Number(job.minutes) === 1 ? 'minute' : 'minutes'}`, 'episode-done-meta'));
   if (!audioReady) card.append(node('p', 'Audio is not recorded yet. The transcript is ready to read.', 'episode-audio-pending-note'));
   if (job.shorterThanRequested || job.episode?.shortfall_notice) card.append(node('p', 'We found limited coverage; here is a shorter episode.', 'episode-done-notice episode-thin-evidence'));
   const actions = node('div', null, 'episode-done-actions');
@@ -128,7 +128,7 @@ export function renderEpisodeMakingPage({ content, node, link, job, navigate, on
   const page = node('section', null, 'episode-making-page');
   page.append(node('p', job.done ? 'Ready' : job.failed ? 'Not finished' : 'Making your episode', 'episode-making-kicker'));
   page.append(node('blockquote', `“${job.request}”`, 'episode-making-quote'));
-  page.append(node('p', `You chose ${job.minutes} min`, 'episode-making-meta'));
+  page.append(node('p', `Episode length: ${job.minutes} ${Number(job.minutes) === 1 ? 'minute' : 'minutes'}`, 'episode-making-meta'));
   const longWait = node('p', 'This is taking a little longer. Your briefing will stay in the On demand list if you leave this page.', 'episode-long-wait');
   longWait.setAttribute('role', 'status'); longWait.hidden = true; page.append(longWait);
   const stages = node('ol', null, 'episode-stage-list');

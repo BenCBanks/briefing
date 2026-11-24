@@ -130,7 +130,7 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
     assert.equal(projected.duration_minutes, 2, 'projection does not replace measured episode duration with requested length');
     assert.equal(projected.audio_status, control.ready ? 'recorded' : 'pending', 'route projection normalizes status to current recording readiness');
     assert.equal(projected.audio_recorded, Boolean(control.ready), 'API projection uses current revision/hash and status guard');
-    const routeListen = findNodes(route, node => node.tagName === 'BUTTON' && node.textContent === 'Listen' && !node.disabled).length;
+    const routeListen = findNodes(route, node => node.tagName === 'BUTTON' && node.textContent === 'Play episode' && !node.disabled).length;
     const routeMeta = findNodes(route, node => node.className === 'episode-meta')[0].textContent;
     assert.match(route.textContent, /The current notice keeps service open through the weekend\./,
       'audio identity never removes the approved current transcript');
@@ -138,8 +138,8 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
       playerIdentity: recordingSession(control.episode, null).playable, routeListen, routeMeta };
     evidence.push(row);
     if (control.ready) {
-      const listen = findNodes(route, node => node.tagName === 'BUTTON' && node.textContent === 'Listen' && !node.disabled)[0];
-      assert.ok(listen, 'current matching API recording retains Listen');
+      const listen = findNodes(route, node => node.tagName === 'BUTTON' && node.textContent === 'Play episode' && !node.disabled)[0];
+      assert.ok(listen, 'current matching API recording offers Play episode');
       listen.listeners.click[0]();
       assert.equal(played.length, 1, 'current route Listen reaches player exactly once');
       assert.equal(played[0], projected, 'player receives the current projected episode');
@@ -149,7 +149,7 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
       assert.equal(played.length, 0, 'stale/pending API route never reaches player');
       if (row.history.includes('Listen')) issues.push(`${control.name}: history promises stale listening`);
       if (row.action !== 'Open transcript') issues.push(`${control.name}: done card does not offer the transcript`);
-      if (!row.history.includes('Requested: 10 min') || !row.done.includes('You chose 10 min')) issues.push(`${control.name}: requested length is not truthful`);
+      if (!row.history.includes('Requested: 10 min') || !row.done.includes('Episode length: 10 minutes')) issues.push(`${control.name}: requested length is not truthful`);
       if (/One narrator|Your episode is ready|\b2 min/.test(row.done)) issues.push(`${control.name}: done card promises stale recorded audio`);
       if (routeListen || !routeMeta.startsWith('Requested: 10 min')) issues.push(`${control.name}: route exposes stale audio or measured duration`);
     }
@@ -294,7 +294,7 @@ async function run() {
       markers: markerEvidence,
       text: container.textContent,
       headingFocused: document.activeElement === heading,
-      listenControls: findNodes(container, node => node.tagName === 'BUTTON' && node.textContent.trim() === 'Listen').length,
+      listenControls: findNodes(container, node => node.tagName === 'BUTTON' && node.textContent.trim() === 'Play episode').length,
     };
   };
   const correctedEvidence = capture(corrected);

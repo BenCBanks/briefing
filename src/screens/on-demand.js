@@ -14,7 +14,7 @@ export function renderOnDemandScreen({
 }) {
   const page = node('section', null, 'episode-request-page');
   page.append(node('h1', 'Brief me on anything'));
-  page.append(node('p', 'Any topic, any time. You choose the length.', 'ask-page-intro'));
+  page.append(node('p', 'Any topic, any time. You choose the length. Your episode includes a transcript and audio when recording is ready.', 'ask-page-intro'));
   const promptBox = node('div', null, 'ask-prompt-box');
   const prompt = document.createElement('textarea');
   prompt.id = 'episode-request-prompt'; prompt.setAttribute('aria-label', 'What do you want to understand?');
@@ -52,16 +52,16 @@ export function renderOnDemandScreen({
     suggestions.append(chips);
   };
   const initialState = getRequestState();
-  const start = node('button', initialState.blocked ? 'Try later' : 'Start', 'episode-request-start');
+  const start = node('button', initialState.blocked ? 'Try later' : 'Make episode', 'episode-request-start');
   start.type = 'button'; start.id = 'episode-request-start';
-  start.setAttribute('aria-label', initialState.blocked ? 'Try again later' : 'Create episode');
+  start.setAttribute('aria-label', initialState.blocked ? 'Try again later' : 'Make episode');
   start.disabled = initialState.busy || initialState.blocked || !prompt.value.trim();
   prompt.addEventListener('input', () => {
     draft.prompt = prompt.value;
     if (getRequestState().blocked) {
       setRequestBlocked(false);
-      start.textContent = 'Start';
-      start.setAttribute('aria-label', 'Create episode');
+      start.textContent = 'Make episode';
+      start.setAttribute('aria-label', 'Make episode');
     }
     setRequestError(''); promptError.textContent = '';
     prompt.style.height = 'auto'; prompt.style.height = `${prompt.scrollHeight}px`;

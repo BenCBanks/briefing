@@ -169,14 +169,14 @@ async function run() {
     assert.equal(await page.getByText(/does not create or save an episode/i).count(), 0);
     await page.locator('#episode-request-prompt').fill('Fictional Alder Bay transit');
     await page.locator('.on-demand-length-group .episode-request-chip').filter({ hasText: '10 min' }).click();
-    await page.getByRole('button', { name: 'Create episode' }).click();
+    await page.getByRole('button', { name: 'Make episode' }).click();
     await page.locator('.episode-making-page').waitFor();
     assert.equal((await page.locator('.episode-stage-row').count()), 5);
     await page.locator('.episode-stage-row[data-state="active"]').waitFor();
     await screenshot(page, 'episode-making-light');
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-making-dark');
     await page.emulateMedia({ colorScheme: 'light' });
-    assert.equal(await page.locator('.episode-making-meta').innerText(), 'You chose 10 min');
+    assert.equal(await page.locator('.episode-making-meta').innerText(), 'Episode length: 10 minutes');
     await page.locator('.episode-progress-note').waitFor({ timeout: 10000 });
     assert.deepEqual(mainRoutes.createdPayload, { topic: 'Fictional Alder Bay transit', length: 10, style: 'news-brief' });
     await page.getByRole('button', { name: 'Open transcript' }).waitFor({ timeout: 15000 });
@@ -231,7 +231,7 @@ async function run() {
     await installBaseRoutes(limited, { createStatus: 429 });
     await limited.goto(`${baseURL}/#ask-episode`, { waitUntil: 'domcontentloaded' });
     await limited.locator('#episode-request-prompt').fill('Fictional river ferry service');
-    await limited.getByRole('button', { name: 'Create episode' }).click();
+    await limited.getByRole('button', { name: 'Make episode' }).click();
     await limited.getByRole('status').getByText('You can make 2 more episodes today.').waitFor();
     assert.equal(new URL(limited.url()).hash, '#ask-episode');
 
@@ -239,7 +239,7 @@ async function run() {
     const cancelRoutes = await installBaseRoutes(cancelPage);
     await cancelPage.goto(`${baseURL}/#ask-episode`, { waitUntil: 'domcontentloaded' });
     await cancelPage.locator('#episode-request-prompt').fill('Fictional town library hours');
-    await cancelPage.getByRole('button', { name: 'Create episode' }).click();
+    await cancelPage.getByRole('button', { name: 'Make episode' }).click();
     await cancelPage.locator('.episode-making-page').waitFor();
     await cancelPage.getByRole('button', { name: 'Cancel this episode' }).click();
     await cancelPage.locator('.episode-request-page').waitFor();

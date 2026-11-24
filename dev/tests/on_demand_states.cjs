@@ -115,18 +115,18 @@ async function captureThemes(page, name, anchor) {
 
     const prompt = page.locator('#episode-request-prompt');
     await prompt.fill('Fictional harbor transit schedules');
-    await page.getByRole('button', { name: 'Create episode' }).click();
+    await page.getByRole('button', { name: 'Make episode' }).click();
     const rejected = page.locator('.episode-request-error');
     await page.getByText('That request needs a little more detail. Edit the topic or question and try again.', { exact: true }).waitFor();
     assert.equal(await page.locator('.episode-making-page').count(), 0, 'A rejected request stays on the request page');
     assert.equal(await prompt.inputValue(), 'Fictional harbor transit schedules', 'The request remains available to edit');
-    assert.equal(await page.getByRole('button', { name: 'Create episode' }).isDisabled(), false, 'The request can be tried again');
+    assert.equal(await page.getByRole('button', { name: 'Make episode' }).isDisabled(), false, 'The request can be tried again');
     assert.equal(await page.locator('.episode-request-start').count(), 1, 'The request page keeps one primary action');
     await page.evaluate(() => window.scrollTo(0, 0));
     await captureThemes(page, 'on-demand-rejected', rejected);
 
     requestState = 'cost-cap';
-    await page.getByRole('button', { name: 'Create episode' }).click();
+    await page.getByRole('button', { name: 'Make episode' }).click();
     const capNotice = page.locator('.episode-request-error');
     await page.getByText('We cannot make this episode right now. Your request is saved here; try again later.', { exact: true }).waitFor();
     assert.equal(await prompt.inputValue(), 'Fictional harbor transit schedules', 'A cost cap keeps the request intact');
@@ -139,7 +139,7 @@ async function captureThemes(page, name, anchor) {
     await page.locator('.episode-request-page').waitFor();
     await page.locator('#episode-request-prompt').fill('Fictional harbor transit schedules');
     requestState = 'create'; pollState = 'failed';
-    await page.getByRole('button', { name: 'Create episode' }).click();
+    await page.getByRole('button', { name: 'Make episode' }).click();
     await page.locator('.episode-making-page').waitFor();
     const failed = page.locator('.episode-job-error');
     await page.getByRole('button', { name: 'Try again' }).waitFor();
@@ -187,7 +187,7 @@ async function captureThemes(page, name, anchor) {
       await page.locator('.episode-request-page').waitFor();
       await page.locator('#episode-request-prompt').fill('Fictional harbor transit schedules');
       const pollsBeforeTerminalFailure = pollPaths.length;
-      await page.getByRole('button', { name: 'Create episode' }).click();
+      await page.getByRole('button', { name: 'Make episode' }).click();
       await page.locator('.episode-making-page').waitFor();
       assert.equal(await page.locator('.episode-job-error').getAttribute('role'), 'status',
         'The terminal failure message is exposed as a status');

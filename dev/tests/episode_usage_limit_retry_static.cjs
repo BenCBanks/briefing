@@ -180,7 +180,7 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
   const revised = '  How do fictional harbor tides change?\nExplain the lunar cycle.  ';
   edit(revised);
   assert.equal(action().disabled, false, `${error}: editing unlocks an explicit retry`);
-  assert.equal(action().getAttribute('aria-label'), 'Create episode');
+  assert.equal(action().getAttribute('aria-label'), 'Make episode');
   assert.equal(selectedLength(), '15 min', 'editing keeps the requested length');
   assert.equal(posts.length, 1, 'editing never submits automatically');
   action().click(); await settle();

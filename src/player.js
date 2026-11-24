@@ -14,6 +14,12 @@ function savePlaybackSpeed(value) {
   try { localStorage.setItem(SPEED_KEY, String(value)); } catch { /* Listening still works when device storage is unavailable. */ }
 }
 export const NARRATOR_KEY = 'briefing:narrator-sample';
+const NARRATOR_DISPLAY_NAMES = Object.freeze({
+  A: 'Sulafat', B: 'Charon', C: 'Kore', D: 'Orus', E: 'Achernar', F: 'Rasalgethi',
+});
+export function narratorDisplayName(sample) {
+  return NARRATOR_DISPLAY_NAMES[sample] || NARRATOR_DISPLAY_NAMES.A;
+}
 const MEDIA_ARTWORK = [{ src: '/content/briefing-artwork.png', sizes: '1024x1024', type: 'image/png' }];
 const formatTime = seconds => {
   const value = Math.max(0, Math.floor(Number(seconds) || 0));
@@ -297,7 +303,7 @@ export function createPlayer(root, onProgress, getProgress, onChange = () => {},
     toggle.innerHTML = phase === 'playing' ? pauseGlyph : playGlyph;
     toggle.setAttribute('aria-label', recordingMode ? (phase === 'playing' ? 'Pause episode audio' : phase === 'complete' ? 'Replay episode audio' : phase === 'error' ? 'Retry episode audio' : phase === 'loading' ? 'Episode audio loading' : 'Play episode audio') : actionLabel());
     toggle.disabled = recordingMode && phase === 'loading';
-    dialog.querySelector('.player-voice-label').textContent = `Voice: Sample ${narratorSample}`;
+    dialog.querySelector('.player-voice-label').textContent = `Voice: ${narratorDisplayName(narratorSample)}`;
     dialog.querySelector('.player-queue').setAttribute('aria-label', recordingMode ? 'Episode chapters' : 'Edition queue');
     dialog.querySelectorAll('[data-player-speed]').forEach(button => button.setAttribute('aria-pressed', String(Number(button.dataset.playerSpeed) === speed)));
     dialog.querySelectorAll('.player-chapter-list [data-chapter-index]').forEach((button, index) => {
@@ -353,7 +359,7 @@ export function createPlayer(root, onProgress, getProgress, onChange = () => {},
     dialog.setAttribute('aria-label', current.title || 'Audio player');
     dialog.innerHTML = `<div class="player-sheet"><div data-player-main>
       <div class="player-sheet-top"><button type="button" class="player-minimize" data-player-close aria-label="Minimize"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m6 9 6 6 6-6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg></button><span>Now listening</span></div>
-      <h2 data-player-title></h2><p class="player-voice-label">Voice: Sample ${narratorSample}</p><p class="player-phase" data-player-phase role="status"></p>
+      <h2 data-player-title></h2><p class="player-voice-label">Voice: ${narratorDisplayName(narratorSample)}</p><p class="player-phase" data-player-phase role="status"></p>
       <section class="player-queue" data-player-queue aria-label="Edition queue">
         <div class="player-queue-current"><div><h3>Now playing</h3><strong data-player-now-title></strong></div><small><span data-player-now-length></span></small></div>
         <h3 class="player-queue-next-heading">Playing next</h3><ol class="player-queue-list" data-player-next-list></ol>

@@ -75,7 +75,7 @@ export function renderTopics(container, topics, deepDives, selectedIds, coverage
   heading.append(element('h1', '', 'Your topics'));
   container.append(heading);
   const form = element('form', 'topics-words-form');
-  const label = element('label', 'topics-words-label', 'Tell us in your own words.');
+  const label = element('label', 'topics-words-label', 'Update topics saves these words; switches take effect right away.');
   const words = element('textarea', 'topics-words');
   words.name = 'words'; words.rows = 3; words.maxLength = 2000; words.required = true;
   words.placeholder = 'Tell me about the subjects and places you follow, and what to leave out.';

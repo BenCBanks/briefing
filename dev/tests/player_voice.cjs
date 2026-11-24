@@ -156,7 +156,7 @@ async function run() {
       'Media Session seekto moves the published playhead to the requested time');
     await page.locator('#voice-player-root .mini-player-open').click();
     assert.equal(await page.getByRole('button', { name: 'Minimize' }).count(), 1, 'full-player minimize control is an accessible icon button');
-    assert.equal(await page.locator('.player-voice-label').innerText(), 'Voice: Sample A', 'full player identifies the selected narrator sample');
+    assert.equal(await page.locator('.player-voice-label').innerText(), 'Voice: Sulafat', 'full player identifies the selected narrator sample');
     assert.equal(await page.locator('.mini-player .player-voice-label').count(), 0, 'mini player does not repeat the voice label');
     assert.equal(await page.locator('[data-player-speed]').count(), 5, 'full-player exposes all five speed choices');
     assert.equal(await page.locator('.player-speeds').evaluate(element => getComputedStyle(element).flexWrap), 'nowrap', 'full-player speed choices stay in one row');
@@ -168,7 +168,7 @@ async function run() {
     assert.equal(await page.locator('.narrator-sample').count(), 6, 'Settings lists six audition samples');
     await page.locator('.narrator-sample').first().getByRole('button', { name: 'Use this voice' }).click();
     await page.getByRole('heading', { name: 'Narrator' }).waitFor();
-    await page.getByRole('status').filter({ hasText: 'Sample A selected.' }).waitFor();
+    await page.getByRole('status').filter({ hasText: 'Sulafat selected.' }).waitFor();
     assert.equal(savedVoice, 'FixtureVoiceA', 'first-run selection saves the chosen audition voice');
     await page.locator('#voice-speed').selectOption('1.25');
     assert.equal(await page.evaluate(() => localStorage.getItem('briefing:playback-speed')), '1.25', 'Settings saves the selected listening speed');
