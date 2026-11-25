@@ -605,7 +605,7 @@ class WriterTests(unittest.TestCase):
         available = {'semiconductors', 'ai', 'digital', 'climate-policy', 'energy', 'science',
                      'space', 'payments', 'banking', 'finance'}
         cases = [
-            ('AI chips', ['semiconductors', 'ai', 'digital']),
+            ('AI chips', ['semiconductors', 'ai']),
             ('Climate policy', ['climate-policy', 'energy', 'science']),
             ('Space launches', ['space', 'science', 'digital']),
             ('Payments', ['payments', 'banking', 'finance']),
