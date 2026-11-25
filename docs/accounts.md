@@ -30,12 +30,20 @@ are unavailable and no account state is created.
   identifier. A lockout response is deliberately generic and does not reveal
   whether an account exists.
 - Account data uses the existing profile identifier idea beneath a per-reader
-  account directory. Profile, episode, library, correction and audio lookups
+  account directory. With accounts enabled, every API route requires the
+  session; mutating routes also require CSRF. Profile files, generated editions,
+  episode jobs, library history, corrections, voice selection and audio assets
+  live under that reader's state directory. Profile-scoped IDs include an
+  internal reader namespace that is never returned to the browser. Lookups
   always derive the reader ID from the authenticated session; request fields
   cannot select another reader's directory.
 - Episode use is counted per reader and charged through the normal global usage
-  ledger. The global daily and monthly caps remain authoritative; account
-  attribution adds reporting, not a second way around those caps.
+  ledger. Account-mode `/api/usage` and `/api/account/me` report only that
+  reader's episode job count and recorded cost. The global daily and monthly
+  caps remain authoritative; account attribution adds reporting, not a second
+  way around those caps. The three-job daily limit spans all of one reader's
+  profiles, and account-mode job IDs use 128 bits of randomness before being
+  looked up in that reader's private job store.
 
 ## JSON API contract
 

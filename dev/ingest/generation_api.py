@@ -993,14 +993,17 @@ def _set_bundle_profile_id(payload, profile_id):
             update_editions(bundle)
 
 
-def mark_edition_seen(profile_id, edition_id, revision_id, *, now=None):
+def mark_edition_seen(profile_id, edition_id, revision_id, *, now=None, profile_data=None, directory=None):
     """Persist that this reader's generated daily edition was displayed in Today."""
     if (not isinstance(profile_id, str) or not re.fullmatch(r'[a-f0-9]{24}', profile_id) or
             not isinstance(edition_id, str) or not edition_id.strip() or len(edition_id) > 120 or
             not isinstance(revision_id, str) or not revision_id.strip() or len(revision_id) > 160):
         return 400, {'error': 'invalid_seen_edition'}
-    profile = next((row for row in load_known_profiles()
-                    if profile_identifier(row) == profile_id), None)
+    if profile_data is not None:
+        profile = profile_data if profile_identifier(profile_data) == profile_id else None
+    else:
+        profile = next((row for row in load_known_profiles()
+                        if profile_identifier(row) == profile_id), None)
     if profile is None:
         return 404, {'error': 'profile_not_found'}
 
@@ -1012,7 +1015,7 @@ def mark_edition_seen(profile_id, edition_id, revision_id, *, now=None):
             fcntl.flock(lock_stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return 409, {'error': 'profile_busy'}
-        directory = profile_generated_dir(profile)
+        directory = Path(directory) if directory is not None else profile_generated_dir(profile)
         current_time = now or datetime.now(timezone.utc)
         if current_time.tzinfo is None:
             current_time = current_time.replace(tzinfo=timezone.utc)

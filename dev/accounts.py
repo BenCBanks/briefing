@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import os
+import re
 import secrets
 import shutil
 import threading
@@ -44,8 +45,41 @@ class AccountError(Exception):
 def _root(create=True) -> Path:
     root = configured_state_dir() / 'accounts'
     if create:
-        root.mkdir(parents=True, exist_ok=True)
+        root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(root, 0o700)
     return root
+
+
+def reader_state_dir(account_id, *, create=True):
+    if not isinstance(account_id, str) or not re.fullmatch(r'[a-f0-9]{32}', account_id):
+        raise AccountError(400, 'invalid_account')
+    path = _root() / 'readers' / account_id
+    if create:
+        if path.parent.is_symlink() or path.is_symlink():
+            raise AccountError(503, 'reader_state_unavailable')
+        path.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(path.parent, 0o700)
+        os.chmod(path, 0o700)
+    return path
+
+
+def reader_profile_path(account_id):
+    path = reader_state_dir(account_id) / 'profile.json'
+    if path.is_symlink():
+        raise AccountError(503, 'reader_state_unavailable')
+    return path
+
+
+def reader_generated_dir(account_id, profile_id):
+    if not isinstance(profile_id, str) or not re.fullmatch(r'[a-f0-9]{24}', profile_id):
+        raise AccountError(400, 'invalid_profile')
+    base = reader_state_dir(account_id)
+    for path in (base / 'generated', base / 'generated' / profile_id):
+        if path.is_symlink():
+            raise AccountError(503, 'reader_state_unavailable')
+        path.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(path, 0o700)
+    return base / 'generated' / profile_id
 
 
 def _read(name, default):
