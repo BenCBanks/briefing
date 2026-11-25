@@ -282,13 +282,22 @@ class AccountIsolationTests(unittest.TestCase):
         with patch.object(preview_server, 'interpret_request',
                           side_effect=lambda payload, _ip: (200, {'topic': payload['topic']})), \
                 patch.object(preview_server, 'feed_response',
-                             return_value=(200, {'items': [{'id': 'global-fixture'}]})):
+                             return_value=(200, {'items': [{'id': 'global-fixture'}]})), \
+                patch.object(preview_server, 'status_response',
+                             return_value=(200, {'status': 'global-fixture'})), \
+                patch.object(preview_server, '_health_snapshot',
+                             return_value={'health': 'global-fixture'}), \
+                patch.object(preview_server, 'effective_flags',
+                             return_value={'accounts': True}):
             self.assertEqual(self._request('POST', '/api/interpret', a, {'topic': 'A question'})[1],
                              {'topic': 'A question'})
             self.assertEqual(self._request('POST', '/api/interpret', b, {'topic': 'B question'})[1],
                              {'topic': 'B question'})
             self.assertEqual(self._request('GET', '/api/feed', a)[1],
                              self._request('GET', '/api/feed', b)[1])
+            for path in ('/api/status', '/api/health', '/api/flags'):
+                with self.subTest(global_path=path):
+                    self.assertEqual(self._request('GET', path, a), self._request('GET', path, b))
 
     def test_every_dispatched_api_route_has_a_security_classification(self):
         allowed = {'GLOBAL', 'READER_SCOPED', 'ACCOUNT'}

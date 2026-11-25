@@ -785,11 +785,14 @@ class Handler(BaseHTTPRequestHandler):
         return self._reader_audio_state_dir() / 'voice.json'
 
     def _account_usage_summary(self, account_id):
-        root = accounts.reader_state_dir(account_id, create=False) / 'episode-jobs' / 'profiles'
-        if root.is_symlink():
+        reader = accounts.reader_state_dir(account_id, create=False)
+        root = reader / 'episode-jobs' / 'profiles'
+        if (reader.is_symlink() or root.is_symlink() or
+                not root.resolve().is_relative_to(reader.resolve())):
             raise accounts.AccountError(503, 'account_data_unavailable')
         total = Decimal('0')
         jobs_seen = 0
+        bytes_seen = 0
         if root.exists():
             for profile_dir in root.iterdir():
                 if not re.fullmatch(r'[a-f0-9]{24}', profile_dir.name):
@@ -802,11 +805,13 @@ class Handler(BaseHTTPRequestHandler):
                     if path.is_symlink() or not path.is_file():
                         raise accounts.AccountError(503, 'account_data_unavailable')
                     try:
-                        if path.stat().st_size > 2 * 1024 * 1024 or jobs_seen >= 500:
+                        size = path.stat().st_size
+                        if size > 2 * 1024 * 1024 or bytes_seen + size > 8 * 1024 * 1024 or jobs_seen >= 500:
                             raise accounts.AccountError(413, 'account_export_too_large')
                         job = json.loads(path.read_text(encoding='utf-8'))
                         if not isinstance(job, dict):
                             continue
+                        bytes_seen += size
                         jobs_seen += 1
                         cost_record = job.get('cost_record')
                         if not isinstance(cost_record, dict):
