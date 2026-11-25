@@ -632,6 +632,7 @@ topicsManagementController = createTopicsManagementController({
 todayDataController = createTodayDataController({
   node, link, content, navigate, startBuildGeneration, seenEditionMarksInFlight,
   validateProfile, loadPack, currentEdition, profileBuildKey,
+  dailyBriefings, firstReadableSection, briefingDate,
   localStorage, sessionStorage, BUILD_GENERAL_FALLBACK_KEY,
   get buildAttempt() { return buildAttempt; },
   get pack() { return pack; }, set pack(value) { pack = value; },
