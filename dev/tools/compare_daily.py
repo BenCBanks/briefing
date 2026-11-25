@@ -45,6 +45,18 @@ def _shape_key(shape):
     return json.dumps(shape, sort_keys=True, separators=(',', ':'))
 
 
+def _json_compatible(value):
+    """Make diagnostic maps safe to freeze even when keys are tuple identities."""
+    if isinstance(value, dict):
+        return {key if isinstance(key, str) else str(key): _json_compatible(child)
+                for key, child in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_compatible(child) for child in value]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
 def _shape_paths(shape, prefix='$'):
     paths = {prefix: 'object' if isinstance(shape, dict) else
              'array' if isinstance(shape, list) else shape}
@@ -376,7 +388,8 @@ def _worker(args):
             'feed_health': _read_json(generation_api.FEED_HEALTH_PATH, {}),
             'robots': _read_json(core.ROBOTS_CACHE_PATH, {}),
         }
-        encoded = json.dumps(package, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        encoded = json.dumps(_json_compatible(package), ensure_ascii=False,
+                             separators=(',', ':')).encode('utf-8')
         if len(encoded) > MAX_SNAPSHOT_BYTES:
             raise RuntimeError('frozen feed snapshot exceeds the 40 MB limit')
         Path(args.export_input).write_bytes(encoded)

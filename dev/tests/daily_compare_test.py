@@ -51,6 +51,11 @@ class DailyCompareTests(unittest.TestCase):
         self.assertEqual(compare_daily._comparison_usage_caller(Usage, 'episode'), 'episode')
         self.assertEqual(calls, ['other', 'episode'])
 
+    def test_frozen_snapshot_sanitizes_tuple_diagnostic_keys(self):
+        safe = compare_daily._json_compatible({'source_results': {('host', 1): 'timeout'}})
+        self.assertEqual(safe, {'source_results': {"('host', 1)": 'timeout'}})
+        self.assertEqual(json.loads(json.dumps(safe)), safe)
+
     def test_shape_diff_ignores_content_and_reports_schema_change(self):
         baseline = fake_snapshot()
         same_structure = fake_snapshot(warnings=['old warning'])
