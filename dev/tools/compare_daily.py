@@ -298,6 +298,7 @@ def _worker(args):
 
         core.ingest_enabled = record_ingest
 
+    before_ledger = usage.process_ledger().summary()
     captured_costs = {}
     record_lock = threading.RLock()
     tracked_record, tracked_search = _ledger_cost_types(usage, record_lock, captured_costs)
@@ -333,11 +334,16 @@ def _worker(args):
     finally:
         root_logger.removeHandler(warning_handler)
 
+    after_ledger = usage.process_ledger().summary()
+    before_total = Decimal(str(before_ledger.get('daily', {}).get('estimated_cost_usd', '0')))
+    after_total = Decimal(str(after_ledger.get('daily', {}).get('estimated_cost_usd', '0')))
+    observed_cost = sum((row['cost'] for row in captured_costs.values()), Decimal('0'))
     typed_costs = {
         key: {'count': row['count'], 'units': row['units'], 'cost_usd': f"{row['cost']:.8f}"}
         for key, row in sorted(captured_costs.items())
     }
-    typed_costs['total_cost_usd'] = f"{sum((row['cost'] for row in captured_costs.values()), Decimal('0')):.8f}"
+    typed_costs['total_cost_usd'] = f'{max(Decimal(0), after_total - before_total):.8f}'
+    typed_costs['instrumented_call_cost_usd'] = f'{observed_cost:.8f}'
 
     status_path = generation_api._status_file_path()
     status = _read_json(status_path, {})
@@ -404,6 +410,7 @@ def _report_usage(label, result):
             print(f"  {kind}: {row.get('count', 0)} calls{unit_text}, "
                   f"${row.get('cost_usd', '0.00000000')}")
     print(f"  total: ${costs.get('total_cost_usd', 'unknown')}")
+    print(f"  instrumented calls: ${costs.get('instrumented_call_cost_usd', 'unknown')}")
 
 
 def _run_comparison(args):
