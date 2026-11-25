@@ -19,6 +19,7 @@ from dev.ingest.retrieval import (
     FeedProvider, GdeltProvider, GeminiGroundingProvider, PerplexitySearchProvider,
     RetrievalBudget, RetrievalConfig, retrieve,
 )
+from dev.ingest.retrieval import gdelt
 from dev.ingest.retrieval.domain import (
     BlsAdapter, CrossrefAdapter, EdgarAdapter, EuropePmcAdapter, FredAdapter,
     OpenAlexAdapter, WikipediaAdapter,
@@ -149,6 +150,15 @@ class ResilienceTests(unittest.TestCase):
 
     def test_shared_host_rate_limit_and_deadline_across_instances(self):
         host = 'api.gdeltproject.org'
+        previous_gdelt_start = gdelt._last_request_started
+        previous_gdelt_cache = dict(gdelt._negative_cache)
+        gdelt._last_request_started = None
+        gdelt._negative_cache.clear()
+        self.addCleanup(setattr, gdelt, '_last_request_started', previous_gdelt_start)
+        def restore_gdelt_cache():
+            gdelt._negative_cache.clear()
+            gdelt._negative_cache.update(previous_gdelt_cache)
+        self.addCleanup(restore_gdelt_cache)
         with core._schedule_lock:
             previous = core._last_request_by_host.pop(host, None)
         self.addCleanup(core._last_request_by_host.pop, host, None)
@@ -162,10 +172,10 @@ class ResilienceTests(unittest.TestCase):
         with patch.object(core.time, 'monotonic', self.clock), patch.object(core.time, 'sleep', self.clock.advance):
             with ThreadPoolExecutor(max_workers=2) as pool:
                 list(pool.map(lambda _: self.search(GdeltProvider(opener=opener)), range(2)))
-            self.assertEqual(starts, [100, 105])
+            self.assertEqual(starts, [100, 105.5])
             _, budget = self.search(GdeltProvider(opener=opener), timeout_seconds=2)
-            self.assertEqual(starts, [100, 105])
-            self.assertEqual(budget.statuses['gdelt']['status'], 'provider timeout')
+            self.assertEqual(starts, [100, 105.5])
+            self.assertEqual(budget.statuses['gdelt']['status'], 'rate_limited')
 
     def test_all_api_adapters_share_failure_policy_and_paid_attempt_counts(self):
         calls = []

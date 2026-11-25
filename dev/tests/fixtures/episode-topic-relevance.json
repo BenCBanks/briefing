@@ -1,0 +1,9 @@
+{
+  "topic": "How do banks detect fraud?",
+  "source_id": "fictional-source-1",
+  "evidence_id": "E-1",
+  "source_text": "Commercial real estate data tracks office space occupancy and rental trends.",
+  "claim": "Commercial real estate data tracks office space occupancy and rental trends.",
+  "expected_supported": true,
+  "expected_relevant": false
+}

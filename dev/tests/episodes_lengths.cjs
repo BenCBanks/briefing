@@ -30,7 +30,7 @@ const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/episod
       assert.equal(await page.locator('.episode-uncertain').count(), 0, 'Narrated evidence notes are not repeated below the transcript');
       assert.match(await page.locator('.episode-transcript').innerText(), /shorter than requested/);
       assert.doesNotMatch(await page.locator('body').innerText(), /\[object Object\]/);
-      assert.equal(episode.target_words, episode.requested_minutes * 140);
+      assert.equal(episode.target_words, episode.requested_minutes * 150);
     }
     console.log('All four length fixtures render cited, honestly shorter transcripts without duplicate evidence notes.');
   } finally { await browser.close(); }

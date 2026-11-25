@@ -98,6 +98,17 @@ class ProxyError(Exception):
         self.diagnostics = diagnostics or {}
 
 
+def safe_proxy_error_reason(error):
+    """Return bounded provider error identifiers without exception or response text."""
+    if not isinstance(error, ProxyError):
+        return None
+    status = error.status if type(error.status) is int and 400 <= error.status <= 599 else 0
+    code = error.code if isinstance(error.code, str) and re.fullmatch(r'[a-z][a-z0-9_]{0,79}', error.code) else 'unknown'
+    diagnostic = (error.diagnostic if isinstance(error.diagnostic, str) and
+                  re.fullmatch(r'[a-z][a-z0-9_]{0,79}', error.diagnostic) else 'unspecified')
+    return f'ProxyError:{status}:{code}:{diagnostic}'
+
+
 def decode_json(body):
     return json.loads(body.decode('utf-8'))
 

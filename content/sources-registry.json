@@ -43,7 +43,8 @@
         "www.bankofengland.co.uk"
       ],
       "minimum_interval_seconds": 60,
-      "article_access": "transient-read"
+      "article_access": "transient-read",
+      "source_tier": "primary"
     },
     {
       "id": "cfpb-newsroom",
@@ -78,7 +79,8 @@
         "items_per_week": 0.3,
         "summary_chars": 218,
         "source": "great-sources-2026-11-17.md; observed sample estimate"
-      }
+      },
+      "source_tier": "primary"
     },
     {
       "id": "cms-newsroom",
@@ -87,16 +89,17 @@
       "topics": [
         "health"
       ],
-      "paywalled": "unknown",
+      "paywalled": false,
       "robots_ok": true,
       "format": "rss",
       "has_summary": true,
       "reuse_terms": "INFERRED: US federal work, generally public domain (17 USC 105); no statement fetched on that host",
-      "enabled": false,
+      "enabled": true,
       "allow_article_fetch": true,
-      "disable_reason": "Broken item links in the feed; use the Federal Register CMS RSS feed.",
       "content_depth": "snippet",
-      "article_access": "full-text"
+      "article_access": "transient-read",
+      "source_tier": "primary",
+      "source_class": "primary"
     },
     {
       "id": "fda-press",
@@ -177,7 +180,8 @@
         "items_per_week": 0.7,
         "summary_chars": 126,
         "source": "great-sources-2026-11-17.md; observed sample estimate"
-      }
+      },
+      "source_tier": "primary"
     },
     {
       "id": "fed-enforcement",
@@ -243,7 +247,8 @@
         "items_per_week": 2.9,
         "summary_chars": 95,
         "source": "great-sources-2026-11-17.md; observed sample estimate"
-      }
+      },
+      "source_tier": "primary"
     },
     {
       "id": "fed-speeches",
@@ -275,7 +280,8 @@
         "items_per_week": 2.2,
         "summary_chars": 97,
         "source": "great-sources-2026-11-17.md; observed sample estimate"
-      }
+      },
+      "source_tier": "primary"
     },
     {
       "id": "ftc-consumer-blog",
@@ -378,7 +384,8 @@
       "name": "NASA breaking news",
       "url": "https://www.nasa.gov/rss/dyn/breaking_news.rss",
       "topics": [
-        "science"
+        "science",
+        "space"
       ],
       "paywalled": false,
       "robots_ok": true,
@@ -388,7 +395,8 @@
       "enabled": true,
       "allow_article_fetch": true,
       "content_depth": "snippet",
-      "article_access": "full-text"
+      "article_access": "full-text",
+      "source_tier": "primary"
     },
     {
       "id": "nist-news",
@@ -435,7 +443,8 @@
         "items_per_week": 2.3,
         "summary_chars": 219,
         "source": "great-sources-2026-11-17.md; observed sample estimate"
-      }
+      },
+      "source_tier": "primary"
     },
     {
       "id": "sec-press",
@@ -823,7 +832,8 @@
         "items_per_week": 17.3,
         "summary_chars": 175,
         "source": "great-sources-2026-11-17.md; observed sample estimate"
-      }
+      },
+      "source_tier": "trade press"
     },
     {
       "id": "bleeping",
@@ -1109,7 +1119,8 @@
       "enabled": true,
       "allow_article_fetch": true,
       "content_depth": "snippet",
-      "article_access": "transient-read"
+      "article_access": "transient-read",
+      "source_tier": "trade press"
     },
     {
       "id": "finovate",
@@ -1267,7 +1278,8 @@
         "items_per_week": 23.1,
         "summary_chars": 174,
         "source": "great-sources-2026-11-17.md; observed sample estimate"
-      }
+      },
+      "source_tier": "trade press"
     },
     {
       "id": "healthinsurance-org",
@@ -1412,7 +1424,7 @@
       "format": "rss",
       "has_summary": true,
       "reuse_terms": "UNVERIFIED: believed CC BY-ND republishing licence; republish page 404 today",
-      "enabled": false,
+      "enabled": true,
       "allow_article_fetch": false,
       "tier": "A",
       "value": 5,
@@ -1429,7 +1441,8 @@
         "summary_chars": 224,
         "source": "great-sources-2026-11-17.md; observed sample estimate"
       },
-      "source_note": "Disabled pending confirmation of reuse rights; research reported unverified CC BY-ND belief and a missing republish page."
+      "source_note": "Disabled pending confirmation of reuse rights; research reported unverified CC BY-ND belief and a missing republish page.",
+      "source_tier": "trade press"
     },
     {
       "id": "krebs",
@@ -1605,7 +1618,8 @@
         "items_per_week": 17.1,
         "summary_chars": 132,
         "source": "great-sources-2026-11-17.md; observed sample estimate"
-      }
+      },
+      "source_tier": "trade press"
     },
     {
       "id": "pft",
@@ -2347,7 +2361,8 @@
         "www.bis.org"
       ],
       "minimum_interval_seconds": 60,
-      "article_access": "transient-read"
+      "article_access": "transient-read",
+      "source_tier": "primary"
     },
     {
       "id": "bis-mgmt-speeches",
@@ -2372,7 +2387,8 @@
         "www.bis.org"
       ],
       "minimum_interval_seconds": 60,
-      "article_access": "transient-read"
+      "article_access": "transient-read",
+      "source_tier": "primary"
     },
     {
       "id": "bis-wp",
@@ -2535,7 +2551,8 @@
         "items_per_week": 3.4,
         "summary_chars": 447,
         "source": "great-sources-2026-11-17.md; observed sample estimate"
-      }
+      },
+      "source_tier": "primary"
     },
     {
       "id": "fed-working-papers",
@@ -2641,7 +2658,8 @@
         "libertystreeteconomics.newyorkfed.org"
       ],
       "minimum_interval_seconds": 60,
-      "article_access": "feed-full"
+      "article_access": "feed-full",
+      "source_tier": "primary"
     },
     {
       "id": "nber-new",
@@ -2789,7 +2807,19 @@
         "rss.arxiv.org"
       ],
       "minimum_interval_seconds": 60,
-      "article_access": "transient-read"
+      "article_access": "transient-read",
+      "item_keyword_filter": [
+        "finance",
+        "financial",
+        "bank",
+        "payment",
+        "fintech",
+        "risk",
+        "semiconductor",
+        "chip",
+        "accelerator",
+        "gpu"
+      ]
     },
     {
       "id": "arxiv-cscr",
@@ -3088,7 +3118,8 @@
         "www.ecb.europa.eu"
       ],
       "minimum_interval_seconds": 60,
-      "article_access": "transient-read"
+      "article_access": "transient-read",
+      "source_tier": "primary"
     },
     {
       "id": "ecb-rss-index",
@@ -3279,7 +3310,8 @@
       "name": "NASA news",
       "url": "https://www.nasa.gov/feed/",
       "topics": [
-        "science"
+        "science",
+        "space"
       ],
       "format": "rss",
       "enabled": true,
@@ -3296,7 +3328,8 @@
         "www.nasa.gov"
       ],
       "minimum_interval_seconds": 60,
-      "article_access": "full-text"
+      "article_access": "full-text",
+      "source_tier": "primary"
     },
     {
       "id": "noaa",
@@ -3445,7 +3478,8 @@
         "www.ecb.europa.eu"
       ],
       "minimum_interval_seconds": 60,
-      "article_access": "transient-read"
+      "article_access": "transient-read",
+      "source_tier": "primary"
     },
     {
       "id": "mastercard-pr-q4",
@@ -4678,9 +4712,9 @@
       "format": "rss",
       "has_summary": true,
       "summary_length": 136,
-      "paywalled": "unknown",
-      "robots_ok": "unknown",
-      "enabled": false,
+      "paywalled": false,
+      "robots_ok": true,
+      "enabled": true,
       "allow_article_fetch": false,
       "reuse_terms": "UNVERIFIED: terms and reuse permission were not established; headline/snippet-only permission not confirmed.",
       "article_access": "headline",
@@ -4690,7 +4724,12 @@
         "items_per_week": 150.5,
         "summary_chars": 136,
         "source": "great-sources-2026-11-17.md; observed sample estimate"
-      }
+      },
+      "source_tier": "trade press",
+      "source_class": "news",
+      "item_exclude_markers": [
+        "STAT+"
+      ]
     },
     {
       "id": "american-banker",
@@ -5370,7 +5409,9 @@
       "url": "https://openai.com/news/rss.xml",
       "format": "rss",
       "topics": [
-        "ai"
+        "ai",
+        "finance",
+        "semiconductors"
       ],
       "tier": "B",
       "value": 4,
@@ -5387,12 +5428,25 @@
       "content_depth": "snippet",
       "minimum_interval_seconds": 3600,
       "cadence": "hourly-check",
-      "source_note": "Faro great-sources 2026-11-17 ranked set; metadata from the offline research fixture. This change made no article requests.",
+      "source_note": "Broad vendor feed; configured keywords restrict candidates to selected professional topics.",
       "yield_estimate": {
         "items_per_week": 2.5,
         "summary_chars": 151,
-        "source": "great-sources-2026-11-17.md; Faro research estimate"
-      }
+        "source": "prior feed sample"
+      },
+      "source_tier": "vendor",
+      "item_keyword_filter": [
+        "finance",
+        "financial",
+        "bank",
+        "payment",
+        "fintech",
+        "risk",
+        "semiconductor",
+        "chip",
+        "accelerator",
+        "gpu"
+      ]
     },
     {
       "id": "pbs-newshour",
@@ -5614,51 +5668,52 @@
       "format": "rss",
       "topics": [
         "energy",
-        "finance"
+        "climate-policy"
       ],
       "tier": "B",
       "value": 3,
-      "paywalled": "unknown",
-      "robots_ok": "unknown",
+      "paywalled": false,
+      "robots_ok": true,
       "has_summary": false,
       "summary_length": 0,
-      "readability": "unverified",
-      "reuse_terms": "UNVERIFIED: endpoint and reuse permissions were not checked; disabled until a no-storage/snippet policy is confirmed.",
-      "license_note": "Industry Dive feed candidate; headline and short RSS snippet only pending rights review.",
-      "enabled": false,
-      "allow_article_fetch": false,
-      "article_access": "headline",
-      "content_depth": "headline",
-      "minimum_interval_seconds": 21600,
-      "cadence": "six-hour-check",
-      "disable_reason": "No live endpoint, robots or reuse check was performed; Morrow must validate before enabling.",
-      "source_note": "Curated offline feed candidate for coverage discovery; not fetched or tested live."
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "article_access": "transient-read",
+      "content_depth": "snippet",
+      "minimum_interval_seconds": 60,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "readability": "usable",
+      "license_note": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "cadence": "hourly-check"
     },
     {
       "id": "canary-media",
       "name": "Canary Media",
-      "url": "https://www.canarymedia.com/rss",
+      "url": "https://www.canarymedia.com/rss.rss",
       "format": "rss",
       "topics": [
-        "energy"
+        "energy",
+        "climate-policy"
       ],
       "tier": "B",
       "value": 3,
-      "paywalled": "unknown",
-      "robots_ok": "unknown",
+      "paywalled": false,
+      "robots_ok": true,
       "has_summary": false,
       "summary_length": 0,
-      "readability": "unverified",
-      "reuse_terms": "UNVERIFIED: endpoint and reuse permissions were not checked; disabled until a no-storage/snippet policy is confirmed.",
-      "license_note": "Energy-transition reporting feed candidate; disabled pending feed and reuse validation.",
-      "enabled": false,
-      "allow_article_fetch": false,
-      "article_access": "headline",
-      "content_depth": "headline",
-      "minimum_interval_seconds": 21600,
-      "cadence": "six-hour-check",
-      "disable_reason": "No live endpoint, robots or reuse check was performed; Morrow must validate before enabling.",
-      "source_note": "Curated offline feed candidate for coverage discovery; not fetched or tested live."
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "article_access": "transient-read",
+      "content_depth": "snippet",
+      "minimum_interval_seconds": 60,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "readability": "usable",
+      "license_note": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "cadence": "hourly-check"
     },
     {
       "id": "rmi-energy",
@@ -5853,6 +5908,927 @@
         "summary_chars": 186,
         "source": "great-sources-2026-11-17.md; Faro research estimate"
       }
+    },
+    {
+      "id": "arxiv-qfin-cp",
+      "name": "arXiv quantitative finance: computational finance",
+      "url": "https://rss.arxiv.org/rss/q-fin.CP",
+      "topics": [
+        "finance",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "rss.arxiv.org",
+      "item_keyword_filter": [
+        "finance",
+        "financial",
+        "bank",
+        "payment",
+        "fintech",
+        "risk",
+        "credit"
+      ]
+    },
+    {
+      "id": "arxiv-qfin-rm",
+      "name": "arXiv quantitative finance: risk management",
+      "url": "https://rss.arxiv.org/rss/q-fin.RM",
+      "topics": [
+        "finance",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "rss.arxiv.org",
+      "item_keyword_filter": [
+        "finance",
+        "financial",
+        "bank",
+        "payment",
+        "fintech",
+        "risk",
+        "credit"
+      ]
+    },
+    {
+      "id": "arxiv-qfin-tr",
+      "name": "arXiv quantitative finance: trading",
+      "url": "https://rss.arxiv.org/rss/q-fin.TR",
+      "topics": [
+        "finance",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "rss.arxiv.org",
+      "item_keyword_filter": [
+        "finance",
+        "financial",
+        "bank",
+        "payment",
+        "fintech",
+        "risk",
+        "credit"
+      ]
+    },
+    {
+      "id": "google-ai-news",
+      "name": "Google AI news",
+      "url": "https://blog.google/technology/ai/rss/",
+      "topics": [
+        "ai",
+        "finance"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "vendor",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "blog.google",
+      "item_keyword_filter": [
+        "finance",
+        "financial",
+        "bank",
+        "payment",
+        "fintech",
+        "risk",
+        "credit"
+      ]
+    },
+    {
+      "id": "finra-news",
+      "name": "FINRA news",
+      "url": "https://www.finra.org/rss.xml",
+      "topics": [
+        "finance",
+        "banking",
+        "payments",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "full-text",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "finra.org"
+    },
+    {
+      "id": "ecb-working-papers",
+      "name": "ECB working papers",
+      "url": "https://www.ecb.europa.eu/rss/wppub.html",
+      "topics": [
+        "finance",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "full-text",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "ecb.europa.eu"
+    },
+    {
+      "id": "nvidia-blog",
+      "name": "NVIDIA blog",
+      "url": "https://blogs.nvidia.com/feed/",
+      "topics": [
+        "ai",
+        "semiconductors"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "vendor",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "blogs.nvidia.com"
+    },
+    {
+      "id": "nvidia-technical-blog",
+      "name": "NVIDIA technical blog",
+      "url": "https://developer.nvidia.com/blog/feed/",
+      "topics": [
+        "ai",
+        "semiconductors"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "vendor",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "developer.nvidia.com"
+    },
+    {
+      "id": "arm-newsroom",
+      "name": "Arm newsroom",
+      "url": "https://newsroom.arm.com/rss",
+      "topics": [
+        "ai",
+        "semiconductors"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "vendor",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "newsroom.arm.com"
+    },
+    {
+      "id": "micron-press",
+      "name": "Micron press releases",
+      "url": "https://investors.micron.com/rss/pressrelease.aspx",
+      "topics": [
+        "ai",
+        "semiconductors"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "vendor",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "investors.micron.com"
+    },
+    {
+      "id": "ieee-spectrum-semiconductors",
+      "name": "IEEE Spectrum semiconductors",
+      "url": "https://spectrum.ieee.org/feeds/topic/semiconductors.rss",
+      "topics": [
+        "semiconductors",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "full-text",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "spectrum.ieee.org"
+    },
+    {
+      "id": "ieee-spectrum-computing",
+      "name": "IEEE Spectrum computing",
+      "url": "https://spectrum.ieee.org/feeds/topic/computing.rss",
+      "topics": [
+        "semiconductors",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "full-text",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "spectrum.ieee.org"
+    },
+    {
+      "id": "semiconductor-engineering",
+      "name": "Semiconductor Engineering",
+      "url": "https://semiengineering.com/feed/",
+      "topics": [
+        "semiconductors",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "semiengineering.com"
+    },
+    {
+      "id": "ee-times",
+      "name": "EE Times",
+      "url": "https://www.eetimes.com/feed/",
+      "topics": [
+        "semiconductors",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "eetimes.com"
+    },
+    {
+      "id": "semiwiki",
+      "name": "SemiWiki",
+      "url": "https://semiwiki.com/feed/",
+      "topics": [
+        "semiconductors",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "semiwiki.com"
+    },
+    {
+      "id": "servethehome",
+      "name": "ServeTheHome",
+      "url": "https://www.servethehome.com/feed/",
+      "topics": [
+        "semiconductors",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "servethehome.com"
+    },
+    {
+      "id": "cset-chips",
+      "name": "CSET chips policy",
+      "url": "https://cset.georgetown.edu/feed/",
+      "topics": [
+        "semiconductors",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "full-text",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "cset.georgetown.edu"
+    },
+    {
+      "id": "fedreg-bis",
+      "name": "Federal Register: BIS export controls",
+      "url": "https://www.federalregister.gov/api/v1/documents.rss?conditions%5Bagencies%5D%5B%5D=industry-and-security-bureau",
+      "topics": [
+        "semiconductors",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "full-text",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "federalregister.gov"
+    },
+    {
+      "id": "toms-hardware",
+      "name": "Tom's Hardware",
+      "url": "https://www.tomshardware.com/feeds/all",
+      "topics": [
+        "semiconductors",
+        "ai"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "tomshardware.com",
+      "item_keyword_filter": [
+        "semiconductor",
+        "chip",
+        "gpu",
+        "processor",
+        "memory",
+        "accelerator"
+      ]
+    },
+    {
+      "id": "fsb-feed",
+      "name": "Financial Stability Board",
+      "url": "https://www.fsb.org/feed/",
+      "topics": [
+        "banking",
+        "payments",
+        "finance"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "fsb.org"
+    },
+    {
+      "id": "medpac-feed",
+      "name": "MedPAC publications",
+      "url": "https://www.medpac.gov/feed/",
+      "topics": [
+        "health",
+        "insurance"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "medpac.gov"
+    },
+    {
+      "id": "fedreg-epa",
+      "name": "Federal Register: EPA rules",
+      "url": "https://www.federalregister.gov/api/v1/documents.rss?conditions%5Bagencies%5D%5B%5D=environmental-protection-agency",
+      "topics": [
+        "energy",
+        "climate-policy"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "federalregister.gov"
+    },
+    {
+      "id": "carbon-brief",
+      "name": "Carbon Brief",
+      "url": "https://www.carbonbrief.org/feed/",
+      "topics": [
+        "energy",
+        "climate-policy"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "carbonbrief.org"
+    },
+    {
+      "id": "inside-climate-news",
+      "name": "Inside Climate News",
+      "url": "https://insideclimatenews.org/feed/",
+      "topics": [
+        "energy",
+        "climate-policy"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "insideclimatenews.org"
+    },
+    {
+      "id": "grist-climate",
+      "name": "Grist climate",
+      "url": "https://grist.org/feed/",
+      "topics": [
+        "energy",
+        "climate-policy"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "grist.org"
+    },
+    {
+      "id": "clean-energy-wire",
+      "name": "Clean Energy Wire",
+      "url": "https://www.cleanenergywire.org/rss.xml",
+      "topics": [
+        "energy",
+        "climate-policy"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "cleanenergywire.org"
+    },
+    {
+      "id": "our-world-data",
+      "name": "Our World in Data",
+      "url": "https://ourworldindata.org/atom.xml",
+      "topics": [
+        "energy",
+        "climate-policy"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "ourworldindata.org"
+    },
+    {
+      "id": "yale-climate",
+      "name": "Yale Climate Connections",
+      "url": "https://yaleclimateconnections.org/feed/",
+      "topics": [
+        "energy",
+        "climate-policy"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "yaleclimateconnections.org"
+    },
+    {
+      "id": "nasa-science",
+      "name": "NASA science",
+      "url": "https://science.nasa.gov/feed/",
+      "topics": [
+        "science",
+        "space"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "science.nasa.gov"
+    },
+    {
+      "id": "nasa-space-station",
+      "name": "NASA Space Station blog",
+      "url": "https://www.nasa.gov/blogs/spacestation/feed/",
+      "topics": [
+        "science",
+        "space"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "nasa.gov"
+    },
+    {
+      "id": "jpl-news",
+      "name": "JPL news",
+      "url": "https://www.jpl.nasa.gov/feeds/news",
+      "topics": [
+        "science",
+        "space"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "jpl.nasa.gov"
+    },
+    {
+      "id": "esa-top-news",
+      "name": "ESA top news",
+      "url": "https://www.esa.int/rssfeed/TopNews",
+      "topics": [
+        "science",
+        "space"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "esa.int"
+    },
+    {
+      "id": "nasa-oig",
+      "name": "NASA Office of Inspector General",
+      "url": "https://oig.nasa.gov/feed/",
+      "topics": [
+        "science",
+        "space"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "primary",
+      "source_class": "primary",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "oig.nasa.gov"
+    },
+    {
+      "id": "space-news",
+      "name": "SpaceNews",
+      "url": "https://spacenews.com/feed/",
+      "topics": [
+        "science",
+        "space"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "spacenews.com"
+    },
+    {
+      "id": "payload-space",
+      "name": "Payload",
+      "url": "https://payloadspace.com/feed/",
+      "topics": [
+        "science",
+        "space"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "payloadspace.com"
+    },
+    {
+      "id": "space-policy-online",
+      "name": "SpacePolicyOnline",
+      "url": "https://spacepolicyonline.com/feed/",
+      "topics": [
+        "science",
+        "space"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "spacepolicyonline.com"
+    },
+    {
+      "id": "spaceflight-now",
+      "name": "Spaceflight Now",
+      "url": "https://spaceflightnow.com/feed/",
+      "topics": [
+        "science",
+        "space"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "spaceflightnow.com"
+    },
+    {
+      "id": "via-satellite",
+      "name": "Via Satellite",
+      "url": "https://www.satellitetoday.com/feed/",
+      "topics": [
+        "science",
+        "space"
+      ],
+      "paywalled": false,
+      "robots_ok": true,
+      "format": "rss",
+      "has_summary": true,
+      "reuse_terms": "UNVERIFIED: use a short headline and snippet with a link; publisher terms need review.",
+      "enabled": true,
+      "allow_article_fetch": true,
+      "source_tier": "trade press",
+      "source_class": "news",
+      "original_reporting": true,
+      "content_depth": "snippet",
+      "article_access": "transient-read",
+      "minimum_interval_seconds": 60,
+      "publisher_group": "satellitetoday.com"
     }
   ],
   "watched_pages": [

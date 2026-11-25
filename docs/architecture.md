@@ -1,19 +1,14 @@
 # Web briefing architecture
 
-Code baseline: integration commit `e17d690` (`morrow/design-008-web`), reviewed
-18 November 2026. This describes the browser application and Python preview
-backend at that revision. Backlog issues and design proposals are not evidence
-that a feature is implemented. Native client code is outside this document.
-
-**Current operating mode: fixtures only.** Provider credits are exhausted. Use
-mocks and the unit test suite (see the runbook); do not run real generation,
-retrieval, TTS or provider acceptance. See [the runbook](runbook.md).
+This describes the browser application and Python preview backend in the current
+web-app layout. Backlog issues and design proposals are not evidence that a
+feature is implemented. Native client code is outside this document.
 
 ## Components and boundaries
 
 ```mermaid
 flowchart LR
-    Browser[Browser: src/app.js] --> API[dev/preview_server.py]
+    Browser[Browser: app shell and screen modules] --> API[dev/preview_server.py]
     API --> Static[Repository content fixtures and static assets]
     API --> Profile[Saved profile and generated editions]
     API --> Daily[Daily generation thread]
@@ -40,6 +35,28 @@ reading and existing generated text do not require an available model provider.
 topics. Saving a profile and interpreting it are different operations. Browser
 storage retains interests, reading/listening positions, saves, feedback, signals
 and suggestion snoozes; those records are not automatically a server-side backup.
+
+## Browser application layout
+
+`src/app.js` is the browser bootstrap and composition root. It creates shared
+state and connects screens to routing, storage, edition data, and playback. Screen
+renderers and controllers live under `src/screens/`; edition models and loading
+live under `src/edition/`; playback integration and speech live under
+`src/player/`; topic pages and profile logic live under `src/topics/` and
+`src/interests/`. The 390 px browser fixtures cover the visible screens and their
+interactions. Keep each module focused; no JavaScript module should exceed about
+800 lines.
+
+### Add a screen
+
+1. Put the screen renderer in `src/screens/<screen>.js`. Pass the data and actions
+   it needs as arguments so it remains separate from global app state.
+2. Add route recognition or its page title in `src/screens/route-controller.js`,
+   then connect rendering in `src/screens/route-renderer.js`.
+3. Put longer workflows or screen-specific state in a controller beside the
+   renderer. Keep `src/app.js` for shared state and connecting controllers.
+4. Add fixture-backed browser checks for the screen's route, empty and error
+   states, and main interaction. Confirm the full suite in CI.
 
 ## Daily edition
 
@@ -399,6 +416,10 @@ alternate constants do not provide automatic failover. Grounding defaults to
 `gemini-3-flash-preview` in `RetrievalConfig`. Provider order, result caps and
 key-file overrides are configuration objects or CLI arguments, not environment
 flags.
+
+For activation criteria, required evidence and rollback steps for experimental
+writer, hybrid, streaming and search-first behavior, see
+[the feature flag rollout checklist](flags.md).
 
 [usage-prices.json](../dev/ingest/usage-prices.json) defaults to estimated caps of
 $2/day and $30/month, bucketed in Eastern time. Reservations precede instrumented

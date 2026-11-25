@@ -6,7 +6,7 @@ import re
 from datetime import date
 
 
-NORMALIZER_VERSION = 'ear-2'
+NORMALIZER_VERSION = 'ear-3'
 _ONES = ('zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine',
          'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen',
          'seventeen', 'eighteen', 'nineteen')
@@ -56,6 +56,7 @@ _NUMBER_TOKEN = r'\d[\d,]*(?:\.\d+)?'
 _SCALE_TOKEN = r'(?:thousand|million|billion|trillion)\b'
 _RANGE = re.compile(
     rf'(?<![\w.])(?P<lc>US\$|[$£€])?\s*(?P<left>{_NUMBER_TOKEN})(?P<ls>\s*{_SCALE_TOKEN})?'
+    r'(?P<lu>\s*(?:%|percent|basis points?|bps))?'
     rf'\s*(?:–|—|\s+to\s+|-)\s*(?P<rc>US\$|[$£€])?\s*(?P<right>{_NUMBER_TOKEN})'
     rf'(?P<rs>\s*{_SCALE_TOKEN})?(?P<unit>\s*(?:%|percent(?:age points?)?|basis points?|bps|dollars?|euros?|pounds?))?', re.I)
 _MONEY = re.compile(
@@ -66,11 +67,26 @@ _NUMBER = re.compile(
     rf'(?P<scale>\s*{_SCALE_TOKEN})?(?P<unit>\s*(?:%|percent(?:age points?)?|basis points?|bps|'
     rf'degrees?\s*[CF]|°\s*[CF]|dollars?|euros?|pounds?|minutes?|hours?|days?|years?|times?))?', re.I)
 _ACRONYMS = {
-    'AI': 'A-I', 'ACH': 'ACH', 'API': 'A-P-I', 'ATM': 'A-T-M', 'CDC': 'C-D-C', 'CEO': 'C-E-O',
-    'CFO': 'C-F-O', 'CPI': 'C-P-I', 'CMS': 'C-M-S', 'FDA': 'F-D-A', 'FBI': 'F-B-I',
-    'GDP': 'G-D-P', 'IRS': 'I-R-S', 'NASA': 'NASA', 'SEC': 'S-E-C', 'UN': 'U-N',
-    'UK': 'U-K', 'US': 'U-S', 'WHO': 'W-H-O',
+    'ACH': 'A C H', 'AI': 'A I', 'API': 'A P I', 'ATM': 'A T M', 'BLS': 'B L S',
+    'CDC': 'C D C', 'CEO': 'C E O', 'CFO': 'C F O', 'CFPB': 'C F P B',
+    'CPI': 'C P I', 'CMS': 'C M S', 'DOD': 'D O D', 'ETF': 'E T F',
+    'FDA': 'F D A', 'FBI': 'F B I', 'FDIC': 'F D I C', 'GDP': 'G D P',
+    'GPU': 'G P U', 'HHS': 'H H S', 'IRS': 'I R S', 'LLM': 'L L M',
+    'AIDS': 'AIDS', 'COVID': 'COVID', 'NASA': 'NASA', 'NATO': 'NATO', 'NOAA': 'NOAA',
+    'OSHA': 'O S H A',
+    'ROI': 'R O I', 'SEC': 'S E C', 'SSA': 'S S A', 'TSMC': 'T S M C',
+    'UN': 'U N', 'UK': 'U K', 'US': 'U S', 'USD': 'U S D', 'EUR': 'E U R',
+    'WHO': 'W H O',
 }
+
+_QUARTER_YEAR = re.compile(r'(?<!\w)(?P<quarter>[1-4])Q(?P<year>\d{2}|20\d{2})\b', re.I)
+_QTR = re.compile(r'\bQ(?P<quarter>[1-4])\b', re.I)
+_FISCAL_YEAR = re.compile(r'\bFY(?P<year>\d{2}|20\d{2})\b', re.I)
+_HALF_YEAR = re.compile(r'\bH(?P<half>[12])\s+(?P<year>\d{2}|20\d{2})\b', re.I)
+_MODEL_NUMBER = re.compile(r'\b(?P<letters>[A-Z]{1,4})-(?P<number>\d{1,4})\b')
+_FILING_FORM = re.compile(r'\b(?P<number>10|8|13)-(?P<letter>[KQF])\b')
+_MULTIPLIER = re.compile(r'(?<!\w)(?P<number>\d+(?:\.\d+)?)[xX]\b')
+_YEAR_SUFFIX = re.compile(r'(?<!\w)(?P<number>\d{1,2})(?:y|yr)\b', re.I)
 
 
 def _under_thousand(value: int) -> str:
@@ -189,7 +205,7 @@ def _date_parts(year: int | None, month: str, day: str) -> str:
 
 def _speak_acronym(match: re.Match) -> str:
     acronym = match.group(1)
-    return _ACRONYMS.get(acronym, '-'.join(acronym))
+    return _ACRONYMS.get(acronym, ' '.join(acronym))
 
 
 def _normalize_number(match: re.Match) -> str:
@@ -219,7 +235,7 @@ def _normalize_range(match: re.Match) -> str:
     left, right = match.group('left'), match.group('right')
     left_currency, right_currency = match.group('lc'), match.group('rc')
     scale = _scale_words(match.group('ls') or match.group('rs'))
-    unit = (match.group('unit') or '').strip().lower()
+    unit = (match.group('unit') or match.group('lu') or '').strip().lower()
     currency = left_currency or right_currency
     is_money = bool(currency) or unit.rstrip('s') in {'dollar', 'euro', 'pound'}
     if is_money:
@@ -294,6 +310,58 @@ def _normalize_paragraph(text: str) -> str:
     text = _TIME.sub(time_words, text)
     text = re.sub(r'\b([ap])\.?\s*m\.\s+(?=(?:eastern|central|mountain|pacific|et|ct|mt|pt)\b)',
                   lambda match: match.group(1) + ' m ', text, flags=re.I)
+
+    def year_label(raw):
+        year = int(raw)
+        return _year_words(year if year >= 1000 else 2000 + year)
+
+    def quarter_label(raw):
+        quarter = int(raw)
+        return _ordinal_words(quarter) + ' quarter'
+
+    text = re.sub(r'\bL3Harris\b', 'L three Harris', text, flags=re.I)
+    text = re.sub(r'\bCOVID-19\b', 'COVID nineteen', text, flags=re.I)
+    text = _QUARTER_YEAR.sub(lambda match: f"{quarter_label(match.group('quarter'))} "
+                              f"{year_label(match.group('year'))}", text)
+    text = _QTR.sub(lambda match: quarter_label(match.group('quarter')), text)
+    text = _FISCAL_YEAR.sub(lambda match: 'fiscal year ' + year_label(match.group('year')), text)
+    text = _HALF_YEAR.sub(lambda match: ('first' if match.group('half') == '1' else 'second') +
+                          ' half ' + year_label(match.group('year')), text)
+    text = re.sub(r'\bNo\.\s*(?=\d)', 'Number ', text, flags=re.I)
+    text = re.sub(r'\bvs\.(?=\W|$)', 'versus', text, flags=re.I)
+    text = re.sub(r'(?<!\w)401\(k\)(?=\W|$)', 'four oh one K', text, flags=re.I)
+    text = re.sub(r'\b529(?=\s+plan\b)', 'five twenty-nine', text, flags=re.I)
+    text = re.sub(r'(?<!\w)([1-9])G\b', lambda match: _integer_words(int(match.group(1))) + ' G', text)
+    text = re.sub(r'(?<!\w)([48])K\b', lambda match: _integer_words(int(match.group(1))) + ' K', text)
+    text = re.sub(r'\bB2B\b', 'business to business', text, flags=re.I)
+    text = re.sub(r'\bB2C\b', 'business to consumer', text, flags=re.I)
+    text = re.sub(r'\bYoY\b', 'year over year', text, flags=re.I)
+    text = re.sub(r'\bQoQ\b', 'quarter over quarter', text, flags=re.I)
+    text = re.sub(r'\bMoM\b', 'month over month', text, flags=re.I)
+    text = re.sub(r'\b13F\b', 'thirteen F', text, flags=re.I)
+    text = re.sub(r'\bx86\b', 'x eighty-six', text, flags=re.I)
+    text = re.sub(r'\b24/7\b', 'twenty-four seven', text)
+    text = re.sub(r'(?<!\w)(?P<n>\d+)\s*/\s*(?P<d>\d+)(?!\w)',
+                  lambda match: {'1/2': 'one half', '1/4': 'one quarter', '3/4': 'three quarters'}
+                  .get(f"{match.group('n')}/{match.group('d')}",
+                       f"{_integer_words(int(match.group('n')))} over {_integer_words(int(match.group('d')))}"), text)
+    text = re.sub(r'(?<!\w)(?P<n>\d+)\s*[- ]to[- ]\s*(?P<d>\d+)(?!\w)',
+                  lambda match: f"{_integer_words(int(match.group('n')))} to "
+                  f"{_integer_words(int(match.group('d')))}", text, flags=re.I)
+    text = re.sub(r'(?<!\w)(?P<n>\d+(?:\.\d+)?)%\+',
+                  lambda match: _number_words(match.group('n')) + ' percent or more', text)
+    text = _MULTIPLIER.sub(lambda match: _number_words(match.group('number')) + ' times', text)
+    text = _YEAR_SUFFIX.sub(lambda match: _number_words(match.group('number')) + '-year', text)
+    text = _FILING_FORM.sub(lambda match: _number_words(match.group('number')) + ' ' + match.group('letter'), text)
+    text = _MODEL_NUMBER.sub(lambda match: ' '.join(match.group('letters')) + ' ' +
+                             _number_words(match.group('number')), text)
+    text = re.sub(r'(?<!\w)(?P<n>\d+(?:\.\d+)?)\s*bp\b',
+                  lambda match: _number_words(match.group('n')) + ' basis points', text, flags=re.I)
+    text = re.sub(r'(?<!\w)(?P<n>\d+(?:\.\d+)?)(?P<suffix>bn|mm|[kmbt])\b',
+                  lambda match: match.group('n') + ' ' + {
+                      'bn': 'billion', 'mm': 'million', 'k': 'thousand', 'm': 'million',
+                      'b': 'billion', 't': 'trillion'}[match.group('suffix').casefold()],
+                  text, flags=re.I)
     text = _RANGE.sub(_normalize_range, text)
 
     def money(match: re.Match) -> str:
@@ -311,14 +379,14 @@ def _normalize_paragraph(text: str) -> str:
         prefix = re.split(r'[.!?]\s+', prefix)[-1]
         phrase_match = re.search(r'((?:(?:[A-Z][\w’&-]*|for|and|of|the)\s+){1,8}[A-Z][\w’&-]*)\s*\($', prefix)
         if phrase_match:
-            return 'or ' + '-'.join(acronym)
+            return 'or ' + ' '.join(acronym)
         return _speak_acronym(match)
 
     text = re.sub(r'\b([A-Z]{2,8})\b', paired_acronym, text)
-    text = re.sub(r'\s*\(\s*or ([A-Z](?:-[A-Z])+?)\s*\)', r', or \1', text)
-    text = re.sub(r'(?i)\bU\.S\.(?=\W|$)', 'U-S', text)
-    text = re.sub(r'(?i)\bU\.K\.(?=\W|$)', 'U-K', text)
-    text = re.sub(r'\b(?:[A-Z]\.){2,8}\b', lambda match: '-'.join(match.group(0).replace('.', '')), text)
+    text = re.sub(r'\s*\(\s*or ((?:[A-Z]\s+)+[A-Z])\s*\)', r', or \1', text)
+    text = re.sub(r'(?i)\bU\.S\.(?=\W|$)', 'U S', text)
+    text = re.sub(r'(?i)\bU\.K\.(?=\W|$)', 'U K', text)
+    text = re.sub(r'\b(?:[A-Z]\.){2,8}\b', lambda match: ' '.join(match.group(0).replace('.', '')), text)
     text = _GLUED_CURRENCY_PREPOSITION.sub(lambda match: f"{match.group('currency')} {match.group('next')}", text)
     text = re.sub(r'\s*&\s*', ' and ', text)
     text = re.sub(r'\s*/\s*', ' per ', text)
@@ -329,7 +397,7 @@ def _normalize_paragraph(text: str) -> str:
     text = text.replace('—', ', ').replace('–', ', ').replace(';', '.')
     text = re.sub(r'\(\s*\)', '', text)
     text = re.sub(r'\(([^()]*)\)', r', \1', text)
-    text = re.sub(r'\s*#\s*(?=\w)', 'number ', text)
+    text = re.sub(r'\s*#\s*(?=\w)', ' number ', text)
     text = re.sub(r'\s*\+\s*', ' plus ', text)
     text = re.sub(r'\s*=\s*', ' equals ', text)
     text = re.sub(r'\s*:\s*', ', ', text)

@@ -1,9 +1,11 @@
 import { narratorDisplayName } from '../player.js';
+import { mountAccountSettings } from './account.js';
 
 export function renderSettingsScreen({
   content, node, link, dailyTimeValue, formatEasternTime, nextDailyRunTime, interestProfile,
   navigate, resetBehaviorWeighting, player, NARRATOR_KEY, refreshLastUpdated,
   getState, setState, saveState, localStorage, sessionStorage, resetChoices,
+  accountApi, accountsEnabled, onAccountChange,
 }) {
   document.querySelector('[data-page-title]').textContent = '';
   content.append(node('h1', 'Settings'));
@@ -172,6 +174,7 @@ export function renderSettingsScreen({
   const reset = node('button', 'Reset this browser’s choices'); reset.type = 'button';
   reset.addEventListener('click', resetChoices);
   content.append(node('hr', null, 'rule'), reset, node('p', 'Reset clears local choices, saves and listening progress. It does not affect another device.', 'local-note'));
+  void mountAccountSettings({ content, node, api: accountApi, enabled: accountsEnabled, onAccountChange });
 }
 
 

@@ -33,8 +33,11 @@ MAX_RESPONSE_BYTES = 2_000_000
 MAX_TRANSPORT_READ_BYTES = 8_000_000
 TIMEOUT_SECONDS = 12
 MAX_SINGLE_WAIT_SECONDS = 60
+ROBOTS_REQUEST_INTERVAL_SECONDS = 1
+SAME_HOST_FEED_INTERVAL_CAP_SECONDS = 3
 FETCH_BUDGET_SECONDS = 90
 FETCH_MAX_WORKERS = 8
+SAME_RUN_ARTICLE_INTERVAL_SECONDS = 3
 USER_AGENT = 'BriefingBot/1.0'
 RIGHTS_POLICY_VERSION = '2026-11-17.1'
 ROBOTS_RECHECK = timedelta(days=7)
@@ -394,6 +397,35 @@ def _child_text(element, name):
     return next((_clean_text(' '.join(node.itertext())) for node in element if _local_name(node.tag) == target), '')
 
 
+class _FeedLinkParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.href = ''
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() == 'a' and not self.href:
+            self.href = dict(attrs).get('href', '')
+
+
+def _feed_link(raw, base_url):
+    """Recover a link from publisher RSS fields that contain escaped anchor HTML."""
+    raw = str(raw or '').strip()
+    if not raw:
+        return None
+    decoded = html.unescape(raw)
+    if '<a' in decoded.casefold():
+        parser = _FeedLinkParser()
+        try:
+            parser.feed(decoded)
+        except (ValueError, AssertionError):
+            pass
+        raw = parser.href or decoded
+    else:
+        raw = decoded
+    raw = _clean_text(raw, 2000)
+    return canonical_link(urljoin(base_url, raw)) if raw else None
+
+
 def _feed_items(body, source, fetched_at):
     root = ET.fromstring(body)
     records = [node for node in root.iter() if _local_name(node.tag) in {'item', 'entry'}]
@@ -405,11 +437,10 @@ def _feed_items(body, source, fetched_at):
         link = ''
         for child in record:
             if _local_name(child.tag) == 'link':
-                link = child.attrib.get('href') or _clean_text(child.text)
+                link = child.attrib.get('href') or ''.join(child.itertext()).strip()
                 if child.attrib.get('rel', 'alternate') == 'alternate':
                     break
-        original_link = urljoin(source['url'], link) if link else None
-        link = canonical_link(original_link) if original_link else None
+        link = _feed_link(link, source['url']) if link else None
         if not link:
             continue
         description = _child_text(record, 'description') or _child_text(record, 'summary')
@@ -427,7 +458,7 @@ def _feed_items(body, source, fetched_at):
         published = _child_text(record, 'pubDate') or _child_text(record, 'published')
         updated = _child_text(record, 'updated') or _child_text(record, 'modified')
         item = _make_item(source, title, summary, link, published, fetched_at, updated=updated,
-                          original_url=original_link)
+                          original_url=link)
         if access in {'feed-full', 'full-text'} and len(feed_body) >= 300:
             item['feed_body'] = feed_body
             item['feed_body_method'] = feed_body_method or 'feed_full'
@@ -549,11 +580,8 @@ class _ArticleTextParser(HTMLParser):
 
 
 def _is_paywalled(text):
-    indicators = ('subscribe to continue', 'subscription required', 'subscriber-only',
-                  'already a subscriber', 'register to continue', 'sign in to read',
-                  'this content is for subscribers', 'paywall')
-    lowered = text.lower()
-    return any(indicator in lowered for indicator in indicators)
+    from .extract.readable import content_stub_reason
+    return content_stub_reason(text) is not None
 
 
 def fetch_article_text(url, source, opener=None, robots_cache_path=ROBOTS_CACHE_PATH, diagnostics=None,
@@ -614,6 +642,7 @@ def fetch_article_text(url, source, opener=None, robots_cache_path=ROBOTS_CACHE_
         return None
     request = Request(canonical, headers={'User-Agent': USER_AGENT,
                       'Accept': 'text/html, application/pdf, text/plain' if use_extractor else 'text/html'})
+    outcome('article_request_started')
     try:
         response = opener(request, timeout=_timeout_for_deadline(deadline))
     except HTTPError as error:
@@ -703,8 +732,10 @@ def fetch_article_text(url, source, opener=None, robots_cache_path=ROBOTS_CACHE_
     if not text:
         outcome('empty_article')
         return None
-    if _is_paywalled(text):
-        outcome('paywall_check_failed')
+    from .extract.readable import content_stub_reason
+    stub_reason = content_stub_reason(text)
+    if stub_reason:
+        outcome(stub_reason)
         return None
     outcome('ok', len(text))
     return text
@@ -805,13 +836,20 @@ def parse_source(body, source, fetched_at=None):
 
 
 def _filter_source_items(items, source):
-    """Apply registry-declared item filters before housing-TV firehoses enter storage."""
+    """Apply registry-declared include and paywall-marker filters to feed items."""
     keywords = source.get('item_keyword_filter')
-    if not isinstance(keywords, list) or not keywords:
-        return items
-    terms = [str(value).strip().casefold() for value in keywords if isinstance(value, str) and value.strip()]
-    return [item for item in items if any(term in f"{item.get('title', '')} {item.get('snippet', '')}".casefold()
-                                          for term in terms)]
+    if isinstance(keywords, list) and keywords:
+        terms = [str(value).strip().casefold() for value in keywords if isinstance(value, str) and value.strip()]
+        items = [item for item in items if any(term in f"{item.get('title', '')} {item.get('snippet', '')}".casefold()
+                                               for term in terms)]
+    excluded = source.get('item_exclude_markers')
+    if isinstance(excluded, list) and excluded:
+        markers = [str(value).strip().casefold() for value in excluded
+                   if isinstance(value, str) and value.strip()]
+        items = [item for item in items if not any(
+            marker in f"{item.get('title', '')} {item.get('snippet', '')}".casefold()
+            for marker in markers)]
+    return items
 
 
 def _json_value(record, path):
@@ -939,13 +977,19 @@ def _wait_for_host(host, interval, deadline=None):
     with _schedule_lock:
         previous = _last_request_by_host.get(host)
         scheduled = max(now, previous + interval) if previous is not None else now
-        if deadline is not None and scheduled >= deadline:
+        wait = scheduled - now
+        if deadline is not None and wait >= max(0.0, deadline - now):
             raise TimeoutError('Feed fetch budget expired while observing the host rate limit.')
         _last_request_by_host[host] = scheduled
-    delay = scheduled - now
-    if delay > 0:
-        time.sleep(delay)
-    if deadline is not None and time.monotonic() >= deadline:
+    if wait > 0:
+        time.sleep(wait)
+    after_wait = time.monotonic()
+    with _schedule_lock:
+        # Another operation can advance past a reserved slot while this thread
+        # sleeps. Anchor the next request to the actual wake time so same-host
+        # requests still honor their minimum gap.
+        _last_request_by_host[host] = max(_last_request_by_host.get(host, after_wait), after_wait)
+    if deadline is not None and after_wait >= deadline:
         raise TimeoutError('Feed fetch budget expired while observing the host rate limit.')
 
 
@@ -970,7 +1014,8 @@ def article_candidate_priority(cluster, deadline=None):
             priorities.append(0)
         elif (access in {'full-text', 'transient-read'} or source.get('allow_article_fetch')) and source.get('paywalled') is not True:
             host = (urlsplit(item.get('url', '')).hostname or '').lower()
-            delay = host_wait_seconds(host, max(source.get('minimum_interval_seconds', 1),
+            delay = host_wait_seconds(host, max(min(source.get('minimum_interval_seconds', 1),
+                                                    SAME_RUN_ARTICLE_INTERVAL_SECONDS),
                                                 5 if host.endswith('gdeltproject.org') else 1))
             priorities.append(1 if deadline is not None and time.monotonic() + delay + 1.5 >= deadline else 0)
         else:
@@ -1132,7 +1177,7 @@ def _robots_policy(url, opener=None, cache_path=ROBOTS_CACHE_PATH, now=None, dea
     rules = []
     try:
         if not skip_rate_limit:
-            _wait_for_host(host, max(1, 5 if host.endswith('gdeltproject.org') else 1), deadline)
+            _wait_for_host(host + '#robots', ROBOTS_REQUEST_INTERVAL_SECONDS, deadline)
         response = opener(Request(robots_url, headers={'User-Agent': USER_AGENT}), timeout=_timeout_for_deadline(deadline))
         with response:
             final = urlsplit(response.geturl())
@@ -1331,19 +1376,25 @@ def _fetch_host_group(host_sources, source_cache, robots_path, opener, now, dead
             break
         request_source = dict(source)
         request_source.update(source_cache.get(source['id'], {}))
+        if len(host_sources) > 1:
+            # A registry interval protects repeat access to a publisher across
+            # runs. Within one feed batch, same-host URLs share a bounded gap;
+            # fetch_source still honors any longer robots crawl-delay.
+            request_source['minimum_interval_seconds'] = min(
+                request_source.get('minimum_interval_seconds', 60),
+                SAME_HOST_FEED_INTERVAL_CAP_SECONDS)
         if include_transient and source.get('article_access') in {'feed-full', 'full-text'}:
             # The store deliberately excludes bodies. A 304 cannot rehydrate
             # this run's ephemeral evidence, even though its headlines survive.
             request_source.pop('etag', None)
             request_source.pop('last_modified', None)
         try:
-            # Sources sharing one host are already serialized by this worker.
-            # Apply the host politeness interval before the first request, but
-            # do not spend the entire fetch window sleeping between feeds in
-            # the same run.
+            # Sources sharing one host are serialized by this worker. Robots
+            # checks have their own short schedule; feed requests still obey
+            # the source's content-request interval.
             items, metadata = fetch_source(request_source, opener=opener, now=now,
                                           robots_cache_path=robots_path, deadline=deadline,
-                                          skip_rate_limit=(index > 0))
+                                          skip_rate_limit=False)
             results.append((source['id'], items, metadata, None))
         except TimeoutError:
             results.append((source['id'], [], {}, 'timeout'))

@@ -2,12 +2,12 @@
   {
     "name": "money dates rates citations and link-only references",
     "input": "On Nov 12, the SEC said $2.5 billion changed hands, a 12.5% increase from 3–5%. See https://news.example.test/item [1, 2]. See [the source](https://news.example.test/source).",
-    "expected": "On November twelfth, the S-E-C said two and a half billion dollars changed hands, a twelve point five percent increase from three to five percent. See the source."
+    "expected": "On November twelfth, the S E C said two and a half billion dollars changed hands, a twelve point five percent increase from three to five percent. See the source."
   },
   {
     "name": "ISO dates years acronyms ordinals ranges and a clock time",
     "input": "By 2026-11-12, AI and PV suppliers reported 21st-century gains.\n\nA 2019–2024 measure rose 50 bps at 5:05 a.m.",
-    "expected": "By November twelfth, twenty twenty-six, A-I and P-V suppliers reported twenty-first-century gains.\n\nA twenty nineteen to twenty twenty-four measure rose fifty basis points at five o five a m."
+    "expected": "By November twelfth, twenty twenty-six, A I and P V suppliers reported twenty-first-century gains.\n\nA twenty nineteen to twenty twenty-four measure rose fifty basis points at five o five a m."
   },
   {
     "name": "cents currency signs ordinals and symbol words",
@@ -17,7 +17,7 @@
   {
     "name": "live spoken date time money and acronym defects",
     "input": "The agreement began on August 7, 2024 and ended September 3, 2026. It starts at 11:00 a.m. Eastern. The agency discussed $90 billion over five years, or 12.5 percent. U.S. offices briefed CMS, AI, and SNB on the 21st and 3rd.",
-    "expected": "The agreement began on August seventh, twenty twenty-four and ended September third, twenty twenty-six. It starts at eleven a m Eastern. The agency discussed ninety billion dollars over five years, or twelve point five percent. U-S offices briefed C-M-S, A-I, and S-N-B on the twenty-first and third."
+    "expected": "The agreement began on August seventh, twenty twenty-four and ended September third, twenty twenty-six. It starts at eleven a m Eastern. The agency discussed ninety billion dollars over five years, or twelve point five percent. U S offices briefed C M S, A I, and S N B on the twenty-first and third."
   },
   {
     "name": "repair already verbalized date time and currency concatenation",

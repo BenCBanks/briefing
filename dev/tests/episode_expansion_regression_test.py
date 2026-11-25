@@ -13,7 +13,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-from dev.ingest.episodes.generate import generate_episode
+from dev.ingest.episodes.generate import generate_episode, _episode_length_report
 from dev.ingest.episodes.policy import WORDS_PER_MINUTE
 from dev.ingest.episodes.script_checks import score_episode_quality, score_episode_script
 from dev.ingest.retrieval import Candidate
@@ -83,7 +83,7 @@ class LengthFixtureClient:
             return payload['repair']['previous_script']
         if 'script' in payload:
             return {'on_topic': True, 'coherent': True, 'uncertainty_relevant': True,
-                    'verdicts': [{'id': row['id'], 'supported': True}
+                    'verdicts': [{'id': row['id'], 'supported': True, 'relevant': True}
                                  for row in payload['script'] if row['kind'] != 'navigation']}
         raise AssertionError(f'unexpected mock-writer payload: {sorted(payload)}')
 
@@ -103,6 +103,23 @@ def _fixture_research(angles):
 
 
 class EpisodeExpansionRegressionTests(unittest.TestCase):
+    def test_length_report_identifies_verification_as_the_largest_word_loss(self):
+        plan = [{'target_words': 350}, {'target_words': 350}]
+        chapters = [
+            {'sentences': [{'text': 'One two three.', 'kind': 'claim'}]},
+            {'sentences': [{'text': 'Four five six.', 'kind': 'claim'}]},
+        ]
+        report = _episode_length_report(700, 710, 700, 260, 250, 245, plan, chapters,
+                                        [355, 355], {'attempts': 2, 'applied': 2, 'failed': 0})
+        self.assertEqual(report['lost_at_stage'], 'verification_pruning')
+        self.assertEqual(report['word_loss_by_stage']['verification_pruning'], 440)
+        self.assertEqual(report['chapter_budgets'][0], {
+            'chapter': 1, 'target_words': 350, 'minimum_words': 315,
+            'writer_words': 355, 'got_words': 3})
+        self.assertEqual(report['chapter_expansion'], {'attempts': 2, 'applied': 2, 'failed': 0})
+        self.assertEqual(report['report_line'],
+                         'requested 700 words, got 245, lost at stage verification_pruning')
+
     def test_mocked_writer_meets_each_requested_length_and_chapter_share(self):
         for minutes in TARGETS:
             with self.subTest(minutes=minutes), tempfile.TemporaryDirectory() as state_dir:
@@ -134,10 +151,20 @@ class EpisodeExpansionRegressionTests(unittest.TestCase):
                 lint = score_episode_script({'chapters': episode['chapters'], 'requested_minutes': minutes})
                 self.assertTrue(lint['passed'], lint)
                 self.assertEqual(lint['word_count'], episode['word_count'])
-                self.assertEqual(lint['words_per_minute'], 140)
+                self.assertEqual(lint['words_per_minute'], 150)
                 self.assertEqual(len(episode['chapters']), question_count)
                 self.assertGreater(episode['chapter_expansion']['attempts'], 0)
                 self.assertEqual(episode['chapter_expansion']['applied'], episode['chapter_expansion']['attempts'])
+                self.assertEqual(episode['chapter_expansion']['threshold_fraction'], .90)
+                self.assertTrue(all(payload['minimum_words'] == (payload['target_words'] * 9 + 9) // 10
+                                    for payload in client.payloads if payload.get('expansion_pass')))
+                report = episode['length_report']
+                self.assertEqual(report['requested_words'], target)
+                self.assertEqual(report['final_words'], episode['word_count'])
+                self.assertIn(f"requested {target} words, got {episode['word_count']}, lost at stage ",
+                              report['report_line'])
+                self.assertTrue(all(row['got_words'] >= row['minimum_words']
+                                    for row in report['chapter_budgets']))
                 for chapter, angle in zip(episode['chapters'], angles):
                     chapter_words = sum(len(row['text'].split()) for row in chapter['sentences'])
                     target_share = target / question_count

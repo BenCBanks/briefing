@@ -131,8 +131,9 @@ def run_checks(base_url, today=None, fetch=http_get):
     def check_play_route():
         check_shell('/#today', 'Play', ['src/app.js', 'id="player-root"'])
         app = get_bytes('/src/app.js').decode('utf-8', errors='replace')
+        interactions = get_bytes('/src/screens/story-interactions.js').decode('utf-8', errors='replace')
         player = get_bytes('/src/player.js').decode('utf-8', errors='replace')
-        if 'function startListening(' not in app or 'function listen(item' not in player:
+        if 'createStoryInteractionController' not in app or 'function startListening(' not in interactions or 'function listen(item' not in player:
             raise ValueError('Play route or player handler is missing.')
         return 'HTTP 200; Today shell and listening handlers present'
 
@@ -149,8 +150,9 @@ def run_checks(base_url, today=None, fetch=http_get):
         route = f'/#edition/daily/{edition_id}/{section_id}'
         check_shell(route, 'Transcript', ['src/app.js', 'id="content"'])
         app = get_bytes('/src/app.js').decode('utf-8', errors='replace')
+        interactions = get_bytes('/src/screens/story-interactions.js').decode('utf-8', errors='replace')
         edition_client = get_bytes('/src/edition/edition.js').decode('utf-8', errors='replace')
-        if 'function openTranscript(' not in app or 'export function renderEdition(' not in edition_client:
+        if 'createStoryInteractionController' not in app or 'function openTranscript(' not in interactions or 'export function renderEdition(' not in edition_client:
             raise ValueError('Transcript or edition rendering handler is missing.')
         return 'HTTP 200; edition deep-link shell and transcript/rendering handlers present'
 

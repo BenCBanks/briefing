@@ -19,6 +19,7 @@ from pathlib import Path
 from uuid import uuid4
 
 from .paths import STATE_DIR, checked_state_path
+from .flags import setting as feature_flag
 from .score_edition import _likely_names, _name_supported, _numeric_assertions, _sentence_supported
 
 SCRIPT_MODEL = 'gemini-3.8-flash'
@@ -48,6 +49,7 @@ NARRATION_FAILURE_REASONS = {
     'narration_repeated_formula_or_vague_ending', 'narration_assembly',
     'narration_repeated_headline',
     'narration_repeated_read_takeaway',
+    'daily_outline_pre_audio_check',
     'number is outside the supported speech range',
     'story contains a number format that is not supported for speech',
 }
@@ -73,6 +75,22 @@ SCRIPT_SCHEMA = {
                 }, 'required': ['text', 'evidence_ids', 'general_context']
             }}
         }, 'required': ['section_id', 'sentences']
+    }}}, 'required': ['stories']
+}
+OUTLINE_SCRIPT_SCHEMA = {
+    'type': 'OBJECT', 'properties': {'stories': {'type': 'ARRAY', 'items': {
+        'type': 'OBJECT', 'properties': {
+            'section_id': {'type': 'STRING'},
+            'paragraphs': {'type': 'ARRAY', 'items': {
+                'type': 'OBJECT', 'properties': {'sentences': {'type': 'ARRAY', 'items': {
+                    'type': 'OBJECT', 'properties': {
+                        'text': {'type': 'STRING'},
+                        'evidence_ids': {'type': 'ARRAY', 'items': {'type': 'STRING'}},
+                        'general_context': {'type': 'BOOLEAN'}
+                    }, 'required': ['text', 'evidence_ids', 'general_context']
+                }}}, 'required': ['sentences']
+            }}
+        }, 'required': ['section_id', 'paragraphs']
     }}}, 'required': ['stories']
 }
 VERIFY_SCHEMA = {
@@ -522,6 +540,112 @@ def _valid_writer_result(value, expected_ids):
     return clean
 
 
+def _daily_answer_outline(story_payload):
+    """Tie each story's answer to its selected evidence and record thin supply."""
+    outline = []
+    for story in story_payload:
+        evidence_ids = [row['id'] for row in story.get('evidence', []) if isinstance(row, dict)
+                        and isinstance(row.get('id'), str)]
+        heading = str(story.get('heading') or 'this story').strip()
+        thin = len(evidence_ids) < 2
+        outline.append({'section_id': story['section_id'],
+                        'question': f"What does the evidence show about {heading}?",
+                        'evidence_ids': evidence_ids,
+                        'not_found': ('What additional detail could not be confirmed?' if thin else '')})
+    return outline
+
+
+def _valid_outline_writer_result(value, outline):
+    """Flatten a paragraph-shaped outline draft for the existing evidence review."""
+    if not isinstance(value, dict) or not isinstance(value.get('stories'), list):
+        return None
+    expected_ids = [item['section_id'] for item in outline]
+    rows = value['stories']
+    if [row.get('section_id') if isinstance(row, dict) else None for row in rows] != expected_ids:
+        return None
+    clean = {}
+    for story, outline_row in zip(rows, outline):
+        paragraphs = story.get('paragraphs')
+        if not isinstance(paragraphs, list) or not paragraphs:
+            return None
+        sentences = []
+        for paragraph_index, paragraph in enumerate(paragraphs):
+            paragraph_rows = paragraph.get('sentences') if isinstance(paragraph, dict) else None
+            if not isinstance(paragraph_rows, list) or not paragraph_rows:
+                return None
+            for row in paragraph_rows:
+                if (not isinstance(row, dict) or not isinstance(row.get('text'), str) or
+                        not row['text'].strip() or not isinstance(row.get('evidence_ids'), list) or
+                        not all(isinstance(item, str) for item in row['evidence_ids']) or
+                        type(row.get('general_context')) is not bool):
+                    return None
+                sentences.append({'text': row['text'].strip(),
+                                  'evidence_ids': list(dict.fromkeys(row['evidence_ids'])),
+                                  'general_context': row['general_context'],
+                                  'paragraph_index': paragraph_index,
+                                  'outline_gap': bool(not outline_row['evidence_ids'] or outline_row['not_found']) and
+                                      bool(re.search(r"\b(?:couldn't|could not) (?:confirm|find|verify|establish)|"
+                                                     r"\bno solid evidence\b", row['text'], re.I))})
+        clean[story['section_id']] = sentences
+    return clean
+
+
+def _daily_outline_pre_audio_issues(draft, outline, *, paragraph_word_limit=110):
+    """Reject incomplete, unmapped or audio-unfriendly outline-first drafts."""
+    stories = draft.get('stories') if isinstance(draft, dict) else None
+    expected_ids = [item['section_id'] for item in outline]
+    if not isinstance(stories, list) or [row.get('section_id') if isinstance(row, dict) else None
+                                         for row in stories] != expected_ids:
+        return ['story_count_or_order_mismatch']
+    issues = []
+    for story, outline_row in zip(stories, outline):
+        paragraphs = story.get('paragraphs')
+        if not isinstance(paragraphs, list) or not paragraphs:
+            issues.append('story_has_no_paragraph')
+            continue
+        allowed = set(outline_row['evidence_ids'])
+        thin = bool(outline_row['not_found'])
+        gap_paragraphs = []
+        for paragraph in paragraphs:
+            sentence_rows = paragraph.get('sentences') if isinstance(paragraph, dict) else None
+            if not isinstance(sentence_rows, list) or not sentence_rows:
+                issues.append('empty_paragraph')
+                continue
+            paragraph_words = 0
+            mapped = False
+            for row in sentence_rows:
+                if not isinstance(row, dict) or not isinstance(row.get('text'), str):
+                    issues.append('invalid_sentence')
+                    continue
+                text = row['text'].strip()
+                paragraph_words += _words(text)
+                if text and not re.search(r"[.!?…][”\"’']?$", text):
+                    issues.append('cut_off_sentence')
+                ids = row.get('evidence_ids', [])
+                if not isinstance(ids, list) or any(ident not in allowed for ident in ids):
+                    issues.append('paragraph_evidence_outside_story')
+                if ids:
+                    mapped = True
+            if paragraph_words > paragraph_word_limit:
+                issues.append('paragraph_too_long')
+            paragraph_text = ' '.join(row.get('text', '') for row in sentence_rows
+                                      if isinstance(row, dict)).strip()
+            is_gap = bool(re.search(
+                r"\b(?:couldn't|could not) (?:confirm|find|verify|establish)|\bno solid evidence\b",
+                paragraph_text, re.I))
+            if allowed and not mapped and not (thin and is_gap and len(sentence_rows) == 1):
+                issues.append('paragraph_not_mapped_to_story')
+            if is_gap:
+                gap_paragraphs.append((paragraph, paragraph_text))
+        if thin:
+            if (len(gap_paragraphs) != 1 or len(gap_paragraphs[0][0].get('sentences', [])) != 1 or
+                    paragraphs[-1] is not gap_paragraphs[0][0]):
+                issues.append('thin_story_gap_missing_or_not_its_own_beat')
+        elif gap_paragraphs:
+            issues.append('gap_claim_without_outline_note')
+    return list(dict.fromkeys(issues))
+
+
 def _verify_sentences(stories, evidence_by_story, call_json):
     submitted = []
     for section_id, sentences in stories.items():
@@ -576,6 +700,10 @@ def _normalize_verifier_indices(verdict_rows, stories):
 
 def _deterministically_supported(sentence, evidence):
     text = sentence['text']
+    if sentence.get('outline_gap') is True:
+        return (not sentence.get('evidence_ids') and
+                bool(re.fullmatch(r"(?:I couldn't|I could not) (?:confirm|find|verify|establish) "
+                                  r"[^.!?]+[.!?]", text, re.I)))
     cited = ' '.join(row['text'] for row in evidence if row['id'] in sentence['evidence_ids'])
     reference_text = ' '.join(' '.join((row['outlet'], row['title'])) for row in evidence
                               if row['id'] in sentence['evidence_ids'])
@@ -645,6 +773,11 @@ def _write_narration_debug(reason, draft, findings, verifier_results=None):
 
 
 def _safe_failure_reason(error):
+    from dev.interpreter_proxy import safe_proxy_error_reason
+
+    proxy_reason = safe_proxy_error_reason(error)
+    if proxy_reason:
+        return proxy_reason
     message = str(error)
     if message in NARRATION_FAILURE_REASONS or re.fullmatch(r'narration_[a-z0-9_]{1,80}', message):
         return message
@@ -874,10 +1007,22 @@ def _apply_narration(edition, profile, stories, evidence_by_story):
         # headings, topic labels, publication dates, or stock transitions into
         # its sentences after the fact.
         announced_topics.add(topic_key)
-        narration = []
-        final_sentences = [row['text'] for row in sentence_rows]
-        narration.extend(final_sentences)
-        section_text[section_id] = ' '.join(narration)
+        paragraph_groups = []
+        for row in sentence_rows:
+            paragraph_index = row.get('paragraph_index')
+            if paragraph_index is None:
+                paragraph_groups.append(row['text'])
+                continue
+            if not paragraph_groups or not isinstance(paragraph_groups[-1], list) or \
+                    paragraph_groups[-1][0] != paragraph_index:
+                paragraph_groups.append([paragraph_index, row['text']])
+            else:
+                paragraph_groups[-1][1] += ' ' + row['text']
+        if paragraph_groups and isinstance(paragraph_groups[0], list):
+            final_text = '\n\n'.join(group[1] for group in paragraph_groups if isinstance(group, list))
+        else:
+            final_text = ' '.join(row['text'] for row in sentence_rows)
+        section_text[section_id] = final_text
         section_ids[section_id] = list(dict.fromkeys(item for row in sentence_rows for item in row['evidence_ids']))
         evidence_rows = {row['id']: row for row in evidence_by_story.get(section_id, [])}
         section_citations[section_id] = sorted({number for sentence_id in section_ids[section_id]
@@ -1013,7 +1158,8 @@ def _apply_narration(edition, profile, stories, evidence_by_story):
 
 
 def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_json,
-                        input_token_counter=None, input_token_limit=NARRATION_MODEL_INPUT_TOKEN_LIMIT):
+                        input_token_counter=None, input_token_limit=NARRATION_MODEL_INPUT_TOKEN_LIMIT,
+                        _force_legacy=False):
     """Generate and verify one spoken script for an edition using injected calls.
 
     ``input_token_counter`` is supplied by the caller so each provider model
@@ -1039,6 +1185,7 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                 raise RuntimeError('narration_input_token_limit')
         return call_json(system_prompt, user_text, response_schema, api_key, **kwargs)
     original = deepcopy(edition)
+    outline_writer_on = not _force_legacy and feature_flag('daily_outline_writer')
     debug_files = []
     draft = None
     findings = []
@@ -1079,6 +1226,17 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
         prompt = json.dumps({'edition_date': edition.get('local_date'), 'target_words_per_story': target_words,
                              'daily_target_words': DAILY_TARGET_WORDS, 'stories': story_payload},
                             ensure_ascii=False, separators=(',', ':'))
+        answer_outline = _daily_answer_outline(story_payload) if outline_writer_on else None
+        outline_system = SCRIPT_PROMPT.format(target_words=target_words) + (
+            '\nOUTLINE-FIRST DAILY HOST PASS: The supplied daily_answer_outline is the coverage plan. '
+            'Write exactly one story in the given order for each section_id. Each story has one or more '
+            'short paragraphs; keep every paragraph at or below 110 words. Every paragraph must answer '
+            'that story question and every factual sentence must cite only evidence IDs listed for that story. '
+            'The question and outline are planning text, not spoken text. If not_found is non-empty, add exactly '
+            'one final, separate paragraph with one plain sentence saying what could not be confirmed. Do not '
+            'invent facts, and do not read the question aloud. Keep the same calm host voice and spoken style.\n'
+            'Return stories with section_id and paragraphs; each paragraph contains sentence rows with text, '
+            'evidence_ids and general_context.\n\n')
         accepted = {}
         revision_feedback = None
         retry_used = False
@@ -1090,10 +1248,31 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                 user_payload = json.loads(prompt)
                 user_payload['revision_feedback'] = revision_feedback
                 user_prompt = json.dumps(user_payload, ensure_ascii=False, separators=(',', ':'))
-            draft = bounded_call_json(SCRIPT_PROMPT.format(target_words=target_words), user_prompt,
-                              SCRIPT_SCHEMA, None, model=SCRIPT_MODEL,
+            if outline_writer_on:
+                outline_payload = json.loads(user_prompt)
+                outline_payload['daily_answer_outline'] = answer_outline
+                user_prompt = json.dumps(outline_payload, ensure_ascii=False, separators=(',', ':'))
+            draft = bounded_call_json(outline_system if outline_writer_on else
+                                      SCRIPT_PROMPT.format(target_words=target_words), user_prompt,
+                              OUTLINE_SCRIPT_SCHEMA if outline_writer_on else SCRIPT_SCHEMA, None, model=SCRIPT_MODEL,
                               max_output_tokens=MAX_OUTPUT_TOKENS, timeout=35, thinking_level='low')
-            stories = _valid_writer_result(draft, expected_ids)
+            if outline_writer_on:
+                outline_issues = _daily_outline_pre_audio_issues(draft, answer_outline)
+                if outline_issues:
+                    rewrite_payload = json.loads(user_prompt)
+                    rewrite_payload['pre_audio_issues'] = outline_issues
+                    rewrite_payload['instruction'] = ('Rewrite the entire script from the same outline and evidence; '
+                                                       'fix every pre-audio issue and do not research.')
+                    draft = bounded_call_json(outline_system + '\nRewrite once for the listed pre-audio issues.',
+                        json.dumps(rewrite_payload, ensure_ascii=False, separators=(',', ':')),
+                        OUTLINE_SCRIPT_SCHEMA, None, model=SCRIPT_MODEL,
+                        max_output_tokens=MAX_OUTPUT_TOKENS, timeout=35, thinking_level='low')
+                    outline_issues = _daily_outline_pre_audio_issues(draft, answer_outline)
+                if outline_issues:
+                    raise ValueError('daily_outline_pre_audio_check')
+                stories = _valid_outline_writer_result(draft, answer_outline)
+            else:
+                stories = _valid_writer_result(draft, expected_ids)
             findings = []
             fatal_reason = None
             if stories is None:
@@ -1118,6 +1297,10 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                     verdicts = {(row.get('section_id'), row.get('sentence_index')): row.get('supported') is True
                                 for row in verdict_rows if isinstance(row, dict) and
                                 type(row.get('sentence_index')) is int}
+                    for section_id, sentence_rows in stories.items():
+                        for index, sentence in enumerate(sentence_rows):
+                            if sentence.get('outline_gap') is True:
+                                verdicts[(section_id, index)] = True
                     verifier_results = [
                         {'section_id': section_id, 'sentence_index': index,
                          'supported': verdicts.get((section_id, index)) is True}
@@ -1172,6 +1355,11 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
         edition.clear()
         edition.update(original)
         reason = _safe_failure_reason(error)
+        if outline_writer_on:
+            legacy = write_spoken_script(edition, profile, runtime_evidence, sources,
+                call_json=call_json, input_token_counter=input_token_counter,
+                input_token_limit=input_token_limit, _force_legacy=True)
+            return {**legacy, 'outline_fallback_reason': reason}
         if draft is not None and not debug_files:
             debug_file = _write_narration_debug(reason, draft, findings or [{'code': reason}], verifier_results)
             if debug_file:

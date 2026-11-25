@@ -16,11 +16,13 @@ from unittest.mock import patch
 
 from dev.ingest.daily_audio import daily_episode_from_edition
 from dev.ingest.daily_narration import (ENRICH_PROMPT, ENRICH_SCHEMA, NARRATION_MODEL_INPUT_TOKEN_LIMIT,
+                                        OUTLINE_SCRIPT_SCHEMA,
                                         SCRIPT_MODEL, SCRIPT_PROMPT, SCRIPT_SCHEMA, VERIFY_MODEL, VERIFY_PROMPT,
                                         VERIFY_SCHEMA,
                                         _apply_narration, _deterministically_supported,
                                         _contains_read_takeaway, _has_high_read_takeaway_overlap,
                                         _review_writer_draft,
+                                        _daily_answer_outline, _daily_outline_pre_audio_issues,
                                         _evidence_for_story,
                                         _story_payload,
                                         _select_story_evidence,
@@ -206,6 +208,113 @@ class DailyNarrationTests(unittest.TestCase):
                                     for story in payload['stories']]}
             return writer if kwargs.get('model') == SCRIPT_MODEL else verifier
         return call_json
+
+    def test_daily_outline_pre_audio_check_enforces_mapping_shape_and_gap_beat(self):
+        from dev.ingest.flags import DEFAULTS
+        self.assertIs(DEFAULTS['daily_outline_writer'], False)
+        outline = [{'section_id': 'thin-story', 'question': 'What is known?',
+                    'evidence_ids': ['E1'], 'not_found': 'What remains unconfirmed?'}]
+        good = {'stories': [{'section_id': 'thin-story', 'paragraphs': [
+            {'sentences': [{'text': 'The filing describes the reported change.',
+                            'evidence_ids': ['E1'], 'general_context': False}]},
+            {'sentences': [{'text': "I couldn't confirm who will be affected.",
+                            'evidence_ids': [], 'general_context': False}]},
+        ]}]}
+        self.assertEqual(_daily_outline_pre_audio_issues(good, outline), [])
+        long = deepcopy(good)
+        long['stories'][0]['paragraphs'][0]['sentences'][0]['text'] = ' '.join(['word'] * 111) + '.'
+        self.assertIn('paragraph_too_long', _daily_outline_pre_audio_issues(long, outline))
+        cutoff = deepcopy(good)
+        cutoff['stories'][0]['paragraphs'][0]['sentences'][0]['text'] = 'The filing describes'
+        self.assertIn('cut_off_sentence', _daily_outline_pre_audio_issues(cutoff, outline))
+        unmapped = deepcopy(good)
+        unmapped['stories'][0]['paragraphs'][0]['sentences'][0]['evidence_ids'] = ['other']
+        self.assertIn('paragraph_evidence_outside_story', _daily_outline_pre_audio_issues(unmapped, outline))
+
+    def test_flagged_daily_outline_writes_short_story_paragraphs_and_gap_beat(self):
+        fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
+        edition = deepcopy(fixture['edition'])
+        writer_response = deepcopy(fixture['writer_response'])
+        calls = []
+
+        def call_json(system, user, schema, _key, **kwargs):
+            payload = json.loads(user)
+            calls.append({'system': system, 'schema': schema, 'payload': payload})
+            if schema == ENRICH_SCHEMA:
+                return {'stories': [{'section_id': row['section_id'],
+                    'evidence_ids': [item['id'] for item in row['evidence']]}
+                    for row in payload['stories']]}
+            if schema == OUTLINE_SCRIPT_SCHEMA:
+                outline = payload['daily_answer_outline']
+                source_rows = {row['section_id']: row['sentences'] for row in writer_response['stories']}
+                output = []
+                for item in outline:
+                    paragraphs, current, current_words = [], [], 0
+                    for sentence in source_rows[item['section_id']]:
+                        count = len(sentence['text'].split())
+                        if current and current_words + count > 95:
+                            paragraphs.append({'sentences': current})
+                            current, current_words = [], 0
+                        current.append(deepcopy(sentence))
+                        current_words += count
+                    if current:
+                        paragraphs.append({'sentences': current})
+                    if item['not_found']:
+                        paragraphs.append({'sentences': [{'text': "I couldn't confirm the remaining detail.",
+                            'evidence_ids': [], 'general_context': False}]})
+                    output.append({'section_id': item['section_id'], 'paragraphs': paragraphs})
+                return {'stories': output}
+            return {'verdicts': [{'section_id': row['section_id'],
+                'sentence_index': row['sentence_index'], 'supported': True}
+                for row in payload['sentences']]}
+
+        with patch.dict(os.environ, {'BRIEFING_DAILY_OUTLINE_WRITER': 'on'}):
+            result = self.narrate(edition, fixture['profile'], fixture['runtime_evidence'],
+                                  fixture['sources'], call_json=call_json)
+        self.assertEqual(result['status'], 'written', result)
+        outline_call = next(row for row in calls if row['schema'] == OUTLINE_SCRIPT_SCHEMA)
+        self.assertTrue(all(row['question'] and isinstance(row['evidence_ids'], list) and
+                            isinstance(row['not_found'], str)
+                            for row in outline_call['payload']['daily_answer_outline']))
+        self.assertTrue(all(row['not_found'] for row in outline_call['payload']['daily_answer_outline']),
+                        'single-evidence stories record an explicit not-found planning note')
+        self.assertIn('OUTLINE-FIRST DAILY HOST PASS', outline_call['system'])
+        story_rows = [row for row in edition['daily_briefing']['briefing_script']
+                      if row.get('kind') == 'story_intro']
+        self.assertTrue(all('\n\n' in row['text'] and "couldn't confirm" in row['text']
+                            for row in story_rows),
+                        'thin stories retain a separate paragraph with the honest gap')
+
+    def test_daily_outline_failure_uses_current_writer_without_blocking_edition(self):
+        fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
+        edition = deepcopy(fixture['edition'])
+        writer_response = deepcopy(fixture['writer_response'])
+        calls = []
+
+        def call_json(_system, user, schema, _key, **kwargs):
+            calls.append(schema)
+            payload = json.loads(user)
+            if schema == ENRICH_SCHEMA:
+                return {'stories': [{'section_id': row['section_id'],
+                    'evidence_ids': [item['id'] for item in row['evidence']]}
+                    for row in payload['stories']]}
+            if schema == OUTLINE_SCRIPT_SCHEMA:
+                return {'stories': []}
+            if schema == SCRIPT_SCHEMA:
+                return deepcopy(writer_response)
+            return {'verdicts': [{'section_id': row['section_id'],
+                'sentence_index': row['sentence_index'], 'supported': True}
+                for row in payload['sentences']]}
+
+        with patch.dict(os.environ, {'BRIEFING_DAILY_OUTLINE_WRITER': 'on'}):
+            result = self.narrate(edition, fixture['profile'], fixture['runtime_evidence'],
+                                  fixture['sources'], call_json=call_json)
+        self.assertEqual(result['status'], 'written', result)
+        self.assertEqual(result['outline_fallback_reason'], 'daily_outline_pre_audio_check')
+        self.assertIn(OUTLINE_SCRIPT_SCHEMA, calls)
+        self.assertIn(SCRIPT_SCHEMA, calls)
+        self.assertEqual(len([row for row in edition['daily_briefing']['briefing_script']
+                              if row.get('kind') == 'story_intro']), 3)
 
 
     def test_too_short_verified_narration_falls_back_after_retry(self):
@@ -1318,6 +1427,7 @@ class DailyNarrationTests(unittest.TestCase):
 
     def test_fallback_reason_preserves_safe_narration_value_error_codes(self):
         from dev.ingest.daily_narration import _safe_failure_reason
+        from dev.interpreter_proxy import ProxyError
 
         self.assertEqual(_safe_failure_reason(ValueError('narration_style_or_evidence_check')),
                          'narration_style_or_evidence_check')
@@ -1326,6 +1436,20 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertEqual(_safe_failure_reason(ValueError('story contains a number format that is not supported for speech')),
                          'story contains a number format that is not supported for speech')
         self.assertEqual(_safe_failure_reason(ValueError('provider secret detail')), 'ValueError')
+        self.assertEqual(_safe_failure_reason(
+            ProxyError(502, 'invalid_model_response', 'invalid_json', {'candidate_text': 'secret'})),
+            'ProxyError:502:invalid_model_response:invalid_json')
+
+    def test_proxy_error_reason_survives_daily_writer_fallback(self):
+        from dev.interpreter_proxy import ProxyError
+        result = self.narrate(self.edition, self.profile, self.evidence, self.sources,
+                              call_json=self.replay(error=ProxyError(
+                                  502, 'invalid_model_response', 'invalid_json',
+                                  {'candidate_text': 'must not leak'})))
+        self.assertEqual(result['status'], 'fallback')
+        self.assertEqual(result['reason'],
+                         'ProxyError:502:invalid_model_response:invalid_json')
+        self.assertNotIn('must not leak', json.dumps(result))
         result = self.narrate(self.edition, self.profile, self.evidence, self.sources,
                                      call_json=self.replay(error=ValueError('narration_enrichment_shape')))
         self.assertEqual(result['status'], 'fallback')
@@ -1534,12 +1658,12 @@ class DailyNarrationTests(unittest.TestCase):
             lint = lint_spoken_text(story, general_context_words=context_words, require_context=True)
             self.assertTrue(lint['ok'], lint)
             self.assertLessEqual(lint['general_context_ratio'], 0.40)
-        self.assertIn('S-N-B Bancshares', story_texts[0])
+        self.assertIn('S N B Bancshares', story_texts[0])
         self.assertIn('Eufaula, Oklahoma', story_texts[0])
         self.assertIn('two years', story_texts[0])
         self.assertIn('binding supervisory', story_texts[0])
-        self.assertIn('C-M-S', story_texts[1])
-        self.assertIn('The Centers for Medicare and Medicaid Services, or C-M-S, has given states six more months before work requirements begin, moving the deadline to June thirtieth.',
+        self.assertIn('C M S', story_texts[1])
+        self.assertIn('The Centers for Medicare and Medicaid Services, or C M S, has given states six more months before work requirements begin, moving the deadline to June thirtieth.',
                       story_texts[1])
         self.assertIn('ten point one million', story_texts[1])
         self.assertNotRegex(' '.join(story_texts),

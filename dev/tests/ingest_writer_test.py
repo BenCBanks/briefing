@@ -19,6 +19,7 @@ from ingest.write_edition import (_needs_daily_retrieval_fill, _publisher_for, _
                                   _candidate_queue_key, _daily_coverage_target_met,
                                   _daily_first_attempt_limit, _daily_refill_candidates,
                                   _daily_refill_pool_limit, _with_prefetched_bodies,
+                                  _article_read_funnel, _fetch_article_in_run,
                                   generate_edition)
 from ingest.score_edition import score_edition
 from ingest import core
@@ -86,9 +87,134 @@ class WriterTests(unittest.TestCase):
         article_fetcher.diagnostics = []
         citations, _evidence = extract_source_sentences(cluster, article_fetcher, now=NOW)
         self.assertTrue(citations)
+        self.assertEqual(citations[0]['evidence_method'], 'feed_body')
+        self.assertTrue(citations[0]['feed_body_counted'])
+        self.assertEqual(citations[0]['evidence_words'], len(ARTICLE_BODY.split()))
         self.assertEqual(article_fetcher.diagnostics, [{
             'source_id': 'transit-office', 'host': 'transit.example.test', 'reason': 'ok',
             'method': 'rss_content_encoded', 'evidence_chars': len(ARTICLE_BODY)}])
+
+    def test_short_real_shaped_article_body_meets_revised_single_source_floor(self):
+        from ingest.write_edition import extract_source_sentences, _story_evidence_is_sufficient
+        body = (Path(__file__).parent / 'fixtures/extract/article.html.txt').read_text(encoding='utf-8')
+        source = {**REGISTRY[0], 'article_access': 'transient-read'}
+        item = {key: value for key, value in ITEM.items() if key != 'feed_body'}
+        citations, _evidence = extract_source_sentences(
+            {'id': 'fictional-short-article', 'rows': [{'source': source, 'item': item}]},
+            lambda *_args: body)
+        self.assertEqual(len(body), 321)
+        self.assertTrue(_story_evidence_is_sufficient(citations)[0])
+        citation = citations[0]
+        self.assertEqual(citation['evidence_method'], 'article_read')
+        self.assertEqual(citation['evidence_words'], 49)
+        self.assertEqual(citation['evidence_body_sentence_count'], 4)
+        self.assertFalse(citation['feed_body_counted'])
+
+    def test_feed_snippet_is_not_misreported_as_full_text_evidence(self):
+        from ingest.write_edition import extract_source_sentences, _story_evidence_is_sufficient
+        source = {**REGISTRY[0], 'article_access': 'full-text'}
+        item = {key: value for key, value in ITEM.items() if key != 'feed_body'}
+        item['snippet'] = ARTICLE_BODY
+        citations, _evidence = extract_source_sentences(
+            {'id': 'fictional-snippet', 'rows': [{'source': source, 'item': item}]},
+            lambda *_args: None)
+        self.assertEqual(citations[0]['evidence_method'], 'feed_snippet')
+        self.assertFalse(citations[0]['feed_body_counted'])
+        self.assertFalse(_story_evidence_is_sufficient(citations)[0])
+
+    def test_consent_interstitial_in_feed_body_is_not_counted_as_evidence(self):
+        from ingest.write_edition import extract_source_sentences, _story_evidence_is_sufficient
+        body = ('Accept all cookies to continue. Enable JavaScript to continue. '
+                'This page cannot show the report until the consent step is complete.')
+        item = {**ITEM, 'feed_body': body, 'feed_body_method': 'rss_content_encoded'}
+        article_fetcher = lambda *_args: None
+        article_fetcher.diagnostics = []
+        citations, _evidence = extract_source_sentences(
+            {'id': 'fictional-consent-feed', 'rows': [{'item': item, 'source': REGISTRY[0]}]},
+            article_fetcher)
+        self.assertTrue(citations)
+        self.assertFalse(citations[0]['feed_body_counted'])
+        self.assertFalse(_story_evidence_is_sufficient(citations)[0])
+        self.assertEqual(article_fetcher.diagnostics[0]['reason'], 'feed_consent_or_script_stub')
+
+    def test_thirty_candidate_reads_fit_real_extraction_window_across_twelve_hosts(self):
+        import time
+        import tempfile
+        from io import BytesIO
+        from threading import Event
+        real_monotonic, real_sleep = time.monotonic, time.sleep
+        real_start = real_monotonic()
+        clock_scale = 100
+        fake_now = lambda: 100.0 + (real_monotonic() - real_start) * clock_scale
+        hosts = [f'publisher-{index}.example.test' for index in range(12)]
+        class Response(BytesIO):
+            status = 200
+            headers = {'Content-Type': 'text/html'}
+            def __init__(self, body, url):
+                super().__init__(body)
+                self.url = url
+            def geturl(self):
+                return self.url
+        with tempfile.TemporaryDirectory() as temp:
+            robots_path = Path(temp) / 'robots.json'
+            with patch.object(core, '_last_request_by_host', {host: 100.0 for host in hosts}), \
+                 patch.object(core, '_robots_cache', {}), \
+                 patch.object(core, '_robots_cache_loaded_path', None), \
+                 patch.object(core.time, 'monotonic', side_effect=fake_now), \
+                 patch.object(core.time, 'sleep', side_effect=lambda delay: real_sleep(delay / clock_scale)):
+                plan, started, diagnostics = [], [], []
+                for index in range(30):
+                    host = hosts[index % len(hosts)]
+                    source = {'id': f'feed-{index}', 'url': f'https://{host}/feed.xml',
+                              'allowed_domains': [host], 'article_access': 'transient-read',
+                              'minimum_interval_seconds': 60}
+                    plan.append({'host': host, 'topic_match': 1, 'cluster': {'rows': []},
+                                 'url': f'https://{host}/story/{index}', 'source': source})
+
+                def opener(request, timeout):
+                    if request.full_url.endswith('/robots.txt'):
+                        return Response(b'User-agent: *\nAllow: /\nCrawl-delay: 5', request.full_url)
+                    started.append((request.full_url.split('/')[2], fake_now()))
+                    return Response(('<article><p>' + ARTICLE_BODY + '</p></article>').encode(), request.full_url)
+
+                def read(candidate):
+                    def fake_fetch(url, source):
+                        return core.fetch_article_text(url, source, opener=opener,
+                            robots_cache_path=robots_path, deadline=145.0,
+                            extraction_enabled=False, diagnostics=diagnostics)
+                    return _fetch_article_in_run(candidate['url'], candidate['source'], fake_fetch,
+                                                 diagnostics=diagnostics, end=145.0, stopped=Event())
+
+                queue = core.ArticleExtractionQueue(plan, read, max_workers=6)
+                results = []
+                try:
+                    while queue.pending:
+                        results.extend(queue.poll())
+                        Event().wait(0.001)
+                    results.extend(queue.poll())
+                finally:
+                    queue.close()
+        future_errors = [type(future.exception()).__name__ + ':' + str(future.exception())
+                         for _candidate, future in results if future.exception()]
+        self.assertEqual(len(started), 30, (len(started), diagnostics, future_errors, len(results)))
+        self.assertEqual(len([row for row in diagnostics if row['reason'] == 'article_skipped_host_interval']), 0)
+        self.assertEqual(_article_read_funnel(diagnostics, [], 30)['article_requests_attempted'], 30)
+        per_host = {host: [at for current_host, at in started if current_host == host] for host in hosts}
+        self.assertTrue(all(later - earlier >= 4.9 for values in per_host.values()
+                            for earlier, later in zip(values, values[1:])), per_host)
+
+    def test_article_read_funnel_counts_each_failure_stage(self):
+        result = _article_read_funnel([
+            {'reason': 'article_request_started'}, {'reason': 'article_request_started'},
+            {'reason': 'article_skipped_deadline'}, {'reason': 'article_skipped_host_interval'},
+            {'reason': 'empty_article'}],
+            [{'status': 'insufficient_full_text_evidence'}], planned_candidates=5)
+        self.assertEqual(result['candidates_planned'], 5)
+        self.assertEqual(result['article_requests_attempted'], 2)
+        self.assertEqual(result['skipped_for_deadline'], 1)
+        self.assertEqual(result['skipped_for_host_interval'], 1)
+        self.assertEqual(result['extraction_failures'], 1)
+        self.assertEqual(result['evidence_too_short'], 1)
 
     def test_daily_open_web_fill_uses_spoken_target_not_story_count(self):
         self.assertTrue(_needs_daily_retrieval_fill(600, True))
@@ -361,15 +487,28 @@ class WriterTests(unittest.TestCase):
 
     def test_short_real_article_or_two_readable_sources_can_qualify(self):
         from ingest.write_edition import _story_evidence_is_sufficient
-        def citation(chars, sentences):
+        def citation(chars, sentences, tier='trade'):
             return {'source_class': 'news', 'evidence_depth': 'full-text',
-                    'evidence_chars': chars, 'source_sentence_count': sentences}
+                    'evidence_chars': chars, 'source_sentence_count': sentences,
+                    'credibility': {'tier': tier}}
         accepted, _ = _story_evidence_is_sufficient([citation(402, 3)])
         self.assertTrue(accepted)
         accepted, _ = _story_evidence_is_sufficient([citation(240, 2), citation(250, 3)])
         self.assertTrue(accepted)
-        rejected, _ = _story_evidence_is_sufficient([citation(399, 3)])
+        accepted, _ = _story_evidence_is_sufficient([citation(399, 3)])
+        self.assertTrue(accepted)
+        rejected, _ = _story_evidence_is_sufficient([citation(299, 3)])
         self.assertFalse(rejected)
+
+    def test_vendor_sources_cannot_be_the_only_evidence_for_a_story(self):
+        from ingest.write_edition import _story_evidence_is_sufficient, _source_status
+        vendor = {'source_class': 'news', 'evidence_depth': 'full-text', 'evidence_chars': 800,
+                  'source_sentence_count': 8, 'credibility': {'tier': 'vendor'}, 'owner': 'vendor'}
+        primary = {'source_class': 'news', 'evidence_depth': 'full-text', 'evidence_chars': 402,
+                   'source_sentence_count': 3, 'credibility': {'tier': 'primary'}, 'owner': 'publisher'}
+        self.assertFalse(_story_evidence_is_sufficient([vendor])[0])
+        self.assertTrue(_story_evidence_is_sufficient([vendor, primary])[0])
+        self.assertEqual(_source_status([vendor, {**vendor, 'owner': 'other-vendor'}])[0], 'single-source')
 
     def test_quick_hits_keep_only_clean_feed_sentences_and_links(self):
         from ingest.write_edition import _quick_hit_items
@@ -460,6 +599,22 @@ class WriterTests(unittest.TestCase):
         for topic, expected in cases:
             with self.subTest(label=topic['label']):
                 self.assertEqual(set(_feed_topic_ids(topic, available)), expected)
+
+    def test_profile_topics_map_to_ordered_registry_tags_from_content_rules(self):
+        from ingest.write_edition import _feed_topic_ids
+        available = {'semiconductors', 'ai', 'digital', 'climate-policy', 'energy', 'science',
+                     'space', 'payments', 'banking', 'finance'}
+        cases = [
+            ('AI chips', ['semiconductors', 'ai', 'digital']),
+            ('Climate policy', ['climate-policy', 'energy', 'science']),
+            ('Space launches', ['space', 'science', 'digital']),
+            ('Payments', ['payments', 'banking', 'finance']),
+            ('An unfamiliar research question', ['digital']),
+        ]
+        for label, expected in cases:
+            with self.subTest(label=label):
+                topic = {'id': label.lower().replace(' ', '-'), 'label': label, 'scope': '', 'include': []}
+                self.assertEqual(_feed_topic_ids(topic, available), expected)
 
     def evidence_id(self, prompt):
         data = json.loads(prompt)
@@ -579,6 +734,12 @@ class WriterTests(unittest.TestCase):
         self.assertGreaterEqual(funnel['unseen'], funnel['candidate_clusters'])
         self.assertEqual(funnel['selected'], 0)
         self.assertIn('funnel_drop_reasons', result)
+        sources_funnel = result['source_funnels']['payments']
+        self.assertEqual(sum(row['fetched'] for row in sources_funnel.values()), len(items))
+        self.assertEqual(sum(row['matched'] for row in sources_funnel.values()), funnel['topic_matched'])
+        self.assertEqual(sum(row['accepted'] for row in sources_funnel.values()), funnel['relevance_passed'])
+        self.assertEqual(sum(row['rejected'] for row in sources_funnel.values()),
+                         len(items) - funnel['relevance_passed'])
 
     def test_candidate_writer_queue_fairly_retries_the_least_served_topic(self):
         counts = {'ai': 0, 'climate': 0, 'space': 0}

@@ -35,7 +35,7 @@ MAX_PROFILE_BYTES = 64_000
 MAX_GENERATION_SECONDS = 180
 GENERATION_FINALIZE_RESERVE_SECONDS = 10
 FEED_FETCH_BUDGET_SECONDS = 60
-ARTICLE_EXTRACTION_BUDGET_SECONDS = 45
+ARTICLE_EXTRACTION_BUDGET_SECONDS = 80
 MAX_GEMINI_CALLS_PER_RUN = 40
 MAX_GEMINI_CALLS_WITH_FILL = 40
 MAX_ARTICLE_FETCHES_PER_RUN = 24
@@ -286,10 +286,36 @@ def _public_daily_run(value):
     narration_reason = narration.get('reason')
     if not isinstance(narration_reason, str) or not re.fullmatch(
             r'(?:narration_[a-z0-9_]{1,80}|budget_estimate|flag_disabled|'
+            r'ProxyError:[0-5][0-9]{2}:[a-z0-9_]{1,80}:[a-z0-9_]{1,80}|'
             r'[A-Z][A-Za-z0-9]{0,39})', narration_reason):
         narration_reason = None
     if narration_status == 'fallback' and narration_reason is None:
         narration_reason = 'narration_failed'
+
+    multi_reader = None
+    raw_multi = value.get('multi_reader')
+    if isinstance(raw_multi, dict):
+        multi_date = raw_multi.get('local_date')
+        raw_rows = raw_multi.get('readers')
+        if isinstance(multi_date, str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}', multi_date):
+            safe_rows = []
+            for row in raw_rows[:200] if isinstance(raw_rows, list) else []:
+                if not isinstance(row, dict):
+                    continue
+                reader_id = row.get('reader_id')
+                status = row.get('status')
+                cost = row.get('cost_usd')
+                if (not isinstance(reader_id, str) or not re.fullmatch(r'[a-f0-9]{8,12}', reader_id) or
+                        status not in {'ready', 'not_today', 'failed'}):
+                    continue
+                if isinstance(cost, bool) or not isinstance(cost, (int, float)) or not 0 <= cost < float('inf'):
+                    cost = 0.0
+                reason = row.get('reason')
+                if not isinstance(reason, str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,60}', reason):
+                    reason = None
+                safe_rows.append({'reader_id': reader_id, 'status': status,
+                                  'cost_usd': round(cost, 8), 'reason': reason})
+            multi_reader = {'local_date': multi_date, 'readers': safe_rows}
 
     profile_rows = []
     raw_profile_rows = value.get('profile_runs')
@@ -314,6 +340,11 @@ def _public_daily_run(value):
                 'topic_count': count_brief(row.get('topic_count'), 12),
                 'reused_from_profile_id': reused,
             })
+    profiles_attempted = count_brief(value.get('profiles_attempted'), MAX_KNOWN_CLIENT_PROFILES)
+    profiles_completed = count_brief(value.get('profiles_completed'), MAX_KNOWN_CLIENT_PROFILES)
+    if multi_reader is not None:
+        profiles_attempted = len(multi_reader['readers'])
+        profiles_completed = sum(row['status'] == 'ready' for row in multi_reader['readers'])
     topic_supply = []
     raw_topic_supply = value.get('topic_supply')
     if isinstance(raw_topic_supply, list):
@@ -331,7 +362,7 @@ def _public_daily_run(value):
                 'state': row.get('state') if row.get('state') in {'covered', 'limited', 'quiet'} else None,
                 'gap': gap[:240] if isinstance(gap, str) else None,
             })
-    return {
+    public = {
         'local_date': local_date,
         'status': value.get('status') if isinstance(value.get('status'), str) and value.get('status') in {'complete', 'failed', 'timeout'} else None,
         'stories': count('stories', 1000),
@@ -345,10 +376,13 @@ def _public_daily_run(value):
         },
         'daily_narration': {'status': narration_status, 'reason': narration_reason},
         'daily_audio': {'audio_status': audio_status, 'ready_at': ready_at},
-        'profiles_attempted': count_brief(value.get('profiles_attempted'), MAX_KNOWN_CLIENT_PROFILES),
-        'profiles_completed': count_brief(value.get('profiles_completed'), MAX_KNOWN_CLIENT_PROFILES),
+        'profiles_attempted': profiles_attempted,
+        'profiles_completed': profiles_completed,
         'profile_runs': profile_rows,
     }
+    if multi_reader is not None:
+        public['multi_reader'] = multi_reader
+    return public
 
 
 def count_brief(raw, maximum):
@@ -372,6 +406,30 @@ def _daily_monitor_active():
     with _jobs_lock:
         return ({'started_at': _active_daily_run.get('started_at')}
                 if isinstance(_active_daily_run, dict) else None)
+
+
+def _shared_items_for_profile(shared_context, profile):
+    """Select only this profile's topic slices from an optional shared pool."""
+    pool = shared_context.get('topic_items') if isinstance(shared_context, dict) else None
+    if not isinstance(pool, dict):
+        return None
+    topic_ids = {row.get('id') for row in profile.get('topics', [])
+                 if isinstance(row, dict) and isinstance(row.get('id'), str)}
+    selected = []
+    seen = set()
+    for topic_id in sorted(topic_ids):
+        rows = pool.get(topic_id)
+        if not isinstance(rows, list):
+            continue
+        for item in rows:
+            if not isinstance(item, dict):
+                continue
+            identity = (item.get('source_id'), item.get('url'))
+            if identity in seen:
+                continue
+            seen.add(identity)
+            selected.append(item)
+    return selected
 
 
 def status_response(path=None, *, now=None):
@@ -452,6 +510,8 @@ def _article_fetch_by_host(outcomes):
     summary = {}
     for row in outcomes[:500]:
         if not isinstance(row, dict):
+            continue
+        if row.get('reason') == 'article_request_started':
             continue
         host = row.get('host')
         if not isinstance(host, str):
@@ -619,6 +679,7 @@ def _daily_narration_job_status(report):
     reason = narration.get('reason')
     if not isinstance(reason, str) or not re.fullmatch(
             r'(?:narration_[a-z0-9_]{1,80}|budget_estimate|flag_disabled|'
+            r'ProxyError:[0-5][0-9]{2}:[a-z0-9_]{1,80}:[a-z0-9_]{1,80}|'
             r'[A-Z][A-Za-z0-9]{0,39})', reason):
         reason = ('narration_failed' if status == 'fallback' else
                   'flag_disabled' if status == 'off' else None)
@@ -626,6 +687,11 @@ def _daily_narration_job_status(report):
 
 
 def _safe_narration_exception_reason(error):
+    from dev.interpreter_proxy import safe_proxy_error_reason
+
+    proxy_reason = safe_proxy_error_reason(error)
+    if proxy_reason:
+        return proxy_reason
     message = str(error)
     if isinstance(error, NameError) and re.fullmatch(r"name '[A-Za-z_][A-Za-z0-9_]*' is not defined", message):
         return 'NameError:' + message.split("'")[1]
@@ -711,6 +777,103 @@ def _record_content_gate(report, checks):
 def _hard_content_failures(failures):
     """Keep evidence/citation safety hard; editorial shape is publishable."""
     return [code for code in failures if code in {'content_citations', 'content_quality'}]
+
+
+_REPAIRABLE_CONTENT_CHECKS = {'citations', 'quality'}
+
+
+def _content_drop_reason(reason):
+    value = str(reason or '').casefold()
+    if 'sponsored content path' in value:
+        return 'sponsored_source_path'
+    if 'insufficient cited substance' in value:
+        return 'insufficient_cited_substance'
+    if 'takeaway duplicates' in value:
+        return 'duplicate_takeaway'
+    if 'listicle or promotion pattern' in value:
+        return 'listicle_or_promotion'
+    if 'inline source citation' in value:
+        return 'invalid_citation'
+    return 'citation_or_quality_check_failed'
+
+
+def _named_content_drops(edition, checks):
+    """Map only explicitly named quality/citation failures to edition items."""
+    import re
+
+    stories = [row for row in edition.get('sections', []) if isinstance(row, dict) and
+               (row.get('cluster_id') or row.get('kind', 'story') == 'story') and
+               row.get('kind') not in {'intro', 'outro', 'quiet', 'coverage'}]
+    daily = edition.get('daily_briefing') if isinstance(edition.get('daily_briefing'), dict) else {}
+    segments = [row for row in daily.get('background_segments', []) if isinstance(row, dict)]
+    grouped = {}
+    for check in checks if isinstance(checks, list) else []:
+        if not isinstance(check, dict) or check.get('passed') is True or \
+                str(check.get('name') or '').casefold() not in _REPAIRABLE_CONTENT_CHECKS:
+            continue
+        for reason in check.get('reasons', []) if isinstance(check.get('reasons'), list) else []:
+            match = re.match(r'^(story|segment)\s+(\d+)\s+\((.*?)\):', str(reason), re.I)
+            if not match:
+                return None
+            kind = match.group(1).casefold()
+            index = int(match.group(2))
+            rows = stories if kind == 'story' else segments
+            if not 1 <= index <= len(rows):
+                return None
+            row = rows[index - 1]
+            item_id = row.get('cluster_id') if kind == 'story' else row.get('segment_id')
+            if not isinstance(item_id, str) or not item_id:
+                return None
+            key = (kind, item_id)
+            if key not in grouped:
+                label = (row.get('heading') or match.group(3)) if kind == 'story' else \
+                        (row.get('label') or row.get('topic_id') or match.group(3))
+                grouped[key] = {'type': kind, 'item_id': item_id,
+                                'label': str(label)[:160],
+                                'reason': _content_drop_reason(reason)}
+    return list(grouped.values())
+
+
+def _repair_daily_content_items(edition, checks, profile, *, source_dates, source_tiers,
+                                recent_history, detail):
+    """Drop named failing items and reassemble once using cached backgrounds only."""
+    drops = _named_content_drops(edition, checks)
+    if not drops:
+        return None
+    removed_stories = {row['item_id'] for row in drops if row['type'] == 'story'}
+    removed_segments = {row['item_id'] for row in drops if row['type'] == 'segment'}
+    candidate = copy.deepcopy(edition)
+    candidate['sections'] = [row for row in candidate.get('sections', [])
+                             if not isinstance(row, dict) or row.get('cluster_id') not in removed_stories]
+    story_count = sum(isinstance(row, dict) and bool(row.get('cluster_id'))
+                      for row in candidate.get('sections', []))
+    # The existing publication floor remains one real story; dropping below it
+    # is a failed repair and must preserve the original edition for diagnostics.
+    if story_count < 1:
+        return None
+    daily = candidate.get('daily_briefing') if isinstance(candidate.get('daily_briefing'), dict) else {}
+    cached_segments = [row for row in daily.get('background_segments', [])
+                       if isinstance(row, dict) and row.get('segment_id') not in removed_segments]
+    segments_by_topic = {}
+    for segment in cached_segments:
+        topic_id = segment.get('topic_id')
+        if isinstance(topic_id, str):
+            segments_by_topic.setdefault(topic_id, []).append(segment)
+
+    def cached_background(topic_id, **_kwargs):
+        rows = segments_by_topic.get(topic_id, [])
+        return rows.pop(0) if rows else None
+
+    from . import daily_briefing
+    daily_briefing.assemble(
+        candidate, profile, background_fill=cached_background,
+        background_history=daily_briefing.background_history(recent_history),
+        open_web_report=detail.get('retrieval_fill'),
+        followup_count=detail.get('followup_count', 0), followups_checked=True,
+        source_dates=source_dates, source_tiers=source_tiers)
+    edition.clear()
+    edition.update(candidate)
+    return drops
 
 
 def _score_and_filter_stories(edition, sources, registry, evidence, score_edition_fn):
@@ -993,14 +1156,17 @@ def _set_bundle_profile_id(payload, profile_id):
             update_editions(bundle)
 
 
-def mark_edition_seen(profile_id, edition_id, revision_id, *, now=None):
+def mark_edition_seen(profile_id, edition_id, revision_id, *, now=None, profile_data=None, directory=None):
     """Persist that this reader's generated daily edition was displayed in Today."""
     if (not isinstance(profile_id, str) or not re.fullmatch(r'[a-f0-9]{24}', profile_id) or
             not isinstance(edition_id, str) or not edition_id.strip() or len(edition_id) > 120 or
             not isinstance(revision_id, str) or not revision_id.strip() or len(revision_id) > 160):
         return 400, {'error': 'invalid_seen_edition'}
-    profile = next((row for row in load_known_profiles()
-                    if profile_identifier(row) == profile_id), None)
+    if profile_data is not None:
+        profile = profile_data if profile_identifier(profile_data) == profile_id else None
+    else:
+        profile = next((row for row in load_known_profiles()
+                        if profile_identifier(row) == profile_id), None)
     if profile is None:
         return 404, {'error': 'profile_not_found'}
 
@@ -1012,7 +1178,7 @@ def mark_edition_seen(profile_id, edition_id, revision_id, *, now=None):
             fcntl.flock(lock_stream.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
         except BlockingIOError:
             return 409, {'error': 'profile_busy'}
-        directory = profile_generated_dir(profile)
+        directory = Path(directory) if directory is not None else profile_generated_dir(profile)
         current_time = now or datetime.now(timezone.utc)
         if current_time.tzinfo is None:
             current_time = current_time.replace(tzinfo=timezone.utc)
@@ -1055,6 +1221,14 @@ def mark_edition_seen(profile_id, edition_id, revision_id, *, now=None):
             lock_stream.close()
 
 
+def _daily_generation_deadlines(started):
+    """Reserve the final thirty seconds for writing before the job wall-clock cap."""
+    writer_deadline = started + MAX_GENERATION_SECONDS - GENERATION_FINALIZE_RESERVE_SECONDS
+    article_deadline = min(writer_deadline,
+                           started + FEED_FETCH_BUDGET_SECONDS + ARTICLE_EXTRACTION_BUDGET_SECONDS)
+    return writer_deadline, article_deadline
+
+
 def _run_job(job_id, profile, directory, generate=None, registry=None, is_default=False,
              publish_default=False, shared_context=None):
     # This coordinator only creates daily editions. Reader-triggered rebuilds
@@ -1072,9 +1246,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
     budget = {'calls': 0, 'limit': 0}
     stage = 'initialization'
     early_articles = None
-    writer_deadline = started + MAX_GENERATION_SECONDS - GENERATION_FINALIZE_RESERVE_SECONDS
-    article_deadline = min(writer_deadline,
-                           started + FEED_FETCH_BUDGET_SECONDS + ARTICLE_EXTRACTION_BUDGET_SECONDS)
+    writer_deadline, article_deadline = _daily_generation_deadlines(started)
     try:
         from .flags import setting
         budget['limit'] = setting('gemini_calls_per_run')
@@ -1187,7 +1359,8 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
             from .flags import flag_enabled
             if not flag_enabled('writer'):
                 raise RuntimeError('writer_disabled')
-            transient_items = core.load_store()
+            shared_items = _shared_items_for_profile(shared_context, profile)
+            transient_items = shared_items if shared_items is not None else core.load_store()
             for item in transient_items:
                 if early_articles is not None and early_articles.has_prefetch(item.get('url', '')):
                     item['prefetched_article'] = True
@@ -1280,6 +1453,8 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                         reason = f'scorecard:{check}'
                         topic_reasons[reason] = topic_reasons.get(reason, 0) + 1
             report['source_quality_rejections'] = detail.get('source_quality_rejections', [])
+            report['source_funnels'] = detail.get('source_funnels', {})
+            report['low_tier_sources'] = detail.get('low_tier_sources', [])
             report['source_selection'] = detail.get('source_selection', {})
             report['also_today_source_selection'] = detail.get('also_today_source_selection', {})
             report['repeat_suppressed'] = detail.get('repeat_suppressed', 0)
@@ -1289,6 +1464,9 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
             report['candidate_budget_exhausted'] = detail.get('budget_exhausted', False)
             report['article_fetch_outcomes'] = detail.get('article_fetch_outcomes',
                                                            getattr(article_fetch, 'diagnostics', []))
+            report['article_read_funnel'] = detail.get('article_read_funnel', {})
+            report['article_read_details'] = detail.get('article_read_details', [])
+            report['article_evidence_thresholds'] = detail.get('article_evidence_thresholds', {})
             report['evidence_depth_counts'] = detail.get('evidence_depth_counts', {})
             report['story_evidence_lengths'] = [
                 {'section_id': section.get('id'),
@@ -1332,8 +1510,38 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                 hard_failures = _hard_content_failures(content_failures)
                 report['content_soft_warnings'] = [code for code in content_failures if code not in hard_failures]
                 if hard_failures:
-                    _persist_job_scorecard(directory, job_id, report)
-                    raise RuntimeError('scorecard_critical_failed:' + ','.join(hard_failures))
+                    dropped = _repair_daily_content_items(
+                        edition, content_checks, profile, source_dates=source_dates,
+                        source_tiers=source_tiers, recent_history=recent_history, detail=detail)
+                    if dropped:
+                        report['content_gate_dropped_items'] = dropped
+                        prior_failures = report.get('failed_critical')
+                        prior_failures = prior_failures if isinstance(prior_failures, list) else []
+                        remaining_failures = [code for code in prior_failures
+                                              if code not in {'content_citations', 'content_quality'}]
+                        report['failed_critical'] = remaining_failures
+                        report['critical_failed'] = bool(remaining_failures)
+                        content_checks = check_content(
+                            {'editions': editions, 'sources': sources}, recent_history, profile,
+                            now=core.utc_now())
+                        content_failures = _record_content_gate(report, content_checks)
+                        hard_failures = _hard_content_failures(content_failures)
+                        report['content_soft_warnings'] = [code for code in content_failures
+                                                           if code not in hard_failures]
+                        stories = sum(bool(row.get('cluster_id'))
+                                      for row in edition.get('sections', []))
+                        report['stories_passed_checks'] = stories if not hard_failures else 0
+                        if not hard_failures:
+                            logging.getLogger(__name__).info(
+                                'Daily edition: %s stories passed checks.', stories)
+                        else:
+                            _persist_job_scorecard(directory, job_id, report)
+                            raise RuntimeError('scorecard_critical_failed:' + ','.join(hard_failures))
+                    else:
+                        _persist_job_scorecard(directory, job_id, report)
+                        raise RuntimeError('scorecard_critical_failed:' + ','.join(hard_failures))
+                else:
+                    report['stories_passed_checks'] = stories
             narration_result = None
             if flag_enabled('daily_narration'):
                 try:

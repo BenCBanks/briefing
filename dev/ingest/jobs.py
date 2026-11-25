@@ -18,6 +18,7 @@ import json
 import math
 import os
 import re
+import secrets
 import time
 import unicodedata
 
@@ -347,6 +348,8 @@ class EpisodeJobStore:
                  max_attempts: int = MAX_ATTEMPTS, generator: Callable | None = None,
                  real_generator: Callable | None = None, audio_renderer: Callable | None = None,
                  ledger=None, key_available: Callable | None = None, tts_enabled: bool | None = None,
+                 account_daily_limit: bool = False,
+                 daily_limit: int = DAILY_LIMIT,
                  monotonic: Callable = time.monotonic):
         if stage_delay < 0:
             raise ValueError('stage_delay must be non-negative')
@@ -354,6 +357,12 @@ class EpisodeJobStore:
             raise ValueError(f'max_attempts must be between 1 and {MAX_ATTEMPTS}')
         self.state_dir = checked_state_path(state_dir)
         self.root = self.state_dir / 'episode-jobs' / 'profiles'
+        if type(account_daily_limit) is not bool:
+            raise ValueError('account_daily_limit must be a boolean')
+        if type(daily_limit) is not int or not 1 <= daily_limit <= 100:
+            raise ValueError('daily_limit must be between 1 and 100')
+        self.account_daily_limit = account_daily_limit
+        self.daily_limit = daily_limit
         self.stage_delay = float(stage_delay)
         self.max_attempts = max_attempts
         self.monotonic = monotonic
@@ -1518,11 +1527,35 @@ class EpisodeJobStore:
     def _today_count(self, directory: Path, today: date | None = None) -> int:
         today = today or self._now().astimezone(EASTERN).date()
         count = 0
-        for path in directory.glob('*.json'):
-            job = self._read(path)
-            if job and self._day(job.get('created_at')) == today:
-                count += 1
+        directories = (self.root.iterdir() if self.account_daily_limit and self.root.exists()
+                       else (directory,))
+        for job_directory in directories:
+            if job_directory.is_symlink() or not job_directory.is_dir():
+                continue
+            for path in job_directory.glob('*.json'):
+                if path.is_symlink() or not path.is_file():
+                    continue
+                job = self._read(path)
+                if job and self._day(job.get('created_at')) == today:
+                    count += 1
         return count
+
+    @contextmanager
+    def _daily_limit_lock(self):
+        if not self.account_daily_limit:
+            yield
+            return
+        directory = self.root.parent
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(directory, 0o700)
+        lock_path = directory / '.daily-limit.lock'
+        fd = os.open(lock_path, os.O_CREAT | os.O_RDWR | getattr(os, 'O_NOFOLLOW', 0), 0o600)
+        with os.fdopen(fd, 'a') as stream:
+            fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
+            try:
+                yield
+            finally:
+                fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
 
     def _find_reusable(self, directory: Path, profile_id: str, topic: str,
                        length: int, style: str) -> dict | None:
@@ -1581,7 +1614,7 @@ class EpisodeJobStore:
         used = self._today_count(directory)
         return 200, {**self._view(job), 'reused': True,
                      'queue_position': 0,
-                     'left_today': max(0, DAILY_LIMIT - used),
+                     'left_today': max(0, self.daily_limit - used),
                      'message': 'Reused a recent matching episode. No new generation was started.'}
 
     def submit(self, profile: object, payload: object, *, start: bool = True) -> tuple[int, dict]:
@@ -1623,7 +1656,7 @@ class EpisodeJobStore:
         estimate_cents = int((Decimal(str(estimate.get('usd', '0'))) * 100).to_integral_value(
             rounding=ROUND_CEILING))
         replay = None
-        with self._profile_lock(directory):
+        with self._daily_limit_lock(), self._profile_lock(directory):
             if idempotency_hash:
                 existing, same_request = self._find_idempotent(directory, idempotency_hash, fingerprint)
                 if existing:
@@ -1636,12 +1669,14 @@ class EpisodeJobStore:
                     return self._reused_response(directory, reusable)
             if replay is None:
                 used = self._today_count(directory)
-                left = DAILY_LIMIT - used
+                left = self.daily_limit - used
                 if left <= 0:
                     return 429, {'error': 'daily_limit_reached',
-                                 'message': 'You have 0 episode requests left today.',
-                                 'left_today': 0, 'daily_limit': DAILY_LIMIT}
-                job_id = uuid4().hex
+                                 'message': ("You have used today's episodes. They reset at midnight ET."
+                                             if self.account_daily_limit else
+                                             'You have 0 episode requests left today.'),
+                                 'left_today': 0, 'daily_limit': self.daily_limit}
+                job_id = secrets.token_hex(16) if self.account_daily_limit else uuid4().hex
                 now = self._timestamp()
                 job = {
                     'job_id': job_id, 'profile_id': profile_id,
@@ -2188,8 +2223,8 @@ class EpisodeJobStore:
                 jobs.append(self._positioned_view(job, positions))
         jobs.sort(key=lambda row: row.get('created_at', ''), reverse=True)
         used = self._today_count(directory)
-        return {'jobs': jobs[:100], 'daily_limit': DAILY_LIMIT,
-                'used_today': used, 'left_today': max(0, DAILY_LIMIT - used),
+        return {'jobs': jobs[:100], 'daily_limit': self.daily_limit,
+                'used_today': used, 'left_today': max(0, self.daily_limit - used),
                 'length_options': [length_policy(minutes) for minutes in LENGTHS],
                 'words_per_minute': WORDS_PER_MINUTE}
 

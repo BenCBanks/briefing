@@ -37,6 +37,25 @@ REAL_SHAPED_PROFILE = {'version': 1, 'words': 'payments and Pinevale health insu
 
 
 class GenerationApiTests(unittest.TestCase):
+    def test_shared_topic_pool_is_filtered_to_each_reader(self):
+        chips = {'source_id': 'source-1', 'url': 'https://fictional.test/chips', 'topics': ['chips']}
+        climate = {'source_id': 'source-2', 'url': 'https://fictional.test/climate', 'topics': ['climate']}
+        shared = {'topic_items': {'chips': [chips], 'climate': [climate]}}
+        self.assertEqual(generation_api._shared_items_for_profile(
+            shared, {'topics': [{'id': 'chips'}]}), [chips])
+        self.assertEqual(generation_api._shared_items_for_profile(
+            shared, {'topics': [{'id': 'climate'}]}), [climate])
+        self.assertEqual(generation_api._shared_items_for_profile(
+            {}, {'topics': [{'id': 'chips'}]}), None)
+        self.assertNotIn('multi_reader', generation_api._public_daily_run({'status': 'complete'}))
+        public = generation_api._public_daily_run({'status': 'complete', 'multi_reader': {
+            'local_date': '2026-11-25', 'readers': [
+                {'reader_id': 'a1b2c3d4', 'status': 'ready', 'cost_usd': 0.1,
+                 'email': 'private@example.test'}]}})
+        self.assertEqual(public['multi_reader']['readers'], [
+            {'reader_id': 'a1b2c3d4', 'status': 'ready', 'cost_usd': 0.1, 'reason': None}])
+        self.assertEqual(public['profiles_completed'], 1)
+
 
     def test_profile_accepts_bounded_reader_selected_local_source_ids(self):
         selected = generation_api.validate_profile({**PROFILE, 'local_sources': [
@@ -618,7 +637,9 @@ class GenerationApiTests(unittest.TestCase):
         with patch.object(generation_api.core, 'ingest_enabled', return_value=ingested) as fetch, \
              patch.object(write_edition, 'generate_edition', return_value=(
                  {'editions': [edition]}, {'sources': []},
-                 {'sentence_evidence': {}, 'repeat_suppressed': 2, 'stale_suppressed': 1})) as writer, \
+                 {'sentence_evidence': {}, 'repeat_suppressed': 2, 'stale_suppressed': 1,
+                  'source_funnels': {'payments': {'sample-source': {'fetched': 4, 'matched': 3,
+                                                                      'accepted': 2, 'rejected': 2}}}})) as writer, \
              patch.object(score_edition, 'score_edition', return_value={
                  'critical_failed': False, 'failed_critical': [], 'results': []}) as score:
             code, body = generation_api.start_generation(REAL_SHAPED_PROFILE, directory, registry=[source])
@@ -633,6 +654,8 @@ class GenerationApiTests(unittest.TestCase):
         self.assertTrue(job['scorecard_path'])
         saved_report = json.loads((directory / job['scorecard_path']).read_text())
         self.assertEqual([row['status'] for row in saved_report['story_results']], ['passed'] * 3)
+        self.assertEqual(saved_report['source_funnels']['payments']['sample-source'],
+                         {'fetched': 4, 'matched': 3, 'accepted': 2, 'rejected': 2})
         self.assertTrue(json.loads((directory / 'current.json').read_text())['editions']['editions'][0]['generated'])
         self.assertEqual(fetch.call_args.args[0], [source])
         self.assertEqual(writer.call_args.args[0], REAL_SHAPED_PROFILE)
@@ -665,7 +688,7 @@ class GenerationApiTests(unittest.TestCase):
              patch.object(generation_api, 'DEFAULT_EDITION_DIR', directory), \
              patch.object(generation_api.core, 'ingest_enabled', return_value={
                  'parsed_items': 1, 'fetched_sources': 1, 'errors': 0, 'source_results': {}}), \
-             patch.object(generation_api.core, 'load_store', return_value=[]), \
+             patch.object(generation_api.core, 'load_store', return_value=[]) as load_store, \
              patch.object(write_edition, 'generate_edition', return_value=(
                  {'editions': [edition]}, {'sources': []}, {'sentence_evidence': {}})) as writer, \
              patch.object(score_edition, 'score_edition', return_value=score), \
@@ -681,6 +704,8 @@ class GenerationApiTests(unittest.TestCase):
                 time.sleep(0.01)
         self.assertEqual(job['status'], 'complete', job)
         self.assertEqual(writer.call_args.kwargs['daily_word_target'], 750)
+        self.assertGreaterEqual(load_store.call_count, 1)
+        self.assertEqual(writer.call_args.kwargs['items'], [])
 
     def test_default_generation_builds_from_cached_unseen_window_after_total_feed_outage(self):
         from ingest import core, score_edition, write_edition
@@ -1110,6 +1135,15 @@ class GenerationApiTests(unittest.TestCase):
             ValueError('narration_key_permissions')), 'narration_key_permissions')
         self.assertEqual(generation_api._safe_narration_exception_reason(
             ValueError('private path token')), 'ValueError')
+        from dev.interpreter_proxy import ProxyError
+        proxy_error = ProxyError(502, 'invalid_model_response', 'invalid_json',
+                                 {'request': 'must not leak'})
+        safe_reason = 'ProxyError:502:invalid_model_response:invalid_json'
+        self.assertEqual(generation_api._safe_narration_exception_reason(proxy_error), safe_reason)
+        proxy_status = generation_api._daily_narration_job_status(
+            {'daily_narration': {'status': 'fallback', 'reason': safe_reason}})
+        self.assertEqual(proxy_status['reason'], safe_reason)
+        self.assertNotIn('must not leak', json.dumps(proxy_status))
 
     def test_narration_failure_preserves_critical_content_gate_and_clears_script(self):
         edition = {'audio': {'state': 'pending'},
@@ -1148,7 +1182,14 @@ class GenerationApiTests(unittest.TestCase):
                     'published_at': '2026-11-24', 'reuse_terms': 'attribution'}]
         candidate = {'editions': [edition]}
         detail = {'sentence_evidence': {}, 'candidate_results': [], 'candidate_attempts': 1,
-                  'candidate_attempt_limit': 1}
+                  'candidate_attempt_limit': 1,
+                  'article_read_details': [{'topic_id': 'payments', 'candidate': 1,
+                      'source_reads': [{'source_id': 'fixture-source', 'chars': 321, 'words': 49,
+                                        'sentences': 5, 'body_sentences': 4,
+                                        'feed_body_counted': False}]}],
+                  'article_evidence_thresholds': {'single_source_chars': 300,
+                      'single_source_sentences': 3, 'corroborating_source_chars': 200,
+                      'corroborating_source_sentences': 2, 'required_corroborating_sources': 2}}
         clean_score = {'critical_failed': False, 'failed_critical': [], 'checks': []}
         fixture_key = self.root / 'fixture-narration-key'
         fixture_key.write_text('fixture-only', encoding='utf-8')
@@ -1208,6 +1249,10 @@ class GenerationApiTests(unittest.TestCase):
                 self.assertEqual(render_daily_audio(published)['audio_status'], 'pending')
                 self.assertEqual(job['daily_narration']['status'], 'fallback')
                 self.assertEqual(job['daily_narration']['reason'], expected_reason)
+                saved_report = json.loads((directory / job['scorecard_path']).read_text())
+                self.assertEqual(saved_report['article_read_details'], detail['article_read_details'])
+                self.assertEqual(saved_report['article_evidence_thresholds'],
+                                 detail['article_evidence_thresholds'])
 
     def test_final_content_gate_replaces_pre_narration_review_and_merges_failures(self):
         report = {'critical_failed': False, 'failed_critical': ['evidence_links'],
@@ -1222,6 +1267,220 @@ class GenerationApiTests(unittest.TestCase):
         self.assertTrue(report['critical_failed'])
         self.assertEqual(report['failed_critical'],
                          ['evidence_links', 'content_repeats', 'content_quality'])
+
+    def test_final_daily_content_repair_drops_one_named_sponsored_story(self):
+        from dev.content_check import check_content
+        from ingest import daily_briefing
+
+        stories = []
+        sources = []
+        for number in range(1, 6):
+            source_id = f'fixture-source-{number}'
+            stories.append({
+                'id': f'fixture-story-{number}', 'cluster_id': f'fixture-cluster-{number}',
+                'heading': f'Payment settlement update {number}',
+                'body': f'Payment settlement item {number} reports a bank transfer delay. [1] '
+                        f'A second payment sentence describes the settlement process. [1]',
+                'source_ids': [source_id], 'topic_ids': ['payments'],
+                'takeaway': f'Unique payment takeaway number {number}.'})
+            sources.append({'id': source_id, 'url':
+                            ('https://fictional.test/sponsored/payment' if number == 3 else
+                             f'https://fictional.test/payment-{number}'),
+                            'published_at': '2026-11-24T08:00:00Z'})
+        edition = {'kind': 'daily', 'generated_at': '2026-11-24T12:00:00Z',
+                   'sections': stories, 'coverage': [],
+                   'daily_briefing': {'background_segments': [], 'briefing_script': []}}
+        checks = check_content({'edition': edition, 'sources': sources}, [], PROFILE,
+                               now=datetime(2026, 11, 25, tzinfo=timezone.utc))
+        self.assertFalse(next(row for row in checks if row['name'] == 'quality')['passed'])
+
+        with patch.object(daily_briefing, 'assemble', side_effect=lambda *_args, **_kwargs: None):
+            dropped = generation_api._repair_daily_content_items(
+                edition, checks, PROFILE, source_dates={}, source_tiers={},
+                recent_history=[], detail={})
+
+        self.assertEqual(dropped, [{'type': 'story', 'item_id': 'fixture-cluster-3',
+                                    'label': 'Payment settlement update 3',
+                                    'reason': 'sponsored_source_path'}])
+        self.assertEqual(len([row for row in edition['sections'] if row.get('cluster_id')]), 4)
+        remaining = check_content({'edition': edition, 'sources': sources}, [], PROFILE,
+                                  now=datetime(2026, 11, 25, tzinfo=timezone.utc))
+        self.assertTrue(next(row for row in remaining if row['name'] == 'quality')['passed'])
+
+    def test_final_daily_content_repair_drops_thin_cited_background_segment(self):
+        from dev.content_check import check_content
+        from ingest import daily_briefing
+
+        story = {'id': 'fixture-story', 'cluster_id': 'fixture-cluster',
+                 'heading': 'Payment settlement update',
+                 'body': 'Payment settlement reports a bank transfer delay. [1] '
+                         'A second payment sentence describes processing. [1]',
+                 'source_ids': ['fixture-source'], 'topic_ids': ['payments'],
+                 'takeaway': 'Unique payment takeaway.'}
+        segment = {'segment_id': 'fixture-background', 'topic_id': 'payments',
+                   'label': 'Payment background',
+                   'sentences': [{'text': 'Payments use a settlement process.',
+                                  'citation_numbers': [1]}]}
+        edition = {'kind': 'daily', 'generated_at': '2026-11-24T12:00:00Z',
+                   'sections': [story], 'coverage': [],
+                   'daily_briefing': {'background_segments': [segment], 'briefing_script': []}}
+        sources = [{'id': 'fixture-source', 'url': 'https://fictional.test/payment',
+                    'published_at': '2026-11-24T08:00:00Z'}]
+        checks = check_content({'edition': edition, 'sources': sources}, [], PROFILE,
+                               now=datetime(2026, 11, 25, tzinfo=timezone.utc))
+        self.assertTrue(any('segment 1 (Payment background)' in reason
+                            for row in checks if row['name'] == 'quality'
+                            for reason in row['reasons']))
+
+        def reassemble(candidate, _profile, *, background_fill, **_kwargs):
+            self.assertIsNone(background_fill('payments'))
+            candidate['daily_briefing']['background_segments'] = []
+
+        with patch.object(daily_briefing, 'assemble', side_effect=reassemble):
+            dropped = generation_api._repair_daily_content_items(
+                edition, checks, PROFILE, source_dates={}, source_tiers={},
+                recent_history=[], detail={})
+
+        self.assertEqual(dropped, [{'type': 'segment', 'item_id': 'fixture-background',
+                                    'label': 'Payment background',
+                                    'reason': 'insufficient_cited_substance'}])
+        self.assertEqual(edition['daily_briefing']['background_segments'], [])
+        remaining = check_content({'edition': edition, 'sources': sources}, [], PROFILE,
+                                  now=datetime(2026, 11, 25, tzinfo=timezone.utc))
+        self.assertTrue(next(row for row in remaining if row['name'] == 'quality')['passed'])
+
+    def test_generation_publishes_repaired_edition_and_audits_dropped_item(self):
+        from dev import content_check
+        from ingest import daily_briefing, score_edition, write_edition
+
+        stories = []
+        sources = []
+        for number in range(1, 6):
+            source_id = f'fixture-source-{number}'
+            stories.append({'id': f'fixture-story-{number}',
+                            'cluster_id': f'fixture-cluster-{number}',
+                            'heading': f'Payment settlement update {number}',
+                            'body': f'Payment settlement item {number} reports a bank transfer delay. [1] '
+                                    'A second payment sentence describes processing. [1]',
+                            'source_ids': [source_id], 'topic_ids': ['payments']})
+            sources.append({'id': source_id, 'registry_id': source_id})
+        candidate = {'editions': [{'id': 'fixture-daily', 'kind': 'daily',
+                                   'generated_at': '2026-11-24T12:00:00Z',
+                                   'local_date': '2026-11-24', 'sections': stories,
+                                   'coverage': [{'topic_id': 'payments', 'state': 'covered'}]}]}
+        detail = {'sentence_evidence': {}, 'candidate_results': [],
+                  'candidate_attempts': 5, 'candidate_attempt_limit': 5}
+        failure = [{'name': 'quality', 'passed': False,
+                    'reasons': ['story 3 (Payment settlement update 3): cited source uses a sponsored content path']}]
+        passing = [{'name': 'quality', 'passed': True, 'reasons': ['no issue found']}]
+
+        def assemble(edition, *_args, **_kwargs):
+            edition['daily_briefing'] = {'spoken_words': 0, 'target_spoken_words': 600,
+                                         'background_segments': [], 'briefing_script': []}
+
+        with patch.dict('os.environ', {'BRIEFING_DAILY_NARRATION': 'off'}), \
+             patch.object(generation_api.core, 'ingest_enabled', return_value={
+                 'parsed_items': 5, 'fetched_sources': 5, 'errors': 0, 'source_results': {}}), \
+             patch.object(write_edition, 'generate_edition', return_value=(
+                 candidate, {'sources': sources}, detail)), \
+             patch.object(score_edition, 'score_edition', return_value={
+                 'critical_failed': False, 'failed_critical': [], 'checks': []}), \
+             patch.object(daily_briefing, 'assemble', side_effect=assemble), \
+             patch.object(content_check, 'check_content', side_effect=[failure, passing]) as check:
+            code, started = generation_api.start_generation(
+                PROFILE, self.root / 'repaired-generation', registry=[],
+                is_default=True, publish_default=False)
+            self.assertEqual(code, 202)
+            for _ in range(200):
+                _, job = generation_api.job_response(started['job_id'])
+                if job['status'] in {'complete', 'failed'}:
+                    break
+                time.sleep(0.01)
+
+        self.assertEqual(job['status'], 'complete', job)
+        self.assertEqual(check.call_count, 2)
+        edition = job['edition_ready']['edition']
+        self.assertEqual(len([row for row in edition['sections'] if row.get('cluster_id')]), 4)
+        scorecard = json.loads((self.root / 'repaired-generation' / job['scorecard_path']).read_text())
+        self.assertEqual(scorecard['content_gate_dropped_items'], [{
+            'type': 'story', 'item_id': 'fixture-cluster-3',
+            'label': 'Payment settlement update 3', 'reason': 'sponsored_source_path'}])
+        self.assertEqual(scorecard['stories_passed_checks'], 4)
+
+    def test_final_daily_content_repair_does_not_mutate_when_all_stories_fail(self):
+        from ingest import daily_briefing
+        edition = {'sections': [{'id': 'fixture-story', 'cluster_id': 'fixture-cluster',
+                                 'heading': 'Payment update', 'source_ids': ['fixture-source'],
+                                 'topic_ids': ['payments']}],
+                   'daily_briefing': {'background_segments': []}}
+        original = json.loads(json.dumps(edition))
+        failed = [{'name': 'quality', 'passed': False,
+                   'reasons': ['story 1 (Payment update): sponsored source path']}]
+        with patch.object(daily_briefing, 'assemble') as assemble:
+            dropped = generation_api._repair_daily_content_items(
+                edition, failed, PROFILE, source_dates={}, source_tiers={},
+                recent_history=[], detail={})
+        self.assertIsNone(dropped)
+        self.assertEqual(edition, original)
+        assemble.assert_not_called()
+
+    def test_clean_accounts_off_generation_keeps_golden_edition_shape(self):
+        from dev import content_check
+        from ingest import daily_briefing, score_edition, write_edition
+
+        story = {'kind': 'story', 'id': 'fixture-story', 'cluster_id': 'fixture-cluster',
+                 'heading': 'Payment settlement update',
+                 'body': 'Payment settlement reports a bank transfer delay. [1] '
+                         'A second payment sentence describes processing. [1]',
+                 'source_ids': ['fixture-source'], 'topic_ids': ['payments'],
+                 'takeaway': 'Unique payment takeaway.'}
+        candidate = {'editions': [{'kind': 'daily', 'id': 'fixture-edition',
+                                   'generated_at': '2026-11-24T12:00:00Z',
+                                   'sections': [story], 'coverage': []}]}
+        sources = [{'id': 'fixture-source', 'url': 'https://fictional.test/payment',
+                    'published_at': '2026-11-24T08:00:00Z'}]
+        golden = json.loads(json.dumps(candidate['editions'][0]))
+        golden['daily_briefing'] = {'spoken_words': 300, 'background_segments': [],
+                                    'briefing_script': []}
+
+        def assemble(edition, *_args, **_kwargs):
+            edition['daily_briefing'] = {'spoken_words': 300, 'background_segments': [],
+                                         'briefing_script': []}
+
+        with patch.dict('os.environ', {'BRIEFING_ACCOUNTS': 'off',
+                                       'BRIEFING_DAILY_NARRATION': 'off'}), \
+             patch.object(generation_api.core, 'ingest_enabled', return_value={
+                 'parsed_items': 1, 'fetched_sources': 1, 'errors': 0, 'source_results': {}}), \
+             patch.object(write_edition, 'generate_edition', return_value=(
+                 candidate, {'sources': sources}, {'sentence_evidence': {}})), \
+             patch.object(score_edition, 'score_edition', return_value={
+                 'critical_failed': False, 'failed_critical': [], 'checks': []}), \
+             patch.object(daily_briefing, 'assemble', side_effect=assemble), \
+             patch.object(content_check, 'check_content', return_value=[
+                 {'name': name, 'passed': True, 'reasons': ['no issue found']}
+                 for name in ('quality', 'citations', 'relevance', 'story count')]) as check:
+            code, started = generation_api.start_generation(
+                PROFILE, self.root / 'golden-clean', registry=[],
+                is_default=True, publish_default=False)
+            self.assertEqual(code, 202)
+            for _ in range(200):
+                _, job = generation_api.job_response(started['job_id'])
+                if job['status'] in {'complete', 'failed'}:
+                    break
+                time.sleep(0.01)
+
+        self.assertEqual(job['status'], 'complete', job)
+        actual = job['edition_ready']['edition']
+        self.assertEqual(set(actual), {'audio', 'coverage', 'daily_briefing', 'generated_at',
+                                       'id', 'kind', 'profile_id', 'revision_id', 'script_hash',
+                                       'sections', 'summary', 'thin_day'})
+        self.assertEqual(actual['sections'], golden['sections'])
+        self.assertEqual(actual['daily_briefing'], golden['daily_briefing'])
+        self.assertEqual(actual['audio']['state'], 'pending')
+        self.assertEqual(set(actual['audio']), {'revision_id', 'script_hash', 'state'})
+        self.assertEqual(check.call_count, 1)
+        scorecard = json.loads((self.root / 'golden-clean' / job['scorecard_path']).read_text())
+        self.assertNotIn('content_gate_dropped_items', scorecard)
 
     def test_failed_stories_are_dropped_and_remaining_sources_pruned(self):
         from ingest.score_edition import _check
@@ -1288,9 +1547,9 @@ class GenerationApiTests(unittest.TestCase):
             'heading': f'Fictional payment update {index}',
             'body': f'Fictional payment evidence {index}. [1]',
             'source_ids': [f'fictional-source-{index}'], 'topic_ids': ['payments'],
-        } for index in range(1, 4)]
+        } for index in range(1, 2)]
         sources = [{'id': f'fictional-source-{index}', 'registry_id': f'fictional-registry-{index}'}
-                   for index in range(1, 4)]
+                   for index in range(1, 2)]
         candidate = {'editions': [{'id': 'fictional-rejected-daily', 'kind': 'daily',
                                    'generated_at': '2026-11-22T12:00:00Z',
                                    'local_date': '2026-11-22', 'sections': stories,
@@ -1298,8 +1557,8 @@ class GenerationApiTests(unittest.TestCase):
         detail = {'sentence_evidence': {}, 'candidate_results': [], 'candidate_attempts': 3,
                   'candidate_attempt_limit': 3}
         clean_score = {'critical_failed': False, 'failed_critical': [], 'checks': []}
-        failed_checks = [{'name': 'relevance', 'passed': False,
-                          'reasons': ['fictional deterministic mismatch']}]
+        failed_checks = [{'name': 'quality', 'passed': False,
+                          'reasons': ['story 1 (Fictional payment update 1): sponsored source path']}]
 
         def assemble(edition, *_args, **_kwargs):
             edition['daily_briefing'] = {
@@ -1324,12 +1583,12 @@ class GenerationApiTests(unittest.TestCase):
                 time.sleep(0.01)
 
         self.assertEqual(job['status'], 'failed', job)
-        self.assertEqual(job['failure_reason'], 'scorecard_critical_failed:content_relevance')
+        self.assertEqual(job['failure_reason'], 'scorecard_critical_failed:content_quality')
         self.assertEqual(json.loads((directory / 'current.json').read_text()), last_bundle)
         check.assert_called_once()
         narration_transport.assert_not_called()
         saved = json.loads((directory / job['scorecard_path']).read_text())
-        self.assertEqual(saved['failed_critical'], ['content_relevance'])
+        self.assertEqual(saved['failed_critical'], ['content_quality'])
         self.assertEqual(saved['content_checks'], failed_checks)
 
     def test_critical_scorecard_failure_does_not_publish(self):
@@ -1360,7 +1619,7 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(generation_api.MAX_GENERATION_SECONDS, 180)
         self.assertEqual(generation_api.GENERATION_FINALIZE_RESERVE_SECONDS, 10)
         self.assertEqual(generation_api.FEED_FETCH_BUDGET_SECONDS, 60)
-        self.assertEqual(generation_api.ARTICLE_EXTRACTION_BUDGET_SECONDS, 45)
+        self.assertEqual(generation_api.ARTICLE_EXTRACTION_BUDGET_SECONDS, 80)
         self.assertEqual(generation_api.MAX_ARTICLE_FETCHES_PER_RUN, 24)
         from ingest import write_edition
         # The callback is checked before every outbound call; the 41st is rejected.
@@ -1375,6 +1634,12 @@ class GenerationApiTests(unittest.TestCase):
                 time.sleep(0.01)
         self.assertEqual(job['error'], 'gemini_call_limit')
         self.assertEqual(job['gemini_calls'], 40)
+
+    def test_daily_article_deadline_leaves_thirty_seconds_for_the_writer(self):
+        writer_deadline, article_deadline = generation_api._daily_generation_deadlines(1000.0)
+        self.assertEqual(writer_deadline, 1170.0)
+        self.assertEqual(article_deadline, 1140.0)
+        self.assertEqual(writer_deadline - article_deadline, 30.0)
 
     def test_fill_callback_keeps_the_configured_forty_call_job_cap(self):
         from ingest import write_edition

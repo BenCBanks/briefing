@@ -86,14 +86,14 @@ def _latest_prior_profile_directory(root, active_id):
     return max(found, default=(None, None))[1]
 
 
-def edition_response(directory=None, profile='default', *, include_history=True):
+def edition_response(directory=None, profile='default', *, include_history=True, profile_data=None):
     if type(include_history) is not bool:
         raise ValueError('include_history must be a boolean')
     use_state_default = directory is None and profile != 'active'
     legacy_words_only = False
     if directory is None and profile == 'active':
         try:
-            current_profile = generation_api.load_profile()
+            current_profile = profile_data or generation_api.load_profile()
             directory = generation_api.profile_generated_dir(current_profile)
             if not (directory / 'current.json').is_file() and not (directory / 'editions.json').is_file():
                 if not (LEGACY_GENERATED_DIR / 'legacy-profile-owner.json').exists():
@@ -131,7 +131,7 @@ def edition_response(directory=None, profile='default', *, include_history=True)
             return 200, {'generated': False, 'edition': None, 'sources': [], 'history': history}
         if profile == 'active':
             if not legacy_words_only:
-                current_profile = generation_api.load_profile()
+                current_profile = profile_data or generation_api.load_profile()
                 active_id = profile_identifier(current_profile)
                 edition_profile_id = current.get('profile_id')
                 if edition_profile_id and edition_profile_id != active_id:

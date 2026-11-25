@@ -8,12 +8,31 @@ from contextlib import redirect_stdout
 from io import StringIO
 from unittest.mock import patch
 
-from dev.try_real import (_print_funnel, _print_result, assert_isolated_state, fictional_profile,
+from dev.try_real import (_print_failed_content_checks, _print_funnel, _print_result,
+                          assert_isolated_state, fictional_profile,
                           isolated_run, ledger_cost_delta)
 from dev.ingest.usage import UsageCapReached, UsageLedger
 
 
 class TryRealTests(unittest.TestCase):
+    def test_failed_daily_content_checks_print_named_rules_without_unexpected_detail(self):
+        output = StringIO()
+        scorecard = {'content_checks': [
+            {'name': 'quality', 'passed': False, 'reasons': [
+                'story 3 (Fictional payment update): insufficient cited substance '
+                '(1 distinct cited sentences; need 2 distinct cited sentences)',
+                'unexpected article body should not be printed']},
+            {'name': 'relevance', 'passed': False,
+             'reasons': ['unrelated checks are omitted']},
+            {'name': 'citations', 'passed': True, 'reasons': []},
+        ]}
+        with redirect_stdout(output):
+            _print_failed_content_checks(scorecard)
+        self.assertEqual(output.getvalue(),
+                         'Failed content checks by label:\n'
+                         '  story 3 (Fictional payment update): insufficient cited substance '
+                         '(1 distinct cited sentences; need 2 distinct cited sentences)\n')
+
     def test_episode_report_pairs_research_speed_with_evidence_counts(self):
         output = StringIO()
         result = {'word_count': 80, 'duration_minutes': 1, 'transcript': 'A fictional script.',
@@ -21,11 +40,24 @@ class TryRealTests(unittest.TestCase):
                   'timing': {'research_and_reading_seconds': 42.5},
                   'retrieval': {'research_budget': {
                       'research_elapsed_seconds': 42.5, 'research_budget_seconds': 165,
-                      'slow_hosts_dropped': 2, 'read_timeouts': 3}}}
+                      'slow_hosts_dropped': 2, 'read_timeouts': 3,
+                      'read_funnel': {'attempted': 9, 'read': 7, 'skipped_deadline': 1,
+                                      'skipped_host_gap': 0, 'failed': 1}}}}
         with redirect_stdout(output):
             _print_result('episode', result, {'daily': {'estimated_cost_usd': 0}}, 0)
-        self.assertIn('Evidence: 7 sources read; 2 slow hosts dropped; 3 source timeouts; research 42.50s / 165s budget',
-                      output.getvalue())
+        self.assertIn('Evidence: 7 sources read; 2 slow hosts dropped; 3 source timeouts; '
+                      'reads attempted/read/skipped-deadline/skipped-host-gap/failed 9/7/1/0/1; '
+                      'research 42.50s / 165s budget', output.getvalue())
+
+    def test_episode_report_prints_requested_and_final_length_stage(self):
+        output = StringIO()
+        result = {'word_count': 400, 'duration_minutes': 2.67, 'transcript': 'Fictional words.',
+                  'timing': {}, 'length_report': {
+                      'report_line': 'requested 750 words, got 400, lost at stage writing'}}
+        with redirect_stdout(output):
+            _print_result('episode', result, {'daily': {'estimated_cost_usd': 0}}, 0)
+        self.assertIn('Length: requested 750 words, got 400, lost at stage writing', output.getvalue())
+        self.assertIn('Length stages: ', output.getvalue())
 
     def test_refuses_live_state_root_and_children(self):
         live = Path.home() / '.local' / 'state' / 'briefing'
@@ -68,12 +100,35 @@ class TryRealTests(unittest.TestCase):
         self.assertEqual(os.environ.get('BRIEFING_FLAGS_FILE'), before_flags)
         self.assertEqual(os.environ.get('BRIEFING_SEARCH_FIRST'), before_search)
 
+    def test_isolated_run_preserves_only_explicit_daily_outline_ab_override(self):
+        before = os.environ.get('BRIEFING_DAILY_OUTLINE_WRITER')
+        with patch.dict(os.environ, {'BRIEFING_DAILY_OUTLINE_WRITER': 'on',
+                                     'BRIEFING_RETRIEVAL_FILL': 'on'}):
+            with isolated_run() as state:
+                self.assertEqual(Path(os.environ['BRIEFING_STATE_DIR']), state)
+                self.assertEqual(os.environ.get('BRIEFING_DAILY_OUTLINE_WRITER'), 'on')
+                self.assertIsNone(os.environ.get('BRIEFING_RETRIEVAL_FILL'))
+            self.assertEqual(os.environ.get('BRIEFING_DAILY_OUTLINE_WRITER'), 'on')
+        self.assertEqual(os.environ.get('BRIEFING_DAILY_OUTLINE_WRITER'), before)
+
     def test_search_first_run_option_is_explicit_and_restored(self):
         before = os.environ.get('BRIEFING_SEARCH_FIRST')
         with isolated_run(search_first=True) as state:
             self.assertEqual(os.environ.get('BRIEFING_SEARCH_FIRST'), 'on')
             self.assertEqual(Path(os.environ['BRIEFING_STATE_DIR']), state)
         self.assertEqual(os.environ.get('BRIEFING_SEARCH_FIRST'), before)
+
+    def test_daily_real_run_report_includes_story_count(self):
+        output = StringIO()
+        edition = {'sections': [{'cluster_id': 'story-one'}, {'cluster_id': 'story-two'},
+                                {'heading': 'not a story'}],
+                   'spoken_words': 200,
+                   'daily_briefing': {'briefing_script': [{'text': 'A fictional spoken script.'}]}}
+        with redirect_stdout(output):
+            _print_result('daily', edition, {'daily': {'estimated_cost_usd': 0}},
+                          __import__('time').monotonic())
+        self.assertIn('Stories: 2', output.getvalue())
+        self.assertIn('Word count: 200', output.getvalue())
 
     def test_cost_delta_uses_normal_global_daily_ledger_bucket(self):
         before = {'daily': {'estimated_cost_usd': '1.25000'}}
@@ -87,6 +142,10 @@ class TryRealTests(unittest.TestCase):
                 'fetched': 255, 'topic_matched': 255, 'relevance_passed': 58,
                 'clustered': 15, 'unseen': 14, 'candidate_clusters': 10}},
                 'funnel_drop_reasons': {'ai': {'repeat_suppressed_cluster': 1}},
+                'article_evidence_thresholds': {'single_source_chars': 300},
+                'article_read_details': [{'topic_id': 'ai', 'candidate': 1,
+                    'source_reads': [{'source_id': 'fixture-ai-source', 'chars': 321,
+                                      'words': 49, 'body_sentences': 4}]}],
                 'retrieval_fill': {'triggered': True, 'search_first': True,
                                    'topics_searched': 1, 'candidates_added': 2,
                                    'rejected': {'no_evidence': 1},
@@ -96,6 +155,8 @@ class TryRealTests(unittest.TestCase):
         self.assertIn('| Fetched | Topic-matched | Relevance-passed | Clustered | Unseen | Candidate pool | Selected |', report)
         self.assertIn('| ai | 255 | 255 | 58 | 15 | 14 | 10 | 0 | repeat_suppressed_cluster: 1 |', report)
         self.assertIn('Open-web fallback:', report)
+        self.assertIn('Article evidence thresholds:', report)
+        self.assertIn('"words": 49', report)
         self.assertIn('"candidates_added": 2', report)
         self.assertIn('"gdelt": {"unavailable": 1}', report)
         self.assertNotIn('private-provider', report)

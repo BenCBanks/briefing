@@ -126,14 +126,14 @@ class IngestTests(unittest.TestCase):
             self.assertEqual(fetch.call_args.args[0]['etag'], 'old-tag')
         self.assertEqual(validators[source['id']]['etag'], 'old-tag')
 
-    def test_candidate_priority_preserves_delayed_hosts_and_promotes_readable_evidence(self):
+    def test_candidate_priority_uses_capped_same_run_article_wait(self):
         def cluster(source=None, item=None):
             return {'rows': [{'source': {**SOURCE, 'article_access': 'transient-read',
                                          'minimum_interval_seconds': 60, **(source or {})},
                               'item': {'url': 'https://news.example.test/story', **(item or {})}}]}
         with patch.object(core, '_last_request_by_host', {'news.example.test': 100}), \
              patch.object(core.time, 'monotonic', return_value=110):
-            self.assertEqual(core.article_candidate_priority(cluster(), 140), 1)
+            self.assertEqual(core.article_candidate_priority(cluster(), 111), 1)
             self.assertEqual(core.article_candidate_priority(cluster(), 180), 0)
             self.assertEqual(core.article_candidate_priority(cluster({'paywalled': 'unknown'}), 180), 0)
             self.assertEqual(core.article_candidate_priority(cluster({'article_access': 'feed-full'},
@@ -187,12 +187,14 @@ class IngestTests(unittest.TestCase):
         self.assertTrue(next(source for source in sources if source['id'] == 'fedreg-rss-cms')['enabled'])
         self.assertEqual(next(source for source in sources if source['id'] == 'fedreg-rss-cms')['source_class'], 'official')
         self.assertEqual(next(source for source in sources if source['id'] == 'fedreg-rss-cms')['article_access'], 'full-text')
+        self.assertTrue(next(source for source in sources if source['id'] == 'cms-newsroom')['enabled'])
+        self.assertEqual(next(source for source in sources if source['id'] == 'cms-newsroom')['source_tier'], 'primary')
         registry_doc = json.loads((Path(__file__).resolve().parents[2] / 'content/sources-registry.json').read_text())
         watched = {row['id'] for row in registry_doc.get('watched_pages', [])}
         self.assertEqual(len(watched), 6)
         self.assertIn('fdic-national-rates', watched)
         self.assertEqual(len(watched), 6)
-        for skipped in ('cms-newsroom', 'thepointsguy-deals', 'frankfurter', 'wikipedia-feed', 'newscientist'):
+        for skipped in ('thepointsguy-deals', 'frankfurter', 'wikipedia-feed', 'newscientist'):
             self.assertFalse(next(source for source in sources if source['id'] == skipped)['enabled'])
         probation = [source for source in sources if source.get('tier') == 'probation']
         self.assertEqual({source['id'] for source in probation}, {'bpc-health'})
@@ -380,6 +382,40 @@ class IngestTests(unittest.TestCase):
         parsed = core.parse_source(atom, atom_source, NOW)
         self.assertEqual(parsed[0]['url'], 'https://news.example.test/rail')
         self.assertEqual(parsed[0]['snippet'], 'Station service changes')
+
+    def test_publisher_feed_html_titles_and_malformed_anchor_links_are_sanitized(self):
+        cms = {**SOURCE, 'id': 'cms-newsroom', 'name': 'CMS',
+               'url': 'https://www.cms.gov/newsroom/rss-feeds'}
+        payload = b'''<rss><channel><item>
+          <title>&lt;strong&gt;Coverage rule update&lt;/strong&gt; for fictional readers</title>
+          <link>&amp;lt;a href=&amp;quot;/newsroom/updates/coverage&amp;quot;&amp;gt;Read more&amp;lt;/a&amp;gt;</link>
+          <description>Fictional notice.</description>
+          <pubDate>Mon, 16 Nov 2026 10:00:00 GMT</pubDate></item></channel></rss>'''
+        item = core.parse_source(payload, cms, NOW)[0]
+        self.assertEqual(item['title'], 'Coverage rule update for fictional readers')
+        self.assertEqual(item['url'], 'https://www.cms.gov/newsroom/updates/coverage')
+        fierce = {**cms, 'id': 'fierce-healthcare', 'url': 'https://www.fiercehealthcare.com/rss/xml'}
+        fierce_item = core.parse_source(rss('&lt;b&gt;Payer policy&lt;/b&gt; update',
+            link='&amp;lt;a href=&amp;quot;/news/fictional-rule&amp;quot;&amp;gt;Read more&amp;lt;/a&amp;gt;'),
+            fierce, NOW)[0]
+        self.assertEqual(fierce_item['title'], 'Payer policy update')
+        self.assertEqual(fierce_item['url'], 'https://www.fiercehealthcare.com/news/fictional-rule')
+
+    def test_stat_plus_markers_and_broad_feed_keyword_filters_run_before_storage(self):
+        stat = {**SOURCE, 'id': 'statnews', 'item_exclude_markers': ['STAT+']}
+        payload = b'''<rss><channel>
+          <item><title>STAT+ exclusive policy report</title><link>https://news.example.test/plus</link></item>
+          <item><title>Public health policy report</title><link>https://news.example.test/open</link></item>
+        </channel></rss>'''
+        self.assertEqual([row['title'] for row in core.parse_source(payload, stat, NOW)],
+                         ['Public health policy report'])
+        firehose = {**SOURCE, 'item_keyword_filter': ['semiconductor', 'chip design']}
+        broad = b'''<rss><channel>
+          <item><title>New accelerator chip design</title><link>https://news.example.test/chip</link></item>
+          <item><title>General model research</title><link>https://news.example.test/model</link></item>
+        </channel></rss>'''
+        self.assertEqual([row['title'] for row in core.parse_source(broad, firehose, NOW)],
+                         ['New accelerator chip design'])
 
     def test_feed_full_content_is_transient_and_snippets_are_sanitized(self):
         paragraphs = ' '.join(f'<p>Verified feed detail number {index} with housing facts &amp; policy context.</p>'
@@ -613,6 +649,91 @@ class IngestTests(unittest.TestCase):
         self.assertEqual(request.get_header('User-agent'), core.USER_AGENT)
         self.assertEqual(timeout, core.TIMEOUT_SECONDS)
 
+    def test_cold_robots_check_does_not_consume_sixty_second_feed_slot(self):
+        source = {**SOURCE, 'enabled': True, 'minimum_interval_seconds': 60}
+        calls = []
+        def opener(request, timeout):
+            calls.append(request.full_url)
+            if request.full_url.endswith('/robots.txt'):
+                return FakeResponse(b'User-agent: *\nAllow: /', url=request.full_url)
+            return FakeResponse(rss(link='https://news.example.test/story/cold'), url=request.full_url)
+        start = time.monotonic()
+        items, _metadata = core.fetch_source(source, opener=opener, now=NOW,
+            robots_cache_path=Path(self.temp.name) / 'cold-robots.json', deadline=start + 60)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(calls, ['https://news.example.test/robots.txt', SOURCE['url']])
+
+    def test_host_group_obeys_interval_between_two_feeds_on_same_host(self):
+        host = 'news.example.test'
+        sources = [
+            {**SOURCE, 'id': f'feed-{index}', 'url': f'https://{host}/feed-{index}.xml',
+             'enabled': True, 'minimum_interval_seconds': 2}
+            for index in (1, 2)
+        ]
+        clock = [100.0]
+        feed_starts = []
+        def opener(request, timeout):
+            if request.full_url.endswith('/robots.txt'):
+                return FakeResponse(b'User-agent: *\nAllow: /', url=request.full_url)
+            feed_starts.append(clock[0])
+            return FakeResponse(rss(title=request.full_url.rsplit('/', 1)[-1],
+                                    link=request.full_url.replace('/feed-', '/story/')),
+                                url=request.full_url)
+        with patch.object(core.time, 'monotonic', side_effect=lambda: clock[0]), \
+             patch.object(core.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            result = core._fetch_host_group(sources, {}, Path(self.temp.name) / 'shared-robots.json',
+                                            opener, NOW, deadline=110.0)
+        self.assertEqual([row[3] for row in result], [None, None])
+        self.assertEqual(feed_starts, [100.0, 102.0])
+
+    def test_nine_same_host_feeds_fit_budget_with_capped_gap_and_robot_delay(self):
+        host = 'federal.example.test'
+        sources = [
+            {**SOURCE, 'id': f'feed-{index}', 'url': f'https://{host}/feed-{index}.xml',
+             'allowed_domains': [host], 'enabled': True, 'minimum_interval_seconds': 60}
+            for index in range(9)
+        ]
+        clock = [100.0]
+        feed_starts = []
+        def opener(request, timeout):
+            if request.full_url.endswith('/robots.txt'):
+                return FakeResponse(b'User-agent: *\nAllow: /\nCrawl-delay: 5', url=request.full_url)
+            feed_starts.append(clock[0])
+            return FakeResponse(rss(title=request.full_url.rsplit('/', 1)[-1],
+                                    link=request.full_url.replace('/feed-', '/story/')),
+                                url=request.full_url)
+        with patch.object(core.time, 'monotonic', side_effect=lambda: clock[0]), \
+             patch.object(core.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            results = core._fetch_host_group(sources, {}, Path(self.temp.name) / 'nine-robots.json',
+                                             opener, NOW, deadline=160.0)
+        self.assertEqual(len(results), 9)
+        self.assertTrue(all(result[3] is None and len(result[1]) == 1 for result in results))
+        self.assertEqual(feed_starts, [100.0 + index * 5 for index in range(9)])
+        self.assertTrue(all(later - earlier >= 3 for earlier, later in zip(feed_starts, feed_starts[1:])))
+
+    def test_ingest_cold_robots_fetches_twenty_distinct_hosts(self):
+        sources = []
+        for index in range(20):
+            host = f'feed-{index}.example.test'
+            sources.append({**SOURCE, 'id': f'feed-{index}', 'name': f'Feed {index}',
+                            'url': f'https://{host}/feed.xml', 'allowed_domains': [host],
+                            'enabled': True, 'robots_ok': True, 'minimum_interval_seconds': 60})
+        calls = []
+        def opener(request, timeout):
+            calls.append(request.full_url)
+            if request.full_url.endswith('/robots.txt'):
+                return FakeResponse(b'User-agent: *\nAllow: /', url=request.full_url)
+            host = request.full_url.split('/')[2]
+            link = f'https://{host}/story/1'
+            body = rss(title=f'Fictional update from {host}', link=link)
+            return FakeResponse(body, url=request.full_url)
+        result = core.ingest_enabled(sources, self.store, opener=opener, now=NOW,
+                                     budget_seconds=60, max_workers=8)
+        self.assertEqual(result['enabled_sources'], 20)
+        self.assertGreaterEqual(result['fetched_sources'], 19)
+        self.assertEqual(result['timed_out_sources'], 0)
+        self.assertEqual(sum(url.endswith('/robots.txt') for url in calls), 20)
+
     def test_disabled_sources_never_call_fetcher_and_dry_run_counts(self):
         def forbidden(*_args, **_kwargs):
             self.fail('disabled source attempted a network fetch')
@@ -684,6 +805,7 @@ class IngestTests(unittest.TestCase):
         def opener(request, timeout):
             if request.full_url.endswith('/robots.txt'):
                 return FakeResponse(b'User-agent: *\nAllow: /', url=request.full_url)
+            time.sleep(0.12)
             return FakeResponse(rss(), url=request.full_url)
         result = core.ingest_enabled([source], self.store, opener=opener, now=NOW, budget_seconds=0.00001)
         self.assertEqual(result['fetched_sources'], 0)

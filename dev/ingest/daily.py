@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Generate today's editions for the recent profiles saved by the web app."""
 
-import json
+import copy
 import hashlib
+import json
 import logging
 import math
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -121,7 +123,15 @@ def _daily_run_report(result):
         reason = 'generation_failed'
     elapsed = result.get('elapsed_seconds')
     elapsed = round(float(elapsed), 2) if isinstance(elapsed, (int, float)) and not isinstance(elapsed, bool) and elapsed >= 0 else None
-    return {
+    multi_reader = _safe_multi_reader_report(result.get('multi_reader'))
+    profiles_attempted = min(MAX_KNOWN_CLIENT_PROFILES,
+                              _integer(result.get('profiles_attempted', 1)))
+    profiles_completed = min(MAX_KNOWN_CLIENT_PROFILES,
+                              _integer(result.get('profiles_completed', int(status == 'complete'))))
+    if multi_reader is not None:
+        profiles_attempted = len(multi_reader['readers'])
+        profiles_completed = sum(row['status'] == 'ready' for row in multi_reader['readers'])
+    report = {
         'version': 1,
         'local_date': edition.get('local_date') if isinstance(edition.get('local_date'), str)
         and re.fullmatch(r'\d{4}-\d{2}-\d{2}', edition.get('local_date')) else None,
@@ -148,13 +158,14 @@ def _daily_run_report(result):
         'daily_audio': {'audio_status': audio_status, 'ready_at': audio_ready_at,
                         'duration_seconds': audio_duration, 'file_size_bytes': audio_size,
                         'resumed': audio.get('resumed') is True},
-        'profiles_attempted': min(MAX_KNOWN_CLIENT_PROFILES,
-                                  _integer(result.get('profiles_attempted', 1))),
-        'profiles_completed': min(MAX_KNOWN_CLIENT_PROFILES,
-                                  _integer(result.get('profiles_completed', int(status == 'complete')))),
+        'profiles_attempted': profiles_attempted,
+        'profiles_completed': profiles_completed,
         'profile_runs': _safe_profile_runs(result.get('profile_runs')),
         'failure_reason': reason,
     }
+    if multi_reader is not None:
+        report['multi_reader'] = multi_reader
+    return report
 
 
 def _safe_profile_runs(value):
@@ -181,6 +192,34 @@ def _safe_profile_runs(value):
         if len(rows) >= MAX_KNOWN_CLIENT_PROFILES:
             break
     return rows
+
+
+def _safe_multi_reader_report(value):
+    if not isinstance(value, dict):
+        return None
+    local_date = value.get('local_date')
+    if not isinstance(local_date, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', local_date):
+        return None
+    readers = []
+    for row in value.get('readers', []) if isinstance(value.get('readers'), list) else []:
+        if not isinstance(row, dict):
+            continue
+        reader_id = row.get('reader_id')
+        status = row.get('status')
+        cost = row.get('cost_usd')
+        if (not isinstance(reader_id, str) or not re.fullmatch(r'[a-f0-9]{8,12}', reader_id) or
+                status not in {'ready', 'not_today', 'failed'}):
+            continue
+        if isinstance(cost, bool) or not isinstance(cost, (int, float)) or not math.isfinite(cost) or cost < 0:
+            cost = 0.0
+        reason = row.get('reason')
+        if not isinstance(reason, str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,60}', reason):
+            reason = None
+        readers.append({'reader_id': reader_id, 'status': status,
+                        'cost_usd': round(cost, 8), 'reason': reason})
+        if len(readers) >= 200:
+            break
+    return {'local_date': local_date, 'readers': readers}
 
 
 def _daily_brief_report(value):
@@ -216,6 +255,7 @@ def _daily_narration_report(value):
     reason = value.get('reason')
     if not isinstance(reason, str) or not re.fullmatch(
             r'(?:narration_[a-z0-9_]{1,80}|budget_estimate|flag_disabled|'
+            r'ProxyError:[0-5][0-9]{2}:[a-z0-9_]{1,80}:[a-z0-9_]{1,80}|'
             r'[A-Z][A-Za-z0-9]{0,39})', reason):
         reason = None
     if status == 'fallback' and reason is None:
@@ -223,6 +263,339 @@ def _daily_narration_report(value):
     if status == 'off' and reason is None:
         reason = 'flag_disabled'
     return {'status': status, 'reason': reason}
+
+
+def _status_path():
+    return generation_api._status_file_path()
+
+
+def _read_multi_reader_status(path=None):
+    try:
+        value = json.loads(Path(path or _status_path()).read_text(encoding='utf-8'))
+        daily_run = value.get('daily_run') if isinstance(value, dict) else None
+        report = daily_run.get('multi_reader') if isinstance(daily_run, dict) else None
+        return report if isinstance(report, dict) else None
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def _persist_multi_reader_status(local_date, readers, path=None):
+    path = Path(path or _status_path())
+    current = {}
+    try:
+        value = json.loads(path.read_text(encoding='utf-8'))
+        current = value if isinstance(value, dict) else {}
+    except (OSError, ValueError, TypeError):
+        pass
+    daily_run = current.get('daily_run')
+    daily_run = daily_run if isinstance(daily_run, dict) else {}
+    safe = _safe_multi_reader_report({'local_date': local_date, 'readers': readers})
+    daily_run['multi_reader'] = safe or {'local_date': local_date, 'readers': []}
+    current['daily_run'] = daily_run
+    _atomic_json(path, current)
+
+
+def _ledger_daily_totals():
+    from dev.ingest.usage import process_ledger
+    summary = process_ledger().summary()
+    daily = summary.get('daily') if isinstance(summary, dict) else None
+    monthly = summary.get('monthly') if isinstance(summary, dict) else None
+    if not isinstance(daily, dict) or not isinstance(monthly, dict):
+        raise RuntimeError('usage_ledger_unavailable')
+    remaining = min(float(daily.get('remaining_usd', 0)), float(monthly.get('remaining_usd', 0)))
+    return float(daily.get('estimated_cost_usd', 0)), remaining
+
+
+def _publish_reader_bundle(staging_dir, generated_dir):
+    """Publish a checked staging bundle, replacing current.json last."""
+    staging_dir, generated_dir = Path(staging_dir), checked_state_path(Path(generated_dir))
+    current = staging_dir / 'current.json'
+    if current.is_symlink() or not current.is_file():
+        raise RuntimeError('staged edition unavailable')
+    try:
+        current_payload = json.loads(current.read_text(encoding='utf-8'))
+    except (OSError, ValueError, TypeError) as error:
+        raise RuntimeError('staged edition unavailable') from error
+    if not isinstance(current_payload, dict):
+        raise RuntimeError('staged edition unavailable')
+    generated_dir.mkdir(parents=True, exist_ok=True)
+    for name in ('editions.json', 'sources.json', 'scorecard.json', 'editions-history.json', 'current.json'):
+        source = staging_dir / name
+        if source.is_symlink() or not source.is_file():
+            continue
+        if name == 'current.json':
+            payload = current_payload
+        else:
+            try:
+                payload = json.loads(source.read_text(encoding='utf-8'))
+            except (OSError, ValueError, TypeError):
+                continue
+        _atomic_json(generated_dir / name, payload)
+
+
+def _account_daily_budget(global_remaining, reader_count):
+    from dev.ingest.multi_reader_daily import DailyBudget, DEFAULT_READER_RESERVE
+    raw = os.environ.get('BRIEFING_ACCOUNT_DAILY_RESERVE_USD', '').strip()
+    try:
+        reserve = float(raw) if raw else DEFAULT_READER_RESERVE
+    except (TypeError, ValueError, OverflowError):
+        reserve = DEFAULT_READER_RESERVE
+    if not math.isfinite(reserve) or reserve < 0:
+        reserve = DEFAULT_READER_RESERVE
+    cap = min(max(0.0, global_remaining), reserve * max(0, int(reader_count)))
+    return DailyBudget(cap=cap, reserve=reserve)
+
+
+def _load_shared_topic_pool(profiles, shared_context):
+    """Fetch the union source pack once; readers still run the existing writer separately."""
+    from dev.ingest import core, feed_health
+    from dev.ingest.discover import run_weekly_watches
+
+    local_sources = sorted({source for profile in profiles
+                            for source in profile.get('local_sources', [])
+                            if isinstance(source, str)})
+    watches = run_weekly_watches(local_source_ids=local_sources)
+    registry = core.load_registry(local_source_ids=local_sources)
+    health = generation_api._read_feed_health()
+    ready = generation_api._ready_sources(registry, health)
+    counts = core.ingest_enabled(ready, core.STORE_PATH,
+                                 budget_seconds=generation_api.FEED_FETCH_BUDGET_SECONDS,
+                                 include_transient=True, max_workers=8)
+    transient_bodies = counts.pop('transient_feed_bodies', {})
+    transient_methods = counts.pop('transient_feed_methods', {})
+    if counts.get('disabled_by_kill_switch'):
+        raise RuntimeError('ingestion_disabled_by_kill_switch')
+    disabled = generation_api._update_feed_health(
+        registry, health, counts.get('source_results', {}), counts.get('source_stats', {}),
+        diagnostics=counts)
+    counts['feed_health_counts'] = feed_health.counts(health, registry)
+    shared_context['feed_snapshot'] = {
+        'watch_results': copy.deepcopy(watches), 'registry': copy.deepcopy(registry),
+        'health': copy.deepcopy(health), 'ready': copy.deepcopy(ready),
+        'counts': copy.deepcopy(counts), 'disabled': copy.deepcopy(disabled),
+        'transient_feed_bodies': copy.deepcopy(transient_bodies),
+        'transient_feed_methods': copy.deepcopy(transient_methods),
+    }
+    version_payload = json.dumps(registry, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
+    source_pack_version = hashlib.sha256(version_payload.encode('utf-8')).hexdigest()
+    topic_specs = {}
+    for profile in profiles:
+        for topic in profile.get('topics', []) if isinstance(profile.get('topics'), list) else []:
+            if isinstance(topic, dict) and isinstance(topic.get('id'), str):
+                current = topic_specs.get(topic['id'])
+                if current is None:
+                    current = dict(topic)
+                    if not isinstance(current.get('include'), list):
+                        current['include'] = []
+                    current['mustFollow'] = True
+                    current['exclude'] = []
+                    topic_specs[topic['id']] = current
+                else:
+                    current['scope'] = ' '.join(filter(None, (current.get('scope'), topic.get('scope'))))
+                    current['include'] = sorted({value for values in
+                        (current.get('include'), topic.get('include')) if isinstance(values, list)
+                        for value in values if isinstance(value, str)})
+    items = core.load_store()
+    pool = {topic_id: core.rank_items(items, {'topics': [spec]}, topic_id)
+            for topic_id, spec in sorted(topic_specs.items())}
+    return pool, source_pack_version
+
+
+def run_accounts_daily(*, profile_loader=None, report_writer=None,
+                       poll_seconds=0.25, sleep=time.sleep, deadline_seconds=15 * 60,
+                       pool_loader=None):
+    """Run the opt-in account fan-out while leaving legacy scheduling untouched."""
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from dev import accounts
+    from dev.ingest import multi_reader_daily
+    from dev.ingest.usage import reset_usage_caller, usage_caller
+
+    run_started = time.monotonic()
+    local_date = datetime.now(ZoneInfo('America/New_York')).date()
+    try:
+        loaded = (profile_loader or accounts.daily_readers)()
+    except Exception as error:
+        result = {'status': 'failed', 'reason': f'profile_load_failed:{type(error).__name__}',
+                  'multi_reader': {'local_date': local_date.isoformat(), 'readers': []},
+                  'profiles_attempted': 0, 'profiles_completed': 0}
+        (report_writer or write_run_report)(result)
+        return 1, result
+    profiles = []
+    for row in loaded if isinstance(loaded, list) else []:
+        if (not isinstance(row, dict) or not isinstance(row.get('account_id'), str) or
+                not isinstance(row.get('profile'), dict)):
+            continue
+        profile = dict(row['profile'])
+        profile['account_id'] = row['account_id']
+        profiles.append(profile)
+
+    existing = _read_multi_reader_status()
+    prior_rows = existing.get('readers', []) if isinstance(existing, dict) and existing.get('local_date') == local_date.isoformat() else []
+    def reader_label(account_id):
+        length = 8
+        while length < len(account_id) and any(
+                other != account_id and other.startswith(account_id[:length]) for other in profiles_by_id):
+            length += 4
+        return account_id[:length]
+
+    profiles_by_id = {profile['account_id']: profile for profile in profiles}
+    valid_reader_labels = {reader_label(account_id) for account_id in profiles_by_id}
+    by_short_id = {row.get('reader_id'): dict(row) for row in prior_rows
+                   if isinstance(row, dict) and row.get('reader_id') in valid_reader_labels}
+    completed = {profile['account_id'] for profile in profiles
+                 if by_short_id.get(reader_label(profile['account_id']), {}).get('status') == 'ready'}
+
+    # The only shared persistent work is the generation API's bounded feed snapshot.
+    # It is created on the first reader's normal run and reused for subsequent writers.
+    shared_context = {}
+    local_sources = sorted({source for profile in profiles
+                            for source in profile.get('local_sources', [])
+                            if isinstance(source, str)})
+    first_writer = [True]
+    reader_costs = {}
+
+    try:
+        before_total, remaining = _ledger_daily_totals()
+    except Exception:
+        before_total, remaining = 0.0, 0.0
+    budget = _account_daily_budget(remaining, len(profiles))
+
+    retrieval_error = None
+    if not profiles or len(completed) == len(profiles):
+        topic_pool, source_pack_version = {}, 'already-complete'
+    else:
+        try:
+            topic_pool, source_pack_version = (pool_loader or _load_shared_topic_pool)(profiles, shared_context)
+        except Exception:
+            topic_pool, source_pack_version = {}, 'unavailable'
+            retrieval_error = 'shared retrieval unavailable'
+
+    def retrieve_topic(topic, _budget):
+        if retrieval_error:
+            raise RuntimeError(retrieval_error)
+        return topic_pool.get(topic, [])
+
+    def write_reader(profile, topic_pool, budget_state):
+        account_id = profile['account_id']
+        reader_profile = {key: value for key, value in profile.items() if key != 'account_id'}
+        if first_writer[0]:
+            reader_profile['local_sources'] = local_sources
+            first_writer[0] = False
+        generated_dir = accounts.reader_generated_dir(account_id, profile_identifier(reader_profile))
+        state_dir = accounts.reader_state_dir(account_id)
+        staging_root = state_dir / 'daily-staging'
+        if staging_root.is_symlink():
+            raise RuntimeError('reader staging unavailable')
+        shutil.rmtree(staging_root, ignore_errors=True)
+        staging_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        staging_dir = Path(tempfile.mkdtemp(prefix=f'{local_date.isoformat()}-', dir=staging_root))
+        for name in ('current.json', 'editions.json', 'sources.json', 'scorecard.json', 'editions-history.json'):
+            previous = generated_dir / name
+            if previous.is_file() and not previous.is_symlink():
+                shutil.copyfile(previous, staging_dir / name)
+        shared_context['topic_items'] = copy.deepcopy(topic_pool)
+
+        def start(value):
+            return generation_api.start_generation(
+                value, directory=staging_dir, is_default=True, publish_default=False,
+                shared_context=shared_context)
+
+        code, result = _one_profile(
+            reader_profile, MAX_GENERATION_SECONDS + 5, poll_seconds, start, job_response, sleep,
+            lambda _edition, **_kwargs: {'audio_status': 'disabled', 'audio_url': None,
+                                         'duration_seconds': None, 'chapter_offsets': []},
+            lambda _profile, _edition, audio: audio)
+        try:
+            current_total, _remaining = _ledger_daily_totals()
+        except Exception:
+            current_total = before_total
+        actual_cost = max(0.0, current_total - before_total - sum(reader_costs.values()))
+        reader_costs[account_id] = actual_cost
+        try:
+            budget_state.charge(actual_cost, purpose='reader generation')
+        except Exception:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            raise
+        if code != 0 or not isinstance(result, dict) or result.get('status') != 'complete':
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            if 'cost_cap' in str(result.get('error') or result.get('reason') or ''):
+                raise multi_reader_daily.DailyBudgetError('global usage cap reached')
+            raise RuntimeError('reader generation failed')
+        ready = result.get('edition_ready')
+        edition = ready.get('edition') if isinstance(ready, dict) else None
+        if not isinstance(edition, dict):
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            raise RuntimeError('reader edition missing')
+        try:
+            _publish_reader_bundle(staging_dir, generated_dir)
+        finally:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+        return edition
+
+    def render_reader_audio(profile, edition, budget_state):
+        account_id = profile['account_id']
+        reader_profile = {key: value for key, value in profile.items() if key != 'account_id'}
+        state_dir = accounts.reader_state_dir(account_id)
+        generated_dir = accounts.reader_generated_dir(account_id, profile_identifier(reader_profile))
+        before = None
+        try:
+            before, _remaining = _ledger_daily_totals()
+            token = usage_caller('daily')
+            try:
+                audio = render_daily_audio(edition, profile=reader_profile, state_dir=state_dir,
+                                           voice_file=state_dir / 'voice.json')
+            finally:
+                reset_usage_caller(token)
+        except Exception as error:
+            audio = {'audio_status': 'pending', 'audio_url': None, 'duration_seconds': None,
+                     'chapter_offsets': [], 'reason': type(error).__name__}
+        finally:
+            if before is not None:
+                try:
+                    after, _remaining = _ledger_daily_totals()
+                except Exception:
+                    after = before
+                audio_cost = max(0.0, after - before)
+                reader_costs[account_id] = reader_costs.get(account_id, 0.0) + audio_cost
+                budget_state.charge(audio_cost, purpose='reader audio')
+        _persist_daily_audio(reader_profile, edition, audio, generated_dir=generated_dir)
+        return audio
+
+    def report_reader(row):
+        account_id = row.get('account_id', '')
+        short_id = reader_label(account_id)
+        status = 'ready' if row.get('status') == 'complete' else row.get('status')
+        if status == 'not_today':
+            message = row.get('message', '')
+            reason = ('daily_budget_reached' if 'budget' in message else
+                      'daily_time_limit' if 'time limit' in message else
+                      'evidence_unavailable')
+        else:
+            reason = 'generation_failed' if status == 'failed' else None
+        by_short_id[short_id] = {'reader_id': short_id, 'status': status,
+                                 'cost_usd': round(reader_costs.get(account_id, 0.0), 8),
+                                 'reason': reason}
+        _persist_multi_reader_status(local_date.isoformat(), list(by_short_id.values()))
+
+    output = multi_reader_daily.run_daily(
+        profiles=profiles, run_date=local_date,
+        retrieve_topic=retrieve_topic, write_reader=write_reader,
+        render_audio=render_reader_audio, budget=budget,
+        deadline_seconds=max(0.001, deadline_seconds - (time.monotonic() - run_started)),
+        completed_reader_ids=completed, on_reader_result=report_reader,
+        source_pack_version=source_pack_version,
+        freshness_window=f'et:{local_date.isoformat()}:90d')
+
+    rows = list(by_short_id.values())
+    complete = bool(rows) and all(row.get('status') == 'ready' for row in rows)
+    result = {'status': 'complete' if complete else ('failed' if rows else 'complete'),
+              'profiles_attempted': len(profiles), 'profiles_completed': sum(row.get('status') == 'ready' for row in rows),
+              'multi_reader': {'local_date': local_date.isoformat(), 'readers': rows},
+              'elapsed_seconds': round(time.monotonic() - run_started, 2), 'gemini_calls': 0,
+              'multi_reader_spent_usd': output.get('spent', 0.0)}
+    (report_writer or write_run_report)(result)
+    return (0 if complete or not rows else 1), result
 
 
 def _atomic_text(path, text):
@@ -263,7 +636,7 @@ def write_run_report(result, path=None):
     return report
 
 
-def _persist_daily_audio(profile, edition, audio):
+def _persist_daily_audio(profile, edition, audio, generated_dir=None):
     """Attach audio status to both active-profile and scheduled edition snapshots."""
     audio = audio if isinstance(audio, dict) else {}
     metadata = {key: audio.get(key) for key in
@@ -309,8 +682,9 @@ def _persist_daily_audio(profile, edition, audio):
     current_id = edition.get('id')
     current_revision = edition.get('revision_id') or edition.get('revision')
     current_script_hash = edition.get('script_hash')
-    for directory in (generation_api.DEFAULT_EDITION_DIR,
-                      generation_api.profile_generated_dir(profile)):
+    directories = ((Path(generated_dir),) if generated_dir is not None else
+                   (generation_api.DEFAULT_EDITION_DIR, generation_api.profile_generated_dir(profile)))
+    for directory in directories:
         current_path = Path(directory) / 'current.json'
         editions_path = Path(directory) / 'editions.json'
         for path in (current_path, editions_path):
@@ -541,6 +915,12 @@ def summary_line(result):
         'feeds_disabled': len(run_status.get('feeds_disabled', [])) if isinstance(run_status.get('feeds_disabled', []), list) else 0,
         'reason': _safe_reason(reason),
     }
+    multi_reader = result.get('multi_reader') if isinstance(result, dict) else None
+    if isinstance(multi_reader, dict):
+        rows = _safe_multi_reader_report(multi_reader)
+        if rows is not None:
+            line['multi_reader'] = {'local_date': rows['local_date'],
+                                    'readers': rows['readers']}
     return json.dumps(line, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
 
 
@@ -556,7 +936,11 @@ def _nonnegative_number(value):
 
 
 def main():
-    code, result = run_daily()
+    if os.environ.get('BRIEFING_ACCOUNTS', '').strip().lower() == 'on':
+        code, result = run_accounts_daily()
+    else:
+        # Keep the single-reader entry path and its call ordering untouched.
+        code, result = run_daily()
     print(summary_line(result))
     return code
 

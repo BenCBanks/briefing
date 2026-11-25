@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 import argparse
 import hashlib
 import json
+import logging
 import os
 import re
 import stat
@@ -91,12 +92,12 @@ DAILY_MAX_STORIES = 6
 # Each live extractor can briefly own a matching HTTPS timeout helper. Four
 # extractors plus two writers and their helpers stay below TasksMax=16 with
 # room for the HTTP server and generation job threads.
-EXTRACTION_WORKERS = 4
+EXTRACTION_WORKERS = 5
 STORY_CANDIDATE_BUDGET_SECONDS = 40
 STORY_MODEL_TIMEOUT_SECONDS = 25
 MAX_CLUSTER_SOURCES = 3
 MIN_SINGLE_SOURCE_EVIDENCE_SENTENCES = 3
-MIN_SINGLE_SOURCE_EVIDENCE_CHARS = 400
+MIN_SINGLE_SOURCE_EVIDENCE_CHARS = 300
 MIN_CORROBORATING_SOURCE_SENTENCES = 2
 MIN_CORROBORATING_SOURCE_CHARS = 200
 # Allow a wider article sample while retaining the strict character ceiling
@@ -209,53 +210,28 @@ def _canonical_profile(profile):
 
 
 def _feed_topic_ids(topic, available_tags):
-    """Resolve catalog tags for known and free-text topics; preserve the profile ID separately."""
+    """Resolve ordered registry tags from the public, data-driven mapping table."""
     topic_id = _safe(topic.get('id'), 64).lower()
-    label = _safe(topic.get('label'), 120).lower()
-    words = _tokens(' '.join([label, _safe(topic.get('scope'), 300),
-                              ' '.join(topic.get('include', [])), _safe(topic.get('sourcePhrase'), 500)]))
-    normalized = f'{topic_id} {label}'
-    if {'payments', 'banking'} <= words:
-        return [tag for tag in ('payments', 'banking') if tag in available_tags]
-    if (topic_id == 'health' or 'insurance' in normalized or 'medicaid' in words or
-            'health insurance' in normalized):
-        return [tag for tag in ('insurance', 'health') if tag in available_tags]
-    if (topic_id == 'ai' or topic_id in {'ai-in-finance', 'custom-ai-in-finance'} or
-            ('ai' in words and bool(words & {'finance', 'financial', 'banking', 'payments'})) or
-            {'artificial', 'intelligence'} <= words):
-        # AI-in-finance developments can be published by payment outlets whose
-        # feeds are tagged only `payments`. Let the normal text scope and
-        # full-text evidence checks decide whether each candidate belongs.
-        return [tag for tag in ('ai', 'finance', 'digital', 'payments') if tag in available_tags]
+    words = _tokens(' '.join([topic_id.replace('-', ' '), _safe(topic.get('label'), 120),
+                              _safe(topic.get('scope'), 300), ' '.join(topic.get('include', [])),
+                              _safe(topic.get('sourcePhrase'), 500)]))
+    mapping = json.loads((ROOT / 'content/topic-feed-mapping.json').read_text(encoding='utf-8'))
+    for rule in mapping.get('rules', []):
+        for phrase in rule.get('match_any', []):
+            phrase_words = _tokens(phrase)
+            if phrase_words and phrase_words <= words:
+                tags = [tag for tag in rule.get('tags', []) if tag in available_tags]
+                if tags:
+                    return tags
+    # Explicit registry tags remain useful when no higher-specificity rule matches.
     if topic_id in available_tags:
         return [topic_id]
     aliases = {'savings': 'banking', 'savings-rates': 'banking', 'premier-league': 'sports',
                'premier-league-headlines': 'sports', 'football': 'sports'}
     if topic_id in aliases and aliases[topic_id] in available_tags:
         return [aliases[topic_id]]
-
-    housing_terms = {'housing', 'homebuilding', 'home', 'building', 'construction', 'mortgage', 'mortgages', 'real',
-                     'estate', 'property', 'properties', 'zoning', 'rezoning', 'residential',
-                     'builder', 'builders', 'apartment', 'apartments', 'affordable', 'permit', 'permits'}
-    if words & housing_terms:
-        mapped = {'housing-market'}
-        if words & {'affordable', 'rent', 'rents', 'homelessness'}:
-            mapped.add('affordable-housing')
-        if words & {'home', 'building', 'homebuilding', 'construction', 'builder', 'builders', 'materials', 'lumber'}:
-            mapped.update({'homebuilding', 'construction', 'materials'})
-        return sorted(mapped & available_tags)
-
-    content_topics = json.loads((ROOT / 'content/topics.json').read_text(encoding='utf-8'))['topics']
-    mapped = []
-    for candidate in content_topics:
-        tag = candidate.get('id')
-        candidate_words = _tokens(' '.join(str(candidate.get(key, '')) for key in ('label', 'scope', 'description')))
-        overlap = words & candidate_words
-        if tag in available_tags and len(overlap) >= 2:
-            mapped.append(tag)
-    # A truly new topic still gets a lexical pass over every tagged feed. The
-    # writer's relevance instruction then rejects candidates outside its scope.
-    return mapped or sorted(available_tags)
+    fallback = [tag for tag in mapping.get('fallback_tags', []) if tag in available_tags]
+    return fallback or sorted(available_tags)
 
 
 def _rank_profile_topic_items(items, profile, topic, topic_only=False):
@@ -451,6 +427,54 @@ def _daily_refill_candidates(feed_candidates, fallback_candidates, topics, attem
     return result
 
 
+def _article_read_funnel(outcomes, candidate_results, planned_candidates):
+    """Summarize article evidence reads without retaining text or URLs."""
+    outcomes = outcomes if isinstance(outcomes, list) else []
+    candidate_results = candidate_results if isinstance(candidate_results, list) else []
+    reasons = Counter(row.get('reason') for row in outcomes if isinstance(row, dict))
+    short_evidence = sum(row.get('status') == 'insufficient_full_text_evidence'
+                         for row in candidate_results if isinstance(row, dict))
+    fetch_failures = sum(count for reason, count in reasons.items()
+                         if reason not in {None, 'ok', 'feed_full', 'article_request_started',
+                                           'article_skipped_deadline', 'article_skipped_host_interval',
+                                           'host_rate_limit_wait_timeout'})
+    return {
+        'candidates_planned': max(0, int(planned_candidates)),
+        'article_requests_attempted': reasons.get('article_request_started', 0),
+        'skipped_for_deadline': reasons.get('article_skipped_deadline', 0),
+        'skipped_for_host_interval': reasons.get('article_skipped_host_interval', 0) +
+                                     reasons.get('host_rate_limit_wait_timeout', 0),
+        'extraction_failures': fetch_failures,
+        'evidence_too_short': short_evidence,
+        'outcome_reasons': {key: count for key, count in sorted(reasons.items()) if key},
+    }
+
+
+def _fetch_article_in_run(url, source, fetcher, *, diagnostics, end, stopped=None):
+    """Use a bounded same-run article interval, while the fetcher honors robots delay."""
+    if stopped is not None and stopped.is_set():
+        return None
+    host = (urlsplit(url).hostname or '').lower()
+    source_interval = max(1, int(source.get('minimum_interval_seconds', 1)))
+    interval = max(min(source_interval, core.SAME_RUN_ARTICLE_INTERVAL_SECONDS),
+                   5 if host.endswith('gdeltproject.org') else 1)
+    remaining = None if end is None else end - time.monotonic()
+    if remaining is not None and remaining <= 0:
+        diagnostics.append({'source_id': source.get('id'), 'reason': 'article_skipped_deadline'})
+        return None
+    wait_seconds = core.host_wait_seconds(host, interval)
+    if remaining is not None and wait_seconds + 1.5 >= remaining:
+        diagnostics.append({'source_id': source.get('id'),
+                            'reason': 'article_skipped_host_interval',
+                            'wait_seconds': round(wait_seconds, 2),
+                            'remaining_seconds': round(remaining, 2)})
+        return None
+    request_source = dict(source)
+    request_source['minimum_interval_seconds'] = min(
+        source_interval, core.SAME_RUN_ARTICLE_INTERVAL_SECONDS)
+    return fetcher(url, request_source)
+
+
 def _with_prefetched_bodies(fetcher, bodies):
     """Compose a fetcher with cached article bodies without mutating its closure."""
     cached = dict(bodies)
@@ -470,6 +494,7 @@ def _with_prefetched_bodies(fetcher, bodies):
 def extract_source_sentences(cluster, article_fetcher, sports=False, *, now=None):
     """Build an ephemeral sentence-ID evidence bundle; never serialize article text."""
     from .credibility import assess_bundle
+    from .extract.readable import content_stub_reason
     evidence = {}
     citations = []
     credibility_rows = []
@@ -491,8 +516,17 @@ def extract_source_sentences(cluster, article_fetcher, sports=False, *, now=None
         number = len(citations) + 1
         source_numbers[host.lower()] = number
         owners.add(owner)
-        article = (_safe(item.get('feed_body'), 12000)
-                   if source.get('article_access') in {'feed-full', 'full-text'} else None)
+        feed_body_counted = (source.get('article_access') in {'feed-full', 'full-text'} and
+                              bool(item.get('feed_body')))
+        article = _safe(item.get('feed_body'), 12000) if feed_body_counted else None
+        feed_stub_reason = content_stub_reason(article)
+        if article and feed_stub_reason:
+            if isinstance(getattr(article_fetcher, 'diagnostics', None), list):
+                article_fetcher.diagnostics.append({
+                    'source_id': source.get('id'), 'host': host.lower(),
+                    'reason': 'feed_' + feed_stub_reason, 'evidence_chars': len(article)})
+            article = None
+            feed_body_counted = False
         evidence_depth = 'feed-full' if article else None
         if article and item.get('feed_body') and isinstance(getattr(article_fetcher, 'diagnostics', None), list):
             feed_method = item.get('feed_body_method')
@@ -517,6 +551,9 @@ def extract_source_sentences(cluster, article_fetcher, sports=False, *, now=None
         text = title if sports else (article or '\n'.join(filter(None, [title, snippet])))
         if not evidence_depth:
             evidence_depth = 'snippet' if snippet else 'headline'
+        evidence_body = article or snippet
+        evidence_method = ('feed_body' if article and feed_body_counted else
+                           'article_read' if article else 'feed_snippet' if snippet else 'headline')
         sentences = _sentences(text)
         if not sentences:
             continue
@@ -532,6 +569,11 @@ def extract_source_sentences(cluster, article_fetcher, sports=False, *, now=None
             'display_constraints': _safe(source.get('display_constraints'), 300), 'source_class': source.get('source_class', 'news'),
             'evidence_depth': evidence_depth,
             'evidence_chars': len(article) if article else len(snippet),
+            'evidence_words': _count_words(evidence_body),
+            'evidence_body_sentence_count': len(_sentences(evidence_body)),
+            'evidence_method': evidence_method,
+            'feed_body_counted': bool(article and feed_body_counted),
+            'feed_body_method': item.get('feed_body_method') if article and feed_body_counted else None,
             'may_cache': source.get('may_cache') is True,
             'owner': _owner(source, item), 'official': _official(source, item),
             'source_sentences': []
@@ -645,12 +687,18 @@ def _validated_quote(raw, evidence):
 
 
 def _source_status(citations):
+    citations = [citation for citation in citations if not _vendor_citation(citation)]
     owners = {citation['owner'] for citation in citations}
     if len(owners) >= 2:
         return 'corroborated', f'{len(owners)} independent publishers'
     if citations and all(citation['official'] for citation in citations):
         return 'official', 'primary authority'
     return 'single-source', 'one publisher'
+
+
+def _vendor_citation(citation):
+    credibility = citation.get('credibility') if isinstance(citation.get('credibility'), dict) else {}
+    return credibility.get('tier') == 'vendor' or citation.get('source_tier') == 'vendor'
 
 
 def _source_label(status, detail):
@@ -1007,26 +1055,61 @@ def _news_evidence_depth(citations):
                  row.get('evidence_depth') in {'full-text', 'feed-full'}]
     return {
         'full_text_sources': len(full_text),
-        'full_text_sentences': sum(int(row.get('source_sentence_count', 0)) for row in full_text),
+        'full_text_sentences': sum(int(row.get('evidence_body_sentence_count',
+                                             row.get('source_sentence_count', 0))) for row in full_text),
         'full_text_chars': sum(int(row.get('evidence_chars', 0)) for row in full_text),
     }
 
 
 def _story_evidence_is_sufficient(citations):
-    depth = _news_evidence_depth(citations)
+    # Vendor statements can add useful context, but cannot be the only evidence
+    # behind a story. Require the normal evidence standard from non-vendor sources.
+    supporting = [row for row in citations if not _vendor_citation(row)]
+    depth = _news_evidence_depth(supporting)
     substantial_source = any(
         row.get('source_class') != 'explainer' and row.get('evidence_depth') in {'full-text', 'feed-full'} and
-        int(row.get('source_sentence_count', 0)) >= MIN_SINGLE_SOURCE_EVIDENCE_SENTENCES and
+        int(row.get('evidence_body_sentence_count', row.get('source_sentence_count', 0))) >=
+        MIN_SINGLE_SOURCE_EVIDENCE_SENTENCES and
         int(row.get('evidence_chars', 0)) >= MIN_SINGLE_SOURCE_EVIDENCE_CHARS
-        for row in citations)
+        for row in supporting)
     corroborating_sources = sum(
         row.get('source_class') != 'explainer' and row.get('evidence_depth') in {'full-text', 'feed-full'} and
-        int(row.get('source_sentence_count', 0)) >= MIN_CORROBORATING_SOURCE_SENTENCES and
+        int(row.get('evidence_body_sentence_count', row.get('source_sentence_count', 0))) >=
+        MIN_CORROBORATING_SOURCE_SENTENCES and
         int(row.get('evidence_chars', 0)) >= MIN_CORROBORATING_SOURCE_CHARS
-        for row in citations)
+        for row in supporting)
     depth['qualifies_as_single_source'] = bool(substantial_source)
     depth['qualifies_as_corroborated'] = corroborating_sources >= 2
     return bool(substantial_source or corroborating_sources >= 2), depth
+
+
+def _source_evidence_details(citations):
+    """Keep only source identifiers and length/provenance counts for diagnosis."""
+    details = []
+    for row in citations:
+        full_text = (row.get('source_class') != 'explainer' and
+                     row.get('evidence_depth') in {'full-text', 'feed-full'})
+        chars = int(row.get('evidence_chars', 0))
+        sentences = int(row.get('evidence_body_sentence_count', row.get('source_sentence_count', 0)))
+        details.append({
+            'source_id': row.get('registry_id'),
+            'method': row.get('evidence_method', 'unknown'),
+            'evidence_depth': row.get('evidence_depth'),
+            'chars': chars,
+            'words': int(row.get('evidence_words', 0)),
+            'sentences': sentences,
+            'source_sentences': int(row.get('source_sentence_count', sentences)),
+            'body_sentences': int(row.get('evidence_body_sentence_count', 0)),
+            'full_text': full_text,
+            'feed_body_counted': row.get('feed_body_counted') is True,
+            'meets_single_source_threshold': bool(full_text and
+                sentences >= MIN_SINGLE_SOURCE_EVIDENCE_SENTENCES and
+                chars >= MIN_SINGLE_SOURCE_EVIDENCE_CHARS),
+            'meets_corroboration_threshold': bool(full_text and
+                sentences >= MIN_CORROBORATING_SOURCE_SENTENCES and
+                chars >= MIN_CORROBORATING_SOURCE_CHARS),
+        })
+    return details
 
 
 def _cluster_story(cluster, topic, article_fetcher, call_json, api_key, sports=False, extracted=None,
@@ -1221,10 +1304,12 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
     dropped_claims = 0
     generation_errors = []
     candidate_results = []
+    article_read_details = []
     candidate_attempts = 0
     candidate_pool_diagnostics = {}
     funnel_drop_reasons = {}
     source_selection_reports = {}
+    source_funnels = {}
     budget_exhausted = False
     story_by_cluster = {}
     available_key = key_file
@@ -1242,13 +1327,17 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
     from .retrieval_fill import fill_candidates, empty_report
     quality_rejected = {}
     quality_rejected_items = []
+    low_tier_source_counts = {}
 
     def quality_allowed(item, source, topic):
         reason = news_quality_reason(item, source, now=now, topic=topic)
         if reason:
             quality_rejected[(topic['id'], item.get('url'))] = reason
+            if reason == 'low_tier':
+                low_tier_source_counts.setdefault(topic['id'], Counter())[source.get('id') or 'unknown'] += 1
             quality_rejected_items.append({
                 'topic_id': topic['id'], 'title': _safe(item.get('title'), 180) or 'Untitled item',
+                'source_id': _safe(source.get('id'), 64),
                 'outlet': _safe(source.get('name') or source.get('publisher') or source.get('id'), 120),
                 'action': 'dropped', 'reason': reason, 'tier': str(source.get('tier') or 'unknown')})
         return not reason
@@ -1260,8 +1349,13 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         topic_id = topic['id']
         eligible = []
         dropped = {}
-        def drop(reason):
+        source_dropped = {}
+        def drop(reason, item=None):
             dropped[reason] = dropped.get(reason, 0) + 1
+            source_id = item.get('source_id') if isinstance(item, dict) else None
+            if source_id:
+                reasons = source_dropped.setdefault(source_id, {})
+                reasons[reason] = reasons.get(reason, 0) + 1
         fresh_source_item_count = 0
         feed_tags = set(topic.get('feed_topic_ids') or [topic_id])
         topic_feed_items = [item for item in items
@@ -1274,20 +1368,20 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
             current_source = registry_by_id.get(item.get('source_id'))
             if (not current_source or current_source.get('enabled') is not True or
                     current_source.get('ai_bots_disallowed') or current_source.get('robots_ok') is not True):
-                drop('source_disabled_or_unavailable')
+                drop('source_disabled_or_unavailable', item)
                 continue
             if not quality_allowed(item, current_source, topic):
-                drop(quality_rejected.get((topic_id, item.get('url')), 'source_quality'))
+                drop(quality_rejected.get((topic_id, item.get('url')), 'source_quality'), item)
                 continue
             date = core.parse_date(item.get('published') or item.get('published_at'))
             if date and date <= now + timedelta(days=1) and date >= now - timedelta(days=freshness_days()):
                 fresh_source_item_count += 1
             if not _date_eligible_for_news(item, current_source, now):
-                drop('date_ineligible')
+                drop('date_ineligible', item)
                 continue
             item_text = f"{item.get('title', '')} {item.get('snippet', '')}"
             if not _matches_topic_scope(topic, item_text, current_source):
-                drop('topic_scope_mismatch')
+                drop('topic_scope_mismatch', item)
                 continue
             if topic_id == 'sports' and 'premier league' in topic.get('label', '').lower():
                 title_tokens = _tokens(item.get('title', ''))
@@ -1299,7 +1393,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                                           {'premier', 'league'} <= title_tokens or
                                           bool(title_tokens & named_clubs))
                 if placeholder or not premier_league_context:
-                    drop('topic_context_mismatch')
+                    drop('topic_context_mismatch', item)
                     continue
             eligible.append(item)
             ranked_positions[(topic_id, item.get('url'))] = rank
@@ -1311,23 +1405,23 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                 current_source = registry_by_id.get(item.get('source_id'))
                 if (not current_source or current_source.get('enabled') is not True or
                         current_source.get('ai_bots_disallowed') or current_source.get('robots_ok') is not True):
-                    drop('source_disabled_or_unavailable')
+                    drop('source_disabled_or_unavailable', item)
                     continue
                 if not quality_allowed(item, current_source, topic):
-                    drop(quality_rejected.get((topic_id, item.get('url')), 'source_quality'))
+                    drop(quality_rejected.get((topic_id, item.get('url')), 'source_quality'), item)
                     continue
                 date = core.parse_date(item.get('published') or item.get('published_at'))
                 if date and date <= now + timedelta(days=1) and date >= now - timedelta(days=freshness_days()):
                     fresh_source_item_count += 1
                 if not _date_eligible_for_news(item, current_source, now):
-                    drop('date_ineligible')
+                    drop('date_ineligible', item)
                     continue
                 item_text = f"{item.get('title', '')} {item.get('snippet', '')}"
                 if _matches_topic_scope(topic, item_text, current_source):
                     eligible.append(item)
                     ranked_positions[(topic_id, item.get('url'))] = rank
                 else:
-                    drop('topic_scope_mismatch')
+                    drop('topic_scope_mismatch', item)
             topic_only_fallback = bool(eligible)
         clusters = cluster_items(eligible, by_host)
         duplicate_clusters = max(0, len(eligible) - len(clusters))
@@ -1368,6 +1462,23 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         # extraction has a chance to test them.
         topic_cluster_pools[topic_id] = clusters
         topic_fetched = len(topic_feed_items)
+        fetched_by_source = Counter(item.get('source_id') or 'unknown' for item in topic_feed_items)
+        matched_by_source = Counter(item.get('source_id') or 'unknown' for item in ranked)
+        accepted_by_source = Counter(item.get('source_id') or 'unknown' for item in eligible)
+        source_funnels[topic_id] = {
+            source_id: {
+                'fetched': count,
+                'matched': matched_by_source.get(source_id, 0),
+                'accepted': accepted_by_source.get(source_id, 0),
+                'rejected': max(0, count - accepted_by_source.get(source_id, 0)),
+                'rejection_reasons': {
+                    **({'topic_not_matched': count - matched_by_source.get(source_id, 0)}
+                       if count > matched_by_source.get(source_id, 0) else {}),
+                    **source_dropped.get(source_id, {})
+                }
+            }
+            for source_id, count in fetched_by_source.items()
+        }
         candidate_pool_diagnostics[topic_id] = {
             'fetched': topic_fetched,
             'topic_matched': len(ranked), 'relevance_passed': len(eligible),
@@ -1503,21 +1614,10 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         article_diagnostics = []
 
     def ready_fetch(url, source, *, round_stop, end, fetcher):
-        if round_stop.is_set():
-            return None
         if getattr(fetcher, 'has_prefetch', lambda _url: False)(url):
             return fetcher(url, source)
-        host = (urlsplit(url).hostname or '').lower()
-        interval = max(float(source.get('minimum_interval_seconds', 1)),
-                       5 if host.endswith('gdeltproject.org') else 1)
-        remaining = None if end is None else end - time.monotonic()
-        wait_seconds = core.host_wait_seconds(host, interval)
-        if remaining is not None and wait_seconds + 1.5 >= remaining:
-            article_diagnostics.append({'source_id': source.get('id'),
-                                        'reason': 'host_wait_would_exceed_extraction_budget',
-                                        'wait_seconds': round(wait_seconds, 2)})
-            return None
-        return fetcher(url, source)
+        return _fetch_article_in_run(url, source, fetcher, diagnostics=article_diagnostics,
+                                     end=end, stopped=round_stop)
     ready_fetch.diagnostics = article_diagnostics
 
     extracted_by_cluster = {}
@@ -1530,6 +1630,11 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
             candidate_results.append({'status': 'extraction_error', 'error_type': type(error).__name__,
                                       'host': candidate['host']})
             return
+        article_read_details.append({
+            'topic_id': candidate['topic_id'],
+            'candidate': len(article_read_details) + 1,
+            'source_reads': _source_evidence_details(citations),
+        })
         enough, evidence_stats = _story_evidence_is_sufficient(citations)
         if candidate['sports']:
             enough = bool(citations)
@@ -1792,44 +1897,58 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
     within_deadline = deadline is None or time.monotonic() < deadline
     if (not budget_exhausted and within_deadline and writer_capacity_remains and
             (fallback_topics or needs_word_fill)):
-        if on_fill_start:
-            on_fill_start()
-        accepted = {topic['id']: [cluster for cluster in topic_candidates.get(topic['id'], [])
-                                  if cluster['id'] in story_by_cluster] for topic in topic_profiles}
-        search_for_uncovered = bool(fallback_topics) and not search_first_report.get('triggered')
-        filled, fill_bodies, fill_report = fill_candidates(
-            topic_candidates, fallback_topics or topic_profiles, items, registry, recent_history, now,
-            deadline=deadline, passed_candidates=accepted, before_model_call=before_model_call,
-            enabled=True if fallback_topics else fill_enabled,
-            search_first=search_for_uncovered)
-        old_candidates = topic_candidates
-        from .source_selection import select_daily_clusters
-        filtered_fill = {}
-        refill_pool_limit = _daily_refill_pool_limit(max_candidate_attempts, candidate_attempts)
-        for topic in topic_profiles:
-            key = topic['id']
-            filtered_fill[key], source_selection_reports[key] = select_daily_clusters(
-                filled.get(key, []), registry_by_id, topic, limit=refill_pool_limit,
-                max_per_outlet=refill_pool_limit, now=now)
-        fallback_pool = {key: [cluster for cluster in rows if cluster['id'] not in
-                               {old['id'] for old in old_candidates.get(key, [])}]
-                         for key, rows in filtered_fill.items()}
-        first_round_cluster_ids = {candidate['cluster']['id'] for candidate in prefetch_plan}
-        new_pool = _daily_refill_candidates(old_candidates, fallback_pool,
-                                            fallback_topics or topic_profiles,
-                                            first_round_cluster_ids)
-        topic_candidates = filtered_fill
-        if fill_bodies:
-            article_fetcher = _with_prefetched_bodies(article_fetcher, fill_bodies)
-            round_deadline = extraction_end = deadline
-            budget_exhausted = False
-            second_plan = plan_round(new_pool, max_candidate_attempts - candidate_attempt_limit,
-                                     supply_origin='open-web')
-            candidate_attempt_limit = min(max_candidate_attempts,
-                                          candidate_attempt_limit + len(second_plan))
-            run_round(second_plan, max_candidate_attempts)
-        for key, clusters in filtered_fill.items():
-            candidate_pool_diagnostics[key]['candidate_clusters'] = len(clusters)
+        floor_search_failed = False
+        source_selection_before_floor = dict(source_selection_reports)
+        try:
+            if on_fill_start:
+                on_fill_start()
+            accepted = {topic['id']: [cluster for cluster in topic_candidates.get(topic['id'], [])
+                                      if cluster['id'] in story_by_cluster] for topic in topic_profiles}
+            filled, fill_bodies, fill_report = fill_candidates(
+                topic_candidates, fallback_topics or topic_profiles, items, registry, recent_history, now,
+                deadline=deadline, passed_candidates=accepted, before_model_call=before_model_call,
+                enabled=True if fallback_topics else fill_enabled,
+                topic_floor_search=bool(fallback_topics))
+            old_candidates = topic_candidates
+            from .source_selection import select_daily_clusters
+            filtered_fill = {}
+            refill_pool_limit = _daily_refill_pool_limit(max_candidate_attempts, candidate_attempts)
+            for topic in topic_profiles:
+                key = topic['id']
+                filtered_fill[key], source_selection_reports[key] = select_daily_clusters(
+                    filled.get(key, []), registry_by_id, topic, limit=refill_pool_limit,
+                    max_per_outlet=refill_pool_limit, now=now)
+            fallback_pool = {key: [cluster for cluster in rows if cluster['id'] not in
+                                   {old['id'] for old in old_candidates.get(key, [])}]
+                             for key, rows in filtered_fill.items()}
+            first_round_cluster_ids = {candidate['cluster']['id'] for candidate in prefetch_plan}
+            new_pool = _daily_refill_candidates(old_candidates, fallback_pool,
+                                                fallback_topics or topic_profiles,
+                                                first_round_cluster_ids)
+        except Exception:
+            if not fallback_topics:
+                raise
+            logging.getLogger(__name__).warning(
+                'Daily topic search failed; continuing without the search fallback.')
+            source_selection_reports.clear()
+            source_selection_reports.update(source_selection_before_floor)
+            fill_report = empty_report(True)
+            fill_report['topic_floor'] = True
+            filled, fill_bodies, filtered_fill, new_pool = topic_candidates, {}, None, {}
+            floor_search_failed = True
+        if not floor_search_failed:
+            topic_candidates = filtered_fill
+            if fill_bodies:
+                article_fetcher = _with_prefetched_bodies(article_fetcher, fill_bodies)
+                round_deadline = extraction_end = deadline
+                budget_exhausted = False
+                second_plan = plan_round(new_pool, max_candidate_attempts - candidate_attempt_limit,
+                                         supply_origin='open-web')
+                candidate_attempt_limit = min(max_candidate_attempts,
+                                              candidate_attempt_limit + len(second_plan))
+                run_round(second_plan, max_candidate_attempts)
+            for key, clusters in filtered_fill.items():
+                candidate_pool_diagnostics[key]['candidate_clusters'] = len(clusters)
     fill_report.update(first_round_passed=first_round_passed,
                        first_round_readable=first_round_readable,
                        second_round_passed=selected_count - first_round_passed)
@@ -1839,6 +1958,8 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                     'quality_passed', 'novelty_passed'):
             fill_report[key] += search_first_report.get(key, 0)
         fill_report['search_first'] = True
+        fill_report['topic_floor'] = (fill_report.get('topic_floor') is True or
+                                      search_first_report.get('topic_floor') is True)
         fill_report['enabled'] = True
         fill_report['triggered'] = True
         merged_statuses = Counter(fill_report.get('provider_statuses', {}))
@@ -1935,13 +2056,31 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         'candidate_attempt_limit': candidate_attempt_limit,
         'candidate_results': candidate_results,
         'candidate_pool_diagnostics': candidate_pool_diagnostics,
+        'source_funnels': source_funnels,
         'funnel_drop_reasons': funnel_drop_reasons,
         'source_quality_rejections': quality_rejected_items,
+        'low_tier_sources': {
+            topic_id: [
+                {'source_id': source_id,
+                 'tier': str(registry_by_id.get(source_id, {}).get('tier') or 'unknown'),
+                 'rejected_items': count}
+                for source_id, count in counts.most_common(10)]
+            for topic_id, counts in low_tier_source_counts.items()},
         'source_selection': source_selection_reports,
         'also_today_source_selection': quick_hit_selection,
         **repeat_counts, 'followup_count': len(followup_clusters),
         'retrieval_fill': fill_report,
         'article_fetch_outcomes': getattr(article_fetcher, 'diagnostics', []),
+        'article_read_details': article_read_details,
+        'article_evidence_thresholds': {
+            'single_source_chars': MIN_SINGLE_SOURCE_EVIDENCE_CHARS,
+            'single_source_sentences': MIN_SINGLE_SOURCE_EVIDENCE_SENTENCES,
+            'corroborating_source_chars': MIN_CORROBORATING_SOURCE_CHARS,
+            'corroborating_source_sentences': MIN_CORROBORATING_SOURCE_SENTENCES,
+            'required_corroborating_sources': 2,
+        },
+        'article_read_funnel': _article_read_funnel(
+            article_diagnostics, candidate_results, len(prefetch_plan)),
         'evidence_depth_counts': dict(Counter(row.get('evidence_depth') for row in source_entries)),
         'budget_exhausted': budget_exhausted
     }

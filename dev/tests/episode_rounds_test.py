@@ -26,6 +26,20 @@ class FixtureProvider:
         return self.candidates[:max_results]
 
 
+class PagedFixtureProvider:
+    name = 'fixture-search'
+
+    def __init__(self, rows):
+        self.rows = rows
+        self.offset = 0
+
+    def search(self, query, *, max_results, freshness, budget):
+        budget.claim()
+        page = self.rows[self.offset:self.offset + max_results]
+        self.offset += len(page)
+        return page
+
+
 def candidates(count):
     return [Candidate(f'https://publisher-{index}.example.test/story',
                       f'Fictional research result {index}', 'Fictional outlet', None,
@@ -91,6 +105,41 @@ class EpisodeRoundsTests(unittest.TestCase):
         self.assertEqual(result['read_timeouts'], 1)
         self.assertEqual(result['slow_hosts_dropped'], 1)
         self.assertIn('publisher-0.example.test', active_hosts)
+
+    def test_ten_minute_episode_reads_at_least_25_of_43_across_15_hosts(self):
+        rows = []
+        registry = []
+        for index in range(43):
+            host_index = index % 15
+            host = f'publisher-{host_index}.example.test'
+            rows.append(Candidate(f'https://{host}/story-{index}',
+                                  f'Fictional research result {index}', 'Fictional outlet', None,
+                                  'fixture-search', index, source_id=f'publisher-{host_index}'))
+        for index in range(15):
+            host = f'publisher-{index}.example.test'
+            registry.append({'id': f'publisher-{index}', 'enabled': True, 'robots_ok': True,
+                             'article_access': 'transient-read', 'allowed_domains': [host],
+                             'minimum_interval_seconds': 60})
+
+        passed_registry = []
+
+        def fetcher(candidate, **kwargs):
+            source = next(row for row in kwargs['registry'] if
+                          candidate.source_id == row['id'])
+            passed_registry.append(source)
+            return ('The fictional article explains the payment model. '
+                    'It provides a second useful detail.')
+
+        provider = PagedFixtureProvider(rows)
+        result = research_episode(['How does the fictional banking example work?'], 10,
+            providers=[provider], registry=registry, config=SimpleNamespace(domain_tiers={}),
+            deadline=time.monotonic() + 3, check=lambda: None, progress=lambda *_: None,
+            fetcher=fetcher)
+        self.assertGreaterEqual(len(result['reads']), 25)
+        self.assertEqual(len(result['reads']), result['read_funnel']['read'])
+        self.assertEqual(result['read_funnel']['attempted'], len(result['reads']))
+        self.assertLessEqual(result['read_funnel']['attempted'], 30)
+        self.assertEqual({row['minimum_interval_seconds'] for row in passed_registry}, {3})
 
 
 if __name__ == '__main__':

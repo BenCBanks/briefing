@@ -32,7 +32,7 @@ class PublicAudioFingerprintTests(unittest.TestCase):
         self.assertEqual(_fingerprints(
             episode, chapters, 'Sulafat', 'gemini', 'gemini-3.8-flash-lite-tts'), (
                 '2fb547545e1ff1f3bcd432f2ad3bd23b96c0b80958e42342760579632d1a754b',
-                '556292b5d15fe7c7883ffefc2af79fe65a77d27f01929fd7da3fd161ac663c04'))
+                '650d62e66d34fb4067117e49b8d26886cdb607950f12f872a2608f4bbdfd94a6'))
 
     def test_frozen_and_bounded_fingerprints_match_independent_fixed_vectors(self):
         episode, chapters = self.episode_and_chapters()
@@ -45,11 +45,11 @@ class PublicAudioFingerprintTests(unittest.TestCase):
         args = (chapters, 'Sulafat', 'gemini', 'gemini-3.8-flash-lite-tts')
         self.assertEqual(_fingerprints(frozen_episode, *args), (
             '397147fad551e53dc2d61a77bdecd4204f5b98cac2022bb6b27d00aad0262a5a',
-            'a165d2c14fd3953b279badb769bdafbe74be19f0d0546d9cb3c46474571d95a4'))
+            'f43f6d95f43d673a97505ffe8c3e0c179bf3d1c32eb5321c631d95c36e8ac888'))
         self.assertEqual(_fingerprints(
             episode, *args, tts_output_token_limit=4096, max_segment_attempts=3), (
                 '2fb547545e1ff1f3bcd432f2ad3bd23b96c0b80958e42342760579632d1a754b',
-                '81181dc20bd90428cda244c65bb399f9da3547c2fc18b2457925b8e3e4b46fcd'))
+                'f7a2ae1591bc35006913e073e17cb47af8a86b8d5fccd63b94e9816d19ebc556'))
 
     def test_fresh_helper_import_excludes_provider_state_and_approval_modules(self):
         script = '''

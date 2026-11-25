@@ -100,6 +100,14 @@ class ExtractionTests(unittest.TestCase):
         self.assertEqual(extract_bytes(b'Fictional words. ' * 2000 + b'Paywall', 'text/plain').reason,
                          'paywall_check_failed')
 
+    def test_consent_and_javascript_interstitials_are_not_article_evidence(self):
+        fixture = FIXTURES / 'consent-stub.html'
+        self.assertEqual(extract_bytes(fixture.read_bytes(), 'text/html').reason,
+                         'consent_or_script_stub')
+        self.assertEqual(extract_bytes(
+            b'Please enable JavaScript in your browser to continue.', 'text/plain').reason,
+            'consent_or_script_stub')
+
     def test_deadline_and_worker_failures(self):
         self.assertEqual(extract_bytes(b'<p>Fiction</p>', deadline=time.monotonic() - 1).reason,
                          'extraction_timeout')
