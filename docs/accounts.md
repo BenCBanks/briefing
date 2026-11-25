@@ -21,7 +21,8 @@ are unavailable and no account state is created.
   explicit work parameters and a format version. Plain passwords never enter a
   log, response, job payload or ledger record.
 - A successful login creates a random server-side session. The browser receives
-  only an opaque session ID in an `HttpOnly; SameSite=Lax; Secure` cookie. The
+  only an opaque session ID in an `HttpOnly; SameSite=Lax` cookie, with `Secure`
+  set on HTTPS requests. The
   session store contains account ID, creation, expiry, last-seen and a CSRF
   secret. Login rotates the session ID, so a pre-login session cannot be fixed.
 - Mutating account routes require the session's CSRF token in a header or body
@@ -58,7 +59,7 @@ password details.
 | `POST /api/account/logout` | CSRF header required | `204` and expired session cookie |
 | `GET /api/account/me` | session cookie | `200 { "account": { "id": "...", "name": "..." }, "usage": { ... } }` |
 | `GET /api/account/csrf` | session cookie | `200 { "csrf_token": "..." }` |
-| `GET /api/account/export` | session cookie | `200 { "account": { ... }, "profile": { ... }, "episodes": [ ... ], "library": [ ... ], "corrections": [ ... ], "usage": { ... } }` |
+| `GET /api/account/export` | session cookie | `200 { "account": { ... }, "profile": { ... }, "episodes": [ ... ], "editions": [ ... ], "library": [ ... ], "corrections": [ ... ], "usage": { ... } }` |
 | `POST /api/account/delete` | `{ "confirm": "DELETE" }` plus CSRF header | Synchronously erases the account, reader state and all sessions, then returns `204` with an expired session cookie |
 
 Account-scoped existing routes keep their current paths and JSON shapes. The
@@ -84,9 +85,10 @@ continue to use today's single-reader context exactly as they do now.
 
 The account index stores only the minimum account record and a password hash.
 The reader directory holds that reader's profile, episodes, audio, library,
-corrections and exportable usage attribution. Account export is a JSON snapshot
-of that reader's own data and contains no password hash, session secret, invite
-code or provider data. Delete removes the account record, sessions, reader
+corrections and exportable usage attribution. Account export is a bounded JSON
+snapshot of that reader's own profile, episode jobs, current editions, library
+entries, corrections and usage attribution. It contains no audio binaries,
+password hash, session secret, invite code or provider data. Delete removes the account record, sessions, reader
 directory and account usage attribution; the global ledger keeps its aggregate
 cost history needed for the service cap.
 

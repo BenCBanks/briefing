@@ -141,6 +141,8 @@ _STATIC_ASSET_CACHE = OrderedDict()
 _STATIC_ASSET_CACHE_LOCK = threading.RLock()
 _STATIC_ASSET_CACHE_MAX_ENTRIES = 128
 _STATIC_ASSET_CACHE_MAX_BYTES = 6 * 1024 * 1024
+_ACCOUNT_EXPORT_MAX_BYTES = 8 * 1024 * 1024
+_ACCOUNT_EXPORT_MAX_RECORDS = 500
 _ACCOUNT_STORE_LOCK = threading.RLock()
 _ACCOUNT_JOB_STORES = OrderedDict()
 _ACCOUNT_CORRECTIONS = OrderedDict()
@@ -1338,23 +1340,94 @@ class Handler(BaseHTTPRequestHandler):
                 self._send_json(200, {'csrf_token': row[1]['csrf']})
                 return
             if path == '/api/account/export':
-                reader = accounts._root() / 'readers' / row[2]['id']
-                export = {'account': account, 'profile': None, 'episodes': [], 'library': [],
-                          'corrections': [], 'usage': {}}
-                for key, target in (('profile.json', 'profile'), ('episodes.json', 'episodes'),
-                                    ('library.json', 'library'), ('corrections.json', 'corrections'),
-                                    ('usage.json', 'usage')):
-                    try:
-                        value = json.loads((reader / key).read_text(encoding='utf-8'))
-                        if isinstance(value, (dict, list)):
-                            export[target] = value
-                    except (OSError, ValueError, TypeError):
-                        pass
-                self._send_json(200, export)
+                self._send_json(200, self._account_export(row[2]))
                 return
             self._send_json(404, {'error': 'not_found'})
         except accounts.AccountError as error:
             self._account_error(error)
+
+    def _account_export(self, account):
+        """Build a bounded JSON snapshot using paths below this reader only."""
+        reader = accounts.reader_state_dir(account['id'], create=False)
+        if reader.is_symlink():
+            raise accounts.AccountError(503, 'account_data_unavailable')
+        root = reader.resolve()
+        total_bytes = 0
+
+        def read_json(path, default):
+            nonlocal total_bytes
+            path = Path(path)
+            current = path
+            while current != reader:
+                if current.is_symlink():
+                    raise accounts.AccountError(503, 'account_data_unavailable')
+                current = current.parent
+            if not path.exists():
+                return default
+            if not path.is_file() or not path.resolve().is_relative_to(root):
+                raise accounts.AccountError(503, 'account_data_unavailable')
+            try:
+                size = path.stat().st_size
+                if size > _ACCOUNT_EXPORT_MAX_BYTES or total_bytes + size > _ACCOUNT_EXPORT_MAX_BYTES:
+                    raise accounts.AccountError(413, 'account_export_too_large')
+                value = json.loads(path.read_text(encoding='utf-8'))
+            except accounts.AccountError:
+                raise
+            except (OSError, ValueError, TypeError, UnicodeError):
+                raise accounts.AccountError(503, 'account_data_unavailable') from None
+            total_bytes += size
+            return value
+
+        profile = read_json(reader / 'profile.json', None)
+        if not isinstance(profile, dict):
+            profile = None
+        export_profile = dict(profile) if profile else None
+        scoped_profile = ({**profile, '_account_scope': account['id']} if profile else None)
+
+        episodes = []
+        jobs_root = reader / 'episode-jobs' / 'profiles'
+        if jobs_root.exists():
+            if jobs_root.is_symlink() or not jobs_root.resolve().is_relative_to(root):
+                raise accounts.AccountError(503, 'account_data_unavailable')
+            for profile_dir in sorted(jobs_root.iterdir()):
+                if not re.fullmatch(r'[a-f0-9]{24}', profile_dir.name):
+                    continue
+                if profile_dir.is_symlink() or not profile_dir.is_dir():
+                    raise accounts.AccountError(503, 'account_data_unavailable')
+                for job_path in sorted(profile_dir.glob('*.json')):
+                    if not re.fullmatch(r'[a-f0-9]{32}\.json', job_path.name):
+                        continue
+                    if len(episodes) >= _ACCOUNT_EXPORT_MAX_RECORDS:
+                        raise accounts.AccountError(413, 'account_export_too_large')
+                    job = read_json(job_path, None)
+                    if isinstance(job, dict):
+                        job.pop('idempotency_hash', None)
+                        job.pop('idempotency_fingerprint', None)
+                        episodes.append(job)
+
+        editions = []
+        if scoped_profile:
+            edition_dir = accounts.reader_generated_dir(
+                account['id'], profile_identifier(scoped_profile), create=False)
+            # Avoid creating reader state as a side effect of a read-only export.
+            if not edition_dir.exists():
+                edition_dir = None
+            if edition_dir is not None:
+                bundle = read_json(edition_dir / 'current.json', None)
+                if isinstance(bundle, dict):
+                    editions.append(bundle)
+
+        try:
+            corrections = (self._reader_corrections(scoped_profile).list(scoped_profile)
+                           if scoped_profile else [])
+        except (CorrectionError, OSError, ValueError):
+            raise accounts.AccountError(503, 'account_data_unavailable') from None
+        library = read_json(reader / 'library.json', [])
+        usage = read_json(reader / 'usage.json', {})
+        return {'account': account and accounts._public(account), 'profile': export_profile,
+                'episodes': episodes, 'editions': editions,
+                'library': library if isinstance(library, (dict, list)) else [],
+                'corrections': corrections, 'usage': usage if isinstance(usage, dict) else {}}
 
     def _get_episode_audio(self, episode_id):
         if not re.fullmatch(r'[a-f0-9]{32}', episode_id):

@@ -129,6 +129,10 @@ class AccountIsolationTests(unittest.TestCase):
         self.assertRegex(job_id, r'^[a-f0-9]{32}$')
         self.store_a._mutate(self.store_a._profile_dir(scoped_a), job_id,
                              cost_record={'estimated_cost_usd': '0.12345678'})
+        export_a = self._request('GET', '/api/account/export', a)[1]
+        export_b = self._request('GET', '/api/account/export', b)[1]
+        self.assertEqual([row['topic'] for row in export_a['episodes']], ['Reader A episode'])
+        self.assertEqual(export_b['episodes'], [])
         list_a = self._request('GET', '/api/episodes', a)[1]['jobs']
         list_b = self._request('GET', '/api/episodes', b)[1]['jobs']
         self.assertTrue(any(row['job_id'] == job_id for row in list_a))
@@ -178,6 +182,25 @@ class AccountIsolationTests(unittest.TestCase):
         saved_b = json.loads((edition_b / 'current.json').read_text())
         self.assertTrue(saved_a['editions']['editions'][0]['seen_by_reader'])
         self.assertFalse(saved_b['editions']['editions'][0]['seen_by_reader'])
+
+        exported_a = self._request('GET', '/api/account/export', a)[1]
+        exported_b = self._request('GET', '/api/account/export', b)[1]
+        self.assertEqual(exported_a['editions'][0]['editions']['editions'][0]['id'],
+                         'same-fixture-edition')
+        self.assertEqual(exported_b['editions'][0]['editions']['editions'][0]['id'],
+                         'same-fixture-edition')
+        self.assertTrue(exported_a['editions'][0]['editions']['editions'][0]['seen_by_reader'])
+        self.assertFalse(exported_b['editions'][0]['editions']['editions'][0]['seen_by_reader'])
+
+        second_a_token, _second_a_csrf = accounts._new_session(accounts.session(token_a)[2]['id'])
+        deleted_id = accounts.session(token_a)[2]['id']
+        status, _ = self._request('POST', '/api/account/delete', a,
+                                  {'confirm': 'DELETE'})
+        self.assertEqual(status, 204)
+        self.assertIsNone(accounts.session(token_a))
+        self.assertIsNone(accounts.session(second_a_token))
+        self.assertFalse(accounts.reader_state_dir(deleted_id, create=False).exists())
+        self.assertEqual(self._request('GET', '/api/profile', b)[0], 200)
 
     def test_reader_b_cannot_overwrite_reader_a_profile(self):
         _, token_a, csrf_a = accounts.login('reader-a', 'a fictional account password', 'login-a2')

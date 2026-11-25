@@ -70,15 +70,18 @@ def reader_profile_path(account_id):
     return path
 
 
-def reader_generated_dir(account_id, profile_id):
+def reader_generated_dir(account_id, profile_id, *, create=True):
     if not isinstance(profile_id, str) or not re.fullmatch(r'[a-f0-9]{24}', profile_id):
         raise AccountError(400, 'invalid_profile')
-    base = reader_state_dir(account_id)
+    if type(create) is not bool:
+        raise ValueError('create must be a boolean')
+    base = reader_state_dir(account_id, create=create)
     for path in (base / 'generated', base / 'generated' / profile_id):
         if path.is_symlink():
             raise AccountError(503, 'reader_state_unavailable')
-        path.mkdir(parents=True, exist_ok=True, mode=0o700)
-        os.chmod(path, 0o700)
+        if create:
+            path.mkdir(parents=True, exist_ok=True, mode=0o700)
+            os.chmod(path, 0o700)
     return base / 'generated' / profile_id
 
 
