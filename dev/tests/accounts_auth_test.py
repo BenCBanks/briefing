@@ -131,6 +131,9 @@ class AccountAuthTests(unittest.TestCase):
             self.assertEqual(status, 404)
             status, _, _ = self.request('POST', '/api/account/signup', {'invite_code': 'x'})
             self.assertEqual(status, 404)
+            status, _, _ = self.request('POST', '/api/account/password-reset',
+                                        {'reset_code': 'fixture-code', 'new_password': 'long fixture password'})
+            self.assertEqual(status, 404)
         self.assertFalse((__import__('pathlib').Path(self.temp.name) / 'accounts').exists())
 
     def test_normalized_name_and_password_policy(self):

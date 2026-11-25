@@ -28,7 +28,9 @@ DEFAULT_DAILY_EPISODE_LIMIT = 3
 MAX_DAILY_EPISODE_LIMIT = 100
 MAX_LOGIN_FAILURES = 5
 MAX_SIGNUP_FAILURES = 5
+MAX_RESET_FAILURES = 5
 LOCKOUT_SECONDS = 15 * 60
+PASSWORD_RESET_SECONDS = 30 * 60
 COMMON_PASSWORDS = frozenset({
     '1234567890', 'password123', 'qwerty12345', 'letmein1234',
     'welcome1234', 'correcthorsebatterystaple', 'iloveyou1234',
@@ -213,7 +215,7 @@ def session(token):
         accounts = _read('accounts.json', {})
         account = next((item for item in accounts.values()
                         if isinstance(item, dict) and hmac.compare_digest(str(item.get('id', '')), str(row['account_id']))), None)
-        return (token, row, account) if isinstance(account, dict) else None
+        return (token, row, account) if isinstance(account, dict) and not account.get('disabled') else None
 
 
 def _record_attempt(bucket, identity):
@@ -224,7 +226,9 @@ def _record_attempt(bucket, identity):
             if not _attempts[key]:
                 _attempts.pop(key)
         key = (bucket, identity)
-        if len(_attempts.get(key, [])) >= (MAX_SIGNUP_FAILURES if bucket == 'signup' else MAX_LOGIN_FAILURES):
+        limit = (MAX_SIGNUP_FAILURES if bucket == 'signup' else
+                 MAX_RESET_FAILURES if bucket.startswith('reset-') else MAX_LOGIN_FAILURES)
+        if len(_attempts.get(key, [])) >= limit:
             return True
         _attempts.setdefault(key, []).append(now)
         return False
@@ -280,7 +284,9 @@ def login(account_name, password, ip):
         raise AccountError(429, 'login_temporarily_locked')
     accounts = _read('accounts.json', {})
     account = accounts.get(name)
-    verified, rehash = _verify(password, account.get('password', {})) if isinstance(account, dict) else (False, False)
+    verified, rehash = (_verify(password, account.get('password', {}))
+                        if isinstance(account, dict) and not account.get('disabled')
+                        else (False, False))
     if not verified:
         raise AccountError(401, 'invalid_credentials')
     with _lock:
@@ -326,6 +332,100 @@ def delete_account(account_id):
         reader = _root() / 'readers' / account_id
         if reader.exists():
             shutil.rmtree(reader)
+
+
+def admin_accounts():
+    """Return operator-safe account rows; names and contact data are omitted."""
+    with _lock:
+        rows = [value for value in _read('accounts.json', {}).values()
+                if isinstance(value, dict) and re.fullmatch(r'[a-f0-9]{32}', str(value.get('id', '')))]
+    return [{'short_id': row['id'][:8], 'disabled': bool(row.get('disabled'))}
+            for row in sorted(rows, key=lambda x: x['id'])]
+
+
+def _admin_account(account_id):
+    accounts = _read('accounts.json', {})
+    account = next((row for row in accounts.values()
+                    if isinstance(row, dict) and
+                    hmac.compare_digest(str(row.get('id', '')), str(account_id))), None)
+    return accounts, account
+
+
+def _account_id_by_prefix(prefix):
+    if not isinstance(prefix, str) or not re.fullmatch(r'[a-f0-9]{8,32}', prefix):
+        return None
+    matches = [row for row in _read('accounts.json', {}).values()
+               if isinstance(row, dict) and str(row.get('id', '')).startswith(prefix)]
+    return matches[0]['id'] if len(matches) == 1 else None
+
+
+def set_disabled(account_id, disabled):
+    if type(disabled) is not bool:
+        raise ValueError('disabled must be boolean')
+    with _lock:
+        account_rows, account = _admin_account(account_id)
+        if not isinstance(account, dict):
+            return False
+        account['disabled'] = disabled
+        account_rows[account['name']] = account
+        _write('accounts.json', account_rows)
+        if disabled:
+            sessions = _read('sessions.json', {})
+            _write('sessions.json', {key: row for key, row in sessions.items()
+                                     if not (isinstance(row, dict) and
+                                             hmac.compare_digest(str(row.get('account_id', '')), account_id))})
+            resets = _read('password_resets.json', {})
+            _write('password_resets.json', {key: row for key, row in resets.items()
+                                            if not (isinstance(row, dict) and
+                                                    hmac.compare_digest(str(row.get('account_id', '')), account_id))})
+        return True
+
+
+def issue_password_reset(account_id, *, now=None):
+    """Return a single-use code; persist only its digest and an expiry."""
+    now = int(time.time()) if now is None else int(now)
+    with _lock:
+        _accounts, account = _admin_account(account_id)
+        if not isinstance(account, dict) or account.get('disabled'):
+            return None
+        code = secrets.token_urlsafe(32)
+        digest = _token_key(code)
+        resets = _read('password_resets.json', {})
+        resets = {key: row for key, row in resets.items()
+                  if isinstance(row, dict) and int(row.get('expires', 0)) > now and
+                  not hmac.compare_digest(str(row.get('account_id', '')), account_id)}
+        resets[digest] = {'account_id': account_id, 'expires': now + PASSWORD_RESET_SECONDS}
+        _write('password_resets.json', resets)
+        return code
+
+
+def reset_password(code, password, ip='unknown', *, now=None):
+    """Consume a reset code with generic failures and bounded guessing attempts."""
+    now = int(time.time()) if now is None else int(now)
+    digest = _token_key(code) if isinstance(code, str) and 0 < len(code) <= 256 else ''
+    if _record_attempt('reset-ip', str(ip)[:128]) or _record_attempt('reset-code', digest or 'invalid'):
+        raise AccountError(429, 'reset_temporarily_locked')
+    with _lock:
+        resets = _read('password_resets.json', {})
+        matched = next((key for key in resets if hmac.compare_digest(str(key), digest)), None)
+        row = resets.get(matched) if matched else None
+        if not isinstance(row, dict) or int(row.get('expires', 0)) <= now:
+            raise AccountError(400, 'invalid_reset_request')
+        account_rows, account = _admin_account(str(row.get('account_id', '')))
+        if not isinstance(account, dict) or account.get('disabled'):
+            raise AccountError(400, 'invalid_reset_request')
+        password_record = _password_record(password)
+        account['password'] = password_record
+        account_rows[account['name']] = account
+        resets.pop(matched, None)
+        _write('accounts.json', account_rows)
+        _write('password_resets.json', resets)
+        sessions = _read('sessions.json', {})
+        _write('sessions.json', {key: session for key, session in sessions.items()
+                                 if not (isinstance(session, dict) and
+                                         hmac.compare_digest(str(session.get('account_id', '')),
+                                                             str(account['id'])))})
+        return True
 
 
 def cookie(token, *, secure=True, max_age=SESSION_ABSOLUTE_SECONDS):

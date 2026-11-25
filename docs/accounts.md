@@ -64,6 +64,21 @@ password details.
 | `GET /api/account/csrf` | session cookie | `200 { "csrf_token": "..." }` |
 | `GET /api/account/export` | session cookie | `200 { "account": { ... }, "profile": { ... }, "episodes": [ ... ], "editions": [ ... ], "library": [ ... ], "corrections": [ ... ], "usage": { ... } }` |
 | `POST /api/account/delete` | `{ "confirm": "DELETE" }` plus CSRF header | Synchronously erases the account, reader state and all sessions, then returns `204` with an expired session cookie |
+| `POST /api/account/password-reset` | `{ "reset_code": "...", "new_password": "..." }` | `200 { "ok": true }`; code is consumed and every session is invalidated |
+
+## Operator account administration
+
+`BRIEFING_ACCOUNTS=on python3 dev/tools/accounts_admin.py list` prints only each
+account's short ID and enabled status. `disable <short-id>` invalidates all of
+that account's sessions; disabled accounts receive the same generic login
+failure as other invalid credentials. `enable <short-id>` permits a later
+login. `reset <short-id>` prints a random one-time password-reset code for the
+operator to deliver out of band. Only its digest is stored, it expires after
+30 minutes, and it can be consumed once at `POST /api/account/password-reset`.
+Wrong, expired and reused codes have the same generic response; guesses are
+rate limited. The reset endpoint does not require an account name, so its
+response cannot disclose whether a particular account exists. The admin tool
+does not create account state or list accounts while the flag is off.
 
 Account-scoped existing routes keep their current paths and JSON shapes. The
 authenticated reader context is selected from the session, never from a

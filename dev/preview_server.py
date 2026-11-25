@@ -96,6 +96,7 @@ API_ROUTE_CLASSIFICATION = {
     ('POST', '/api/account/login'): 'ACCOUNT',
     ('POST', '/api/account/logout'): 'ACCOUNT',
     ('POST', '/api/account/delete'): 'ACCOUNT',
+    ('POST', '/api/account/password-reset'): 'ACCOUNT',
     ('GET', 'prefix:/api/account/'): 'ACCOUNT',
     ('GET', '/api/account/me'): 'ACCOUNT',
     ('GET', '/api/account/csrf'): 'ACCOUNT',
@@ -873,6 +874,11 @@ class Handler(BaseHTTPRequestHandler):
             if path == '/api/account/login':
                 account, token, csrf = accounts.login(payload.get('account'), payload.get('password'), self.client_address[0])
                 self._account_reply(200, {'account': accounts._public(account), 'csrf_token': csrf}, token=token)
+                return
+            if path == '/api/account/password-reset':
+                accounts.reset_password(payload.get('reset_code'), payload.get('new_password'),
+                                        self.client_address[0])
+                self._account_reply(200, {'ok': True})
                 return
             token = self._account_token()
             row = accounts.require(token, self._account_csrf(payload), mutate=True)
