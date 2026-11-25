@@ -38,6 +38,7 @@ DEFAULT_VOICE_FILE = STATE_DIR / 'voice.json'
 DEFAULT_AUDITION_MANIFEST = Path(os.environ.get('BRIEFING_DATA_DIR') or Path.home() / '.local/share/briefing') / 'audio-auditions' / 'manifest.json'
 ALLOWED_VOICES = frozenset(voice for _label, voice in VOICE_SAMPLES)
 MAX_SEGMENT_ATTEMPTS = 3
+MAX_TTS_CHUNK_CHARS = 600
 TTS_ESTIMATED_CHARACTERS_PER_SECOND = Decimal('12')
 TTS_AUDIO_TOKENS_PER_SECOND = Decimal('25')
 TTS_PAUSE_MARGIN = Decimal('1.20')
@@ -169,6 +170,43 @@ def _chapter_scripts(episode: object) -> list[dict]:
         seen.add(chapter_id)
         result.append({'index': index, 'id': chapter_id, 'title': title, 'text': text})
     return result
+
+
+def _tts_chunks(text: str, max_chars: int = MAX_TTS_CHUNK_CHARS) -> list[str]:
+    """Split narration at sentence boundaries into provider-safe requests."""
+    if not isinstance(text, str) or not text.strip():
+        raise ValueError('Narration text must be non-empty.')
+    if type(max_chars) is not int or max_chars < 1:
+        raise ValueError('TTS chunk size must be a positive integer.')
+    chunks = []
+    current = ''
+
+    def add_piece(piece):
+        nonlocal current
+        piece = piece.strip()
+        if not piece:
+            return
+        while len(piece) > max_chars:
+            split_at = piece.rfind(' ', 0, max_chars + 1)
+            if split_at <= 0:
+                raise ValueError('A narration token exceeds the TTS chunk limit.')
+            head, piece = piece[:split_at].strip(), piece[split_at:].strip()
+            if current:
+                chunks.append(current)
+                current = ''
+            chunks.append(head)
+        candidate = f'{current} {piece}'.strip() if current else piece
+        if len(candidate) <= max_chars:
+            current = candidate
+        else:
+            chunks.append(current)
+            current = piece
+
+    for sentence in re.split(r'(?<=[.!?])\s+|\n+', text.strip()):
+        add_piece(sentence)
+    if current:
+        chunks.append(current)
+    return chunks
 
 
 def estimate_chapter_audio_cost(episode: dict, chapter_id: str, ledger) -> dict:
@@ -610,81 +648,101 @@ def _render_episode_audio_unlocked(episode: dict, profile_id: str, *, provider=N
                     raise EpisodeAudioError('Prior chapter recording changed after manifest verification.')
                 character_count = int(prior_row.get('character_count', len(chapter['text'])))
             else:
-                rendered = None
-                for attempts in range(1, max_segment_attempts + 1):
-                    check()
-                    attempt_output_limit = None
-                    output_usage_accounted = False
-                    try:
-                        if bounded_tts:
-                            future_floor = sum(chapter_output_caps.get(row['id'], 0)
-                                               for row in chapters[chapter_index + 1:])
-                            available = output_tokens_remaining - future_floor
-                            if attempts == 1:
-                                attempt_output_limit = min(chapter_output_caps[chapter['id']], available)
-                            else:
-                                retry_count = max_segment_attempts - attempts + 1
-                                if available <= 0:
+                text_chunks = ([narration_text[chapter['id']]] if bounded_tts else
+                               _tts_chunks(narration_text[chapter['id']]))
+                rendered_chunks = []
+                character_count = 0
+                attempts = 0
+                for chunk_index, chunk_text in enumerate(text_chunks, 1):
+                    rendered = None
+                    last_error = None
+                    chunk_attempts = 0
+                    for chunk_attempt in range(1, max_segment_attempts + 1):
+                        attempts += 1
+                        chunk_attempts = chunk_attempt
+                        check()
+                        attempt_output_limit = None
+                        output_usage_accounted = False
+                        try:
+                            if bounded_tts:
+                                future_floor = sum(chapter_output_caps.get(row['id'], 0)
+                                                   for row in chapters[chapter_index + 1:])
+                                available = output_tokens_remaining - future_floor
+                                if chunk_attempt == 1:
+                                    attempt_output_limit = min(chapter_output_caps[chapter['id']], available)
+                                else:
+                                    retry_count = max_segment_attempts - chunk_attempt + 1
+                                    if available <= 0:
+                                        last_error = TtsOutputLimitError('shared output pool is exhausted')
+                                        break
+                                    attempt_output_limit = min(
+                                        available, (available + retry_count - 1) // retry_count)
+                                if attempt_output_limit < 1:
                                     last_error = TtsOutputLimitError('shared output pool is exhausted')
                                     break
-                                attempt_output_limit = min(
-                                    available, (available + retry_count - 1) // retry_count)
-                            if attempt_output_limit < 1:
-                                last_error = TtsOutputLimitError('shared output pool is exhausted')
-                                break
-                            provider_calls += 1
-                            result: TtsResult = provider.synthesize(
-                                narration_text[chapter['id']], voice_name,
-                                max_output_tokens=attempt_output_limit, batch_id=batch_id,
-                                batch_output_token_limit=tts_output_token_limit)
-                            actual_output_tokens = result.candidates_tokens
-                            if (type(actual_output_tokens) is not int or
-                                    not 0 <= actual_output_tokens <= attempt_output_limit):
-                                raise TtsProviderError('Bounded TTS usage is ambiguous.')
-                            output_tokens_remaining -= actual_output_tokens
-                            output_usage_accounted = True
-                            if result.finish_reason != 'STOP':
-                                if result.finish_reason == 'MAX_TOKENS':
-                                    raise TtsOutputLimitError(
-                                        'Bounded TTS result reached its output-token limit.',
-                                        output_tokens=actual_output_tokens)
-                                raise TtsProviderError(
-                                    'Bounded TTS result did not finish generation normally.')
+                                provider_calls += 1
+                                result: TtsResult = provider.synthesize(
+                                    chunk_text, voice_name,
+                                    max_output_tokens=attempt_output_limit, batch_id=batch_id,
+                                    batch_output_token_limit=tts_output_token_limit)
+                                actual_output_tokens = result.candidates_tokens
+                                if (type(actual_output_tokens) is not int or
+                                        not 0 <= actual_output_tokens <= attempt_output_limit):
+                                    raise TtsProviderError('Bounded TTS usage is ambiguous.')
+                                output_tokens_remaining -= actual_output_tokens
+                                output_usage_accounted = True
+                                if result.finish_reason != 'STOP':
+                                    if result.finish_reason == 'MAX_TOKENS':
+                                        raise TtsOutputLimitError(
+                                            'Bounded TTS result reached its output-token limit.',
+                                            output_tokens=actual_output_tokens)
+                                    raise TtsProviderError(
+                                        'Bounded TTS result did not finish generation normally.')
+                            else:
+                                provider_calls += 1
+                                result = provider.synthesize(chunk_text, voice_name)
+                            check()
+                            call_cost = cost_counter.record(result.character_count, result.duration_seconds)
+                            segment_cost += call_cost
+                            if result.model_name != model_name:
+                                raise EpisodeAudioError('Narrator model differs from the configured model.')
+                            if result.mime_type not in {'audio/wav', 'audio/x-wav', 'audio/wave'}:
+                                raise EpisodeAudioError('Narrator returned audio that is not WAV.')
+                            info = _read_wav(result.audio_bytes)
+                            rendered = (info, result.audio_bytes, result.character_count)
+                            break
+                        except (EpisodeCancelled, UsageError):
+                            raise
+                        except Exception as error:
+                            if bounded_tts and attempt_output_limit is not None and not output_usage_accounted:
+                                actual_output_tokens = getattr(error, 'output_tokens', None)
+                                consumed = (actual_output_tokens if type(actual_output_tokens) is int and
+                                            0 <= actual_output_tokens <= attempt_output_limit else
+                                            attempt_output_limit)
+                                output_tokens_remaining = max(0, output_tokens_remaining - consumed)
+                            last_error = error
+                    if rendered is None:
+                        error_kind = type(last_error).__name__ if last_error else 'UnknownError'
+                        reason = (str(last_error)[:200] if isinstance(last_error, TtsProviderError)
+                                  else error_kind)
+                        if len(text_chunks) == 1:
+                            logging.getLogger(__name__).warning(
+                                'Episode audio chapter %s failed after %s attempts: %s',
+                                chapter['index'] + 1, chunk_attempts, reason)
+                            message = (f'Chapter {chapter["index"] + 1} failed after '
+                                       f'{chunk_attempts} attempts ({error_kind}).')
                         else:
-                            provider_calls += 1
-                            result = provider.synthesize(narration_text[chapter['id']], voice_name)
-                        check()
-                        call_cost = cost_counter.record(result.character_count, result.duration_seconds)
-                        segment_cost += call_cost
-                        if result.model_name != model_name:
-                            raise EpisodeAudioError('Narrator model differs from the configured model.')
-                        if result.mime_type not in {'audio/wav', 'audio/x-wav', 'audio/wave'}:
-                            raise EpisodeAudioError('Narrator returned audio that is not WAV.')
-                        info = _read_wav(result.audio_bytes)
-                        rendered = (info, result.audio_bytes, result.character_count)
-                        break
-                    except (EpisodeCancelled, UsageError):
-                        raise
-                    except Exception as error:
-                        if bounded_tts and attempt_output_limit is not None and not output_usage_accounted:
-                            actual_output_tokens = getattr(error, 'output_tokens', None)
-                            consumed = (actual_output_tokens if type(actual_output_tokens) is int and
-                                        0 <= actual_output_tokens <= attempt_output_limit else
-                                        attempt_output_limit)
-                            output_tokens_remaining = max(0, output_tokens_remaining - consumed)
-                        last_error = error
-                if rendered is None:
-                    error_kind = type(last_error).__name__ if last_error else 'UnknownError'
-                    # Gemini TTS errors have already been sanitized at the
-                    # provider boundary. Keep generic exception details out of
-                    # logs, but expose that safe reason to diagnose retries.
-                    reason = (str(last_error)[:200] if isinstance(last_error, TtsProviderError)
-                              else error_kind)
-                    logging.getLogger(__name__).warning(
-                        'Episode audio chapter %s failed after %s attempts: %s',
-                        chapter['index'] + 1, attempts, reason)
-                    raise EpisodeAudioError(f'Chapter {chapter["index"] + 1} failed after {attempts} attempts ({error_kind}).') from None
-                info, audio_bytes, character_count = rendered
+                            logging.getLogger(__name__).warning(
+                                'Episode audio chapter %s chunk %s/%s failed after %s attempts: %s',
+                                chapter['index'] + 1, chunk_index, len(text_chunks),
+                                chunk_attempts, reason)
+                            message = (f'Chapter {chapter["index"] + 1} chunk {chunk_index} failed '
+                                       f'after {chunk_attempts} attempts ({error_kind}).')
+                        raise EpisodeAudioError(message) from None
+                    rendered_chunks.append((rendered[0], rendered[0].frames))
+                    character_count += rendered[2]
+                audio_bytes, _duration = _wav_bytes(rendered_chunks)
+                info = _read_wav(audio_bytes)
             filename = f'chapter-{chapter["index"] + 1:02d}.wav'
             (staging / filename).write_bytes(audio_bytes)
             os.chmod(staging / filename, 0o600)
