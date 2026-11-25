@@ -96,7 +96,7 @@ STORY_CANDIDATE_BUDGET_SECONDS = 40
 STORY_MODEL_TIMEOUT_SECONDS = 25
 MAX_CLUSTER_SOURCES = 3
 MIN_SINGLE_SOURCE_EVIDENCE_SENTENCES = 3
-MIN_SINGLE_SOURCE_EVIDENCE_CHARS = 400
+MIN_SINGLE_SOURCE_EVIDENCE_CHARS = 300
 MIN_CORROBORATING_SOURCE_SENTENCES = 2
 MIN_CORROBORATING_SOURCE_CHARS = 200
 # Allow a wider article sample while retaining the strict character ceiling
@@ -518,6 +518,7 @@ def _with_prefetched_bodies(fetcher, bodies):
 def extract_source_sentences(cluster, article_fetcher, sports=False, *, now=None):
     """Build an ephemeral sentence-ID evidence bundle; never serialize article text."""
     from .credibility import assess_bundle
+    from .extract.readable import content_stub_reason
     evidence = {}
     citations = []
     credibility_rows = []
@@ -539,8 +540,17 @@ def extract_source_sentences(cluster, article_fetcher, sports=False, *, now=None
         number = len(citations) + 1
         source_numbers[host.lower()] = number
         owners.add(owner)
-        article = (_safe(item.get('feed_body'), 12000)
-                   if source.get('article_access') in {'feed-full', 'full-text'} else None)
+        feed_body_counted = (source.get('article_access') in {'feed-full', 'full-text'} and
+                              bool(item.get('feed_body')))
+        article = _safe(item.get('feed_body'), 12000) if feed_body_counted else None
+        feed_stub_reason = content_stub_reason(article)
+        if article and feed_stub_reason:
+            if isinstance(getattr(article_fetcher, 'diagnostics', None), list):
+                article_fetcher.diagnostics.append({
+                    'source_id': source.get('id'), 'host': host.lower(),
+                    'reason': 'feed_' + feed_stub_reason, 'evidence_chars': len(article)})
+            article = None
+            feed_body_counted = False
         evidence_depth = 'feed-full' if article else None
         if article and item.get('feed_body') and isinstance(getattr(article_fetcher, 'diagnostics', None), list):
             feed_method = item.get('feed_body_method')
@@ -565,6 +575,9 @@ def extract_source_sentences(cluster, article_fetcher, sports=False, *, now=None
         text = title if sports else (article or '\n'.join(filter(None, [title, snippet])))
         if not evidence_depth:
             evidence_depth = 'snippet' if snippet else 'headline'
+        evidence_body = article or snippet
+        evidence_method = ('feed_body' if article and feed_body_counted else
+                           'article_read' if article else 'feed_snippet' if snippet else 'headline')
         sentences = _sentences(text)
         if not sentences:
             continue
@@ -580,6 +593,11 @@ def extract_source_sentences(cluster, article_fetcher, sports=False, *, now=None
             'display_constraints': _safe(source.get('display_constraints'), 300), 'source_class': source.get('source_class', 'news'),
             'evidence_depth': evidence_depth,
             'evidence_chars': len(article) if article else len(snippet),
+            'evidence_words': _count_words(evidence_body),
+            'evidence_body_sentence_count': len(_sentences(evidence_body)),
+            'evidence_method': evidence_method,
+            'feed_body_counted': bool(article and feed_body_counted),
+            'feed_body_method': item.get('feed_body_method') if article and feed_body_counted else None,
             'may_cache': source.get('may_cache') is True,
             'owner': _owner(source, item), 'official': _official(source, item),
             'source_sentences': []
@@ -1061,7 +1079,8 @@ def _news_evidence_depth(citations):
                  row.get('evidence_depth') in {'full-text', 'feed-full'}]
     return {
         'full_text_sources': len(full_text),
-        'full_text_sentences': sum(int(row.get('source_sentence_count', 0)) for row in full_text),
+        'full_text_sentences': sum(int(row.get('evidence_body_sentence_count',
+                                             row.get('source_sentence_count', 0))) for row in full_text),
         'full_text_chars': sum(int(row.get('evidence_chars', 0)) for row in full_text),
     }
 
@@ -1073,17 +1092,48 @@ def _story_evidence_is_sufficient(citations):
     depth = _news_evidence_depth(supporting)
     substantial_source = any(
         row.get('source_class') != 'explainer' and row.get('evidence_depth') in {'full-text', 'feed-full'} and
-        int(row.get('source_sentence_count', 0)) >= MIN_SINGLE_SOURCE_EVIDENCE_SENTENCES and
+        int(row.get('evidence_body_sentence_count', row.get('source_sentence_count', 0))) >=
+        MIN_SINGLE_SOURCE_EVIDENCE_SENTENCES and
         int(row.get('evidence_chars', 0)) >= MIN_SINGLE_SOURCE_EVIDENCE_CHARS
         for row in supporting)
     corroborating_sources = sum(
         row.get('source_class') != 'explainer' and row.get('evidence_depth') in {'full-text', 'feed-full'} and
-        int(row.get('source_sentence_count', 0)) >= MIN_CORROBORATING_SOURCE_SENTENCES and
+        int(row.get('evidence_body_sentence_count', row.get('source_sentence_count', 0))) >=
+        MIN_CORROBORATING_SOURCE_SENTENCES and
         int(row.get('evidence_chars', 0)) >= MIN_CORROBORATING_SOURCE_CHARS
         for row in supporting)
     depth['qualifies_as_single_source'] = bool(substantial_source)
     depth['qualifies_as_corroborated'] = corroborating_sources >= 2
     return bool(substantial_source or corroborating_sources >= 2), depth
+
+
+def _source_evidence_details(citations):
+    """Keep only source identifiers and length/provenance counts for diagnosis."""
+    details = []
+    for row in citations:
+        full_text = (row.get('source_class') != 'explainer' and
+                     row.get('evidence_depth') in {'full-text', 'feed-full'})
+        chars = int(row.get('evidence_chars', 0))
+        sentences = int(row.get('evidence_body_sentence_count', row.get('source_sentence_count', 0)))
+        details.append({
+            'source_id': row.get('registry_id'),
+            'method': row.get('evidence_method', 'unknown'),
+            'evidence_depth': row.get('evidence_depth'),
+            'chars': chars,
+            'words': int(row.get('evidence_words', 0)),
+            'sentences': sentences,
+            'source_sentences': int(row.get('source_sentence_count', sentences)),
+            'body_sentences': int(row.get('evidence_body_sentence_count', 0)),
+            'full_text': full_text,
+            'feed_body_counted': row.get('feed_body_counted') is True,
+            'meets_single_source_threshold': bool(full_text and
+                sentences >= MIN_SINGLE_SOURCE_EVIDENCE_SENTENCES and
+                chars >= MIN_SINGLE_SOURCE_EVIDENCE_CHARS),
+            'meets_corroboration_threshold': bool(full_text and
+                sentences >= MIN_CORROBORATING_SOURCE_SENTENCES and
+                chars >= MIN_CORROBORATING_SOURCE_CHARS),
+        })
+    return details
 
 
 def _cluster_story(cluster, topic, article_fetcher, call_json, api_key, sports=False, extracted=None,
@@ -1278,6 +1328,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
     dropped_claims = 0
     generation_errors = []
     candidate_results = []
+    article_read_details = []
     candidate_attempts = 0
     candidate_pool_diagnostics = {}
     funnel_drop_reasons = {}
@@ -1580,6 +1631,11 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
             candidate_results.append({'status': 'extraction_error', 'error_type': type(error).__name__,
                                       'host': candidate['host']})
             return
+        article_read_details.append({
+            'topic_id': candidate['topic_id'],
+            'candidate': len(article_read_details) + 1,
+            'source_reads': _source_evidence_details(citations),
+        })
         enough, evidence_stats = _story_evidence_is_sufficient(citations)
         if candidate['sports']:
             enough = bool(citations)
@@ -1999,6 +2055,14 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         **repeat_counts, 'followup_count': len(followup_clusters),
         'retrieval_fill': fill_report,
         'article_fetch_outcomes': getattr(article_fetcher, 'diagnostics', []),
+        'article_read_details': article_read_details,
+        'article_evidence_thresholds': {
+            'single_source_chars': MIN_SINGLE_SOURCE_EVIDENCE_CHARS,
+            'single_source_sentences': MIN_SINGLE_SOURCE_EVIDENCE_SENTENCES,
+            'corroborating_source_chars': MIN_CORROBORATING_SOURCE_CHARS,
+            'corroborating_source_sentences': MIN_CORROBORATING_SOURCE_SENTENCES,
+            'required_corroborating_sources': 2,
+        },
         'article_read_funnel': _article_read_funnel(
             article_diagnostics, candidate_results, len(prefetch_plan)),
         'evidence_depth_counts': dict(Counter(row.get('evidence_depth') for row in source_entries)),

@@ -12,11 +12,29 @@ def normalize(text):
     return '\n'.join(line for row in text.splitlines() if (line := ' '.join(row.split())))
 
 
-def paywalled(text):
-    return any(marker in text.lower() for marker in (
+PAYWALL_MARKERS = (
         'subscribe to continue', 'subscription required', 'subscriber-only',
         'already a subscriber', 'register to continue', 'sign in to read',
-        'this content is for subscribers', 'paywall'))
+        'this content is for subscribers', 'paywall')
+CONSENT_STUB_MARKERS = (
+    'accept cookies to continue', 'accept all cookies to continue',
+    'cookie consent required to continue', 'before you continue, accept cookies',
+    'enable javascript to continue', 'javascript is disabled',
+    'please enable javascript in your browser', 'verify you are human',
+    'checking your browser before accessing')
+
+
+def content_stub_reason(text):
+    lowered = str(text or '').lower()
+    if any(marker in lowered for marker in PAYWALL_MARKERS):
+        return 'paywall_check_failed'
+    if any(marker in lowered for marker in CONSENT_STUB_MARKERS):
+        return 'consent_or_script_stub'
+    return None
+
+
+def paywalled(text):
+    return content_stub_reason(text) is not None
 
 
 VOID = set('area base br col embed hr img input link meta param source track wbr'.split())
@@ -209,8 +227,9 @@ def extract_html(body, host=None):
     parser.feed(body.decode(encoding, errors='replace'))
     parser.close()
     # A gate outside the winning article (even in a sidebar) must not be bypassed.
-    if paywalled(' '.join(parser.visible)):
-        raise Failure('paywall_check_failed')
+    stub_reason = content_stub_reason(' '.join(parser.visible))
+    if stub_reason:
+        raise Failure(stub_reason)
     jsonld = _jsonld_article_text(body)
     if jsonld:
         return {'text': jsonld, 'method': 'jsonld_article_body',

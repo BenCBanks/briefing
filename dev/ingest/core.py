@@ -557,11 +557,8 @@ class _ArticleTextParser(HTMLParser):
 
 
 def _is_paywalled(text):
-    indicators = ('subscribe to continue', 'subscription required', 'subscriber-only',
-                  'already a subscriber', 'register to continue', 'sign in to read',
-                  'this content is for subscribers', 'paywall')
-    lowered = text.lower()
-    return any(indicator in lowered for indicator in indicators)
+    from .extract.readable import content_stub_reason
+    return content_stub_reason(text) is not None
 
 
 def fetch_article_text(url, source, opener=None, robots_cache_path=ROBOTS_CACHE_PATH, diagnostics=None,
@@ -712,8 +709,10 @@ def fetch_article_text(url, source, opener=None, robots_cache_path=ROBOTS_CACHE_
     if not text:
         outcome('empty_article')
         return None
-    if _is_paywalled(text):
-        outcome('paywall_check_failed')
+    from .extract.readable import content_stub_reason
+    stub_reason = content_stub_reason(text)
+    if stub_reason:
+        outcome(stub_reason)
         return None
     outcome('ok', len(text))
     return text

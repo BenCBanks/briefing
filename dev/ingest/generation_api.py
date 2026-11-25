@@ -1354,6 +1354,8 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
             report['article_fetch_outcomes'] = detail.get('article_fetch_outcomes',
                                                            getattr(article_fetch, 'diagnostics', []))
             report['article_read_funnel'] = detail.get('article_read_funnel', {})
+            report['article_read_details'] = detail.get('article_read_details', [])
+            report['article_evidence_thresholds'] = detail.get('article_evidence_thresholds', {})
             report['evidence_depth_counts'] = detail.get('evidence_depth_counts', {})
             report['story_evidence_lengths'] = [
                 {'section_id': section.get('id'),

@@ -87,9 +87,55 @@ class WriterTests(unittest.TestCase):
         article_fetcher.diagnostics = []
         citations, _evidence = extract_source_sentences(cluster, article_fetcher, now=NOW)
         self.assertTrue(citations)
+        self.assertEqual(citations[0]['evidence_method'], 'feed_body')
+        self.assertTrue(citations[0]['feed_body_counted'])
+        self.assertEqual(citations[0]['evidence_words'], len(ARTICLE_BODY.split()))
         self.assertEqual(article_fetcher.diagnostics, [{
             'source_id': 'transit-office', 'host': 'transit.example.test', 'reason': 'ok',
             'method': 'rss_content_encoded', 'evidence_chars': len(ARTICLE_BODY)}])
+
+    def test_short_real_shaped_article_body_meets_revised_single_source_floor(self):
+        from ingest.write_edition import extract_source_sentences, _story_evidence_is_sufficient
+        body = (Path(__file__).parent / 'fixtures/extract/article.html.txt').read_text(encoding='utf-8')
+        source = {**REGISTRY[0], 'article_access': 'transient-read'}
+        item = {key: value for key, value in ITEM.items() if key != 'feed_body'}
+        citations, _evidence = extract_source_sentences(
+            {'id': 'fictional-short-article', 'rows': [{'source': source, 'item': item}]},
+            lambda *_args: body)
+        self.assertEqual(len(body), 321)
+        self.assertTrue(_story_evidence_is_sufficient(citations)[0])
+        citation = citations[0]
+        self.assertEqual(citation['evidence_method'], 'article_read')
+        self.assertEqual(citation['evidence_words'], 49)
+        self.assertEqual(citation['evidence_body_sentence_count'], 4)
+        self.assertFalse(citation['feed_body_counted'])
+
+    def test_feed_snippet_is_not_misreported_as_full_text_evidence(self):
+        from ingest.write_edition import extract_source_sentences, _story_evidence_is_sufficient
+        source = {**REGISTRY[0], 'article_access': 'full-text'}
+        item = {key: value for key, value in ITEM.items() if key != 'feed_body'}
+        item['snippet'] = ARTICLE_BODY
+        citations, _evidence = extract_source_sentences(
+            {'id': 'fictional-snippet', 'rows': [{'source': source, 'item': item}]},
+            lambda *_args: None)
+        self.assertEqual(citations[0]['evidence_method'], 'feed_snippet')
+        self.assertFalse(citations[0]['feed_body_counted'])
+        self.assertFalse(_story_evidence_is_sufficient(citations)[0])
+
+    def test_consent_interstitial_in_feed_body_is_not_counted_as_evidence(self):
+        from ingest.write_edition import extract_source_sentences, _story_evidence_is_sufficient
+        body = ('Accept all cookies to continue. Enable JavaScript to continue. '
+                'This page cannot show the report until the consent step is complete.')
+        item = {**ITEM, 'feed_body': body, 'feed_body_method': 'rss_content_encoded'}
+        article_fetcher = lambda *_args: None
+        article_fetcher.diagnostics = []
+        citations, _evidence = extract_source_sentences(
+            {'id': 'fictional-consent-feed', 'rows': [{'item': item, 'source': REGISTRY[0]}]},
+            article_fetcher)
+        self.assertTrue(citations)
+        self.assertFalse(citations[0]['feed_body_counted'])
+        self.assertFalse(_story_evidence_is_sufficient(citations)[0])
+        self.assertEqual(article_fetcher.diagnostics[0]['reason'], 'feed_consent_or_script_stub')
 
     def test_thirty_candidate_reads_fit_real_extraction_window_across_twelve_hosts(self):
         import time
@@ -449,7 +495,9 @@ class WriterTests(unittest.TestCase):
         self.assertTrue(accepted)
         accepted, _ = _story_evidence_is_sufficient([citation(240, 2), citation(250, 3)])
         self.assertTrue(accepted)
-        rejected, _ = _story_evidence_is_sufficient([citation(399, 3)])
+        accepted, _ = _story_evidence_is_sufficient([citation(399, 3)])
+        self.assertTrue(accepted)
+        rejected, _ = _story_evidence_is_sufficient([citation(299, 3)])
         self.assertFalse(rejected)
 
     def test_vendor_sources_cannot_be_the_only_evidence_for_a_story(self):
