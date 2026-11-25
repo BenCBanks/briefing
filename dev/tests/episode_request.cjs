@@ -472,7 +472,7 @@ async function screenshot(page, name) {
     await page.locator('#episode-request-prompt').fill('A fictional question that cannot be verified');
     await page.getByRole('button', { name: 'Make episode' }).click();
     await page.locator('.episode-making-page').waitFor();
-    await page.getByText('We could not find enough reliable information to finish this episode. Try a more specific question.', { exact: true }).waitFor();
+    await page.getByText("We couldn't find enough good sources to make this episode. Try broadening your question.", { exact: true }).waitFor();
     assert.equal(await page.locator('.episode-job-error').evaluate(el => getComputedStyle(el).borderLeftWidth), '0px', 'failure copy is plain text');
     assert.equal(await page.getByRole('button', { name: 'Try again' }).count(), 1, 'An evidence failure offers a clear retry');
     await screenshot(page, 'episode-failed-light');

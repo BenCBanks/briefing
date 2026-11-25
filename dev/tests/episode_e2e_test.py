@@ -224,13 +224,14 @@ class EpisodeEndToEndTests(unittest.TestCase):
                                  {row['text'] for row in topic['questions']})
                 self.assertEqual(metadata['planner']['topic'], topic['label'])
 
-    def test_thin_evidence_publishes_grounded_partial_and_keeps_gap(self):
+    def test_thin_evidence_below_minimum_is_refused_but_adequate_evidence_passes(self):
         fixture = deepcopy(self.fixture)
         for query in fixture['searches']:
             fixture['searches'][query] = fixture['searches'][query][:1]
-        episode = self.generate(fixture)
-        self.assertEqual(episode['verification']['fallback'], 'general_background')
-        self.assertIn('usable sources', episode['transcript'])
+        with self.assertRaises(InsufficientEvidence) as refused:
+            self.generate(fixture)
+        self.assertLess(refused.exception.diagnostics['supported_words'],
+                        refused.exception.diagnostics['minimum_supported_words'])
         self.assertFalse(any('chapter_assignment' in p for p in self.model.payloads))
         fixture = deepcopy(self.fixture)
         last = fixture['plan']['questions'][-1]
@@ -266,10 +267,11 @@ class EpisodeEndToEndTests(unittest.TestCase):
         ecology_model = MockLLM(ecology)
         ecology_dependencies = self.dependencies(ecology)
         ecology_dependencies.update(planner=ecology_model.planner, client=ecology_model)
-        partial = generate_episode(ecology['topic'], 5, state_dir=self.root / 'ecology',
-                                   episode_id='e' * 32, **ecology_dependencies)
-        self.assertEqual(partial['verification']['fallback'], 'general_background')
-        self.assertIn('usable sources', partial['transcript'])
+        with self.assertRaises(InsufficientEvidence) as refused:
+            generate_episode(ecology['topic'], 5, state_dir=self.root / 'ecology',
+                             episode_id='e' * 32, **ecology_dependencies)
+        self.assertLess(refused.exception.diagnostics['supported_words'],
+                        refused.exception.diagnostics['minimum_supported_words'])
         self.assertFalse(any('chapter_assignment' in payload for payload in ecology_model.payloads),
                          'thin non-news evidence stops before a writer can fill the gap')
 
@@ -320,9 +322,9 @@ class EpisodeEndToEndTests(unittest.TestCase):
                 else:
                     document['body'] = ''
             with self.subTest(mode=mode):
-                episode = self.generate(fixture)
-                self.assertEqual(episode['verification']['fallback'], 'general_background')
-                self.assertIn('general background', episode['transcript'])
+                with self.assertRaises(InsufficientEvidence) as refused:
+                    self.generate(fixture)
+                self.assertEqual(refused.exception.diagnostics['sources_read'], 0)
 
     def test_repair_is_checked_again_and_cannot_erase_research_gaps(self):
         fixture = deepcopy(self.fixture)
@@ -403,9 +405,8 @@ class EpisodeEndToEndTests(unittest.TestCase):
             self.generate(providers=[])
         with self.assertRaises(EpisodeCancelled):
             self.generate(cancelled=lambda: True)
-        fallback = self.generate(research_limits=ResearchLimits(max_rounds=1))
-        self.assertEqual(fallback['verification']['fallback'], 'general_background')
-        self.assertIn('usable sources', fallback['transcript'])
+        with self.assertRaises(InsufficientEvidence):
+            self.generate(research_limits=ResearchLimits(max_rounds=1))
         deps = self.dependencies()
         deps['clock'] = Mock(side_effect=range(1000))
         with self.assertRaisesRegex(EpisodeError, '^episode_deadline$'):
