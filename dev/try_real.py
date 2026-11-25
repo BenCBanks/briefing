@@ -195,7 +195,10 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
             details.append(f'research {elapsed:.2f}s / {budget}s budget')
         print('Evidence: ' + evidence_count + ('; ' + '; '.join(details) if details else ''))
         audio = result.get('audio') if isinstance(result.get('audio'), dict) else {}
-        print('Audio: ' + str(audio.get('status', 'not_recorded')))
+        from dev.ingest.episodes_audio import _valid_audio_failure_reason
+        reason = audio.get('reason')
+        suffix = f' ({reason})' if _valid_audio_failure_reason(reason) else ''
+        print('Audio: ' + str(audio.get('status', 'not_recorded')) + suffix)
         text = result.get('transcript') or ''
     else:
         daily = result.get('daily_briefing') if isinstance(result.get('daily_briefing'), dict) else {}
@@ -292,7 +295,7 @@ def run_episode(question: str, minutes: int) -> int:
     with isolated_run() as state:
         from dev.ingest.episodes.generate import generate_episode
         from dev.ingest.paths import profile_identifier
-        from dev.ingest.episodes_audio import render_episode_audio
+        from dev.ingest.episodes_audio import audio_failure_reason, render_episode_audio
 
         profile_id = profile_identifier(fictional_profile())
         before = ledger_snapshot()
@@ -312,7 +315,7 @@ def run_episode(question: str, minutes: int) -> int:
                 episode['audio'] = (rendered.get('episode') or {}).get('audio',
                                     {'status': rendered.get('status', 'unknown')})
             except Exception as error:
-                episode['audio'] = {'status': 'failed', 'reason': type(error).__name__}
+                episode['audio'] = {'status': 'failed', 'reason': audio_failure_reason(error)}
             _print_result('episode', episode, before, started)
             return 0
         except Exception as error:

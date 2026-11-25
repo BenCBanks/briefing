@@ -52,6 +52,62 @@ _OPERATION_ID = re.compile(r'^[a-f0-9]{32}$')
 class EpisodeAudioError(RuntimeError):
     """Safe, bounded episode-audio failure message."""
 
+    def __init__(self, message, *, failure_reason=None):
+        super().__init__(message)
+        self.failure_reason = failure_reason if _valid_audio_failure_reason(failure_reason) else None
+
+
+AUDIO_FAILURE_REASONS = frozenset({
+    'audio_budget_reached', 'audio_configuration_unavailable', 'audio_recording_failed',
+    'audio_attribute_error', 'audio_key_error', 'audio_os_error', 'audio_type_error',
+    'audio_value_error', 'tts_provider_error',
+    'tts_invalid_audio', 'tts_invalid_response', 'tts_output_limit',
+    'tts_response_too_large', 'tts_timeout',
+})
+
+
+def _valid_audio_failure_reason(reason):
+    return (isinstance(reason, str) and
+            (reason in AUDIO_FAILURE_REASONS or re.fullmatch(r'tts_http_[45]\d\d', reason) is not None))
+
+
+def audio_failure_reason(error):
+    """Map an internal exception to a bounded public reason without its text or trace."""
+    from .usage import UsageError
+    reason = getattr(error, 'failure_reason', None)
+    if _valid_audio_failure_reason(reason):
+        return reason
+    if isinstance(error, UsageError) or type(error).__name__ == 'UsageCapReached':
+        return 'audio_budget_reached'
+    if isinstance(error, TimeoutError):
+        return 'tts_timeout'
+    if isinstance(error, TtsOutputLimitError):
+        return 'tts_output_limit'
+    if isinstance(error, TtsProviderError):
+        message = str(error).casefold()
+        status = re.search(r'\bhttp\s+([45]\d\d)\b', message)
+        if status:
+            return 'tts_http_' + status.group(1)
+        if 'response was too large' in message:
+            return 'tts_response_too_large'
+        if 'timed out' in message or 'timeout' in message:
+            return 'tts_timeout'
+        if 'key file' in message or 'voice' in message and ('unavailable' in message or 'invalid' in message):
+            return 'audio_configuration_unavailable'
+        if 'audio' in message or 'wav' in message or 'pcm' in message:
+            return 'tts_invalid_audio'
+        if 'invalid' in message or 'rejected' in message or 'malformed' in message:
+            return 'tts_invalid_response'
+        return 'tts_provider_error'
+    exception_codes = {
+        'AttributeError': 'audio_attribute_error', 'KeyError': 'audio_key_error',
+        'OSError': 'audio_os_error', 'TypeError': 'audio_type_error',
+        'ValueError': 'audio_value_error',
+    }
+    if type(error).__name__ in exception_codes:
+        return exception_codes[type(error).__name__]
+    return 'audio_recording_failed'
+
 
 @dataclass(frozen=True)
 class WavInfo:
@@ -741,7 +797,8 @@ def _render_episode_audio_unlocked(episode: dict, profile_id: str, *, provider=N
                                 chunk_attempts, reason)
                             message = (f'Chapter {chapter["index"] + 1} chunk {chunk_index} failed '
                                        f'after {chunk_attempts} attempts ({error_kind}).')
-                        raise EpisodeAudioError(message) from None
+                        raise EpisodeAudioError(
+                            message, failure_reason=audio_failure_reason(last_error)) from None
                     rendered_chunks.append((rendered[0], rendered[0].frames))
                     character_count += rendered[2]
                 audio_bytes, _duration = _wav_bytes(rendered_chunks)

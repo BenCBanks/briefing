@@ -176,6 +176,15 @@ async function run() {
     await page.getByText(/reports are not sent/i).waitFor();
     await page.close();
 
+    const priorAudio = firstEpisode.audio;
+    firstEpisode.audio = { ...priorAudio, status: 'failed', reason: 'tts_http_503' };
+    const audioFailed = await openPage(browser, `episode/${firstEpisode.id}`, true);
+    await audioFailed.page.locator('.episode-audio-unavailable').waitFor();
+    assert.match(await audioFailed.page.locator('.episode-audio-unavailable').innerText(),
+      /Audio could not be recorded\. The speech service returned HTTP 503\./);
+    await audioFailed.page.close();
+    firstEpisode.audio = priorAudio;
+
     const failed = await openPage(browser, `episode/${firstEpisode.id}`, true, route => route.fulfill({ status: 404, body: 'missing fixture audio' }));
     await failed.page.getByRole('button', { name: `Play episode: ${firstEpisode.title}` }).click();
     const failedDialog = failed.page.getByRole('dialog', { name: firstEpisode.title });

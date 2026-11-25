@@ -2006,6 +2006,33 @@ class EpisodeJobStoreTests(unittest.TestCase):
         self.assertEqual(job['episode']['audio']['url'], f"/api/episodes/{created['job_id']}/audio")
         self.assertEqual(job['episode']['duration_minutes'], round(12.5 / 60, 2))
 
+    def test_tts_failure_keeps_verified_transcript_and_persists_bounded_reason(self):
+        generated = fake_episode({'job_id': 'episode-fixture', 'topic': REQUEST['topic'],
+                                  'length': 3, 'style': 'news-brief'})
+        generated.update(id='episode-fixture', source_count=2, sources_read=2,
+                         shorter_than_requested=False, quality_rubric={'passed': True},
+                         verification={'passed': True}, partial_quality=False, audio={})
+        generated['transcript'] = 'A verified fictional transcript remains available.'
+        expected_transcript = generated['transcript']
+
+        def renderer(*_args, **_kwargs):
+            raise EpisodeAudioError('Chapter 1 failed after 3 attempts (TtsProviderError).',
+                                    failure_reason='tts_http_503')
+
+        with patch.dict('os.environ', {'BRIEFING_EPISODES': 'real', 'BRIEFING_TTS': '1'}):
+            store = EpisodeJobStore(self.temp.name, stage_delay=0,
+                                    real_generator=lambda *_args, **_kwargs: generated,
+                                    audio_renderer=renderer, ledger=self.ledger(),
+                                    key_available=lambda: True)
+            _status, created = store.submit(PROFILE, {**REQUEST, 'length': 3}, start=False)
+            store.run_pending(PROFILE, created['job_id'])
+        job = store.get(PROFILE, created['job_id'])
+        self.assertEqual(job['status'], 'done')
+        self.assertEqual(job['audio_status'], 'failed')
+        self.assertEqual(job['episode']['transcript'], expected_transcript)
+        self.assertEqual(job['episode']['audio']['status'], 'failed')
+        self.assertEqual(job['episode']['audio']['reason'], 'tts_http_503')
+
     def test_streaming_publishes_first_chapter_before_later_audio_and_completes(self):
         generated = fake_episode({'job_id': 'episode-fixture', 'topic': REQUEST['topic'],
                                   'length': 3, 'style': 'news-brief'})

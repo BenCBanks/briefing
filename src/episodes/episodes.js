@@ -50,6 +50,29 @@ export function hasCurrentEpisodeRecording(episode) {
   return ready && !inactive(episode) && !inactive(audio) && !material && recordingSession(episode, null).playable;
 }
 
+export function episodeAudioFailureCopy(reason) {
+  const fixed = {
+    audio_budget_reached: "Today's audio budget was reached.",
+    audio_configuration_unavailable: 'Audio settings are unavailable.',
+    audio_attribute_error: 'Audio recording hit a software error.',
+    audio_recording_failed: 'The recording could not be completed.',
+    audio_key_error: 'Audio recording could not find a required value.',
+    audio_os_error: 'Audio recording could not access its temporary audio data.',
+    audio_type_error: 'Audio recording received data in an unexpected format.',
+    audio_value_error: 'Audio recording received invalid audio data.',
+    tts_invalid_audio: 'The speech service returned audio that could not be played.',
+    tts_invalid_response: 'The speech service returned an invalid response.',
+    tts_output_limit: 'The speech service stopped before finishing the recording.',
+    tts_response_too_large: 'The speech service response was too large.',
+    tts_timeout: 'The speech service timed out.',
+    tts_provider_error: 'The speech service could not complete the recording.',
+  };
+  if (fixed[reason]) return fixed[reason];
+  const http = /^tts_http_([45]\d\d)$/u.exec(String(reason || ''));
+  if (http) return 'The speech service returned HTTP ' + http[1] + '.';
+  return 'The recording could not be completed.';
+}
+
 function episodeMeta(episode) {
   const sources = episode.sources?.length || 0;
   const chapters = episode.chapters?.length || 0;
@@ -80,7 +103,13 @@ function listenControl(episode, onListen = null) {
   listen.type = 'button';
   if (!hasCurrentEpisodeRecording(episode)) {
     const statusId = `audio-unavailable-${episode.id}`;
-    const status = element('span', 'episode-audio-unavailable', 'Audio not recorded yet'); status.id = statusId;
+    const audioState = String(episode?.audio?.status || episode?.audio_status || '').toLowerCase();
+    const failed = audioState === 'failed';
+    const reason = episode?.audio?.reason || episode?.audio_failure_reason;
+    const message = failed
+      ? 'Audio could not be recorded. ' + episodeAudioFailureCopy(reason)
+      : 'Audio not recorded yet';
+    const status = element('span', 'episode-audio-unavailable', message); status.id = statusId;
     listen.disabled = true;
     listen.setAttribute('aria-describedby', statusId);
     group.append(listen, status);

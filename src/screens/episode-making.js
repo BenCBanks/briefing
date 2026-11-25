@@ -1,4 +1,4 @@
-import { hasCurrentEpisodeRecording } from '../episodes/episodes.js';
+import { episodeAudioFailureCopy, hasCurrentEpisodeRecording } from '../episodes/episodes.js';
 
 export const EPISODE_STAGE_FIXTURES = [
   { title: 'Finding sources', detail: 'Searching for useful, relevant sources.' },
@@ -73,7 +73,15 @@ function appendDoneCard(page, job, node, hasReadyAudio, navigate) {
   card.append(node('p', audioReady ? 'Episode ready' : 'Transcript ready', 'episode-done-kicker'),
     node('h2', audioReady ? 'Your episode is ready' : 'Your transcript is ready'));
   card.append(node('p', `Episode length: ${job.minutes} ${Number(job.minutes) === 1 ? 'minute' : 'minutes'}`, 'episode-done-meta'));
-  if (!audioReady) card.append(node('p', 'Audio is not recorded yet. The transcript is ready to read.', 'episode-audio-pending-note'));
+  if (!audioReady) {
+    const reason = job.episode?.audio?.reason || job.episode?.audio_failure_reason;
+    const audioFailed = job.audio_status === 'failed' || job.audioStatus === 'failed' || job.episode?.audio_status === 'failed' ||
+      job.episode?.audio?.status === 'failed';
+    const note = audioFailed
+      ? 'Audio could not be recorded. ' + episodeAudioFailureCopy(reason) + ' The transcript is ready to read.'
+      : 'Audio is not recorded yet. The transcript is ready to read.';
+    card.append(node('p', note, 'episode-audio-pending-note'));
+  }
   if (job.shorterThanRequested || job.episode?.shortfall_notice) card.append(node('p', 'We found limited coverage; here is a shorter episode.', 'episode-done-notice episode-thin-evidence'));
   const actions = node('div', null, 'episode-done-actions');
   const open = node('button', audioReady ? 'Open episode' : 'Open transcript', 'episode-read-button'); open.type = 'button';

@@ -29,7 +29,7 @@ from dev.ingest.episodes_audio import (
     MAX_TTS_CHUNK_CHARS, _tts_chunks,
     _fingerprints, add_chapter_timestamps, approve_bounded_audio_candidate,
     _read_wav, audio_directory, current_audio_asset, load_voice, main, persisted_audio_matches_manifest,
-    persisted_audio_selector, render_episode_audio,
+    persisted_audio_selector, render_episode_audio, audio_failure_reason,
 )
 from dev.ingest import episodes_audio
 from dev.ingest.daily_audio import daily_episode_from_edition
@@ -104,6 +104,21 @@ class CorrectionDurationProvider(FakeProvider):
 
 
 class EpisodeAudioRenderTests(unittest.TestCase):
+    def test_audio_failure_reason_is_specific_bounded_and_never_echoes_provider_text(self):
+        cases = [
+            (TtsProviderError('Gemini API returned HTTP 503.'), 'tts_http_503'),
+            (TtsProviderError('Gemini API response was too large.'), 'tts_response_too_large'),
+            (TtsOutputLimitError('Bounded TTS result reached its output-token limit.'),
+             'tts_output_limit'),
+            (TimeoutError('secret endpoint timeout'), 'tts_timeout'),
+            (RuntimeError('secret key and filesystem path'), 'audio_recording_failed'),
+        ]
+        for error, expected in cases:
+            with self.subTest(expected=expected):
+                reason = audio_failure_reason(error)
+                self.assertEqual(reason, expected)
+                self.assertNotIn('secret', reason)
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.state_dir = Path(self.temp.name) / 'state'
@@ -522,10 +537,11 @@ class EpisodeAudioRenderTests(unittest.TestCase):
                 raise TtsOutputLimitError('fictional output token limit reached')
 
         truncated_provider = MaxTokensProvider()
-        with self.assertRaisesRegex(EpisodeAudioError, 'Chapter 1 failed after 3 attempts'):
+        with self.assertRaisesRegex(EpisodeAudioError, 'Chapter 1 failed after 3 attempts') as raised:
             render_episode_audio(corrected, corrected['profile_id'], provider=truncated_provider,
                                  state_dir=self.state_dir, tts_output_token_limit=4096,)
 
+        self.assertEqual(raised.exception.failure_reason, 'tts_output_limit')
         self.assertEqual(len(truncated_provider.calls), 3)
         self.assertTrue(all('exact current revision identity' in text
                             for text, _voice in truncated_provider.calls))
