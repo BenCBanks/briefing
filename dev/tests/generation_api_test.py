@@ -1135,6 +1135,15 @@ class GenerationApiTests(unittest.TestCase):
             ValueError('narration_key_permissions')), 'narration_key_permissions')
         self.assertEqual(generation_api._safe_narration_exception_reason(
             ValueError('private path token')), 'ValueError')
+        from dev.interpreter_proxy import ProxyError
+        proxy_error = ProxyError(502, 'invalid_model_response', 'invalid_json',
+                                 {'request': 'must not leak'})
+        safe_reason = 'ProxyError:502:invalid_model_response:invalid_json'
+        self.assertEqual(generation_api._safe_narration_exception_reason(proxy_error), safe_reason)
+        proxy_status = generation_api._daily_narration_job_status(
+            {'daily_narration': {'status': 'fallback', 'reason': safe_reason}})
+        self.assertEqual(proxy_status['reason'], safe_reason)
+        self.assertNotIn('must not leak', json.dumps(proxy_status))
 
     def test_narration_failure_preserves_critical_content_gate_and_clears_script(self):
         edition = {'audio': {'state': 'pending'},
