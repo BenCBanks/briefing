@@ -136,6 +136,8 @@ async function run() {
     await page.locator('[data-nav=topics]').click();
     await page.locator('.settings-link').click();
     await page.locator('.settings-list').waitFor();
+    assert.equal(await page.locator('[data-page-title]').innerText(), 'Settings', 'Settings keeps its shared screen header');
+    assert.equal(await page.locator('[aria-current="page"][data-nav="topics"]').count(), 1, 'Settings remains under Topics in navigation');
     await page.getByRole('button', { name: 'Save time zone' }).click();
     await page.locator('.topics-heading').waitFor();
     assert.equal(await page.locator('[aria-current="page"][data-nav="topics"]').count(), 1, 'Topics is the Settings entry point');
@@ -165,6 +167,7 @@ async function run() {
 
     await page.locator('[data-nav="library"]').click();
     await page.locator('.library-filters').waitFor();
+    assert.equal(await page.locator('[data-page-title]').innerText(), 'Earlier', 'Earlier keeps its shared screen header');
     assert.equal(await page.locator('[aria-current="page"][data-nav="library"]').count(), 1);
     await page.locator('.library-filters button').filter({ hasText: 'Editions' }).click();
     await capture(page, 'library-390-light.png');

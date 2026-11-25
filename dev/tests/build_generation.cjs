@@ -89,9 +89,13 @@ async function flow({ fail = false, noStories = false, missingEndpoints = false,
     if (goTodayWhileBuilding) {
       await page.locator('.build-still-working').waitFor();
       await page.getByRole('button', { name: 'Go to Today' }).click();
-      await page.getByRole('heading', { name: 'Your first briefing is being written' }).waitFor();
-      assert.equal(await page.locator('.today-preparing-steps li').count(), 3);
-      assert.equal(await page.locator('.today-page').count(), 0, 'Today waits without launching another build');
+      await page.locator('.today-page').waitFor();
+      assert.equal(await page.locator('.today-date').innerText(), 'Tuesday 17 November',
+        'Today keeps the available edition’s actual date while the new one is being written');
+      assert.equal(await page.locator('.today-previous-edition-note').count(), 1,
+        'The available edition is followed by a quiet update status');
+      assert.equal(await page.locator('.today-build-progress').count(), 0,
+        'A preparation panel does not replace an available edition');
     }
     if (fail || missingEndpoints) {
       if (fallbackUnavailable) {
@@ -134,6 +138,8 @@ async function flow({ fail = false, noStories = false, missingEndpoints = false,
       return;
     }
     await page.locator('.today-page').waitFor();
+    await page.waitForFunction(() => localStorage.getItem('briefing:v1:built-profile-key') !== null,
+      null, { timeout: 10000 });
     const greetingHeadlines = generatedEdition.sections.slice(0, 3).map(section => section.heading);
     assert.equal(await page.locator('.today-page h1').innerText(), 'Your daily briefing');
     assert.equal(await page.locator('.today-chapter-title').count(), 1);

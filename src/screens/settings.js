@@ -7,7 +7,6 @@ export function renderSettingsScreen({
   getState, setState, saveState, localStorage, sessionStorage, resetChoices,
   accountApi, accountsEnabled, onAccountChange,
 }) {
-  document.querySelector('[data-page-title]').textContent = '';
   content.append(node('h1', 'Settings'));
   const quickSettings = node('section', null, 'settings-quick-rows');
   quickSettings.setAttribute('aria-label', 'Briefing settings');

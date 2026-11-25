@@ -15,27 +15,27 @@ export function renderTodayScreen(deps) {
     setCachedPackIdentity, refreshTodayRunSummary, markDailyEditionSeen,
   } = deps;
   const expectedProfile = interestProfile;
-  if (pendingTopicsUpdate()) {
-    const panel = node('section', null, 'today-build-progress');
-    panel.append(node('h1', buildInProgress ? 'Updating… about a minute' : 'Your briefing needs an update'));
-    if (buildInProgress) {
-      panel.append(todayListSkeleton());
-    } else panel.append(link('Update my briefing', '#topics', 'button-link'));
-    content.append(panel); return;
-  }
   const builtFor = localStorage.getItem('briefing:v1:built-profile-key');
   const expectedProfileKey = expectedProfile ? profileBuildKey(expectedProfile) : null;
   const welcomeProfileKey = sessionStorage.getItem(FIRST_EDITION_WELCOME_KEY);
   const profileMatches = expectedProfile && builtFor === expectedProfileKey;
   const isGeneralFallback = Boolean(expectedProfile && localStorage.getItem(BUILD_GENERAL_FALLBACK_KEY) === expectedProfileKey);
   const candidateEdition = currentEdition('daily');
-  let edition = expectedProfile ? (profileMatches && candidateEdition?.generated === true ? candidateEdition : null) : candidateEdition;
+  let edition = expectedProfile ? (candidateEdition?.generated === true ? candidateEdition : null) : candidateEdition;
+  const showingPreviousEdition = Boolean(expectedProfile && edition?.generated === true && !profileMatches);
   const firstEditionWelcome = Boolean(welcomeProfileKey && welcomeProfileKey === expectedProfileKey && edition?.generated === true);
   let showUnfilteredGeneralFallback = false;
   if (isGeneralFallback && edition?.generated === true) {
     const matchedEdition = filterGeneralEditionForProfile(edition, expectedProfile);
     if (matchedEdition.sections.length) edition = matchedEdition;
     else showUnfilteredGeneralFallback = true;
+  }
+  if (!edition && pendingTopicsUpdate()) {
+    const panel = node('section', null, 'today-build-progress');
+    panel.append(node('h1', buildInProgress ? 'Updating… about a minute' : 'Your briefing needs an update'));
+    if (buildInProgress) panel.append(todayListSkeleton());
+    else panel.append(link('Update my briefing', '#topics', 'button-link'));
+    content.append(panel); return;
   }
   if (!edition) {
     if (expectedProfile && !buildNotice) {
@@ -122,7 +122,7 @@ export function renderTodayScreen(deps) {
     // A generated edition has already been matched to the exact profile key above.
     // Its sections are the build result, so don't narrow them a second time using
     // today's topic preferences (which may have come from an older browser save).
-    profile: (edition.generated === true && profileMatches) || showUnfilteredGeneralFallback ? null : interestProfile,
+    profile: (edition.generated === true && (profileMatches || showingPreviousEdition)) || showUnfilteredGeneralFallback ? null : interestProfile,
     lastMode: getEditionMode(edition.id),
     listeningAvailable: listeningAvailable(),
     listeningComplete: player.item?.kind === 'daily' && player.item.id === edition.id
@@ -177,6 +177,11 @@ export function renderTodayScreen(deps) {
       const note = node('p', BUILD_GENERAL_FALLBACK_NOTE, 'today-general-fallback-note'); note.setAttribute('role', 'status');
       const title = article.querySelector('h1');
       if (title) title.after(note); else article.prepend(note);
+    } else if (showingPreviousEdition) {
+      const notice = node('p', 'Your updated topics are still being prepared.', 'today-previous-edition-note');
+      notice.setAttribute('role', 'status');
+      const playback = article.querySelector('.today-primary');
+      if (playback) playback.after(notice); else article.prepend(notice);
     } else if (buildNotice) {
       const notice = node('p', null, 'today-build-error-line'); notice.setAttribute('role', 'status');
       notice.append(document.createTextNode('Today’s stories did not load · '));

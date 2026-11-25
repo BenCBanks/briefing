@@ -55,6 +55,22 @@ async function run() {
 
     await page.goto(`${baseURL}/#today`, { waitUntil: 'networkidle' });
     await page.locator('.today-page').waitFor();
+    const shell = await page.evaluate(() => {
+      const style = getComputedStyle(document.documentElement);
+      const header = document.querySelector('.site-header-inner');
+      const navLink = document.querySelector('.main-nav a');
+      return {
+        spacing: ['--space-1', '--space-2', '--space-3', '--space-4'].map(key => style.getPropertyValue(key).trim()),
+        font: getComputedStyle(document.body).fontFamily,
+        headingFont: getComputedStyle(document.querySelector('.today-page h1')).fontFamily,
+        headerHeight: Math.round(header.getBoundingClientRect().height),
+        navTarget: Math.round(navLink.getBoundingClientRect().height),
+      };
+    });
+    assert.deepEqual(shell.spacing, ['8px', '16px', '24px', '32px'], 'Shared spacing uses the 8px scale');
+    assert.equal(shell.headingFont, shell.font, 'Page headings and body use the same sans-serif family');
+    assert.equal(shell.headerHeight >= 56, true, 'The shared phone header is at least 56px high');
+    assert.equal(shell.navTarget >= 44, true, 'Navigation targets meet the 44px minimum');
     assert.equal(generatePosts.length, 0, 'the matching active-profile edition avoids a duplicate build after syncing a legacy browser profile');
     assert.equal(await page.locator('.today-page h1').innerText(), 'Your daily briefing');
     assert.equal(await page.locator('.today-chapter-title').first().getAttribute('data-play-chapter'), generatedEdition.sections[0].id, 'Chapter playback points to the edition generated for the synced profile');
@@ -64,6 +80,10 @@ async function run() {
     assert.equal(await page.evaluate(() => localStorage.getItem('briefing:v1:built-profile-key')), profileKey(serverProfile), 'completed edition is keyed to the synced profile');
 
     await page.evaluate(() => { location.hash = '#interests'; });
+    assert.equal(await page.locator('[aria-current="page"][data-nav="topics"]').count(), 1,
+      'Interests uses the Topics destination in the shared navigation');
+    assert.equal(await page.locator('[aria-current="page"][data-nav="today"]').count(), 0,
+      'Interests does not leave Today selected');
     const depthBuild = page.waitForResponse(response => response.url().includes('/api/generate/legacy-profile-sync-job'));
     await page.getByLabel('Depth').first().selectOption('deeper');
     await depthBuild;

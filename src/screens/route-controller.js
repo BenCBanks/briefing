@@ -2,7 +2,10 @@ export function describeRoute(routeHash, routeContext = null, rootForHash = (has
   const routeName = decodeURIComponent((routeHash || '#today').slice(1));
   const episodeRoute = routeName === 'episodes' || routeName.startsWith('episode/') || routeName.startsWith('episode-making/');
   const onDemandRoute = ['ask', 'ask-episode', 'episode-making', 'episodes'].includes(routeName) || routeName.startsWith('episode/');
-  const group = onDemandRoute ? 'on-demand' : episodeRoute ? 'library' : rootForHash(routeHash, routeContext);
+  const interestEditorRoute = routeName === 'interests';
+  const settingsRoute = routeName === 'preferences';
+  const group = onDemandRoute ? 'on-demand' : episodeRoute ? 'library' :
+    interestEditorRoute || settingsRoute ? 'topics' : rootForHash(routeHash, routeContext);
   const editionKind = routeName.startsWith('edition/') ? routeName.slice(8).split('/')[0] : null;
   const isReader = routeName === 'weekly' || routeName === 'corrections' || routeName === 'episode-making' ||
     routeName.startsWith('episode-making/') || routeName.startsWith('edition/') || routeName.startsWith('explanation/') ||

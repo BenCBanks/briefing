@@ -7,7 +7,6 @@ export function renderEarlierScreen({
 }) {
   let libraryFilter = getLibraryFilter();
   let librarySearchQuery = getLibrarySearchQuery();
-  document.querySelector('[data-page-title]').textContent = '';
   content.append(node('h1', 'Earlier'));
   const editions = currentItems(pack.editions).filter(item => !(interestProfile && item.kind === 'weekly' && item.generated !== true));
   const storySectionsFor = item => visibleSections(item).filter(part => part.kind !== 'link');

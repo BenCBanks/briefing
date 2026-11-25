@@ -8,6 +8,15 @@ const { chromium } = require('playwright');
 const auditionManifest = require('./fixtures/audition_manifest.json');
 
 const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8932';
+async function capture(page, name) {
+  if (!process.env.BRIEFING_SHOT_DIR) return;
+  fs.mkdirSync(process.env.BRIEFING_SHOT_DIR, { recursive: true });
+  await page.evaluate(() => new Promise(resolve => {
+    window.scrollTo({ top: 0, behavior: 'instant' });
+    requestAnimationFrame(() => requestAnimationFrame(resolve));
+  }));
+  await page.screenshot({ path: path.join(process.env.BRIEFING_SHOT_DIR, name), animations: 'disabled' });
+}
 const sourceEdition = JSON.parse(fs.readFileSync(path.join(__dirname, '../../content/editions.json'), 'utf8')).editions.find(item => item.kind === 'daily');
 const sources = JSON.parse(fs.readFileSync(path.join(__dirname, '../../content/sources.json'), 'utf8')).sources;
 const generatedEdition = { ...sourceEdition, id: 'generated-story-feedback-test', revision_id: 'generated-story-r1', script_hash: 'fictional-story-test', generated: true, local_date: '2026-11-17', generated_at: '2026-11-17T06:02:00-05:00' };
@@ -123,11 +132,36 @@ async function run() {
     assert.equal(signals.at(-1).type, 'mute');
 
     await page.locator('.reader-back').click();
-    await page.locator('.today-build-progress').waitFor();
-    assert.equal(await page.locator('.today-page').count(), 0, 'A topic change cannot expose the old briefing, even when generation fails');
+    await page.locator('.today-page').waitFor();
+    assert.equal(await page.locator('.today-date').innerText(), 'Tuesday 17 November',
+      'An available older edition keeps its real date while updated topics are prepared');
+    assert.equal(await page.locator('.today-previous-edition-note').count(), 1,
+      'The dated edition is identified as the latest available while topics update');
+    assert.equal(await page.locator('.today-build-progress').count(), 0,
+      'A preparation panel never replaces content that is already available');
+    assert.equal(await page.locator('.today-previous-edition-note').evaluate(note =>
+      Boolean(note.previousElementSibling?.matches('.today-primary'))), true,
+    'Update status follows the available briefing and its primary action');
+    await capture(page, 'today-phone-390-light.png');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await capture(page, 'today-phone-390-dark.png');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await capture(page, 'today-desktop-light.png');
+    await page.setViewportSize({ width: 390, height: 844 });
     await page.locator('[data-nav=topics]').click();
     await page.locator('.settings-link').click();
     await page.getByRole('link', { name: /Edit in my own words/ }).click();
+    await page.locator('.interests-page').waitFor();
+    assert.equal(await page.locator('[aria-current="page"][data-nav="topics"]').count(), 1,
+      'Interests is selected under its Topics destination');
+    await capture(page, 'interests-phone-390-light.png');
+    await page.emulateMedia({ colorScheme: 'dark' });
+    await capture(page, 'interests-phone-390-dark.png');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.setViewportSize({ width: 1440, height: 1000 });
+    await capture(page, 'interests-desktop-light.png');
+    await page.setViewportSize({ width: 390, height: 844 });
     page.once('dialog', dialog => dialog.accept());
     await page.getByRole('button', { name: 'Clear what has been learned' }).click();
     assert.equal(await page.evaluate(() => localStorage.getItem('briefing:v1:signals')), null);
