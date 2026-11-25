@@ -30,7 +30,11 @@ are unavailable and no account state is created.
   identifier. A lockout response is deliberately generic and does not reveal
   whether an account exists.
 - Account data uses the existing profile identifier idea beneath a per-reader
-  account directory. Profile, episode, library, correction and audio lookups
+  account directory. With accounts enabled, every API route requires the
+  session; mutating routes also require CSRF. Profile files, generated editions,
+  episode jobs, library history, corrections, voice selection and audio assets
+  live under that reader's state directory. Profile-scoped IDs include an
+  internal reader namespace that is never returned to the browser. Lookups
   always derive the reader ID from the authenticated session; request fields
   cannot select another reader's directory.
 - Episode use is counted per reader and charged through the normal global usage

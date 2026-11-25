@@ -34,7 +34,7 @@ if __package__:
     from .ingest import voice as voice_settings
     from .ingest import privacy
     from .ingest.generation_api import job_response, profile_response, save_profile, start_generation, status_response
-    from .ingest.jobs import DEFAULT_STORE as EPISODE_JOBS
+    from .ingest.jobs import DEFAULT_STORE as EPISODE_JOBS, EpisodeJobStore
     from .ingest.corrections import CorrectionAudioQueue, CorrectionError, CorrectionService, CorrectionStore
     from .ingest.paths import STATE_DIR, profile_identifier
     from .ingest.usage import UsageLedger, UsageError, process_ledger
@@ -54,7 +54,7 @@ else:
     from ingest import voice as voice_settings
     from ingest import privacy
     from ingest.generation_api import job_response, profile_response, save_profile, start_generation, status_response
-    from ingest.jobs import DEFAULT_STORE as EPISODE_JOBS
+    from ingest.jobs import DEFAULT_STORE as EPISODE_JOBS, EpisodeJobStore
     from ingest.corrections import CorrectionAudioQueue, CorrectionError, CorrectionService, CorrectionStore
     from ingest.paths import STATE_DIR, profile_identifier
     from ingest.usage import UsageLedger, UsageError, process_ledger
@@ -102,6 +102,48 @@ _STATIC_ASSET_CACHE = OrderedDict()
 _STATIC_ASSET_CACHE_LOCK = threading.RLock()
 _STATIC_ASSET_CACHE_MAX_ENTRIES = 128
 _STATIC_ASSET_CACHE_MAX_BYTES = 6 * 1024 * 1024
+_ACCOUNT_STORE_LOCK = threading.RLock()
+_ACCOUNT_JOB_STORES = OrderedDict()
+_ACCOUNT_CORRECTIONS = OrderedDict()
+
+
+def _account_episode_store(account_id):
+    with _ACCOUNT_STORE_LOCK:
+        store = _ACCOUNT_JOB_STORES.get(account_id)
+        if store is None:
+            store = EpisodeJobStore(accounts.reader_state_dir(account_id))
+            store.startup()
+            _ACCOUNT_JOB_STORES[account_id] = store
+        else:
+            _ACCOUNT_JOB_STORES.move_to_end(account_id)
+        return store
+
+
+def _account_correction_service(account_id):
+    with _ACCOUNT_STORE_LOCK:
+        service = _ACCOUNT_CORRECTIONS.get(account_id)
+        if service is None:
+            state_dir = accounts.reader_state_dir(account_id)
+            store = CorrectionStore(state_dir)
+            audio_queue = CorrectionAudioQueue(
+                store,
+                chapter_renderer=lambda episode, profile_id, *, previous_episode, chapter_id:
+                    episodes_audio.render_episode_audio(
+                        episode, profile_id, voice_name=episodes_audio.load_voice(state_dir / 'voice.json'),
+                        voice_file=state_dir / 'voice.json', state_dir=state_dir,
+                        reuse_from_episode=previous_episode, changed_chapter_id=chapter_id),
+                cost_estimator=_estimate_corrected_chapter)
+            service = CorrectionService(
+                state_dir,
+                episode_reader=lambda profile, job_id: _account_episode_store(account_id).get(profile, job_id),
+                edition_reader=lambda profile: edition_response(
+                    directory=generation_api_module.profile_generated_dir(profile, root=state_dir / 'generated'),
+                    profile='active', profile_data=profile)[1],
+                audio_queue=audio_queue)
+            _ACCOUNT_CORRECTIONS[account_id] = service
+        else:
+            _ACCOUNT_CORRECTIONS.move_to_end(account_id)
+        return service
 
 
 def _post_rate_key(path):
@@ -520,6 +562,8 @@ class Handler(BaseHTTPRequestHandler):
         if accounts_enabled() and request_path.startswith('/api/account/'):
             self._account_post(request_path)
             return
+        if accounts_enabled() and not self._require_reader_context(mutate=True):
+            return
         rate_key = _post_rate_key(request_path)
         if rate_key and _post_rate_limited(self.client_address[0], rate_key):
             self._send_json(429, {'error': 'rate_limited'})
@@ -562,11 +606,11 @@ class Handler(BaseHTTPRequestHandler):
             if body_length:
                 self._send_json(400, {'error': 'unexpected_request_body'})
                 return
-            profile_status, profile_result = profile_response()
+            profile_status, profile_result = self._reader_profile_response()
             if profile_status != 200:
                 self._send_json(profile_status, profile_result)
                 return
-            status, result = EPISODE_JOBS.cancel(profile_result['profile'], cancel_match.group(1))
+            status, result = self._reader_episode_jobs().cancel(profile_result['profile'], cancel_match.group(1))
             self._send_json(status, result)
             return
         if request_path not in {'/api/interpret', '/api/profile', '/api/generate'}:
@@ -590,11 +634,18 @@ class Handler(BaseHTTPRequestHandler):
             status, result = interpret_request(payload, self.client_address[0])
         elif request_path == '/api/profile':
             with privacy.profile_write_guard():
-                status, result = save_profile(payload.get('profile') if isinstance(payload, dict) else None)
+                status, result = self._save_reader_profile(payload.get('profile') if isinstance(payload, dict) else None)
         else:
+            profile = self._scope_reader_profile(payload.get('profile') if isinstance(payload, dict) else None)
+            if accounts_enabled():
+                with privacy.profile_write_guard():
+                    save_status, save_result = self._save_reader_profile(profile)
+                if save_status != 200:
+                    self._send_json(save_status, save_result)
+                    return
             with privacy.profile_write_guard():
                 status, result = start_generation(
-                    payload.get('profile') if isinstance(payload, dict) else None)
+                    profile, directory=self._reader_generation_directory(profile))
         self._json(status, result)
 
     def _account_body(self, limit=8192):
@@ -619,6 +670,80 @@ class Handler(BaseHTTPRequestHandler):
             if key == accounts.SESSION_COOKIE:
                 return value
         return None
+
+    def _require_reader_context(self, *, mutate=False):
+        if not accounts_enabled():
+            return True
+        try:
+            self._reader_session = accounts.require(
+                self._account_token(), self.headers.get('X-CSRF-Token'), mutate=mutate)
+            return True
+        except accounts.AccountError as error:
+            self._account_error(error)
+            return False
+
+    def _reader_profile_response(self):
+        if not accounts_enabled():
+            return profile_response()
+        if not self._require_reader_context():
+            return 401, {'error': 'authentication_required'}
+        account_id = self._reader_session[2]['id']
+        status, result = generation_api_module.profile_response(accounts.reader_profile_path(account_id))
+        if status == 200 and isinstance(result.get('profile'), dict):
+            result = dict(result)
+            profile = dict(result['profile'])
+            profile['_account_scope'] = account_id
+            result['profile'] = profile
+        return status, result
+
+    def _save_reader_profile(self, profile):
+        if not accounts_enabled():
+            return save_profile(profile)
+        if not self._require_reader_context(mutate=True):
+            return 401, {'error': 'authentication_required'}
+        if isinstance(profile, dict):
+            profile = dict(profile)
+            profile.pop('_account_scope', None)
+        return save_profile(profile, path=accounts.reader_profile_path(self._reader_session[2]['id']))
+
+    def _scope_reader_profile(self, profile):
+        if not accounts_enabled() or not isinstance(profile, dict):
+            return profile
+        scoped = dict(profile)
+        scoped['_account_scope'] = self._reader_session[2]['id']
+        return scoped
+
+    @staticmethod
+    def _public_reader_profile(profile):
+        if not isinstance(profile, dict):
+            return profile
+        return {key: value for key, value in profile.items() if key != '_account_scope'}
+
+    def _reader_generation_directory(self, profile):
+        if not accounts_enabled():
+            return None
+        account_id = profile.get('_account_scope') if isinstance(profile, dict) else None
+        return accounts.reader_generated_dir(account_id, profile_identifier(profile))
+
+    def _reader_episode_jobs(self):
+        if not accounts_enabled():
+            return EPISODE_JOBS
+        return _account_episode_store(self._reader_session[2]['id'])
+
+    def _reader_corrections(self, profile):
+        if not accounts_enabled():
+            return CORRECTIONS
+        return _account_correction_service(profile['_account_scope'])
+
+    def _reader_audio_state_dir(self):
+        if not accounts_enabled():
+            return EPISODE_AUDIO_STATE_DIR
+        return accounts.reader_state_dir(self._reader_session[2]['id'])
+
+    def _reader_voice_file(self):
+        if not accounts_enabled():
+            return EPISODE_VOICE_FILE
+        return self._reader_audio_state_dir() / 'voice.json'
 
     def _account_csrf(self, payload=None):
         return self.headers.get('X-CSRF-Token') or (payload or {}).get('csrf_token')
@@ -694,8 +819,18 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(400, {'error': 'invalid_seen_edition'})
             return
         with privacy.profile_write_guard():
-            status, result = generation_api_module.mark_edition_seen(
-                payload.get('profile_id'), payload.get('edition_id'), payload.get('revision_id'))
+            if accounts_enabled():
+                profile_status, profile_result = self._reader_profile_response()
+                if profile_status != 200:
+                    self._send_json(profile_status, profile_result)
+                    return
+                profile = profile_result['profile']
+                status, result = generation_api_module.mark_edition_seen(
+                    profile_identifier(profile), payload.get('edition_id'), payload.get('revision_id'),
+                    profile_data=profile, directory=self._reader_generation_directory(profile))
+            else:
+                status, result = generation_api_module.mark_edition_seen(
+                    payload.get('profile_id'), payload.get('edition_id'), payload.get('revision_id'))
         self._send_json(status, result)
 
     def _create_episode_job(self):
@@ -724,12 +859,12 @@ class Handler(BaseHTTPRequestHandler):
                                       'message': 'The idempotency key header and body must match.'})
                 return
             payload = {**payload, 'idempotency_key': idempotency_key}
-        profile_status, profile_result = profile_response()
+        profile_status, profile_result = self._reader_profile_response()
         if profile_status != 200:
             self._send_json(profile_status, profile_result)
             return
         with privacy.profile_write_guard():
-            status, result = EPISODE_JOBS.submit(profile_result['profile'], payload)
+            status, result = self._reader_episode_jobs().submit(profile_result['profile'], payload)
         self._send_json(status, result)
 
     def _set_voice(self):
@@ -756,7 +891,7 @@ class Handler(BaseHTTPRequestHandler):
                     payload['voice_name'], manifest_path=EPISODE_AUDITION_MANIFEST)
             with privacy.profile_write_guard():
                 result = voice_settings.set_selection(
-                    letter, voice_file=EPISODE_VOICE_FILE,
+                    letter, voice_file=self._reader_voice_file(),
                     manifest_path=EPISODE_AUDITION_MANIFEST)
         except voice_settings.VoiceSettingsError:
             self._send_json(400, {'error': 'invalid_voice_selection',
@@ -778,12 +913,12 @@ class Handler(BaseHTTPRequestHandler):
         except (ValueError, UnicodeDecodeError, RecursionError):
             self._send_json(400, {'error': 'invalid_json'})
             return
-        profile_status, profile_result = profile_response()
+        profile_status, profile_result = self._reader_profile_response()
         if profile_status != 200:
             self._send_json(profile_status, profile_result)
             return
         try:
-            result = CORRECTIONS.create(profile_result['profile'], payload)
+            result = self._reader_corrections(profile_result['profile']).create(profile_result['profile'], payload)
         except CorrectionError as error:
             self._send_json(error.status, _public_error(error))
             return
@@ -826,12 +961,17 @@ class Handler(BaseHTTPRequestHandler):
             except ValueError:
                 self._send_json(400, {'error': 'invalid_query'})
                 return
-        episode_path = unquote(request.path)
         if accounts_enabled() and request.path.startswith('/api/account/'):
             self._account_get(request.path)
             return
+        if accounts_enabled() and request.path.startswith('/api/') and not self._require_reader_context():
+            return
+        episode_path = unquote(request.path)
         if request.path == '/api/profile/export':
-            profile_status, profile_result = profile_response()
+            if accounts_enabled():
+                self._send_json(404, {'error': 'not_found'})
+                return
+            profile_status, profile_result = self._reader_profile_response()
             if profile_status != 200:
                 self._send_json(profile_status, profile_result)
                 return
@@ -849,13 +989,14 @@ class Handler(BaseHTTPRequestHandler):
         revision_match = re.fullmatch(r'/api/revisions/(edition|episode)/([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)',
                                      episode_path)
         if revision_match:
-            status, profile_result = profile_response()
+            status, profile_result = self._reader_profile_response()
             if status != 200:
                 self._send_json(status, profile_result)
                 return
             kind, target, revision = revision_match.groups()
             try:
-                content = CORRECTIONS.revision(profile_result['profile'], kind, target, revision)
+                content = self._reader_corrections(profile_result['profile']).revision(
+                    profile_result['profile'], kind, target, revision)
             except CorrectionError as error:
                 self._send_json(error.status, _public_error(error))
                 return
@@ -868,13 +1009,13 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, {kind: content, 'historical': True, 'playback_allowed': False})
             return
         if request.path == '/api/corrections':
-            profile_status, profile_result = profile_response()
+            profile_status, profile_result = self._reader_profile_response()
             if profile_status != 200:
                 self._send_json(profile_status, profile_result)
                 return
             query = api_query
             try:
-                rows = CORRECTIONS.list(
+                rows = self._reader_corrections(profile_result['profile']).list(
                     profile_result['profile'],
                     target_type=query.get('target_type', [None])[0],
                     target_id=query.get('target_id', [None])[0])
@@ -884,12 +1025,12 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, {'corrections': _public_correction_list(rows)})
             return
         if episode_path == '/api/episodes':
-            profile_status, profile_result = profile_response()
+            profile_status, profile_result = self._reader_profile_response()
             if profile_status != 200:
                 self._send_json(profile_status, profile_result)
                 return
             try:
-                result = EPISODE_JOBS.list(profile_result['profile'])
+                result = self._reader_episode_jobs().list(profile_result['profile'])
             except ValueError:
                 self._send_json(404, {'error': 'profile_not_found'})
                 return
@@ -914,14 +1055,14 @@ class Handler(BaseHTTPRequestHandler):
             return
         episode_match = re.fullmatch(r'/api/episodes/([a-f0-9]{32})', episode_path)
         if episode_match:
-            profile_status, profile_result = profile_response()
+            profile_status, profile_result = self._reader_profile_response()
             if profile_status != 200:
                 self._send_json(profile_status, profile_result)
                 return
-            job = EPISODE_JOBS.get(profile_result['profile'], episode_match.group(1))
+            job = self._reader_episode_jobs().get(profile_result['profile'], episode_match.group(1))
             if job:
                 try:
-                    job = CORRECTIONS.apply_job(job, profile_result['profile'])
+                    job = self._reader_corrections(profile_result['profile']).apply_job(job, profile_result['profile'])
                 except CorrectionError as error:
                     self._send_json(error.status, _public_error(error))
                     return
@@ -930,10 +1071,10 @@ class Handler(BaseHTTPRequestHandler):
                     job['audio_state'] = job.get('audio_status')
                 else:
                     try:
-                        voice = episodes_audio.load_voice(EPISODE_VOICE_FILE)
+                        voice = episodes_audio.load_voice(self._reader_voice_file())
                         job = episodes_audio.add_chapter_timestamps(
                             job, profile_identifier(profile_result['profile']), voice_name=voice,
-                            state_dir=EPISODE_AUDIO_STATE_DIR)
+                            state_dir=self._reader_audio_state_dir())
                     except (ValueError, episodes_audio.EpisodeAudioError):
                         pass
             self._send_json(200, job) if job else self._send_json(404, {'error': 'job_not_found'})
@@ -956,7 +1097,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if request.path == '/api/voice':
             try:
-                result = voice_settings.get_selection(voice_file=EPISODE_VOICE_FILE,
+                result = voice_settings.get_selection(voice_file=self._reader_voice_file(),
                                                       manifest_path=EPISODE_AUDITION_MANIFEST)
             except voice_settings.VoiceSettingsError:
                 self._send_json(503, {'error': 'voice_settings_unavailable'})
@@ -974,11 +1115,17 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, result)
             return
         if request.path == '/api/profile':
-            status, result = profile_response()
+            status, result = self._reader_profile_response()
+            if accounts_enabled() and status == 200:
+                result = {'profile': self._public_reader_profile(result.get('profile'))}
             self._send_json(status, result)
             return
         if request.path.startswith('/api/generate/'):
             status, result = job_response(request.path.rsplit('/', 1)[-1])
+            if accounts_enabled() and status == 200:
+                scoped_status, scoped = self._reader_profile_response()
+                if (scoped_status != 200 or result.get('profile_id') != profile_identifier(scoped['profile'])):
+                    status, result = 404, {'error': 'job_not_found'}
             self._send_json(status, result)
             return
         raw_path = unquote(request.path)
@@ -1126,15 +1273,15 @@ class Handler(BaseHTTPRequestHandler):
         if not re.fullmatch(r'[a-f0-9]{32}', episode_id):
             self._send_json(404, {'error': 'job_not_found'})
             return
-        profile_status, profile_result = profile_response()
+        profile_status, profile_result = self._reader_profile_response()
         if profile_status != 200:
             self._send_json(profile_status, profile_result)
             return
         profile = profile_result['profile']
-        job = EPISODE_JOBS.get(profile, episode_id)
+        job = self._reader_episode_jobs().get(profile, episode_id)
         if job:
             try:
-                job = CORRECTIONS.apply_job(job, profile)
+                job = self._reader_corrections(profile).apply_job(job, profile)
             except CorrectionError as error:
                 self._send_json(error.status, _public_error(error))
                 return
@@ -1154,7 +1301,7 @@ class Handler(BaseHTTPRequestHandler):
                                   'audio_status': job.get('audio_status', 'regenerating')})
             return
         try:
-            voice = episodes_audio.load_voice(EPISODE_VOICE_FILE)
+            voice = episodes_audio.load_voice(self._reader_voice_file())
         except episodes_audio.EpisodeAudioError:
             self._send_json(503, {'error': 'audio_configuration_unavailable'})
             return
@@ -1163,7 +1310,7 @@ class Handler(BaseHTTPRequestHandler):
             selector = episodes_audio.persisted_audio_selector(episode, audio_metadata)
             state, manifest, audio_path = episodes_audio.current_audio_asset(
                 episode, profile_identifier(profile), voice_name=voice,
-                state_dir=EPISODE_AUDIO_STATE_DIR, **selector)
+                state_dir=self._reader_audio_state_dir(), **selector)
             if (selector and manifest and
                     not episodes_audio.persisted_audio_matches_manifest(audio_metadata, manifest)):
                 state, manifest, audio_path = 'stale', None, None
@@ -1184,15 +1331,15 @@ class Handler(BaseHTTPRequestHandler):
 
     def _get_streaming_chapter_audio(self, episode_id, chapter_id):
         """Serve only an already-published immutable chapter WAV for this profile."""
-        profile_status, profile_result = profile_response()
+        profile_status, profile_result = self._reader_profile_response()
         if profile_status != 200:
             self._send_json(profile_status, profile_result)
             return
         profile = profile_result['profile']
-        job = EPISODE_JOBS.get(profile, episode_id)
+        job = self._reader_episode_jobs().get(profile, episode_id)
         if job:
             try:
-                job = CORRECTIONS.apply_job(job, profile)
+                job = self._reader_corrections(profile).apply_job(job, profile)
             except CorrectionError as error:
                 self._send_json(error.status, _public_error(error))
                 return
@@ -1205,7 +1352,7 @@ class Handler(BaseHTTPRequestHandler):
                 not any(isinstance(row, dict) and row.get('id') == chapter_id for row in ready)):
             self._send_json(404, {'error': 'chapter_audio_not_ready'})
             return
-        path_reader = getattr(EPISODE_JOBS, 'streaming_chapter_path', None)
+        path_reader = getattr(self._reader_episode_jobs(), 'streaming_chapter_path', None)
         audio_path = path_reader(profile_identifier(profile), episode_id, chapter_id) if callable(path_reader) else None
         if audio_path is None:
             self._send_json(404, {'error': 'chapter_audio_not_ready'})
@@ -1247,11 +1394,14 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(audio[start:end + 1])
 
     def _get_daily_audio(self):
-        profile_status, profile_result = profile_response()
+        profile_status, profile_result = self._reader_profile_response()
         if profile_status != 200:
             self._send_json(profile_status, profile_result)
             return
-        status, payload = edition_response(profile='active')
+        profile = profile_result['profile']
+        status, payload = edition_response(
+            directory=self._reader_generation_directory(profile) if accounts_enabled() else None,
+            profile='active', profile_data=profile if accounts_enabled() else None)
         edition = payload.get('edition') if status == 200 and isinstance(payload, dict) else None
         if not isinstance(edition, dict):
             self._send_json(404, {'error': 'daily_audio_not_ready'})
@@ -1262,13 +1412,14 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(404, {'error': 'audio_not_rendered', 'audio_status': status})
             return
         try:
-            edition_payload = CORRECTIONS.apply_edition(payload, profile_result['profile'])
+            edition_payload = self._reader_corrections(profile_result['profile']).apply_edition(
+                payload, profile_result['profile'])
             episode = daily_audio.daily_episode_from_edition(edition_payload['edition'])
-            voice = episodes_audio.load_voice(EPISODE_VOICE_FILE)
+            voice = episodes_audio.load_voice(self._reader_voice_file())
             selector = episodes_audio.persisted_audio_selector(episode, audio_metadata)
             state, manifest, audio_path = episodes_audio.current_audio_asset(
                 episode, profile_identifier(profile_result['profile']), voice_name=voice,
-                state_dir=EPISODE_AUDIO_STATE_DIR, **selector)
+                state_dir=self._reader_audio_state_dir(), **selector)
             if (selector and manifest and
                     not episodes_audio.persisted_audio_matches_manifest(audio_metadata, manifest)):
                 state, manifest, audio_path = 'stale', None, None
@@ -1284,17 +1435,17 @@ class Handler(BaseHTTPRequestHandler):
         self._send_episode_audio(audio_path, manifest)
 
     def _get_episode_captions(self, episode_id):
-        profile_status, profile_result = profile_response()
+        profile_status, profile_result = self._reader_profile_response()
         if profile_status != 200:
             self._send_json(profile_status, profile_result)
             return
         profile = profile_result['profile']
-        job = EPISODE_JOBS.get(profile, episode_id)
+        job = self._reader_episode_jobs().get(profile, episode_id)
         if not job:
             self._send_json(404, {'error': 'job_not_found'})
             return
         try:
-            job = CORRECTIONS.apply_job(job, profile)
+            job = self._reader_corrections(profile).apply_job(job, profile)
         except CorrectionError as error:
             self._send_json(error.status, _public_error(error))
             return
@@ -1383,6 +1534,9 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(encoded)
 
     def _delete_profile(self):
+        if accounts_enabled():
+            self._send_json(404, {'error': 'not_found'})
+            return
         try:
             length = int(self.headers.get('Content-Length', '0'))
         except ValueError:
@@ -1404,7 +1558,7 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(400, {'error': 'invalid_request',
                                   'message': 'A profile export confirmation token is required.'})
             return
-        profile_status, profile_result = profile_response()
+        profile_status, profile_result = self._reader_profile_response()
         if profile_status != 200:
             self._send_json(profile_status, profile_result)
             return
@@ -1425,12 +1579,29 @@ class Handler(BaseHTTPRequestHandler):
         profile_value = query.get('profile', ['active']) if query else ['active']
         profile = 'default' if profile_value == ['default'] else 'active'
         history = query.get('history', ['0']) if query else ['0']
-        status, result = edition_response(profile=profile, include_history=history == ['1'])
+        profile_context = None
+        directory = None
+        if accounts_enabled():
+            profile_status, profile_result = self._reader_profile_response()
+            if profile_status != 200:
+                self._send_json(profile_status, profile_result)
+                return
+            profile_context = profile_result['profile']
+            directory = self._reader_generation_directory(profile_context)
+            profile = 'active'
+        if accounts_enabled():
+            status, result = edition_response(directory=directory, profile=profile,
+                                              include_history=history == ['1'],
+                                              profile_data=profile_context)
+        else:
+            status, result = edition_response(profile=profile, include_history=history == ['1'])
         if status == 200 and profile == 'active' and isinstance(result, dict) and result.get('generated') is True:
-            profile_status, profile_result = profile_response()
+            profile_status, profile_result = ((200, {'profile': profile_context}) if profile_context else
+                                              self._reader_profile_response())
             if profile_status == 200:
                 try:
-                    result = CORRECTIONS.apply_edition(result, profile_result['profile'])
+                    result = self._reader_corrections(profile_result['profile']).apply_edition(
+                        result, profile_result['profile'])
                 except CorrectionError as error:
                     self._send_json(error.status, _public_error(error))
                     return
