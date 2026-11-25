@@ -15,7 +15,7 @@ export function createEpisodeListScreen({ node, link, episodeHistoryState, episo
   episodeHasReadyAudio, getEpisodeJob, episodeUnheardIds, syncOnDemandBadge, onSnapshot, onRetry }) {
   async function load(cards, examples = null, prompt = null, { earlier = false } = {}) {
     cards.setAttribute('aria-busy', 'true');
-    const earlierAsk = earlier ? link('Ask for a briefing', '#ask-episode', 'earlier-ask-link') : null;
+    const earlierAsk = earlier ? link('Make an episode', '#ask-episode', 'earlier-ask-link') : null;
     const skeleton = episodeCardsSkeleton(node);
     const status = node('p', 'Loading your on-demand briefings…', 'sr-only'); status.setAttribute('role', 'status');
     cards.replaceChildren(...(earlierAsk ? [earlierAsk] : []), skeleton, status);
@@ -26,7 +26,7 @@ export function createEpisodeListScreen({ node, link, episodeHistoryState, episo
         cards.setAttribute('aria-busy', 'false');
         if (examples) syncOnDemandBadge([]);
         if (examples) examples.hidden = false;
-        const empty = node('p', earlier ? 'No earlier episodes yet. Briefings you request will appear here.' : 'No on-demand briefings yet. Your first one will appear here.', 'episode-empty-copy');
+        const empty = node('p', earlier ? 'Episodes and briefings you keep will appear here.' : 'No on-demand briefings yet. Your first one will appear here.', 'episode-empty-copy');
         cards.replaceChildren(...(earlierAsk ? [earlierAsk] : []), empty);
         return;
       }
@@ -40,7 +40,7 @@ export function createEpisodeListScreen({ node, link, episodeHistoryState, episo
       cards.replaceChildren();
       if (examples) syncOnDemandBadge(jobs);
       if (!jobs.length) {
-        cards.append(node('p', earlier ? 'No earlier episodes yet. Briefings you request will appear here.' : 'No on-demand briefings yet. Your first one will appear here.', 'episode-empty-copy'));
+        cards.append(node('p', earlier ? 'Episodes and briefings you keep will appear here.' : 'No on-demand briefings yet. Your first one will appear here.', 'episode-empty-copy'));
       }
       if (earlierAsk) cards.prepend(earlierAsk);
       const activeJob = getEpisodeJob();

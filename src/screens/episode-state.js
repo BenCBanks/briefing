@@ -54,13 +54,14 @@ export function createEpisodeStateController(app) {
   function readLastEpisodeLength() {
     try {
       const value = Number(app.localStorage.getItem(app.EPISODE_LENGTH_KEY));
-      return [3, 5, 10, 15].includes(value) ? value : 5;
+      return [3, 5, 10].includes(value) ? value : 5;
     } catch { return 5; }
   }
 
   function rememberEpisodeLength(value) {
-    app.episodeDraft.minutes = value;
-    try { app.localStorage.setItem(app.EPISODE_LENGTH_KEY, String(value)); } catch { /* Keep the choice for this visit. */ }
+    const minutes = [3, 5, 10].includes(value) ? value : 5;
+    app.episodeDraft.minutes = minutes;
+    try { app.localStorage.setItem(app.EPISODE_LENGTH_KEY, String(minutes)); } catch { /* Keep the choice for this visit. */ }
   }
 
   function episodeUnheardIds() {

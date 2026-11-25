@@ -78,10 +78,10 @@ async function main() {
     await page.locator('.on-demand-length-group .episode-request-chip').filter({ hasText: '10 min' }).click();
     assert.equal(await page.evaluate(() => localStorage.getItem('briefing:v1:last-episode-length')), '10');
 
-    await page.getByRole('link', { name: 'Earlier' }).click();
+    await page.getByRole('link', { name: 'Library' }).click();
     await page.locator('.library-filters').waitFor();
-    await page.getByRole('group', { name: 'Earlier' }).getByRole('button', { name: 'Episodes' }).click();
-    const earlierAsk = page.getByRole('link', { name: 'Ask for a briefing' });
+    await page.getByRole('group', { name: 'Library' }).getByRole('button', { name: 'Episodes' }).click();
+    const earlierAsk = page.getByRole('link', { name: 'Make an episode' });
     assert.equal(await earlierAsk.count(), 1, 'Earlier episodes keeps one clear request action above its list');
     await earlierAsk.click();
     await page.locator('.episode-request-page').waitFor();

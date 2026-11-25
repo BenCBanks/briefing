@@ -33,7 +33,7 @@ let statusFixture = { daily_run: { local_date: edition.local_date, daily_briefin
 async function capture(page, name) { if (process.env.BRIEFING_SHOT_DIR) { await page.evaluate(()=>new Promise(resolve=>requestAnimationFrame(()=>requestAnimationFrame(resolve)))); fs.mkdirSync(process.env.BRIEFING_SHOT_DIR, { recursive: true }); await page.screenshot({ animations: 'disabled', path: path.join(process.env.BRIEFING_SHOT_DIR, `${name}.png`) }); } }
 async function checkBottomTabs(page, active) {
  const nav = page.getByRole('navigation', { name: 'Main', exact: true });
- for (const name of ['Today', 'On demand', 'Earlier', 'Topics']) {
+ for (const name of ['Today', 'On demand', 'Library', 'Topics']) {
   const tab = nav.getByRole('link', { name, exact: true });
   assert.equal(await tab.count(), 1, 'Navigation label is accessible');
    assert.equal(await tab.getAttribute('aria-current'), name === (active === 'Ask' ? 'On demand' : active) ? 'page' : null);
@@ -110,7 +110,7 @@ async function checkContrast(page) {
   assert.equal(await page.locator('.today-story-row').count(), 3);
   assert.deepEqual(await page.locator('.today-chapter-number').allTextContents(), ['1','2','3']);
   assert.doesNotMatch(await page.locator('.today-run-summary').innerText(), /sorry|apolog|regret|of 5 minutes/i);
-  assert.deepEqual(await page.locator('.main-nav-label').allTextContents(), ['Today','On demand','Earlier','Topics']);
+  assert.deepEqual(await page.locator('.main-nav-label').allTextContents(), ['Today','On demand','Library','Topics']);
   const initialNav = await page.locator('.main-nav').boundingBox();
   assert.equal(await page.locator('.mini-player').count(),0,'Idle has no player bar');
   assert.equal(await page.locator('.today-listen-pill').innerText(),'Play briefing');
@@ -286,22 +286,23 @@ async function checkContrast(page) {
   }
   await page.emulateMedia({colorScheme:'light'});
   await capture(page,'today-playing'); await page.locator('.mini-player-toggle').click(); assert.equal(await page.locator('.mini-player').count(),0);
-  await page.locator('.episode-entry-prompt').click(); await page.locator('.episode-request-page h1').waitFor(); assert.equal(await page.locator('.episode-request-page h1').innerText(),'Brief me on anything');
+  await page.locator('.episode-entry-prompt').click(); await page.locator('.episode-request-page h1').waitFor(); assert.equal(await page.locator('.episode-request-page h1').innerText(),'Make an episode');
   assert.equal(await page.locator('[data-nav=on-demand]').getAttribute('aria-current'),'page', 'Today’s quiet link opens the On demand tab');
   await page.getByRole('navigation',{name:'Main'}).getByRole('link',{name:'Today'}).click(); await page.locator('.today-page').waitFor();
-  await page.getByRole('navigation',{name:'Main'}).getByRole('link',{name:'On demand'}).click(); await page.locator('.episode-request-page h1').waitFor(); assert.equal(await page.locator('.episode-request-page h1').innerText(),'Brief me on anything');
-  assert.equal(await page.locator('.episode-request-chip').count(),4); assert.ok(await page.locator('.episode-request-example').count()<=3);
+  await page.getByRole('navigation',{name:'Main'}).getByRole('link',{name:'On demand'}).click(); await page.locator('.episode-request-page h1').waitFor(); assert.equal(await page.locator('.episode-request-page h1').innerText(),'Make an episode');
+  assert.equal(await page.locator('.episode-request-chip').count(),3); assert.equal(await page.locator('.episode-request-example').count(),0);
   await capture(page,'ask-light'); await page.emulateMedia({colorScheme:'dark'}); await capture(page,'ask-dark'); await page.emulateMedia({colorScheme:'light'});
   await page.getByRole('button',{name:'5 min',exact:true}).click(); assert.equal(await page.locator('.episode-request-chip[aria-pressed="true"]').innerText(),'5 min');
-  await page.getByRole('navigation',{name:'Main'}).getByRole('link',{name:'Today'}).click(); await page.getByRole('navigation',{name:'Main'}).getByRole('link',{name:'Earlier'}).click();
-  assert.equal(await page.locator('main>h1').innerText(),'Earlier'); assert.deepEqual(await page.locator('.library-filters button').allTextContents(),['Editions','Episodes','Saved']);
-  await checkBottomTabs(page, 'Earlier');
+  await page.getByRole('navigation',{name:'Main'}).getByRole('link',{name:'Today'}).click(); await page.getByRole('navigation',{name:'Main'}).getByRole('link',{name:'Library'}).click();
+  await page.waitForFunction(() => document.querySelector('[data-page-title]')?.textContent === 'Library');
+  assert.equal(await page.locator('[data-page-title]').innerText(),'Library'); assert.deepEqual(await page.locator('.library-filters button').allTextContents(),['Briefings','Episodes','Saved']);
+  await checkBottomTabs(page, 'Library');
   assert.deepEqual(await page.locator('.main-nav').boundingBox(), initialNav, 'Navigation preserves bar geometry');
   await page.getByRole('button',{name:'Saved',exact:true}).click();
   assert.equal(await page.locator('.library-empty h2').innerText(),'Nothing saved yet');
-  assert.equal(await page.locator('.library-empty p').innerText(),'Save a story or briefing to find it here.');
+  assert.equal(await page.locator('.library-empty p').innerText(),'Episodes and briefings you keep will appear here.');
   await page.getByRole('button',{name:'Episodes',exact:true}).click(); await page.locator('.earlier-ask-link').waitFor();
-  await page.getByRole('button',{name:'Editions',exact:true}).click();
+  await page.getByRole('button',{name:'Briefings',exact:true}).click();
   assert.equal(await page.locator('.library-briefing-list li').count(),4,'Earlier renders several dated editions from the mock history fixture');
   await capture(page,'earlier-light'); await page.emulateMedia({colorScheme:'dark'}); await capture(page,'earlier-dark'); await page.emulateMedia({colorScheme:'light'});
   await page.locator('[data-nav=topics]').click(); await page.locator('.topics-page').waitFor();

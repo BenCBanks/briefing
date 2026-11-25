@@ -23,7 +23,7 @@ import { buildChipLabel, filterGeneralEditionForProfile, profileBuildKey, profil
 import { clearProfile, getProfile, saveProfile, syncProfile } from './interests/store.js';
 import { renderCorrections } from './corrections/corrections.js';
 import { renderTopicsScreen } from './screens/topics.js';
-import { renderOnDemandScreen, episodeTopicSuggestions } from './screens/on-demand.js';
+import { renderOnDemandScreen } from './screens/on-demand.js';
 import { renderSettingsScreen } from './screens/settings.js';
 import { accountApi as createAccountApi } from './screens/account.js';
 import { renderTodayScreen } from './screens/today.js';
@@ -482,7 +482,7 @@ function renderTopicsPage(...args) { return topicsManagementController.renderTop
 function renderInterestsPage(...args) { return topicsManagementController.renderInterestsPage(...args); }
 
 function immediateParentLabel(hash, context = {}) {
-  if (hash === '#library') return '‹ Earlier';
+  if (hash === '#library') return '‹ Library';
   if (hash === '#topics') return '‹ Topics';
   if (hash === '#weekly') return '‹ Weekly recap';
   if (hash === '#today' || !hash) return '‹ Today';
@@ -522,7 +522,7 @@ function renderTopicDetailPage(...args) { return detailRouteController.renderTop
 
 function transcriptReturnLabel() {
   const hash = transcriptReturnTo?.hash || '#today';
-  if (hash === '#library') return '← Back to Earlier';
+  if (hash === '#library') return '← Back to Library';
   if (hash === '#topics' || hash.startsWith('#topic/')) return '← Back to Topics';
   return '← Back to Today';
 }
@@ -705,7 +705,12 @@ async function renderEpisodeRoute(routeName) {
 }
 
 function renderEpisodeMakingFromHistory(job) {
-  renderEpisodeMakingFromHistoryScreen({ content, node, link, job });
+  renderEpisodeMakingFromHistoryScreen({ content, node, link, job, onRetry: () => {
+    episodeDraft.prompt = String(job.topic || '').slice(0, 500);
+    rememberEpisodeLength(Number(job.length) || 5);
+    navigate('#ask-episode', { root: 'today', parentHash: '#episode-making', parentScroll: 0 });
+    void startEpisodeJob(EPISODE_MODES[0]);
+  } });
 }
 
 function renderEpisodeHistory(result, available, corrections = []) {

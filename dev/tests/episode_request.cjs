@@ -17,6 +17,8 @@ async function screenshot(page, name) {
   if (!process.env.BRIEFING_SHOT_DIR) return;
   fs.mkdirSync(process.env.BRIEFING_SHOT_DIR, { recursive: true });
   await page.evaluate(() => document.fonts.ready);
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => document.activeElement?.blur());
   await page.screenshot({ animations: 'disabled', caret: 'hide', path: path.join(process.env.BRIEFING_SHOT_DIR, `${name}.png`) });
 }
 
@@ -133,15 +135,15 @@ async function screenshot(page, name) {
     await page.locator('.today-page').waitFor();
     await page.getByRole('link', { name: /Brief me on something else/ }).click();
     await page.locator('.episode-request-page').waitFor();
-    assert.match(await page.locator('.ask-page-intro').innerText(), /transcript and audio when recording is ready/);
+    assert.match(await page.locator('.ask-page-intro').innerText(), /A short listen, with sources./);
     assert.equal(await page.locator('[aria-current=\"page\"][data-nav=\"on-demand\"]').count(), 1, 'On demand remains selected while making an episode');
-    await page.getByRole('heading', { name: 'Brief me on anything' }).waitFor();
+    await page.getByRole('heading', { name: 'Make an episode' }).waitFor();
     assert.equal(await page.locator('.ask-back').count(), 0, 'On demand is a tab root without a Today back link');
-    assert.equal(await page.locator('.ask-page-intro').innerText(), 'Any topic, any time. You choose the length. Your episode includes a transcript and audio when recording is ready.');
+    assert.equal(await page.locator('.ask-page-intro').innerText(), 'A short listen, with sources.');
     assert.equal(new URL(page.url()).hash, '#ask-episode');
-    assert.equal(await page.locator('.ask-prompt-box textarea').isDisabled(), false);
-    assert.equal(await page.locator('#episode-request-prompt').getAttribute('placeholder'), 'e.g. U.S. payments regulation this month');
-    assert.deepEqual(await page.locator('.on-demand-length-group .episode-request-chip').allTextContents(), ['3 min', '5 min', '10 min', '15 min']);
+    assert.equal(await page.locator('#episode-request-prompt').isDisabled(), false);
+    assert.equal(await page.locator('#episode-request-prompt').getAttribute('placeholder'), 'For example, how a floating town could get fresh water');
+    assert.deepEqual(await page.locator('.on-demand-length-group .episode-request-chip').allTextContents(), ['3 min', '5 min', '10 min']);
     assert.equal(await page.locator('.on-demand-length-group [aria-pressed="true"]').innerText(), '5 min');
     assert.equal(await page.locator('.on-demand-cost-line').count(), 0, 'the request page hides internal cost wording');
     assert.equal(await page.getByRole('button', { name: 'Make episode' }).isDisabled(), true, 'Start is disabled until the prompt has text');
@@ -151,14 +153,19 @@ async function screenshot(page, name) {
     assert.equal(await prompt.getAttribute('aria-describedby'), null, 'the prompt does not announce a hidden character limit');
     assert.equal(await promptLimit.isVisible(), false, 'the prompt limit stays hidden below the limit');
     assert.equal(await page.getByText('No on-demand briefings yet. Your first one will appear here.', { exact: true }).count(), 1);
-    assert.equal(await page.locator('.episode-request-example').evaluateAll(items => items.every(item => getComputedStyle(item).textAlign === 'left' && item.getBoundingClientRect().width === items[0].getBoundingClientRect().width)), true, 'Examples share an aligned full-width style');
+    assert.equal(await page.locator('.episode-request-example').count(), 0, 'the request screen keeps one clear prompt instead of example buttons');
+    assert.equal(await page.locator('.episode-request-form .episode-request-start').count(), 1, 'the request screen has one primary action');
+    assert.equal(await page.locator('.episode-request-preferences').evaluate(el => el.open), false, 'optional preferences start folded');
     await screenshot(page, 'on-demand-light');
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'on-demand-dark');
     await page.emulateMedia({ colorScheme: 'light' });
-    await prompt.fill('A draft to replace');
-    await page.locator('.episode-request-example').first().click();
-    assert.equal(await prompt.inputValue(), 'How do contactless payments settle?', 'an example replaces the draft and fills the prompt');
-    assert.equal(await page.getByRole('button', { name: 'Make episode' }).isDisabled(), false, 'choosing an example enables Start');
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await screenshot(page, 'on-demand-desktop-light');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'on-demand-desktop-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.setViewportSize({ width: 390, height: 844 });
+    await prompt.fill('How do contactless payments settle?');
+    assert.equal(await page.getByRole('button', { name: 'Make episode' }).isDisabled(), false, 'typing a topic enables Make episode');
     assert.equal(await promptLimit.isVisible(), false, 'examples below the cap do not show a counter');
     const longQuestion = 'What practical changes follow if fictional harbor towns adopt a shared payment network, and how would businesses, customers, and local services notice the difference?';
     await prompt.fill(longQuestion);
@@ -177,7 +184,7 @@ async function screenshot(page, name) {
     assert.equal(await page.getByRole('button', { name: 'Make episode' }).isDisabled(), true, 'clearing the prompt disables Start again');
     await prompt.fill('x'.repeat(500));
     assert.equal(await prompt.inputValue(), 'x'.repeat(500), 'the prompt accepts up to its 500-character limit');
-    assert.ok(await prompt.evaluate(el => el.getBoundingClientRect().height <= 144), 'the prompt scrolls internally instead of growing past its visual limit');
+    assert.ok(await prompt.evaluate(el => el.getBoundingClientRect().height <= window.innerHeight * 0.4 + 1), 'the prompt grows naturally, then scrolls within a viewport-sized limit');
     assert.equal(await promptLimit.innerText(), '500-character limit reached', 'the limit message appears when the prompt reaches its cap');
     assert.equal(await promptLimit.evaluate(el => el.classList.contains('is-at-limit')), true, 'the limit message has a clear visual state');
     await promptLimit.scrollIntoViewIfNeeded();
@@ -195,8 +202,8 @@ async function screenshot(page, name) {
     episodeListStatus = 200;
     await page.locator('.on-demand-length-group .episode-request-chip').filter({ hasText: '10 min' }).click();
     assert.equal(await page.locator('.on-demand-length-group [aria-pressed="true"]').innerText(), '10 min');
-    assert.equal(await page.locator('.episode-request-example').count(), 3);
-    assert.equal(await page.locator('.ask-episodes h2').innerText(), 'Your on-demand briefings');
+    assert.equal(await page.locator('.episode-request-example').count(), 0);
+    assert.equal(await page.locator('.ask-episodes h2').innerText(), 'Your episodes');
     assert.equal(await page.locator('.episode-request-narrator').count(), 0);
     assert.equal(await page.getByText('Preview only', { exact: true }).count(), 0);
     episodeListJobs = [
@@ -221,7 +228,8 @@ async function screenshot(page, name) {
     assert.equal(await demandRows.nth(1).locator('h3').innerText(), 'How payment settlement works');
     assert.equal(await demandRows.nth(1).locator('p').innerText(), 'Requested: 3 min');
     assert.equal(await demandRows.nth(1).locator('.episode-status-chip').innerText(), 'Ready · Listen');
-    assert.equal(await demandRows.evaluateAll(items => items.every(item => getComputedStyle(item).display === 'grid' && item.getBoundingClientRect().width >= 340)), true, 'On demand requests display as full-width rows');
+    const demandRowLayout = await demandRows.evaluateAll(items => items.map(item => ({ display: getComputedStyle(item).display, width: item.getBoundingClientRect().width })));
+    assert.ok(demandRowLayout.every(item => item.display === 'grid' && item.width >= 340), `On demand requests display as full-width rows: ${JSON.stringify(demandRowLayout)}`);
     await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
     await page.waitForTimeout(80);
     await screenshot(page, 'on-demand-list-light');
@@ -230,19 +238,13 @@ async function screenshot(page, name) {
     episodeListJobs = [];
     await page.locator('#episode-request-prompt').fill('AI');
     assert.equal(await page.getByRole('button', { name: 'Make episode' }).isDisabled(), false, 'Start enables once the prompt has text');
-    const suggestions = page.locator('.episode-topic-suggestion-chip');
-    assert.equal(await suggestions.count(), 3, 'Broad prompts offer three narrower topic chips');
-    assert.deepEqual(await suggestions.allTextContents(), ['AI in everyday life', 'Rules and policy for AI', 'Research and evidence about AI']);
-    await screenshot(page, 'episode-broad-topic-light');
-    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-broad-topic-dark'); await page.emulateMedia({ colorScheme: 'light' });
-    await suggestions.first().click();
-    assert.equal(await page.locator('#episode-request-prompt').inputValue(), 'AI in everyday life', 'Choosing a chip narrows the prompt without starting a job');
-    assert.equal(await suggestions.count(), 0);
+    assert.equal(await page.locator('.episode-topic-suggestion-chip').count(), 0, 'the clean request form does not surround the prompt with suggestion chips');
     await page.locator('#episode-request-prompt').fill('Why do contactless payments settle in batches?');
     await page.getByRole('button', { name: 'Make episode' }).click();
     assert.equal(await page.locator('.episode-style-dialog').count(), 0, 'Single send uses the default narrative style');
     await page.locator('.episode-making-page').waitFor();
     assert.equal(await page.locator('.episode-making-quote').innerText(), '“Why do contactless payments settle in batches?”');
+    assert.equal(await page.locator('.episode-making-intro').innerText(), 'Making your episode. You can leave this screen and come back.');
     assert.equal(await page.locator('.episode-making-meta').innerText(), 'Episode length: 10 minutes');
     assert.equal(await page.locator('.episode-progress-note').count(), 1, 'making shows one plain progress note');
     assert.doesNotMatch(await page.locator('.episode-making-page').innerText(), /Work so far|Cost estimate/);
@@ -275,17 +277,17 @@ async function screenshot(page, name) {
     malformedCreateMode = true;
     const malformedRequest = '  What would a fictional transit schedule change affect?  ';
     await page.locator('#episode-request-prompt').fill(malformedRequest);
-    await page.locator('.on-demand-length-group .episode-request-chip').filter({ hasText: '15 min' }).click();
+    await page.locator('.on-demand-length-group .episode-request-chip').filter({ hasText: '10 min' }).click();
     await page.getByRole('button', { name: 'Make episode' }).click();
     await page.getByText('Your episode could not be started. Please try again.', { exact: true }).waitFor();
     assert.equal(await page.locator('#episode-request-prompt').inputValue(), malformedRequest, 'a malformed successful response preserves the exact question');
-    assert.equal(await page.locator('.on-demand-length-group [aria-pressed="true"]').innerText(), '15 min', 'a malformed successful response preserves the chosen length');
+    assert.equal(await page.locator('.on-demand-length-group [aria-pressed="true"]').innerText(), '10 min', 'a malformed successful response preserves the chosen length');
     assert.equal(await page.locator('.episode-making-page').count(), 0, 'missing job identity does not invent a making episode');
     assert.equal(await page.locator('.ask-episode-card').count(), 0, 'missing job identity does not invent a ready episode card');
     assert.equal(pollCount, 0, 'a malformed 202 without job identity never starts a status poll');
     assert.equal(new URL(page.url()).hash, '#ask-episode', 'malformed success keeps the reader on the request route');
     assert.equal(await page.locator('.episode-request-start').isDisabled(), false, 'malformed success clears busy state for deliberate retry');
-    assert.deepEqual(createPayload, { topic: malformedRequest, length: 15, style: 'news-brief' });
+    assert.deepEqual(createPayload, { topic: malformedRequest, length: 10, style: 'news-brief' });
     malformedCreateMode = false;
     createInternalErrorMode = true;
     await page.locator('#episode-request-prompt').fill('A fictional request that reaches an internal failure');
@@ -299,7 +301,7 @@ async function screenshot(page, name) {
     createInternalErrorMode = false;
     await page.locator('#episode-request-prompt').fill('Why do contactless payments settle in batches?');
 
-    for (const minutes of [3, 15]) {
+    for (const minutes of [3, 10]) {
       await page.locator('.on-demand-length-group .episode-request-chip').filter({ hasText: `${minutes} min` }).click();
       assert.equal(await page.locator('.on-demand-length-group [aria-pressed="true"]').innerText(), `${minutes} min`);
       await page.getByRole('button', { name: 'Make episode' }).click();
@@ -340,7 +342,7 @@ async function screenshot(page, name) {
     const creativeResponse = page.locator('.episode-request-error');
     await creativeResponse.waitFor({ state: 'visible' });
     const unsupportedMessage = (await creativeResponse.innerText()).trim();
-    assert.equal(unsupportedMessage, 'That kind of episode is not supported yet. Try a factual question.', 'a creative request receives an honest unsupported state');
+    assert.equal(unsupportedMessage, "We can't make that format yet. Try a question about the subject.", 'a creative request receives an honest unsupported state');
     assert.equal(await page.locator('#episode-request-prompt').inputValue(), creativeRequest, 'a creative-format response preserves the reader request');
     assert.equal(await page.locator('.episode-making-page').count(), 0, 'an unsupported creative response does not invent a making job');
     assert.equal(await page.locator('.episode-done-card, .episode-waveform, a[href^="#episode/"], a[href^="#episode-making/"]').count(), 0,
@@ -356,7 +358,7 @@ async function screenshot(page, name) {
     await page.emulateMedia({ colorScheme: 'light' });
     creativeResponseMode = false;
     for (const { status, length, question } of [
-      { status: 400, length: 15, question: 'A fictional factual request with a generic 400 response' },
+      { status: 400, length: 10, question: 'A fictional factual request with a generic 400 response' },
       { status: 422, length: 3, question: 'A fictional factual request with a different generic 422 response' },
     ]) {
       genericCreateStatus = status;
@@ -410,15 +412,16 @@ async function screenshot(page, name) {
     assert.equal(await page.locator('.episode-cancel-button').count(), 0, 'A finished job no longer offers cancellation');
     assert.equal(await page.locator('.episode-making-kicker').innerText(), 'Episode ready', 'The making screen updates its status label when done');
     assert.equal(await page.locator('.episode-done-meta').innerText(), 'Episode length: 10 minutes');
-    assert.equal(await page.locator('.episode-stage-row[data-state="done"]').count(), 5);
-    assert.equal(await page.locator('.episode-stage-ring[data-check="✓"]').count(), 5);
+    assert.equal(await page.locator('.episode-making-intro').count(), 0, 'A finished episode no longer says it is still being made');
+    assert.equal(await page.locator('.episode-stage-list,.episode-progress-note').count(), 0, 'A finished episode replaces progress with its result');
+    assert.equal(await page.locator('.episode-read-button.primary').count(), 1, 'Opening the finished episode is the primary action');
     const announcements = await page.evaluate(() => window.stageAnnouncements);
     for (const stage of ['Finding sources', 'Reading', 'Writing', 'Recording']) {
       assert.equal(announcements.filter(message => message.startsWith(stage)).length, 1, `${stage} is announced once`);
     }
     assert.equal(announcements.filter(message => message === 'Your episode is ready.').length, 1, 'Ready is announced once');
     assert.equal(await page.getByText('We found limited coverage; here is a shorter episode.', { exact: true }).count(), 1, 'Thin evidence is disclosed plainly without padding language');
-    assert.equal(await page.locator('.episode-progress-note').count(), 1);
+    assert.equal(await page.locator('.episode-progress-note').count(), 0);
     assert.doesNotMatch(await page.locator('.episode-done-card').innerText(), /notifications are not available|tell me when it.s ready/i);
     await page.getByText('We found limited coverage; here is a shorter episode.', { exact: true }).scrollIntoViewIfNeeded();
     await screenshot(page, 'episode-thin-evidence-light');
@@ -428,7 +431,7 @@ async function screenshot(page, name) {
     await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-making-dark');
     await page.emulateMedia({ colorScheme: 'light' });
     await page.emulateMedia({ reducedMotion: 'reduce' });
-    assert.equal(await page.locator('.episode-stage-ring').first().evaluate(el => getComputedStyle(el).animationName), 'none');
+    assert.equal(await page.locator('.episode-done-card').evaluate(el => getComputedStyle(el).animationName), 'none');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth), false, 'No horizontal overflow at 390 px');
     await page.getByRole('button', { name: 'Open episode' }).click();
     await page.locator('.episode-page h1').waitFor();
@@ -472,7 +475,7 @@ async function screenshot(page, name) {
     await page.locator('#episode-request-prompt').fill('A fictional question that cannot be verified');
     await page.getByRole('button', { name: 'Make episode' }).click();
     await page.locator('.episode-making-page').waitFor();
-    await page.getByText("We couldn't find enough good sources to make this episode. Try broadening your question.", { exact: true }).waitFor();
+    await page.getByText("We couldn't find enough useful sources to make this episode. Your topic is saved. Try a more specific question.", { exact: true }).waitFor();
     assert.equal(await page.locator('.episode-job-error').evaluate(el => getComputedStyle(el).borderLeftWidth), '0px', 'failure copy is plain text');
     assert.equal(await page.getByRole('button', { name: 'Try again' }).count(), 1, 'An evidence failure offers a clear retry');
     await screenshot(page, 'episode-failed-light');
@@ -527,6 +530,6 @@ async function screenshot(page, name) {
     await page.getByRole('button', { name: `Play episode: Fictional briefing on Fictional ferry schedule changes` }).click();
     await page.locator('.main-nav-badge').waitFor({ state: 'hidden' });
     assert.deepEqual(errors, []);
-    console.log('Episode request: ask-to-play flow, leave-and-return activity badge, evidence failure recovery, four lengths, plain progress, source lists, and 390px light/dark screenshots passed.');
+    console.log('Episode request: ask-to-play flow, leave-and-return activity badge, evidence failure recovery, three lengths, plain progress, source lists, and 390px light/dark screenshots passed.');
   } finally { await browser.close(); }
 })().catch(error => { console.error(error); process.exitCode = 1; });

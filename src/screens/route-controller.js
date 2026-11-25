@@ -19,7 +19,7 @@ export function describeRoute(routeHash, routeContext = null, rootForHash = (has
     routeName === 'preferences' ? 'Settings' : routeName.startsWith('source/') ? 'Source' :
     routeName.startsWith('explanation/') || routeName.startsWith('topic/') ? 'Explanation' :
     routeName.startsWith('topic-detail/') ? 'Topic' : group === 'topics' ? 'Topics' :
-    group === 'library' ? 'Earlier' : (routeName === 'weekly' || editionKind === 'weekly') ? 'Weekly' : 'Today';
+    group === 'library' ? 'Library' : (routeName === 'weekly' || editionKind === 'weekly') ? 'Weekly' : 'Today';
   return { routeName, episodeRoute, onDemandRoute, group, editionKind, isReader, pageTitle };
 }
 

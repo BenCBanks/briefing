@@ -49,7 +49,7 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
   const context = vm.createContext({
     content, document: { createElement: tag => new Element(tag) },
     node(tag, text, className = '') { const el = new Element(tag); el.textContent = text; el.className = className; return el; },
-    episodeDraft: { prompt: request, minutes: 15 },
+    episodeDraft: { prompt: request, minutes: 10 },
     episodeRequestBlocked: false, episodeRequestBusy: false, episodeRequestError: '',
     episodeJob: null, episodeJobTimer: null,
     EPISODE_MODES: [{ id: 'deep-dive' }],
@@ -122,8 +122,8 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
     assert.equal(context.episodeRequestBusy, false, 'the older response settles the busy state');
     assert.equal(context.episodeDraft.prompt, newerDraft, 'the stale response does not replace the newer draft in state');
     assert.equal(input().value, newerDraft, 'the stale response does not replace the newer draft in the form');
-    assert.equal(selectedLength(), '15 min', 'the stale response preserves the selected length');
-    assert.deepEqual(posts[0], { topic: request, length: 15, style: 'explainer' }, 'the original request payload stays bound to its original question');
+    assert.equal(selectedLength(), '10 min', 'the stale response preserves the selected length');
+    assert.deepEqual(posts[0], { topic: request, length: 10, style: 'explainer' }, 'the original request payload stays bound to its original question');
     assert.equal(content.querySelector('.episode-request-error').textContent,
       'Your episode could not be started. Please try again.', 'the older response still shows its generic failure');
     assert.equal(context.episodeJob, null, 'the older failure does not invent a job');
@@ -139,8 +139,8 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
     assert.equal(action().disabled, false, 'submit remains enabled for a deliberate retry');
     assert.equal(input().disabled, false, 'the exact request remains editable');
     assert.equal(input().value, request, 'malformed 202 preserves every whitespace character');
-    assert.equal(selectedLength(), '15 min', 'malformed 202 preserves the selected length');
-    assert.deepEqual(posts[0], { topic: request, length: 15, style: 'explainer' });
+    assert.equal(selectedLength(), '10 min', 'malformed 202 preserves the selected length');
+    assert.deepEqual(posts[0], { topic: request, length: 10, style: 'explainer' });
     assert.equal(context.episodeJob, null, 'missing job identity creates no episode job');
     assert.equal(context.episodeJobTimer, null, 'missing job identity creates no polling timer');
     assert.equal(polls, 0, 'missing job identity never polls');
@@ -153,9 +153,9 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
     action().click(); await settle();
     assert.equal(posts.length, 2, 'one deliberate retry sends one additional request');
     assert.equal(context.episodeRequestBusy, false, 'the malformed-response retry settles the busy state');
-    assert.deepEqual(posts[1], { topic: revised, length: 15, style: 'explainer' },
+    assert.deepEqual(posts[1], { topic: revised, length: 10, style: 'explainer' },
       'the malformed-response retry sends the exact edited draft and selected length');
-    assert.equal(selectedLength(), '15 min', 'the selected length remains after the retry fails again');
+    assert.equal(selectedLength(), '10 min', 'the selected length remains after the retry fails again');
     assert.equal(context.episodeJob, null, 'a second malformed response still creates no job');
     assert.equal(context.episodeJobTimer, null, 'a second malformed response still creates no polling timer');
     assert.equal(polls, 0, 'no malformed response starts polling');
@@ -169,8 +169,8 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
     assert.equal(action().disabled, false, 'submit remains enabled after the settled HTTP500 error');
     assert.equal(input().disabled, false, 'the exact request remains editable after HTTP500');
     assert.equal(input().value, request, 'HTTP500 preserves every whitespace character in the request');
-    assert.equal(selectedLength(), '15 min', 'the selected length remains available for a deliberate retry');
-    assert.deepEqual(posts[0], { topic: request, length: 15, style: 'explainer' }, 'HTTP500 submits the exact raw request and selected length');
+    assert.equal(selectedLength(), '10 min', 'the selected length remains available for a deliberate retry');
+    assert.deepEqual(posts[0], { topic: request, length: 10, style: 'explainer' }, 'HTTP500 submits the exact raw request and selected length');
     assert.equal(context.location.hash, '#ask-episode', 'HTTP500 keeps the reader on the request screen');
     assert.equal(content.querySelectorAll('.ask-episode-card').length, 1,
       'HTTP500 leaves the unrelated ready episode card in history');
@@ -183,7 +183,7 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
     assert.equal(posts.length, 1, 'editing after HTTP500 does not submit automatically');
     action().click(); await settle();
     assert.equal(posts.length, 2, 'one deliberate retry sends one additional request');
-    assert.deepEqual(posts[1], { topic: revised, length: 15, style: 'explainer' },
+    assert.deepEqual(posts[1], { topic: revised, length: 10, style: 'explainer' },
       'the HTTP500 retry sends the exact updated draft and selected length');
     assert.equal(input().value, revised, 'the updated draft remains visible after the retry fails');
     assert.equal(context.episodeRequestBusy, false, 'the deliberate retry settles its busy state');
@@ -191,19 +191,19 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
   }
   assert.equal(action().disabled, true, `${error}: initial refusal prevents immediate retry`);
   assert.equal(input().value, 'Why do fictional harbor tides change?');
-  assert.equal(selectedLength(), '15 min');
+  assert.equal(selectedLength(), '10 min');
   action().click(); await settle(); assert.equal(posts.length, 1);
 
   const revised = '  How do fictional harbor tides change?\nExplain the lunar cycle.  ';
   edit(revised);
   assert.equal(action().disabled, false, `${error}: editing unlocks an explicit retry`);
   assert.equal(action().getAttribute('aria-label'), 'Make episode');
-  assert.equal(selectedLength(), '15 min', 'editing keeps the requested length');
+  assert.equal(selectedLength(), '10 min', 'editing keeps the requested length');
   assert.equal(posts.length, 1, 'editing never submits automatically');
   action().click(); await settle();
   assert.equal(posts.length, 2);
   assert.equal(posts[1].topic, revised, 'the retry keeps every character of the edited question');
-  assert.equal(posts[1].length, 15);
+  assert.equal(posts[1].length, 10);
   assert.equal(action().disabled, true, 'the server may still deny the edited request');
   assert.equal(input().value, revised, 'repeated refusal keeps the exact request');
 
@@ -212,7 +212,7 @@ async function check(error, httpFailure = false, malformed = false, staleRespons
   edit(revised); allow = true;
   action().click(); action().click(); await settle();
   assert.equal(posts.length, 3, 'one explicit retry creates one request even on double activation');
-  assert.equal(posts[2].topic, revised); assert.equal(posts[2].length, 15);
+  assert.equal(posts[2].topic, revised); assert.equal(posts[2].length, 10);
   assert.equal(context.location.hash, '#episode-making', 'a newly allowed request can proceed');
 }
 

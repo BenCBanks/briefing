@@ -123,7 +123,7 @@ async function visit(browser, viewport, route, theme = 'light', zoom = false) {
   await page.goto(`${baseURL}/${suffix}#${route}`, { waitUntil: 'domcontentloaded' });
   if (route === 'today') await page.locator('main h1').waitFor();
   else if (route === 'topics') await page.locator('.topics-page h1').waitFor();
-  else if (route === 'library') await page.locator('.library-page h1, main > h1').first().waitFor();
+  else if (route === 'library') await page.locator('main > h1').filter({ hasText: 'Library' }).waitFor();
   else if (route === 'ask-episode') await page.locator('.episode-request-page h1').waitFor();
   else if (route === 'episodes') await page.locator('.episode-deck-page').waitFor();
   else if (route === 'preferences') await page.locator('main h1').filter({ hasText: 'Settings' }).waitFor();

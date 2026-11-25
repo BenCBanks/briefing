@@ -7,7 +7,8 @@ export function renderEarlierScreen({
 }) {
   let libraryFilter = getLibraryFilter();
   let librarySearchQuery = getLibrarySearchQuery();
-  content.append(node('h1', 'Earlier'));
+  const heading = node('h1', 'Library');
+  content.append(heading);
   const editions = currentItems(pack.editions).filter(item => !(interestProfile && item.kind === 'weekly' && item.generated !== true));
   const storySectionsFor = item => visibleSections(item).filter(part => part.kind !== 'link');
   const storyCountFor = item => storySectionsFor(item).length;
@@ -54,17 +55,17 @@ export function renderEarlierScreen({
     }
     briefingList.append(row);
   }
-  if (!briefingList.children.length) briefingList.append(node('li', 'Nothing here yet. Editions appear after the first morning.', 'library-empty-briefings'));
+  if (!briefingList.children.length) briefingList.append(node('li', 'Episodes and briefings you keep will appear here.', 'library-empty-briefings'));
   briefingSection.append(briefingList);
   const filters = node('div', null, 'library-filters');
-  const editionsTab = node('button', 'Editions'); editionsTab.type = 'button'; editionsTab.setAttribute('aria-pressed', String(libraryFilter === 'editions'));
+  const editionsTab = node('button', 'Briefings'); editionsTab.type = 'button'; editionsTab.setAttribute('aria-pressed', String(libraryFilter === 'editions'));
   const savedTab = node('button', 'Saved'); savedTab.type = 'button'; savedTab.setAttribute('aria-pressed', String(libraryFilter === 'saved'));
   const episodesTab = node('button', 'Episodes'); episodesTab.type = 'button';
-  filters.setAttribute('role', 'group'); filters.setAttribute('aria-label', 'Earlier');
-  filters.append(editionsTab, episodesTab, savedTab); content.querySelector('h1').after(filters);
+  filters.setAttribute('role', 'group'); filters.setAttribute('aria-label', 'Library');
+  filters.append(editionsTab, episodesTab, savedTab); heading.after(filters);
   const search = node('input', null, 'library-search'); search.type = 'search'; search.value = librarySearchQuery;
-  search.setAttribute('aria-label', 'Search earlier briefings, saved items, and topics');
-  search.placeholder = 'Search earlier, saved, and topics';
+  search.setAttribute('aria-label', 'Search the Library');
+  search.placeholder = 'Search your Library';
   filters.before(search);
   const searchStatus = node('p', '', 'library-search-status'); searchStatus.setAttribute('role', 'status'); searchStatus.setAttribute('aria-live', 'polite'); searchStatus.hidden = true;
   filters.after(searchStatus);
@@ -158,7 +159,7 @@ export function renderEarlierScreen({
     if (!count) {
       const empty = node('li', null, 'library-empty-search');
       empty.append(node('h2', 'No matching briefings'));
-      empty.append(node('p', 'Try another search, or clear it to browse Earlier.'));
+      empty.append(node('p', 'Try another search, or clear it to browse your Library.'));
       const clear = node('button', 'Clear search', 'library-empty-search-clear'); clear.type = 'button';
       clear.addEventListener('click', () => { search.value = ''; librarySearchQuery = ''; setLibrarySearchQuery(''); renderRows(); search.focus(); });
       empty.append(clear); list.append(empty);
@@ -200,9 +201,9 @@ export function renderEarlierScreen({
       const savedSections = getState().savedIds.filter(id => sectionLookup.has(id));
       if (!savedEditions.length && !savedDives.length && !savedSections.length) {
         const empty = node('div', null, 'library-empty');
-        const browse = node('button', 'Browse editions', 'library-empty-action'); browse.type = 'button';
+        const browse = node('button', 'Browse briefings', 'library-empty-action'); browse.type = 'button';
         browse.addEventListener('click', () => { libraryFilter = 'editions'; setLibraryFilter(libraryFilter); sessionStorage.setItem('briefing:library-filter', libraryFilter); editionsTab.click(); });
-        empty.append(node('h2', 'Nothing saved yet'), node('p', 'Save a story or briefing to find it here.'), browse);
+        empty.append(node('h2', 'Nothing saved yet'), node('p', 'Episodes and briefings you keep will appear here.'), browse);
         section.append(empty);
       }
       for (const edition of savedEditions) {

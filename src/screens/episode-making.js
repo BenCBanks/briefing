@@ -40,11 +40,13 @@ export function episodeLengthCopy(job) {
     ? `Requested: ${Number(requested)} min` : 'Requested length not listed';
 }
 
-function failureCopy(job) {
-  if (job.status === 'cancelled') return 'This episode was canceled. You can start a new one from On demand.';
-  if (job.failureReason === 'cost_cap_reached') return 'We cannot make this episode right now. Your request is saved here; try again later.';
-  if (job.failureReason === 'insufficient_evidence') return "We couldn't find enough good sources to make this episode. Try broadening your question.";
-  return 'We could not finish this episode this time. You can try again.';
+export function episodeFailureCopy(job) {
+  if (job.status === 'cancelled') return 'This episode was canceled. Your topic is saved.';
+  if (job.failureReason === 'cost_cap_reached') return "We couldn't make this episode right now. Your topic is saved. Try again later.";
+  if (job.failureReason === 'insufficient_evidence') return "We couldn't find enough useful sources to make this episode. Your topic is saved. Try a more specific question.";
+  if (job.failureReason === 'unsupported_format') return "We can't make that format yet. Your topic is saved. Try asking about the subject instead.";
+  if (job.failureReason === 'provider_failure') return "A service interrupted this episode. Your topic is saved. Try again.";
+  return "We couldn't finish this episode. Your topic is saved. Try again.";
 }
 
 function renderFailureState(page, job, node, onRetry) {
@@ -52,7 +54,7 @@ function renderFailureState(page, job, node, onRetry) {
   page.querySelector('.episode-progress-note')?.remove();
   let notice = page.querySelector('.episode-job-error');
   if (!notice) { notice = node('p', '', 'episode-job-error'); notice.setAttribute('role', 'status'); page.append(notice); }
-  notice.textContent = failureCopy(job);
+  notice.textContent = episodeFailureCopy(job);
   if (job.status === 'cancelled' || job.failureReason === 'cost_cap_reached' || page.querySelector('.episode-retry-button')) return;
   const retry = node('button', 'Try again', 'primary episode-retry-button'); retry.type = 'button'; retry.addEventListener('click', () => onRetry(job));
   page.append(retry);
@@ -84,7 +86,7 @@ function appendDoneCard(page, job, node, hasReadyAudio, navigate) {
   }
   if (job.shorterThanRequested || job.episode?.shortfall_notice) card.append(node('p', 'We found limited coverage; here is a shorter episode.', 'episode-done-notice episode-thin-evidence'));
   const actions = node('div', null, 'episode-done-actions');
-  const open = node('button', audioReady ? 'Open episode' : 'Open transcript', 'episode-read-button'); open.type = 'button';
+  const open = node('button', audioReady ? 'Open episode' : 'Open transcript', 'primary episode-read-button'); open.type = 'button';
   open.addEventListener('click', () => navigate(`#episode/${encodeURIComponent(job.jobId)}`, { root: 'today', parentHash: '#episode-making', parentScroll: window.scrollY }));
   const another = node('button', 'Ask for another episode', 'episode-back-button'); another.type = 'button';
   another.addEventListener('click', () => navigate('#ask-episode', { root: 'today', parentHash: '#episode-making', parentScroll: 0 }));
@@ -143,6 +145,11 @@ export function updateEpisodeMakingView({ content, node, job, elapsed, totalElap
   if (kicker) kicker.textContent = job.done ? 'Episode ready' : job.failed ? failureKicker : longWait ? 'Still working' : 'Making your episode';
   const longWaitNote = page.querySelector('.episode-long-wait');
   if (longWaitNote) longWaitNote.hidden = !longWait;
+  if (job.done || job.failed) page.querySelector('.episode-making-intro')?.remove();
+  if (job.done) {
+    page.querySelector('.episode-stage-list')?.remove();
+    page.querySelector('.episode-progress-note')?.remove();
+  }
   if (job.done || job.failed) page.querySelector('.episode-making-actions')?.remove();
   if (job.failed) renderFailureState(page, job, node, onRetry);
   const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
@@ -180,6 +187,7 @@ export function renderEpisodeMakingPage({ content, node, link, job, navigate, on
   const page = node('section', null, 'episode-making-page');
   page.append(node('p', job.done ? 'Ready' : job.failed ? 'Not finished' : 'Making your episode', 'episode-making-kicker'));
   page.append(node('blockquote', `“${job.request}”`, 'episode-making-quote'));
+  if (!job.done && !job.failed) page.append(node('p', 'Making your episode. You can leave this screen and come back.', 'episode-making-intro'));
   page.append(node('p', `Episode length: ${job.minutes} ${Number(job.minutes) === 1 ? 'minute' : 'minutes'}`, 'episode-making-meta'));
   const longWait = node('p', 'This is taking a little longer. Your briefing will stay in the On demand list if you leave this page.', 'episode-long-wait');
   longWait.setAttribute('role', 'status'); longWait.hidden = true; page.append(longWait);
@@ -202,5 +210,4 @@ export function renderEpisodeMakingPage({ content, node, link, job, navigate, on
   if (job.done) announceEpisodeStage(content, job, 'Your episode is ready.');
   updateEpisodeMakingView({ content, node, job, elapsed: Date.now() - job.stageStartedAt,
     totalElapsed: Date.now() - job.startedAt, navigate, onRetry, onPlayChapter });
-  if (job.done) appendDoneCard(page, job, node, episodeHasReadyAudio, navigate);
 }

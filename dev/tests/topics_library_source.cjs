@@ -12,6 +12,7 @@ const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8932';
 async function screenshot(page, name) {
   if (!process.env.BRIEFING_SHOT_DIR) return;
   fs.mkdirSync(process.env.BRIEFING_SHOT_DIR, { recursive: true });
+  await page.evaluate(() => document.fonts.ready);
   await page.screenshot({ path: path.join(process.env.BRIEFING_SHOT_DIR, name) });
 }
 
@@ -446,13 +447,20 @@ async function run() {
     await page.locator('[data-nav="library"]').click();
     await page.locator('.library-filters').waitFor();
     await page.locator('.library-filters button').filter({ hasText: 'Saved' }).click();
+    await screenshot(page, 'library-empty-390-light.png');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'library-empty-390-dark.png');
+    await page.emulateMedia({ colorScheme: 'light' });
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await screenshot(page, 'library-empty-desktop-light.png');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'library-empty-desktop-dark.png');
+    await page.emulateMedia({ colorScheme: 'light' }); await page.setViewportSize({ width: 390, height: 844 });
     assert.match(await page.locator('.library-empty').innerText(), /Nothing saved yet/i);
     assert.match(await page.locator('.library-device-note').innerText(), /on this device/i);
     await page.locator('.library-empty-action').click();
     await page.locator('.library-filters button[aria-pressed="true"]').waitFor();
-    assert.equal(await page.locator('.library-filters button[aria-pressed="true"]').innerText(), 'Editions', 'Empty state offers a path to editions');
+    assert.equal(await page.locator('.library-filters button[aria-pressed="true"]').innerText(), 'Briefings', 'Empty state offers a path to briefings');
     const editionDates = page.locator('.library-briefing-list li');
-    assert.ok(await editionDates.count() > 0, 'Editions lists dated briefings');
+    assert.ok(await editionDates.count() > 0, 'Briefings lists dated editions');
     assert.match(await editionDates.first().innerText(), /\d+ stories · \d+ min read/, 'Each date includes story count and reading time');
     await page.getByRole('button', { name: 'Episodes', exact: true }).click();
     await page.locator('.earlier-episodes .ask-episode-card').first().waitFor();
@@ -533,7 +541,7 @@ async function run() {
     const libraryY = await page.evaluate(() => scrollY);
     await savedExplanation.click();
     await page.locator('.deep-dive-page').waitFor();
-    assert.match(await page.locator('.reader-back').innerText(), /Earlier/);
+    assert.match(await page.locator('.reader-back').innerText(), /Library/);
     await page.locator('.source-internal-link').first().click();
     await page.locator('.source-title').waitFor();
     assert.match(await page.locator('.reader-back').innerText(), /Explanation/, 'Source opened from a saved Library item names Explanation as its parent');
@@ -581,7 +589,7 @@ async function run() {
     assert.match(await page.locator('.weekly-listen').innerText(), /Listen\s*·\s*about \d+ min/);
     await page.goto(`${baseURL}/#library`, { waitUntil: 'networkidle' });
     await page.locator('.library-filters').waitFor();
-    await page.locator('.library-filters button').filter({ hasText: 'Editions' }).click();
+    await page.locator('.library-filters button').filter({ hasText: 'Briefings' }).click();
     assert.match(await page.locator('.earlier-weekly-card').innerText(), /Weekly recap\s+9-15 Nov · \d+ stories · \d+ min/, 'Earlier features the latest weekly recap at the top');
     assert.doesNotMatch(await page.locator('.library-list').innerText(), /Five systems, one useful question/, 'The featured recap is not repeated in the archive list');
     const listenPage = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: 'America/New_York' });

@@ -112,7 +112,7 @@ async function startEpisodeJob(mode) {
     });
     const result = await response.json().catch(() => ({}));
     if (response.status === 429 && result.error === 'cost_cap_reached') {
-      app.episodeRequestError = 'We cannot make this episode right now. Your request is saved here; try again later.';
+      app.episodeRequestError = "We couldn't make this episode right now. Your topic is saved. Try again later.";
       app.episodeRequestBlocked = true;
       return;
     }
@@ -129,7 +129,7 @@ async function startEpisodeJob(mode) {
       return;
     }
     if (response.status === 422 && result.error === 'unsupported_format') {
-      app.episodeRequestError = 'That kind of episode is not supported yet. Try a factual question.';
+      app.episodeRequestError = "We can't make that format yet. Try a question about the subject.";
       return;
     }
     if (response.status === 400 || response.status === 422) {

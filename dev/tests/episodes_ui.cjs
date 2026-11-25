@@ -55,7 +55,7 @@ async function run() {
       await capture(disabled.page, `unavailable-route-${theme}-390`);
     }
     assert.equal(disabled.fixtureRequests(), 0, 'Fixture routes stay disabled unless explicitly enabled');
-    assert.deepEqual(await disabled.page.locator('.main-nav-label').allTextContents(), ['Today', 'On demand', 'Earlier', 'Topics']);
+    assert.deepEqual(await disabled.page.locator('.main-nav-label').allTextContents(), ['Today', 'On demand', 'Library', 'Topics']);
     await disabled.page.close();
 
     const detail = await openPage(browser, `episode/${firstEpisode.id}`, true, async route => {

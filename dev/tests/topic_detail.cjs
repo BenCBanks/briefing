@@ -128,7 +128,7 @@ async function run() {
     await page.getByRole('link', { name: 'Brief me on this' }).click();
     await page.waitForURL('**/#ask-episode');
     assert.equal(await page.locator('#episode-request-prompt').inputValue(), 'Tell me about Payments', 'episode request starts with this topic');
-    assert.equal(await page.locator('.episode-request-page h1').innerText(), 'Brief me on anything', 'topic briefing opens the On demand page');
+    assert.equal(await page.locator('.episode-request-page h1').innerText(), 'Make an episode', 'topic briefing opens the On demand page');
     assert.equal(await page.locator('[data-nav="on-demand"]').getAttribute('aria-current'), 'page', 'On demand is selected after leaving topic detail');
     assert.equal(await page.locator('.episode-request-chip[aria-pressed="true"]').innerText(), '5 min', 'topic briefing keeps the normal default length');
     await page.screenshot({ path: '/tmp/mica-topic-on-demand-light.png' });

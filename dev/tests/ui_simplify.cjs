@@ -39,7 +39,7 @@ async function capture(page, name) {
     });
     await page.goto(`${baseURL}/#today`);
     await page.locator('.today-page').waitFor();
-    assert.deepEqual(await page.locator('.main-nav-label').allTextContents(), ['Today', 'On demand', 'Earlier', 'Topics']);
+    assert.deepEqual(await page.locator('.main-nav-label').allTextContents(), ['Today', 'On demand', 'Library', 'Topics']);
     assert.equal(await page.locator('.inline-story .edition-section').count(), edition.sections.length);
     assert.equal(await page.locator('.today-mode-read,.story-row-play').count(), 0);
     assert.equal(await page.locator('.today-listen-pill').count(), 1);
@@ -89,7 +89,7 @@ async function capture(page, name) {
     assert.doesNotMatch(await page.locator('main').innerText(), /No weekly recaps yet/);
     await page.getByRole('button', { name: 'Saved', exact: true }).click();
     assert.equal(await page.locator('.library-briefings').isVisible(), false, 'Saved filters out edition dates');
-    await page.getByRole('button', { name: 'Editions', exact: true }).click();
+    await page.getByRole('button', { name: 'Briefings', exact: true }).click();
     await capture(page, 'earlier-fixture');
     await page.emulateMedia({ colorScheme: 'dark' }); await capture(page, 'earlier-fixture-dark');
     await page.emulateMedia({ colorScheme: 'light' });

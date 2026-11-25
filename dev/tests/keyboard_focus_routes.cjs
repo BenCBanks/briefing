@@ -44,7 +44,7 @@ async function visit(browser, route, theme = 'light') {
   const ready = route.startsWith('#episode/') ? '.episode-page h1'
     : route === '#episodes' ? '.episode-deck-page'
       : route === '#topics' ? '.topics-page h1'
-        : route === '#library' ? '.library-page h1, main > h1'
+      : route === '#library' ? 'main > h1'
           : route === '#ask-episode' ? '.episode-request-page h1'
             : route.startsWith('#source/') ? '.source-page h1, main > h1'
               : route.startsWith('#explanation/') ? '.deep-dive-page h1, main > h1'
@@ -91,7 +91,7 @@ async function assertTabAndStoryOrder(page, label, story = false) {
     { name: 'Skip to content', selector: '.skip' },
     { name: 'Today tab', selector: '[data-nav="today"]' },
     { name: 'On demand tab', selector: '[data-nav="on-demand"]' },
-    { name: 'Earlier tab', selector: '[data-nav="library"]' },
+    { name: 'Library tab', selector: '[data-nav="library"]' },
     { name: 'Topics tab', selector: '[data-nav="topics"]' },
     { name: story ? 'Story back to Today' : 'Today Listen action', selector: story ? '.reader-back' : '.today-listen-pill' },
   ];

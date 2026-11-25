@@ -206,7 +206,7 @@ async function run() {
       playerLabel: document.querySelector('.mini-player-toggle')?.getAttribute('aria-label'),
       time: document.querySelector('.mini-player-open small')?.textContent,
     })), beforeDive, 'Explanation transcript navigation preserves playback and position');
-    assert.equal(await page.locator('.reader-back').textContent(), '‹ Earlier',
+    assert.equal(await page.locator('.reader-back').textContent(), '‹ Library',
       'Explanation return preserves the Library origin');
     await page.locator('.transcript-return').click();
     await page.waitForFunction(() => location.hash === '#library');
