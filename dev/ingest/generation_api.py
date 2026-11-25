@@ -510,6 +510,8 @@ def _article_fetch_by_host(outcomes):
     for row in outcomes[:500]:
         if not isinstance(row, dict):
             continue
+        if row.get('reason') == 'article_request_started':
+            continue
         host = row.get('host')
         if not isinstance(host, str):
             continue
@@ -1341,6 +1343,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                         reason = f'scorecard:{check}'
                         topic_reasons[reason] = topic_reasons.get(reason, 0) + 1
             report['source_quality_rejections'] = detail.get('source_quality_rejections', [])
+            report['low_tier_sources'] = detail.get('low_tier_sources', [])
             report['source_selection'] = detail.get('source_selection', {})
             report['also_today_source_selection'] = detail.get('also_today_source_selection', {})
             report['repeat_suppressed'] = detail.get('repeat_suppressed', 0)
@@ -1350,6 +1353,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
             report['candidate_budget_exhausted'] = detail.get('budget_exhausted', False)
             report['article_fetch_outcomes'] = detail.get('article_fetch_outcomes',
                                                            getattr(article_fetch, 'diagnostics', []))
+            report['article_read_funnel'] = detail.get('article_read_funnel', {})
             report['evidence_depth_counts'] = detail.get('evidence_depth_counts', {})
             report['story_evidence_lengths'] = [
                 {'section_id': section.get('id'),

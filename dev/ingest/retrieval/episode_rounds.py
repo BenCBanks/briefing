@@ -5,18 +5,25 @@ import time
 from urllib.parse import urlsplit
 
 from . import RetrievalBudget, retrieve, fetch_candidate
+from .. import core
 from ..episodes.policy import WORDS_PER_MINUTE, length_policy
 from ..write_edition import _sentences
 
 RESEARCH_TIME_BUDGET_SECONDS = 165
 SOURCE_READ_DEADLINE_SECONDS = 12
 MAX_CONCURRENT_SOURCE_READS = 8
+MAX_SOURCE_READS_PER_MINUTE = 3
+MAX_EPISODE_SOURCE_READS = 30
 
 
 def research_episode(questions, minutes, *, providers, registry, config, deadline,
                      check, progress, fetcher=None, clock=time.monotonic):
     started_at = clock()
     policy = length_policy(minutes)
+    source_read_limit = policy['max_reads']
+    if minutes >= 10:
+        source_read_limit = max(source_read_limit, min(MAX_EPISODE_SOURCE_READS,
+                                                       minutes * MAX_SOURCE_READS_PER_MINUTE))
     batches = [[] for _ in questions]
     reads, attempted, hosts, slow_hosts, discovered = {}, set(), {}, set(), set()
     history, queries, grounded, rounds = [], 0, 0, 0
@@ -25,18 +32,32 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
     # may use most of the episode budget so transient feed latency does not
     # turn ordinary questions into InsufficientEvidence.
     research_deadline = min(deadline, clock() + RESEARCH_TIME_BUDGET_SECONDS)
-    counts = {'sources_found': 0, 'sources_read': 0, 'sources': 0}
+    counts = {'sources_found': 0, 'sources_read': 0, 'sources': 0,
+              'source_reads_attempted': 0, 'source_reads_skipped_deadline': 0,
+              'source_reads_skipped_host_gap': 0, 'source_reads_failed': 0}
     timed_out_reads = 0
+    deadline_skips = 0
+    host_gap_skips = 0
+    failed_reads = 0
+    read_diagnostics = []
+    # Use the shorter content interval only in this episode's read pass. The
+    # core fetcher still applies robots crawl-delay as a lower bound.
+    read_registry = [dict(row, minimum_interval_seconds=min(
+        max(1, int(row.get('minimum_interval_seconds', 1))),
+        core.SAME_RUN_ARTICLE_INTERVAL_SECONDS)) for row in registry]
 
     def read_one(candidate, budget):
         check()
-        body = fetcher(candidate, budget=budget, registry=registry)
+        kwargs = {'budget': budget, 'registry': read_registry}
+        if fetcher is fetch_candidate:
+            kwargs['diagnostics'] = read_diagnostics
+        body = fetcher(candidate, **kwargs)
         check()
         return body
 
     for round_number in range(1, policy['max_rounds'] + 1):
         check()
-        if clock() >= research_deadline or len(attempted) >= policy['max_reads'] + 8:
+        if clock() >= research_deadline or len(attempted) >= source_read_limit + 8:
             break
         # Coverage here is structural only. Entailment/topic checks follow writing.
         pending = [i for i, batch in enumerate(batches)
@@ -101,12 +122,24 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
         # enough concurrent readers to cover the planned questions quickly.
         # A slow publisher should not hold the whole round. Hosts that miss
         # their own deadline are skipped for the rest of this run.
-        while candidates and len(reads) < policy['max_reads'] and len(attempted) < policy['max_reads'] + 8:
+        while candidates and len(reads) < source_read_limit and len(attempted) < source_read_limit + 8:
             check()
             if clock() >= research_deadline:
+                deadline_skips += len(candidates)
                 break
-            selected = candidates[:min(MAX_CONCURRENT_SOURCE_READS, policy['max_reads']-len(reads), policy['max_reads']+8-len(attempted))]
-            del candidates[:len(selected)]
+            selected, rest, selected_hosts = [], [], set()
+            batch_limit = min(MAX_CONCURRENT_SOURCE_READS, source_read_limit-len(reads),
+                              source_read_limit+8-len(attempted))
+            for candidate in candidates:
+                host = urlsplit(candidate.url).hostname
+                if len(selected) < batch_limit and host not in selected_hosts:
+                    selected.append(candidate)
+                    selected_hosts.add(host)
+                else:
+                    rest.append(candidate)
+            candidates = rest
+            if not selected:
+                break
             attempted.update(c.url for c in selected)
             pool = ThreadPoolExecutor(max_workers=min(MAX_CONCURRENT_SOURCE_READS, len(selected)), thread_name_prefix='episode-read')
             work = []
@@ -126,6 +159,7 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
                     if future not in done:
                         future.cancel()
                         timed_out_reads += 1
+                        deadline_skips += 1
                         host = urlsplit(candidate.url).hostname
                         if host:
                             slow_hosts.add(host)
@@ -134,23 +168,50 @@ def research_episode(questions, minutes, *, providers, registry, config, deadlin
                         body = future.result()
                         if isinstance(body, str) and len(_sentences(body)) >= 2:
                             reads[candidate.url] = (candidate, body)
+                        else:
+                            candidate_host = urlsplit(candidate.url).hostname
+                            candidate_diagnostics = [row for row in read_diagnostics
+                                                     if row.get('host') == candidate_host]
+                            reasons = {row.get('reason') for row in candidate_diagnostics}
+                            host_gap = 'host_rate_limit_wait_timeout' in reasons
+                            if host_gap:
+                                host_gap_skips += 1
+                            elif (source_budget.remaining() <= 0 or
+                                  'network_timeout' in reasons):
+                                deadline_skips += 1
+                                timed_out_reads += 1
+                                if candidate_host:
+                                    slow_hosts.add(candidate_host)
+                            else:
+                                failed_reads += 1
                     except Exception:
                         if source_budget.remaining() <= 0:
                             timed_out_reads += 1
+                            deadline_skips += 1
                             host = urlsplit(candidate.url).hostname
                             if host:
                                 slow_hosts.add(host)
+                        else:
+                            failed_reads += 1
             finally:
                 pool.shutdown(wait=False, cancel_futures=True)
-            counts.update(sources_read=len(reads), sources=len(reads))
+            counts.update(sources_read=len(reads), sources=len(reads),
+                          source_reads_attempted=len(attempted),
+                          source_reads_skipped_deadline=deadline_skips,
+                          source_reads_skipped_host_gap=host_gap_skips,
+                          source_reads_failed=failed_reads)
             counts['slow_hosts_dropped'] = len(slow_hosts)
             counts['read_timeouts'] = timed_out_reads
             progress('reading', counts)
     check()
+    read_funnel = {'attempted': len(attempted), 'read': len(reads),
+                   'skipped_deadline': deadline_skips, 'skipped_host_gap': host_gap_skips,
+                   'failed': failed_reads}
     return {'reads': reads, 'batches': batches, 'history': history, 'queries': queries,
             'sources_found': len(discovered), 'read_attempts': len(attempted), 'rounds': rounds,
             'research_budget_seconds': RESEARCH_TIME_BUDGET_SECONDS,
             'source_read_deadline_seconds': SOURCE_READ_DEADLINE_SECONDS,
             'max_concurrent_reads': MAX_CONCURRENT_SOURCE_READS,
             'research_elapsed_seconds': round(clock() - started_at, 3),
+            'read_funnel': read_funnel, 'read_diagnostics': read_diagnostics,
             'read_timeouts': timed_out_reads, 'slow_hosts_dropped': len(slow_hosts)}

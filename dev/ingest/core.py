@@ -37,6 +37,7 @@ ROBOTS_REQUEST_INTERVAL_SECONDS = 1
 SAME_HOST_FEED_INTERVAL_CAP_SECONDS = 3
 FETCH_BUDGET_SECONDS = 90
 FETCH_MAX_WORKERS = 8
+SAME_RUN_ARTICLE_INTERVAL_SECONDS = 3
 USER_AGENT = 'BriefingBot/1.0'
 RIGHTS_POLICY_VERSION = '2026-11-17.1'
 ROBOTS_RECHECK = timedelta(days=7)
@@ -621,6 +622,7 @@ def fetch_article_text(url, source, opener=None, robots_cache_path=ROBOTS_CACHE_
         return None
     request = Request(canonical, headers={'User-Agent': USER_AGENT,
                       'Accept': 'text/html, application/pdf, text/plain' if use_extractor else 'text/html'})
+    outcome('article_request_started')
     try:
         response = opener(request, timeout=_timeout_for_deadline(deadline))
     except HTTPError as error:
@@ -959,7 +961,13 @@ def _wait_for_host(host, interval, deadline=None):
         _last_request_by_host[host] = scheduled
     if wait > 0:
         time.sleep(wait)
-    if deadline is not None and time.monotonic() >= deadline:
+    after_wait = time.monotonic()
+    with _schedule_lock:
+        # Another operation can advance past a reserved slot while this thread
+        # sleeps. Anchor the next request to the actual wake time so same-host
+        # requests still honor their minimum gap.
+        _last_request_by_host[host] = max(_last_request_by_host.get(host, after_wait), after_wait)
+    if deadline is not None and after_wait >= deadline:
         raise TimeoutError('Feed fetch budget expired while observing the host rate limit.')
 
 
@@ -984,7 +992,8 @@ def article_candidate_priority(cluster, deadline=None):
             priorities.append(0)
         elif (access in {'full-text', 'transient-read'} or source.get('allow_article_fetch')) and source.get('paywalled') is not True:
             host = (urlsplit(item.get('url', '')).hostname or '').lower()
-            delay = host_wait_seconds(host, max(source.get('minimum_interval_seconds', 1),
+            delay = host_wait_seconds(host, max(min(source.get('minimum_interval_seconds', 1),
+                                                    SAME_RUN_ARTICLE_INTERVAL_SECONDS),
                                                 5 if host.endswith('gdeltproject.org') else 1))
             priorities.append(1 if deadline is not None and time.monotonic() + delay + 1.5 >= deadline else 0)
         else:
