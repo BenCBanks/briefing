@@ -207,6 +207,8 @@ def _print_funnel(scorecard: dict, selected: dict) -> None:
     diagnostics = scorecard.get('candidate_pool_diagnostics', {}) if isinstance(scorecard, dict) else {}
     reasons = scorecard.get('funnel_drop_reasons', {}) if isinstance(scorecard, dict) else {}
     retrieval = scorecard.get('retrieval_fill', {}) if isinstance(scorecard, dict) else {}
+    article_reads = scorecard.get('article_read_funnel', {}) if isinstance(scorecard, dict) else {}
+    low_tier_sources = scorecard.get('low_tier_sources', {}) if isinstance(scorecard, dict) else {}
     if not diagnostics:
         return
     print('\nPer-topic supply funnel:')
@@ -219,6 +221,10 @@ def _print_funnel(scorecard: dict, selected: dict) -> None:
               f"{row.get('relevance_passed', 0)} | {row.get('clustered', 0)} | "
               f"{row.get('unseen', 0)} | {row.get('candidate_clusters', 0)} | "
               f"{selected.get(topic_id, row.get('selected', 0))} | {drop_text} |")
+    if isinstance(article_reads, dict) and article_reads:
+        print('Article read funnel: ' + json.dumps(article_reads, sort_keys=True))
+    if isinstance(low_tier_sources, dict) and low_tier_sources.get('digital'):
+        print('Digital low-tier source counts: ' + json.dumps(low_tier_sources['digital'], sort_keys=True))
     if isinstance(retrieval, dict) and retrieval.get('triggered'):
         from dev.ingest.retrieval_fill import safe_report
         retrieval = safe_report(retrieval)

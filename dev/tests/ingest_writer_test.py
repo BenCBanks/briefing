@@ -19,6 +19,7 @@ from ingest.write_edition import (_needs_daily_retrieval_fill, _publisher_for, _
                                   _candidate_queue_key, _daily_coverage_target_met,
                                   _daily_first_attempt_limit, _daily_refill_candidates,
                                   _daily_refill_pool_limit, _with_prefetched_bodies,
+                                  _article_read_funnel, _fetch_article_in_run,
                                   generate_edition)
 from ingest.score_edition import score_edition
 from ingest import core
@@ -89,6 +90,85 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(article_fetcher.diagnostics, [{
             'source_id': 'transit-office', 'host': 'transit.example.test', 'reason': 'ok',
             'method': 'rss_content_encoded', 'evidence_chars': len(ARTICLE_BODY)}])
+
+    def test_thirty_candidate_reads_fit_real_extraction_window_across_twelve_hosts(self):
+        import time
+        import tempfile
+        from io import BytesIO
+        from threading import Event
+        real_monotonic, real_sleep = time.monotonic, time.sleep
+        real_start = real_monotonic()
+        clock_scale = 100
+        fake_now = lambda: 100.0 + (real_monotonic() - real_start) * clock_scale
+        hosts = [f'publisher-{index}.example.test' for index in range(12)]
+        class Response(BytesIO):
+            status = 200
+            headers = {'Content-Type': 'text/html'}
+            def __init__(self, body, url):
+                super().__init__(body)
+                self.url = url
+            def geturl(self):
+                return self.url
+        with tempfile.TemporaryDirectory() as temp:
+            robots_path = Path(temp) / 'robots.json'
+            with patch.object(core, '_last_request_by_host', {host: 100.0 for host in hosts}), \
+                 patch.object(core, '_robots_cache', {}), \
+                 patch.object(core, '_robots_cache_loaded_path', None), \
+                 patch.object(core.time, 'monotonic', side_effect=fake_now), \
+                 patch.object(core.time, 'sleep', side_effect=lambda delay: real_sleep(delay / clock_scale)):
+                plan, started, diagnostics = [], [], []
+                for index in range(30):
+                    host = hosts[index % len(hosts)]
+                    source = {'id': f'feed-{index}', 'url': f'https://{host}/feed.xml',
+                              'allowed_domains': [host], 'article_access': 'transient-read',
+                              'minimum_interval_seconds': 60}
+                    plan.append({'host': host, 'topic_match': 1, 'cluster': {'rows': []},
+                                 'url': f'https://{host}/story/{index}', 'source': source})
+
+                def opener(request, timeout):
+                    if request.full_url.endswith('/robots.txt'):
+                        return Response(b'User-agent: *\nAllow: /\nCrawl-delay: 5', request.full_url)
+                    started.append((request.full_url.split('/')[2], fake_now()))
+                    return Response(('<article><p>' + ARTICLE_BODY + '</p></article>').encode(), request.full_url)
+
+                def read(candidate):
+                    def fake_fetch(url, source):
+                        return core.fetch_article_text(url, source, opener=opener,
+                            robots_cache_path=robots_path, deadline=145.0,
+                            extraction_enabled=False, diagnostics=diagnostics)
+                    return _fetch_article_in_run(candidate['url'], candidate['source'], fake_fetch,
+                                                 diagnostics=diagnostics, end=145.0, stopped=Event())
+
+                queue = core.ArticleExtractionQueue(plan, read, max_workers=6)
+                results = []
+                try:
+                    while queue.pending:
+                        results.extend(queue.poll())
+                        Event().wait(0.001)
+                    results.extend(queue.poll())
+                finally:
+                    queue.close()
+        future_errors = [type(future.exception()).__name__ + ':' + str(future.exception())
+                         for _candidate, future in results if future.exception()]
+        self.assertEqual(len(started), 30, (len(started), diagnostics, future_errors, len(results)))
+        self.assertEqual(len([row for row in diagnostics if row['reason'] == 'article_skipped_host_interval']), 0)
+        self.assertEqual(_article_read_funnel(diagnostics, [], 30)['article_requests_attempted'], 30)
+        per_host = {host: [at for current_host, at in started if current_host == host] for host in hosts}
+        self.assertTrue(all(later - earlier >= 4.9 for values in per_host.values()
+                            for earlier, later in zip(values, values[1:])), per_host)
+
+    def test_article_read_funnel_counts_each_failure_stage(self):
+        result = _article_read_funnel([
+            {'reason': 'article_request_started'}, {'reason': 'article_request_started'},
+            {'reason': 'article_skipped_deadline'}, {'reason': 'article_skipped_host_interval'},
+            {'reason': 'empty_article'}],
+            [{'status': 'insufficient_full_text_evidence'}], planned_candidates=5)
+        self.assertEqual(result['candidates_planned'], 5)
+        self.assertEqual(result['article_requests_attempted'], 2)
+        self.assertEqual(result['skipped_for_deadline'], 1)
+        self.assertEqual(result['skipped_for_host_interval'], 1)
+        self.assertEqual(result['extraction_failures'], 1)
+        self.assertEqual(result['evidence_too_short'], 1)
 
     def test_daily_open_web_fill_uses_spoken_target_not_story_count(self):
         self.assertTrue(_needs_daily_retrieval_fill(600, True))

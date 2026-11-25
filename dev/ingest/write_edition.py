@@ -91,7 +91,7 @@ DAILY_MAX_STORIES = 6
 # Each live extractor can briefly own a matching HTTPS timeout helper. Four
 # extractors plus two writers and their helpers stay below TasksMax=16 with
 # room for the HTTP server and generation job threads.
-EXTRACTION_WORKERS = 4
+EXTRACTION_WORKERS = 5
 STORY_CANDIDATE_BUDGET_SECONDS = 40
 STORY_MODEL_TIMEOUT_SECONDS = 25
 MAX_CLUSTER_SOURCES = 3
@@ -449,6 +449,54 @@ def _daily_refill_candidates(feed_candidates, fallback_candidates, topics, attem
                 unique.append(cluster)
         result[topic_id] = unique
     return result
+
+
+def _article_read_funnel(outcomes, candidate_results, planned_candidates):
+    """Summarize article evidence reads without retaining text or URLs."""
+    outcomes = outcomes if isinstance(outcomes, list) else []
+    candidate_results = candidate_results if isinstance(candidate_results, list) else []
+    reasons = Counter(row.get('reason') for row in outcomes if isinstance(row, dict))
+    short_evidence = sum(row.get('status') == 'insufficient_full_text_evidence'
+                         for row in candidate_results if isinstance(row, dict))
+    fetch_failures = sum(count for reason, count in reasons.items()
+                         if reason not in {None, 'ok', 'feed_full', 'article_request_started',
+                                           'article_skipped_deadline', 'article_skipped_host_interval',
+                                           'host_rate_limit_wait_timeout'})
+    return {
+        'candidates_planned': max(0, int(planned_candidates)),
+        'article_requests_attempted': reasons.get('article_request_started', 0),
+        'skipped_for_deadline': reasons.get('article_skipped_deadline', 0),
+        'skipped_for_host_interval': reasons.get('article_skipped_host_interval', 0) +
+                                     reasons.get('host_rate_limit_wait_timeout', 0),
+        'extraction_failures': fetch_failures,
+        'evidence_too_short': short_evidence,
+        'outcome_reasons': {key: count for key, count in sorted(reasons.items()) if key},
+    }
+
+
+def _fetch_article_in_run(url, source, fetcher, *, diagnostics, end, stopped=None):
+    """Use a bounded same-run article interval, while the fetcher honors robots delay."""
+    if stopped is not None and stopped.is_set():
+        return None
+    host = (urlsplit(url).hostname or '').lower()
+    source_interval = max(1, int(source.get('minimum_interval_seconds', 1)))
+    interval = max(min(source_interval, core.SAME_RUN_ARTICLE_INTERVAL_SECONDS),
+                   5 if host.endswith('gdeltproject.org') else 1)
+    remaining = None if end is None else end - time.monotonic()
+    if remaining is not None and remaining <= 0:
+        diagnostics.append({'source_id': source.get('id'), 'reason': 'article_skipped_deadline'})
+        return None
+    wait_seconds = core.host_wait_seconds(host, interval)
+    if remaining is not None and wait_seconds + 1.5 >= remaining:
+        diagnostics.append({'source_id': source.get('id'),
+                            'reason': 'article_skipped_host_interval',
+                            'wait_seconds': round(wait_seconds, 2),
+                            'remaining_seconds': round(remaining, 2)})
+        return None
+    request_source = dict(source)
+    request_source['minimum_interval_seconds'] = min(
+        source_interval, core.SAME_RUN_ARTICLE_INTERVAL_SECONDS)
+    return fetcher(url, request_source)
 
 
 def _with_prefetched_bodies(fetcher, bodies):
@@ -1251,13 +1299,17 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
     from .retrieval_fill import fill_candidates, empty_report
     quality_rejected = {}
     quality_rejected_items = []
+    low_tier_source_counts = {}
 
     def quality_allowed(item, source, topic):
         reason = news_quality_reason(item, source, now=now, topic=topic)
         if reason:
             quality_rejected[(topic['id'], item.get('url'))] = reason
+            if reason == 'low_tier':
+                low_tier_source_counts.setdefault(topic['id'], Counter())[source.get('id') or 'unknown'] += 1
             quality_rejected_items.append({
                 'topic_id': topic['id'], 'title': _safe(item.get('title'), 180) or 'Untitled item',
+                'source_id': _safe(source.get('id'), 64),
                 'outlet': _safe(source.get('name') or source.get('publisher') or source.get('id'), 120),
                 'action': 'dropped', 'reason': reason, 'tier': str(source.get('tier') or 'unknown')})
         return not reason
@@ -1512,21 +1564,10 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         article_diagnostics = []
 
     def ready_fetch(url, source, *, round_stop, end, fetcher):
-        if round_stop.is_set():
-            return None
         if getattr(fetcher, 'has_prefetch', lambda _url: False)(url):
             return fetcher(url, source)
-        host = (urlsplit(url).hostname or '').lower()
-        interval = max(float(source.get('minimum_interval_seconds', 1)),
-                       5 if host.endswith('gdeltproject.org') else 1)
-        remaining = None if end is None else end - time.monotonic()
-        wait_seconds = core.host_wait_seconds(host, interval)
-        if remaining is not None and wait_seconds + 1.5 >= remaining:
-            article_diagnostics.append({'source_id': source.get('id'),
-                                        'reason': 'host_wait_would_exceed_extraction_budget',
-                                        'wait_seconds': round(wait_seconds, 2)})
-            return None
-        return fetcher(url, source)
+        return _fetch_article_in_run(url, source, fetcher, diagnostics=article_diagnostics,
+                                     end=end, stopped=round_stop)
     ready_fetch.diagnostics = article_diagnostics
 
     extracted_by_cluster = {}
@@ -1946,11 +1987,20 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         'candidate_pool_diagnostics': candidate_pool_diagnostics,
         'funnel_drop_reasons': funnel_drop_reasons,
         'source_quality_rejections': quality_rejected_items,
+        'low_tier_sources': {
+            topic_id: [
+                {'source_id': source_id,
+                 'tier': str(registry_by_id.get(source_id, {}).get('tier') or 'unknown'),
+                 'rejected_items': count}
+                for source_id, count in counts.most_common(10)]
+            for topic_id, counts in low_tier_source_counts.items()},
         'source_selection': source_selection_reports,
         'also_today_source_selection': quick_hit_selection,
         **repeat_counts, 'followup_count': len(followup_clusters),
         'retrieval_fill': fill_report,
         'article_fetch_outcomes': getattr(article_fetcher, 'diagnostics', []),
+        'article_read_funnel': _article_read_funnel(
+            article_diagnostics, candidate_results, len(prefetch_plan)),
         'evidence_depth_counts': dict(Counter(row.get('evidence_depth') for row in source_entries)),
         'budget_exhausted': budget_exhausted
     }

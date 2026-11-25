@@ -126,14 +126,14 @@ class IngestTests(unittest.TestCase):
             self.assertEqual(fetch.call_args.args[0]['etag'], 'old-tag')
         self.assertEqual(validators[source['id']]['etag'], 'old-tag')
 
-    def test_candidate_priority_preserves_delayed_hosts_and_promotes_readable_evidence(self):
+    def test_candidate_priority_uses_capped_same_run_article_wait(self):
         def cluster(source=None, item=None):
             return {'rows': [{'source': {**SOURCE, 'article_access': 'transient-read',
                                          'minimum_interval_seconds': 60, **(source or {})},
                               'item': {'url': 'https://news.example.test/story', **(item or {})}}]}
         with patch.object(core, '_last_request_by_host', {'news.example.test': 100}), \
              patch.object(core.time, 'monotonic', return_value=110):
-            self.assertEqual(core.article_candidate_priority(cluster(), 140), 1)
+            self.assertEqual(core.article_candidate_priority(cluster(), 111), 1)
             self.assertEqual(core.article_candidate_priority(cluster(), 180), 0)
             self.assertEqual(core.article_candidate_priority(cluster({'paywalled': 'unknown'}), 180), 0)
             self.assertEqual(core.article_candidate_priority(cluster({'article_access': 'feed-full'},
