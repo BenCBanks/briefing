@@ -232,6 +232,17 @@ class GuardedFetchTests(unittest.TestCase):
         self.assertTrue(all(urlsplit(host).hostname == 'federalregister.gov'
                             for host in core.article_variant_urls('https://federalregister.gov/doc/x')))
 
+    def test_discovered_amp_variant_is_tried_before_publisher_path_variants(self):
+        html = b'<html><head><link rel="amphtml" href="/story/amp-version"></head></html>'
+        self.assertEqual(core.article_variant_urls('https://unknown.example.test/story', html), [
+            'https://unknown.example.test/story/amp-version'])
+        hostile = b'<link rel="amphtml" href="https://other.example.test/story/amp">'
+        self.assertEqual(core.article_variant_urls('https://unknown.example.test/story', hostile), [])
+        publisher = core.article_variant_urls('https://paymentsdive.com/a/story', html.replace(
+            b'/story/amp-version', b'/a/amp-version'))
+        self.assertEqual(publisher, ['https://paymentsdive.com/a/amp-version',
+                                     'https://paymentsdive.com/a/story/print'])
+
     def test_variant_robots_refusal_skips_that_path_and_checks_the_next_variant(self):
         source = {'id': 'fictional-kff', 'url': 'https://www.kffhealthnews.org/story/fictional',
                   'allowed_domains': ['www.kffhealthnews.org'], 'article_access': 'transient-read'}
