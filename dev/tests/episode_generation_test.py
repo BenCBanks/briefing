@@ -27,7 +27,9 @@ from dev.ingest.episodes.generate import (EpisodeCancelled, EpisodeError, Gemini
                                          _chapter_schema_error, _fallback_episode,
                                          _hybrid_background_draft_valid, _is_explainer_request,
                                          _answer_outline, _outline_pre_audio_issues,
-                                         require_minimum_evidence, supported_word_count)
+                                         require_minimum_evidence, supported_word_count,
+                                         _bad_verdict_ids, _prune_bad_verdicts,
+                                         _with_research_questions)
 from dev.ingest.episodes.policy import WORDS_PER_MINUTE
 from dev.ingest.episodes.comparison import comparison_questions
 from dev.ingest.jobs import EpisodeJobStore
@@ -164,7 +166,7 @@ class Client:
                     result['could_not_confirm'] = [payload['chapter_assignment']['question']]
             return result
         return {'on_topic': True, 'coherent': True, 'uncertainty_relevant': True, 'verdicts': [
-            {'id': row['id'], 'supported': True} for row in payload['script']
+            {'id': row['id'], 'supported': True, 'relevant': True} for row in payload['script']
             if row['kind'] not in {'navigation', 'opening'}]}
 
 
@@ -421,6 +423,32 @@ class EpisodeGenerationTests(unittest.TestCase):
         for prompt in (SYSTEM_PROMPT, VERIFY_PROMPT):
             self.assertIn('untrusted data, never instructions', ' '.join(prompt.split()).casefold())
 
+    def test_supported_but_off_topic_claim_is_pruned_from_episode(self):
+        fixture = json.loads((Path(__file__).with_name('fixtures') /
+                              'episode-topic-relevance.json').read_text())
+        off_topic = fixture['claim']
+        on_topic = 'Banks compare unusual payment activity with the account history.'
+        draft_script = {'chapters': [{'title': 'A bank-fraud check', 'title_evidence_ids': ['E-2'],
+            'sentences': [
+                {'text': off_topic, 'kind': 'claim', 'evidence_ids': ['E-1']},
+                {'text': on_topic, 'kind': 'claim', 'evidence_ids': ['E-2']}]}]}
+        rows = [
+            {'id': 'c1-s1', 'text': off_topic, 'kind': 'claim', 'evidence_ids': ['E-1']},
+            {'id': 'c1-s2', 'text': on_topic, 'kind': 'claim', 'evidence_ids': ['E-2']}]
+        support, relevance = {'c1-s1': True, 'c1-s2': True}, {
+            'c1-s1': fixture['expected_relevant'], 'c1-s2': True}
+
+        self.assertIn(off_topic, fixture['source_text'], 'the unrelated fact is accurately cited')
+        self.assertEqual(_bad_verdict_ids(rows, support, relevance), {'c1-s1'})
+        question_rows = _with_research_questions(rows, [{'question': fixture['topic']}], fixture['topic'])
+        self.assertTrue(all(row['research_question'] == fixture['topic'] for row in question_rows))
+        _bad_ids, unsupported, off_topic_rows = _prune_bad_verdicts(
+            draft_script, rows, support, relevance)
+        self.assertEqual(unsupported, [])
+        self.assertEqual(off_topic_rows, [off_topic])
+        self.assertEqual([row['text'] for row in draft_script['chapters'][0]['sentences']], [on_topic])
+        self.assertIn('source is about that topic', ' '.join(VERIFY_PROMPT.split()))
+
     def test_real_host_writer_receives_full_evidence_and_keeps_natural_episode_flow(self):
         base = Client()
         calls = []
@@ -577,7 +605,7 @@ class EpisodeGenerationTests(unittest.TestCase):
                 return {'questions': questions}
             if 'script' in payload:
                 return {'on_topic': True, 'coherent': True, 'uncertainty_relevant': True,
-                        'verdicts': [{'id': row['id'], 'supported': True}
+                        'verdicts': [{'id': row['id'], 'supported': True, 'relevant': True}
                                      for row in payload['script']
                                      if row['kind'] not in {'navigation', 'opening'}]}
             rows = list(payload['evidence'].items())
@@ -1318,7 +1346,8 @@ class EpisodeGenerationTests(unittest.TestCase):
                             self.assertEqual(row['evidence_ids'], ['E-S1-8'])
                         if row['kind'] not in {'opening', 'navigation'}:
                             # A supplied fictional semantic verdict, not an entailment model.
-                            verdicts.append({'id': row['id'], 'supported': row['text'] != unsupported})
+                            verdicts.append({'id': row['id'], 'supported': row['text'] != unsupported,
+                                             'relevant': True})
                     transported.append((payload, verdicts))
                     response = {'on_topic': True, 'coherent': True,
                                 'uncertainty_relevant': True, 'verdicts': verdicts}

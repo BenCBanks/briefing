@@ -52,7 +52,7 @@ class MockLLM:
             return {'on_topic': True, 'coherent': True, 'uncertainty_relevant': True,
                     'verdicts': [{'id': row['id'], 'supported': row['kind'] == 'heading' or any(
                         row['text'] == payload['evidence'][eid]['text']
-                        for eid in row['evidence_ids'])}
+                        for eid in row['evidence_ids']), 'relevant': True}
                         for row in payload['script']
                         if row['kind'] not in {'navigation', 'opening'}]}
         assignments = ([payload['chapter_assignment']] if 'chapter_assignment' in payload
