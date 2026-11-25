@@ -773,6 +773,11 @@ def _write_narration_debug(reason, draft, findings, verifier_results=None):
 
 
 def _safe_failure_reason(error):
+    from dev.interpreter_proxy import safe_proxy_error_reason
+
+    proxy_reason = safe_proxy_error_reason(error)
+    if proxy_reason:
+        return proxy_reason
     message = str(error)
     if message in NARRATION_FAILURE_REASONS or re.fullmatch(r'narration_[a-z0-9_]{1,80}', message):
         return message

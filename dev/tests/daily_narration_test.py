@@ -1519,6 +1519,7 @@ class DailyNarrationTests(unittest.TestCase):
 
     def test_fallback_reason_preserves_safe_narration_value_error_codes(self):
         from dev.ingest.daily_narration import _safe_failure_reason
+        from dev.interpreter_proxy import ProxyError
 
         self.assertEqual(_safe_failure_reason(ValueError('narration_style_or_evidence_check')),
                          'narration_style_or_evidence_check')
@@ -1527,6 +1528,20 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertEqual(_safe_failure_reason(ValueError('story contains a number format that is not supported for speech')),
                          'story contains a number format that is not supported for speech')
         self.assertEqual(_safe_failure_reason(ValueError('provider secret detail')), 'ValueError')
+        self.assertEqual(_safe_failure_reason(
+            ProxyError(502, 'invalid_model_response', 'invalid_json', {'candidate_text': 'secret'})),
+            'ProxyError:502:invalid_model_response:invalid_json')
+
+    def test_proxy_error_reason_survives_daily_writer_fallback(self):
+        from dev.interpreter_proxy import ProxyError
+        result = self.narrate(self.edition, self.profile, self.evidence, self.sources,
+                              call_json=self.replay(error=ProxyError(
+                                  502, 'invalid_model_response', 'invalid_json',
+                                  {'candidate_text': 'must not leak'})))
+        self.assertEqual(result['status'], 'fallback')
+        self.assertEqual(result['reason'],
+                         'ProxyError:502:invalid_model_response:invalid_json')
+        self.assertNotIn('must not leak', json.dumps(result))
         result = self.narrate(self.edition, self.profile, self.evidence, self.sources,
                                      call_json=self.replay(error=ValueError('narration_enrichment_shape')))
         self.assertEqual(result['status'], 'fallback')
