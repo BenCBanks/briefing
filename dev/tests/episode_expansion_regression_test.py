@@ -83,7 +83,7 @@ class LengthFixtureClient:
             return payload['repair']['previous_script']
         if 'script' in payload:
             return {'on_topic': True, 'coherent': True, 'uncertainty_relevant': True,
-                    'verdicts': [{'id': row['id'], 'supported': True}
+                    'verdicts': [{'id': row['id'], 'supported': True, 'relevant': True}
                                  for row in payload['script'] if row['kind'] != 'navigation']}
         raise AssertionError(f'unexpected mock-writer payload: {sorted(payload)}')
 
