@@ -272,6 +272,33 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertIn('General context is for explaining a concept or mechanism, never for connective filler', prompt)
         self.assertIn("infer an actor's motives", prompt)
 
+    def test_expansion_scope_keeps_only_accepted_text_and_unused_evidence_additions(self):
+        from dev.ingest.daily_narration import _scope_expansion_draft
+
+        accepted = {'text': 'The notice records the first review step.',
+                    'evidence_ids': ['used-1'], 'general_context': False}
+        rows = {'fictional-story': [
+            deepcopy(accepted),
+            {'text': 'A new claim cites evidence already used.',
+             'evidence_ids': ['used-1'], 'general_context': False},
+            {'text': 'The unused notice gives a second documented review step.',
+             'evidence_ids': ['unused-1'], 'general_context': False},
+            {'text': 'More broadly, teams can compare ordinary processes.',
+             'evidence_ids': [], 'general_context': True},
+        ]}
+        context = [{'section_id': 'fictional-story', 'expand': True,
+                    'accepted_supported_sentences': [accepted],
+                    'used_evidence_ids': ['used-1'],
+                    'unused_evidence': [{'id': 'unused-1', 'type': 'reported'}]}]
+
+        scoped, findings = _scope_expansion_draft(rows, context)
+        self.assertEqual([row['text'] for row in scoped['fictional-story']], [
+            accepted['text'], 'The unused notice gives a second documented review step.'
+        ])
+        self.assertEqual(len(findings), 2)
+        self.assertTrue(all(row['code'] == 'unsupported_sentence' for row in findings))
+        self.assertEqual([row['sentence_index'] for row in findings], [1, 3])
+
     def test_enrichment_discards_unknown_ids_and_keeps_bounded_verified_evidence(self):
         evidence = [{'id': 'required'}, *[{'id': f'optional-{index}'} for index in range(25)]]
         stories = [{'section_id': 'fictional-story', 'heading': 'Fictional payment notice',
