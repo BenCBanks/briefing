@@ -686,6 +686,31 @@ class IngestTests(unittest.TestCase):
         self.assertEqual([row[3] for row in result], [None, None])
         self.assertEqual(feed_starts, [100.0, 102.0])
 
+    def test_nine_same_host_feeds_fit_budget_with_capped_gap_and_robot_delay(self):
+        host = 'federal.example.test'
+        sources = [
+            {**SOURCE, 'id': f'feed-{index}', 'url': f'https://{host}/feed-{index}.xml',
+             'allowed_domains': [host], 'enabled': True, 'minimum_interval_seconds': 60}
+            for index in range(9)
+        ]
+        clock = [100.0]
+        feed_starts = []
+        def opener(request, timeout):
+            if request.full_url.endswith('/robots.txt'):
+                return FakeResponse(b'User-agent: *\nAllow: /\nCrawl-delay: 5', url=request.full_url)
+            feed_starts.append(clock[0])
+            return FakeResponse(rss(title=request.full_url.rsplit('/', 1)[-1],
+                                    link=request.full_url.replace('/feed-', '/story/')),
+                                url=request.full_url)
+        with patch.object(core.time, 'monotonic', side_effect=lambda: clock[0]), \
+             patch.object(core.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            results = core._fetch_host_group(sources, {}, Path(self.temp.name) / 'nine-robots.json',
+                                             opener, NOW, deadline=160.0)
+        self.assertEqual(len(results), 9)
+        self.assertTrue(all(result[3] is None and len(result[1]) == 1 for result in results))
+        self.assertEqual(feed_starts, [100.0 + index * 5 for index in range(9)])
+        self.assertTrue(all(later - earlier >= 3 for earlier, later in zip(feed_starts, feed_starts[1:])))
+
     def test_ingest_cold_robots_fetches_twenty_distinct_hosts(self):
         sources = []
         for index in range(20):

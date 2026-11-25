@@ -34,6 +34,7 @@ MAX_TRANSPORT_READ_BYTES = 8_000_000
 TIMEOUT_SECONDS = 12
 MAX_SINGLE_WAIT_SECONDS = 60
 ROBOTS_REQUEST_INTERVAL_SECONDS = 1
+SAME_HOST_FEED_INTERVAL_CAP_SECONDS = 3
 FETCH_BUDGET_SECONDS = 90
 FETCH_MAX_WORKERS = 8
 USER_AGENT = 'BriefingBot/1.0'
@@ -1344,6 +1345,13 @@ def _fetch_host_group(host_sources, source_cache, robots_path, opener, now, dead
             break
         request_source = dict(source)
         request_source.update(source_cache.get(source['id'], {}))
+        if len(host_sources) > 1:
+            # A registry interval protects repeat access to a publisher across
+            # runs. Within one feed batch, same-host URLs share a bounded gap;
+            # fetch_source still honors any longer robots crawl-delay.
+            request_source['minimum_interval_seconds'] = min(
+                request_source.get('minimum_interval_seconds', 60),
+                SAME_HOST_FEED_INTERVAL_CAP_SECONDS)
         if include_transient and source.get('article_access') in {'feed-full', 'full-text'}:
             # The store deliberately excludes bodies. A 304 cannot rehydrate
             # this run's ephemeral evidence, even though its headlines survive.
