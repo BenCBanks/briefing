@@ -150,7 +150,8 @@ def _account_episode_store(account_id):
     with _ACCOUNT_STORE_LOCK:
         store = _ACCOUNT_JOB_STORES.get(account_id)
         if store is None:
-            store = EpisodeJobStore(accounts.reader_state_dir(account_id), account_daily_limit=True)
+            store = EpisodeJobStore(accounts.reader_state_dir(account_id), account_daily_limit=True,
+                                    daily_limit=accounts.daily_episode_limit())
             store.startup()
             _ACCOUNT_JOB_STORES[account_id] = store
         else:
@@ -825,8 +826,9 @@ class Handler(BaseHTTPRequestHandler):
                         raise
                     except (OSError, ValueError, TypeError, InvalidOperation):
                         raise accounts.AccountError(503, 'account_data_unavailable') from None
+        limit = accounts.daily_episode_limit()
         return {'episode_jobs': jobs_seen, 'recorded_cost_usd': f'{total:.8f}',
-                'daily_episode_limit': 3, 'daily_limit_scope': 'reader'}
+                'daily_episode_limit': limit, 'daily_limit_scope': 'reader'}
 
     def _account_csrf(self, payload=None):
         return self.headers.get('X-CSRF-Token') or (payload or {}).get('csrf_token')
