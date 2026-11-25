@@ -86,7 +86,7 @@ class FeedHealthToolTests(unittest.TestCase):
         self.assertIn('3 weekly checks failed', report)
         results[0]['status'] = 'OK'
         feed_health._history_update(results, history, NOW + timedelta(days=21))
-        self.assertEqual(history[SOURCE['id']]['weekly_failures'], 0)
+        self.assertNotIn(SOURCE['id'], history)
 
     def test_run_checks_each_feed_once_and_writes_report_and_history(self):
         with tempfile.TemporaryDirectory() as temporary:

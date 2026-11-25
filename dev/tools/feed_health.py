@@ -81,24 +81,23 @@ def _history_read(path):
 
 
 def _history_update(results, history, now):
-    now_text = core.iso_date(now)
     for result in results:
         previous = history.get(result['id'], {})
         ok = result['status'] in {'OK', 'Not modified'}
+        if ok:
+            history.pop(result['id'], None)
+            result['weekly_failures'] = 0
+            continue
         streak = int(previous.get('weekly_failures', 0))
         last_counted = core.parse_date(previous.get('last_counted_failure_at'))
-        if ok:
-            streak = 0
-            last_counted = None
-        elif last_counted is None or now - last_counted > WEEKLY_MAX:
+        if last_counted is None or now - last_counted > WEEKLY_MAX:
             streak = 1
             last_counted = now
         elif now - last_counted >= WEEKLY_MIN:
             streak += 1
             last_counted = now
         history[result['id']] = {'weekly_failures': streak,
-                                 'last_counted_failure_at': core.iso_date(last_counted) if last_counted else None,
-                                 'last_checked_at': now_text}
+                                 'last_counted_failure_at': core.iso_date(last_counted)}
         result['weekly_failures'] = streak
     return history
 
