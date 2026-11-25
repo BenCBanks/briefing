@@ -25,6 +25,49 @@ from dev.ingest.tts.gemini import DEFAULT_MODEL
 
 
 class DailyTests(unittest.TestCase):
+    def test_accounts_off_daily_entry_path_golden_trace(self):
+        """Freeze the legacy scheduled callbacks before adding account fan-out."""
+        profiles = [
+            {'version': 1, 'words': 'Fictional reader one', 'minutes': 12,
+             'topics': [{'id': 'chips', 'label': 'AI chips', 'scope': 'Fictional chips'}]},
+            {'version': 1, 'words': 'Fictional reader two', 'minutes': 12,
+             'topics': [{'id': 'climate', 'label': 'Climate policy', 'scope': 'Fictional policy'}]},
+        ]
+        trace = []
+
+        def start(profile):
+            trace.append(('start', profile))
+            return 202, {'job_id': f'job-{len(trace)}'}
+
+        def get_job(job_id):
+            trace.append(('poll', job_id))
+            return 200, {'job_id': job_id, 'status': 'complete', 'gemini_calls': 1,
+                         'edition_ready': {'edition': {'id': f'edition-{job_id}',
+                                                       'sections': [{'cluster_id': 'fixture'}]}}}
+
+        with patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'off'}), \
+             patch('dev.ingest.multi_reader_daily.run_daily',
+                   side_effect=AssertionError('accounts-off path entered multi-reader runner')):
+            code, result = daily.run_daily(
+                profile_loader=lambda: profiles, start=start, get_job=get_job,
+                sleep=lambda _delay: None, report_writer=lambda _result: trace.append(('report',)),
+                daily_audio_renderer=lambda edition, **_kwargs: {
+                    'audio_status': 'pending', 'edition': edition['id']},
+                daily_audio_persister=lambda _profile, _edition, audio: audio)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(trace, [
+            ('start', profiles[0]), ('poll', 'job-1'),
+            ('start', profiles[1]), ('poll', 'job-3'),
+            ('report',),
+        ])
+        self.assertEqual(result['status'], 'complete')
+        self.assertEqual(result['profiles_attempted'], 2)
+        self.assertEqual(result['profiles_completed'], 2)
+        self.assertEqual(result['gemini_calls'], 2)
+        self.assertEqual([row['edition_id'] for row in result['profile_runs']],
+                         ['edition-job-1', 'edition-job-3'])
+
     def test_daily_uses_saved_profile_and_waits_for_completion(self):
         observed = []
         states = iter([
