@@ -21,6 +21,14 @@ REASONS = ('low_tier', 'listicle', 'source_risk', 'source_policy', 'rights_regis
            'press_release_url', 'press_release_title',
            'insufficient_full_text_evidence', 'semantic_irrelevance', 'outside_window', 'scorecard_dropped',
            'no_verified_story', 'writer_error', 'extraction_error', 'time_limit', 'gemini_call_limit')
+PROVIDER_STATUS_CLASSES = {
+    'ok', 'no results', 'unavailable', 'cost_cap_reached', 'rate_limited',
+    'provider rate limited', 'provider HTTP error', 'provider timeout',
+    'provider unavailable', 'provider backoff', 'provider failed',
+    'invalid provider response', 'query budget exhausted', 'retrieval deadline',
+    'daily query cap reached', 'usage counter unavailable', 'separate search key required',
+    'invalid search model', 'search key not configured', 'search key must have mode 600',
+}
 
 
 def empty_report(enabled=False):
@@ -50,7 +58,7 @@ def safe_report(value):
                           if key in REASONS and type(count) is int and count >= 0}
     # Provider diagnostics are aggregated from fixed statuses, never request text.
     report['provider_statuses'] = {key: count for key, count in provider_statuses.items()
-                                   if key in {'ok', 'empty', 'unavailable', 'cost_cap_reached'}
+                                   if key in PROVIDER_STATUS_CLASSES
                                    and type(count) is int and count >= 0}
     providers = value.get('providers') if isinstance(value.get('providers'), dict) else {}
     report['providers'] = {}
@@ -58,7 +66,7 @@ def safe_report(value):
         if name not in {'feeds', 'gdelt', 'gemini', 'perplexity'} or not isinstance(outcomes, dict):
             continue
         report['providers'][name] = {key: count for key, count in outcomes.items()
-                                     if key in {'ok', 'empty', 'unavailable', 'cost_cap_reached'}
+                                     if key in PROVIDER_STATUS_CLASSES
                                      and type(count) is int and count >= 0}
     return report
 
@@ -227,8 +235,7 @@ def fill_candidates(topic_candidates, topics, items, registry, history, now, *, 
                 report['grounding_requests'] += budget.grounding_requests
                 for provider_name, status in budget.statuses.items():
                     key = status.get('status')
-                    outcome = ('ok' if key == 'ok' else 'empty' if key == 'no results' else
-                               'cost_cap_reached' if key == 'cost_cap_reached' else 'unavailable')
+                    outcome = key if key in PROVIDER_STATUS_CLASSES else 'unavailable'
                     statuses[outcome] += 1
                     if provider_name in {'feeds', 'gdelt', 'gemini', 'perplexity'}:
                         provider_outcomes.setdefault(provider_name, Counter())[outcome] += 1

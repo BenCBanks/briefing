@@ -218,6 +218,13 @@ class FillTests(unittest.TestCase):
         self.assertEqual(safe['guarded_reads'], 2)
         self.assertNotIn('http', json.dumps(safe))
 
+    def test_safe_report_preserves_fixed_provider_status_class(self):
+        safe = fill.safe_report({'enabled': True,
+                                 'provider_statuses': {'rate_limited': 2, 'secret text': 8},
+                                 'providers': {'gdelt': {'rate_limited': 2, 'secret text': 8}}})
+        self.assertEqual(safe['provider_statuses'], {'rate_limited': 2})
+        self.assertEqual(safe['providers'], {'gdelt': {'rate_limited': 2}})
+
     def test_search_first_rejects_articles_older_than_ninety_days(self):
         old_date = (NOW - timedelta(days=91)).isoformat()
         self.rows = [self.hint('Payment network adopts new settlement timetable',

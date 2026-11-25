@@ -91,7 +91,9 @@ class Response(BytesIO):
 class AdapterTest(unittest.TestCase):
     def setUp(self):
         gdelt._negative_cache.clear()
+        gdelt._last_request_started = None
         self.addCleanup(gdelt._negative_cache.clear)
+        self.addCleanup(setattr, gdelt, '_last_request_started', None)
         self.sleeper = patch.object(gdelt.time, 'sleep')
         self.sleeper.start()
         self.addCleanup(self.sleeper.stop)
@@ -205,7 +207,8 @@ class AdapterTest(unittest.TestCase):
         self.assertEqual(params['timespan'], ['7d'])
         self.assertEqual(params['query'], ['battery research'])
         self.assertEqual(params['maxrecords'], ['10'])
-        self.assertEqual(self.wait.call_args.args[1], 5)
+        self.assertEqual(self.wait.call_args.args[1], 0)
+        self.assertEqual(gdelt.MIN_REQUEST_SPACING, 5.5)
 
     def test_feeds_relevance_freshness_and_disabled_registry(self):
         items = json.loads((FIXTURES / 'feeds.json').read_text())['items']
@@ -388,7 +391,7 @@ class AdapterTest(unittest.TestCase):
         self.assertEqual(self.requests, [])
 
     def test_http_malformed_oversize_timeout_and_rate_limit(self):
-        for body, expected in [(b'not json', 'invalid provider response'),
+        for body, expected in [(b'not json', 'rate_limited'),
                                (b'[]', 'invalid provider response'),
                                (b'x' * (core.MAX_RESPONSE_BYTES + 1), 'provider response too large')]:
             with self.subTest(expected=expected):
@@ -397,11 +400,37 @@ class AdapterTest(unittest.TestCase):
                 self.assertEqual(self.search(GdeltProvider(opener=opener)), [])
                 self.assertEqual(self.budget.statuses['gdelt']['status'], expected)
         for error, expected in [(TimeoutError('secret'), 'provider timeout'),
-                (HTTPError('https://api.example', 429, 'secret', {}, None), 'provider rate limited')]:
+                (HTTPError('https://api.example', 429, 'secret', {}, None), 'rate_limited')]:
             gdelt._negative_cache.clear()
             def opener(request, timeout): raise error
             self.assertEqual(self.search(GdeltProvider(opener=opener)), [])
             self.assertEqual(self.budget.statuses['gdelt']['status'], expected)
+
+    def test_gdelt_plain_text_throttle_retries_once_after_process_spacing(self):
+        clock = [100.0]
+        calls = []
+        def throttled(req, timeout):
+            calls.append(clock[0])
+            return Response(b'Please limit requests to one every 5 seconds.', req.full_url)
+        budget = RetrievalBudget(timeout_seconds=20)
+        with patch.object(gdelt.time, 'monotonic', side_effect=lambda: clock[0]), \
+                patch.object(gdelt.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            self.assertEqual(self.search(GdeltProvider(opener=throttled), budget=budget), [])
+        self.assertEqual(calls, [100.0, 105.5])
+        self.assertEqual(budget.statuses['gdelt']['status'], 'rate_limited')
+
+    def test_gdelt_spacing_is_process_wide_across_provider_instances(self):
+        clock = [100.0]
+        calls = []
+        def successful(req, timeout):
+            calls.append(clock[0])
+            return Response((FIXTURES / 'gdelt.json').read_bytes(), req.full_url)
+        budget = RetrievalBudget(timeout_seconds=20)
+        with patch.object(gdelt.time, 'monotonic', side_effect=lambda: clock[0]), \
+                patch.object(gdelt.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            self.search(GdeltProvider(opener=successful), budget=budget)
+            self.search(GdeltProvider(opener=successful), budget=budget)
+        self.assertEqual(calls[1] - calls[0], 5.5)
 
     def test_redirect_hint_is_resolved_without_fetching_publisher(self):
         requests = []
@@ -563,7 +592,7 @@ class AdapterTest(unittest.TestCase):
                 patch.object(gdelt.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
             for _ in range(2):  # New instances share the negative cache.
                 self.assertEqual(self.search(GdeltProvider(opener=limited)), [])
-                self.assertEqual(self.budget.statuses['gdelt']['status'], 'provider rate limited')
+                self.assertEqual(self.budget.statuses['gdelt']['status'], 'rate_limited')
             self.assertEqual(calls, [100, 106])
             self.assertNotIn('battery', repr(gdelt._negative_cache))
             self.assertNotIn('PRIVATE', repr(gdelt._negative_cache))
@@ -577,10 +606,10 @@ class AdapterTest(unittest.TestCase):
                 return Response(b'{"articles": []}', req.full_url)
             self.search(GdeltProvider(opener=empty))
             self.search(GdeltProvider(opener=empty))
-            self.assertEqual(empty_calls, [167])
+            self.assertEqual(empty_calls, [172.5])
             clock[0] += 61
             self.search(GdeltProvider(opener=empty))
-            self.assertEqual(empty_calls, [167, 228])
+            self.assertEqual(empty_calls, [172.5, 233.5])
 
     def test_gdelt_rate_limiter_shared_across_instances_and_retry_success(self):
         clock = [100.0]
@@ -599,7 +628,7 @@ class AdapterTest(unittest.TestCase):
                 patch.object(core, '_wait_for_host', side_effect=real_wait):
             self.assertEqual(len(self.search(GdeltProvider(opener=http))), 2)
             self.assertEqual(len(self.search(GdeltProvider(opener=http))), 2)
-        self.assertEqual(calls, [100, 105, 110])
+        self.assertEqual(calls, [100, 105.5, 111.0])
         self.assertFalse(gdelt._negative_cache)
 
     def test_fetch_rechecks_redirect_robots_and_respects_known_policy(self):
