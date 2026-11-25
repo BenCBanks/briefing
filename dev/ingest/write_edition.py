@@ -209,53 +209,28 @@ def _canonical_profile(profile):
 
 
 def _feed_topic_ids(topic, available_tags):
-    """Resolve catalog tags for known and free-text topics; preserve the profile ID separately."""
+    """Resolve ordered registry tags from the public, data-driven mapping table."""
     topic_id = _safe(topic.get('id'), 64).lower()
-    label = _safe(topic.get('label'), 120).lower()
-    words = _tokens(' '.join([label, _safe(topic.get('scope'), 300),
-                              ' '.join(topic.get('include', [])), _safe(topic.get('sourcePhrase'), 500)]))
-    normalized = f'{topic_id} {label}'
-    if {'payments', 'banking'} <= words:
-        return [tag for tag in ('payments', 'banking') if tag in available_tags]
-    if (topic_id == 'health' or 'insurance' in normalized or 'medicaid' in words or
-            'health insurance' in normalized):
-        return [tag for tag in ('insurance', 'health') if tag in available_tags]
-    if (topic_id == 'ai' or topic_id in {'ai-in-finance', 'custom-ai-in-finance'} or
-            ('ai' in words and bool(words & {'finance', 'financial', 'banking', 'payments'})) or
-            {'artificial', 'intelligence'} <= words):
-        # AI-in-finance developments can be published by payment outlets whose
-        # feeds are tagged only `payments`. Let the normal text scope and
-        # full-text evidence checks decide whether each candidate belongs.
-        return [tag for tag in ('ai', 'finance', 'digital', 'payments') if tag in available_tags]
+    words = _tokens(' '.join([topic_id.replace('-', ' '), _safe(topic.get('label'), 120),
+                              _safe(topic.get('scope'), 300), ' '.join(topic.get('include', [])),
+                              _safe(topic.get('sourcePhrase'), 500)]))
+    mapping = json.loads((ROOT / 'content/topic-feed-mapping.json').read_text(encoding='utf-8'))
+    for rule in mapping.get('rules', []):
+        for phrase in rule.get('match_any', []):
+            phrase_words = _tokens(phrase)
+            if phrase_words and phrase_words <= words:
+                tags = [tag for tag in rule.get('tags', []) if tag in available_tags]
+                if tags:
+                    return tags
+    # Explicit registry tags remain useful when no higher-specificity rule matches.
     if topic_id in available_tags:
         return [topic_id]
     aliases = {'savings': 'banking', 'savings-rates': 'banking', 'premier-league': 'sports',
                'premier-league-headlines': 'sports', 'football': 'sports'}
     if topic_id in aliases and aliases[topic_id] in available_tags:
         return [aliases[topic_id]]
-
-    housing_terms = {'housing', 'homebuilding', 'home', 'building', 'construction', 'mortgage', 'mortgages', 'real',
-                     'estate', 'property', 'properties', 'zoning', 'rezoning', 'residential',
-                     'builder', 'builders', 'apartment', 'apartments', 'affordable', 'permit', 'permits'}
-    if words & housing_terms:
-        mapped = {'housing-market'}
-        if words & {'affordable', 'rent', 'rents', 'homelessness'}:
-            mapped.add('affordable-housing')
-        if words & {'home', 'building', 'homebuilding', 'construction', 'builder', 'builders', 'materials', 'lumber'}:
-            mapped.update({'homebuilding', 'construction', 'materials'})
-        return sorted(mapped & available_tags)
-
-    content_topics = json.loads((ROOT / 'content/topics.json').read_text(encoding='utf-8'))['topics']
-    mapped = []
-    for candidate in content_topics:
-        tag = candidate.get('id')
-        candidate_words = _tokens(' '.join(str(candidate.get(key, '')) for key in ('label', 'scope', 'description')))
-        overlap = words & candidate_words
-        if tag in available_tags and len(overlap) >= 2:
-            mapped.append(tag)
-    # A truly new topic still gets a lexical pass over every tagged feed. The
-    # writer's relevance instruction then rejects candidates outside its scope.
-    return mapped or sorted(available_tags)
+    fallback = [tag for tag in mapping.get('fallback_tags', []) if tag in available_tags]
+    return fallback or sorted(available_tags)
 
 
 def _rank_profile_topic_items(items, profile, topic, topic_only=False):
@@ -1333,6 +1308,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
     candidate_pool_diagnostics = {}
     funnel_drop_reasons = {}
     source_selection_reports = {}
+    source_funnels = {}
     budget_exhausted = False
     story_by_cluster = {}
     available_key = key_file
@@ -1372,8 +1348,13 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         topic_id = topic['id']
         eligible = []
         dropped = {}
-        def drop(reason):
+        source_dropped = {}
+        def drop(reason, item=None):
             dropped[reason] = dropped.get(reason, 0) + 1
+            source_id = item.get('source_id') if isinstance(item, dict) else None
+            if source_id:
+                reasons = source_dropped.setdefault(source_id, {})
+                reasons[reason] = reasons.get(reason, 0) + 1
         fresh_source_item_count = 0
         feed_tags = set(topic.get('feed_topic_ids') or [topic_id])
         topic_feed_items = [item for item in items
@@ -1386,20 +1367,20 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
             current_source = registry_by_id.get(item.get('source_id'))
             if (not current_source or current_source.get('enabled') is not True or
                     current_source.get('ai_bots_disallowed') or current_source.get('robots_ok') is not True):
-                drop('source_disabled_or_unavailable')
+                drop('source_disabled_or_unavailable', item)
                 continue
             if not quality_allowed(item, current_source, topic):
-                drop(quality_rejected.get((topic_id, item.get('url')), 'source_quality'))
+                drop(quality_rejected.get((topic_id, item.get('url')), 'source_quality'), item)
                 continue
             date = core.parse_date(item.get('published') or item.get('published_at'))
             if date and date <= now + timedelta(days=1) and date >= now - timedelta(days=freshness_days()):
                 fresh_source_item_count += 1
             if not _date_eligible_for_news(item, current_source, now):
-                drop('date_ineligible')
+                drop('date_ineligible', item)
                 continue
             item_text = f"{item.get('title', '')} {item.get('snippet', '')}"
             if not _matches_topic_scope(topic, item_text, current_source):
-                drop('topic_scope_mismatch')
+                drop('topic_scope_mismatch', item)
                 continue
             if topic_id == 'sports' and 'premier league' in topic.get('label', '').lower():
                 title_tokens = _tokens(item.get('title', ''))
@@ -1411,7 +1392,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                                           {'premier', 'league'} <= title_tokens or
                                           bool(title_tokens & named_clubs))
                 if placeholder or not premier_league_context:
-                    drop('topic_context_mismatch')
+                    drop('topic_context_mismatch', item)
                     continue
             eligible.append(item)
             ranked_positions[(topic_id, item.get('url'))] = rank
@@ -1423,23 +1404,23 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                 current_source = registry_by_id.get(item.get('source_id'))
                 if (not current_source or current_source.get('enabled') is not True or
                         current_source.get('ai_bots_disallowed') or current_source.get('robots_ok') is not True):
-                    drop('source_disabled_or_unavailable')
+                    drop('source_disabled_or_unavailable', item)
                     continue
                 if not quality_allowed(item, current_source, topic):
-                    drop(quality_rejected.get((topic_id, item.get('url')), 'source_quality'))
+                    drop(quality_rejected.get((topic_id, item.get('url')), 'source_quality'), item)
                     continue
                 date = core.parse_date(item.get('published') or item.get('published_at'))
                 if date and date <= now + timedelta(days=1) and date >= now - timedelta(days=freshness_days()):
                     fresh_source_item_count += 1
                 if not _date_eligible_for_news(item, current_source, now):
-                    drop('date_ineligible')
+                    drop('date_ineligible', item)
                     continue
                 item_text = f"{item.get('title', '')} {item.get('snippet', '')}"
                 if _matches_topic_scope(topic, item_text, current_source):
                     eligible.append(item)
                     ranked_positions[(topic_id, item.get('url'))] = rank
                 else:
-                    drop('topic_scope_mismatch')
+                    drop('topic_scope_mismatch', item)
             topic_only_fallback = bool(eligible)
         clusters = cluster_items(eligible, by_host)
         duplicate_clusters = max(0, len(eligible) - len(clusters))
@@ -1480,6 +1461,23 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         # extraction has a chance to test them.
         topic_cluster_pools[topic_id] = clusters
         topic_fetched = len(topic_feed_items)
+        fetched_by_source = Counter(item.get('source_id') or 'unknown' for item in topic_feed_items)
+        matched_by_source = Counter(item.get('source_id') or 'unknown' for item in ranked)
+        accepted_by_source = Counter(item.get('source_id') or 'unknown' for item in eligible)
+        source_funnels[topic_id] = {
+            source_id: {
+                'fetched': count,
+                'matched': matched_by_source.get(source_id, 0),
+                'accepted': accepted_by_source.get(source_id, 0),
+                'rejected': max(0, count - accepted_by_source.get(source_id, 0)),
+                'rejection_reasons': {
+                    **({'topic_not_matched': count - matched_by_source.get(source_id, 0)}
+                       if count > matched_by_source.get(source_id, 0) else {}),
+                    **source_dropped.get(source_id, {})
+                }
+            }
+            for source_id, count in fetched_by_source.items()
+        }
         candidate_pool_diagnostics[topic_id] = {
             'fetched': topic_fetched,
             'topic_matched': len(ranked), 'relevance_passed': len(eligible),
@@ -2041,6 +2039,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         'candidate_attempt_limit': candidate_attempt_limit,
         'candidate_results': candidate_results,
         'candidate_pool_diagnostics': candidate_pool_diagnostics,
+        'source_funnels': source_funnels,
         'funnel_drop_reasons': funnel_drop_reasons,
         'source_quality_rejections': quality_rejected_items,
         'low_tier_sources': {

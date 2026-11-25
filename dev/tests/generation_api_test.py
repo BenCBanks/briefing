@@ -637,7 +637,9 @@ class GenerationApiTests(unittest.TestCase):
         with patch.object(generation_api.core, 'ingest_enabled', return_value=ingested) as fetch, \
              patch.object(write_edition, 'generate_edition', return_value=(
                  {'editions': [edition]}, {'sources': []},
-                 {'sentence_evidence': {}, 'repeat_suppressed': 2, 'stale_suppressed': 1})) as writer, \
+                 {'sentence_evidence': {}, 'repeat_suppressed': 2, 'stale_suppressed': 1,
+                  'source_funnels': {'payments': {'sample-source': {'fetched': 4, 'matched': 3,
+                                                                      'accepted': 2, 'rejected': 2}}}})) as writer, \
              patch.object(score_edition, 'score_edition', return_value={
                  'critical_failed': False, 'failed_critical': [], 'results': []}) as score:
             code, body = generation_api.start_generation(REAL_SHAPED_PROFILE, directory, registry=[source])
@@ -652,6 +654,8 @@ class GenerationApiTests(unittest.TestCase):
         self.assertTrue(job['scorecard_path'])
         saved_report = json.loads((directory / job['scorecard_path']).read_text())
         self.assertEqual([row['status'] for row in saved_report['story_results']], ['passed'] * 3)
+        self.assertEqual(saved_report['source_funnels']['payments']['sample-source'],
+                         {'fetched': 4, 'matched': 3, 'accepted': 2, 'rejected': 2})
         self.assertTrue(json.loads((directory / 'current.json').read_text())['editions']['editions'][0]['generated'])
         self.assertEqual(fetch.call_args.args[0], [source])
         self.assertEqual(writer.call_args.args[0], REAL_SHAPED_PROFILE)
