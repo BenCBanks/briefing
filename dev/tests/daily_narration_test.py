@@ -194,7 +194,9 @@ class DailyNarrationTests(unittest.TestCase):
                                    'source_sentence_ids': evidence_ids, 'citation_numbers': [1],
                                    'verified': True}]
         short = {'stories': [{'section_id': sid, 'sentences': [
-            {'text': long_rows[0]['text'], 'evidence_ids': [evidence_ids[0]], 'general_context': False}]}]}
+            {'text': long_rows[0]['text'], 'evidence_ids': [evidence_ids[0]], 'general_context': False},
+            {'text': 'Commercial property data tracks office occupancy for investment teams.',
+             'evidence_ids': [evidence_ids[0]], 'general_context': False}]}]}
         expanded = {'stories': [{'section_id': sid, 'sentences': long_rows}]}
         writer_number = 0
 
@@ -210,7 +212,8 @@ class DailyNarrationTests(unittest.TestCase):
                 writer_number += 1
                 return deepcopy(short if writer_number == 1 else expanded)
             return {'verdicts': [{'section_id': row['section_id'],
-                                  'sentence_index': row['sentence_index'], 'supported': True}
+                                  'sentence_index': row['sentence_index'],
+                                  'supported': 'Commercial property data' not in row.get('text', '')}
                                  for row in payload['sentences']]}
 
         result = self.narrate(edition, self.profile, evidence, self.sources,
@@ -229,8 +232,11 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertTrue(result['expansion_used'])
         self.assertEqual([row['attempt'] for row in result['attempts']], [1, 2])
         self.assertTrue(result['attempts'][0]['finding_codes'])
+        self.assertIn('unsupported_sentence', result['attempts'][0]['finding_codes'])
         self.assertTrue(result['attempts'][0]['expansion_requested'])
         self.assertFalse(result['attempts'][0]['expansion_pass'])
+        self.assertEqual(result['attempts'][0]['finding_details'][0]['story_heading'],
+                         section['heading'])
         self.assertTrue(result['attempts'][1]['expansion_pass'])
         self.assertTrue(result['attempts'][1]['repair_pass'])
         self.assertEqual(result['lost_at_stage'], None)
