@@ -94,6 +94,21 @@ class AccountAdminTests(unittest.TestCase):
         self.assertTrue(accounts.login(account['name'], 'fixture-only strong passphrase',
                                        '127.0.0.3'))
 
+    def test_disable_during_password_check_cannot_create_a_session(self):
+        account, _token = self.create_account()
+        verify = accounts._verify
+
+        def disable_after_check(password, record):
+            result = verify(password, record)
+            self.assertTrue(accounts.set_disabled(account['id'], True))
+            return result
+
+        with patch.object(accounts, '_verify', side_effect=disable_after_check):
+            with self.assertRaises(accounts.AccountError) as denied:
+                accounts.login(account['name'], 'fixture-only strong passphrase', '127.0.0.2')
+        self.assertEqual((denied.exception.status, denied.exception.code),
+                         (401, 'invalid_credentials'))
+
     def test_reset_code_is_hashed_single_use_and_invalidates_sessions(self):
         account, token = self.create_account()
         output = StringIO()

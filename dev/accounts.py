@@ -290,6 +290,17 @@ def login(account_name, password, ip):
     if not verified:
         raise AccountError(401, 'invalid_credentials')
     with _lock:
+        # A password check can overlap an operator disable or password reset.
+        # Do not create a session from the stale record read before scrypt ran.
+        accounts = _read('accounts.json', {})
+        current = accounts.get(name)
+        current_password = current.get('password', {}) if isinstance(current, dict) else {}
+        if (not isinstance(current, dict) or current.get('disabled') or
+                not isinstance(current_password, dict) or
+                not hmac.compare_digest(str(current_password.get('hash', '')),
+                                        str(account.get('password', {}).get('hash', '')))):
+            raise AccountError(401, 'invalid_credentials')
+        account = current
         if rehash:
             account['password'] = _password_record(password)
             accounts[name] = account
