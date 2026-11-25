@@ -166,13 +166,13 @@ class DailyResilienceEndToEndTests(unittest.TestCase):
                 self.assertEqual(status_value['daily_run']['daily_narration']['status'], 'fallback')
                 self.assertEqual(self._read_edition()['daily_briefing']['briefing_script'], [])
                 self.assertTrue(self._read_edition()['daily_briefing']['text_only'])
-                self.assertFalse(decision)
-                self.assertEqual(reasons, ['edition_exists_today'])
+                self.assertTrue(decision)
+                self.assertIn('spoken_under_3_minutes', reasons)
             if case == 'tts_fails':
                 self.assertEqual(result['daily_audio']['audio_status'], 'pending')
                 self.assertEqual(status_value['daily_run']['daily_audio']['audio_status'], 'pending')
-                self.assertFalse(decision)
-                self.assertEqual(reasons, ['edition_exists_today'])
+                self.assertTrue(decision)
+                self.assertIn('audio_missing_within_cap', reasons)
             if case == 'topic_empty':
                 topic_supply = status_value['daily_run']['topic_supply']
                 self.assertEqual(next(row['stories'] for row in topic_supply
@@ -205,30 +205,82 @@ class DailyResilienceEndToEndTests(unittest.TestCase):
         self.assertIn('today_edition_missing', reasons)
         self.assertTrue(json.loads((self.state / 'status.json').read_text())['ok'])
 
-    def test_run_daily_skips_existing_today_edition_without_changing_success_status(self):
+    def test_failed_retry_preserves_success_status_and_records_bounded_attempt(self):
         edition, sources = _edition(self.today, topics=('fictional-topic',) * 4,
-                                    narration={'status': 'fallback',
-                                               'reason': 'narration_underdeveloped_with_unused_evidence'},
+                                    narration={'status': 'written'},
                                     audio={'audio_status': 'pending', 'audio_url': None})
         self._persist_edition(edition, sources)
         status = {'ok': True, 'last_run_at': '2026-11-25T10:00:00Z',
-                  'daily_run': {'status': 'complete', 'stories_written': 4}}
+                  'daily_run': {'status': 'complete', 'local_date': self.today,
+                                'stories': 4, 'daily_audio': {'audio_status': 'pending'}}}
         status_path = self.state / 'status.json'
         status_path.write_text(json.dumps(status), encoding='utf-8')
 
-        def forbidden(*_args, **_kwargs):
-            self.fail('an existing same-day edition must suppress generation retry')
+        def fake_start(_profile):
+            return 202, {'job_id': 'failed-retry'}
+
+        def fake_get_job(_job_id):
+            generation_api._run_status(False, reason='generation_failed:scorecard:RuntimeError',
+                                        path=status_path)
+            return 200, {'status': 'failed', 'error': 'generation_failed:scorecard:RuntimeError'}
 
         with patch.dict(os.environ, self.environment):
-            code, result = daily.run_daily(profile_loader=forbidden, start=forbidden,
-                                           report_writer=forbidden)
+            code, result = daily.run_daily(profile_loader=lambda: self.profile, start=fake_start,
+                                           get_job=fake_get_job, sleep=lambda _seconds: None)
 
+        self.assertEqual(code, 1)
+        self.assertEqual(result['status'], 'failed')
+        stored_status = json.loads(status_path.read_text(encoding='utf-8'))
+        self.assertTrue(stored_status['ok'])
+        self.assertEqual(stored_status['daily_run'], status['daily_run'])
+        self.assertEqual(stored_status['retry_attempt']['status'], 'failed')
+        self.assertEqual(stored_status['retry_attempt']['reason'],
+                         'generation_failed:scorecard:RuntimeError')
+        self.assertEqual(self._read_edition()['id'], edition['id'],
+                         'a failed retry must leave the earlier edition published')
+
+    def test_successful_retry_replaces_edition_with_better_audio(self):
+        original, sources = _edition(self.today, narration={'status': 'written'},
+                                     audio={'audio_status': 'pending', 'audio_url': None})
+        self._persist_edition(original, sources)
+        status_path = self.state / 'status.json'
+        status_path.write_text(json.dumps({'ok': True, 'last_run_at': '2026-11-25T10:00:00Z',
+            'daily_run': {'status': 'complete', 'local_date': self.today, 'stories': 1}}),
+            encoding='utf-8')
+        improved, improved_sources = _edition(
+            self.today, narration={'status': 'written'},
+            audio={'audio_status': 'ready', 'audio_url': '/api/daily/audio'})
+        improved['id'] = 'fictional-improved-edition'
+
+        def fake_start(_profile):
+            return 202, {'job_id': 'successful-retry'}
+
+        def fake_get_job(_job_id):
+            self._persist_edition(improved, improved_sources)
+            generation_api._run_status(True, stories=1, path=status_path)
+            return 200, {'status': 'complete', 'edition_id': improved['id'],
+                         'edition_ready': {'edition': improved, 'sources': improved_sources},
+                         'daily_narration': {'status': 'written'},
+                         'daily_briefing': improved['daily_briefing']}
+
+        def fake_audio(_edition, **_kwargs):
+            return {'audio_status': 'ready', 'audio_url': '/api/daily/audio'}
+
+        def fake_persist(_profile, current_edition, audio):
+            current_edition['audio'] = audio
+            self._persist_edition(current_edition, improved_sources)
+            return audio
+
+        with patch.dict(os.environ, self.environment):
+            code, result = daily.run_daily(profile_loader=lambda: self.profile, start=fake_start,
+                get_job=fake_get_job, sleep=lambda _seconds: None,
+                daily_audio_renderer=fake_audio, daily_audio_persister=fake_persist)
         self.assertEqual(code, 0)
-        self.assertEqual(result['status'], 'complete')
-        self.assertEqual(result['reason'], 'edition_exists_today')
-        self.assertEqual(result['stories_written'], 4)
-        self.assertEqual(json.loads(status_path.read_text(encoding='utf-8')), status,
-                         'a skipped or failed retry must not replace the successful daily status')
+        self.assertEqual(self._read_edition()['id'], improved['id'])
+        self.assertEqual(self._read_edition()['audio']['audio_status'], 'ready')
+        stored_status = json.loads(status_path.read_text(encoding='utf-8'))
+        self.assertTrue(stored_status['ok'])
+        self.assertNotIn('retry_attempt', stored_status)
 
 
 if __name__ == '__main__':

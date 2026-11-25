@@ -121,8 +121,6 @@ def decide(*, status, content_checks, edition, audio_budget_allows, today=None):
     """Return retry decision and fixed reason labels from already-read values."""
     reasons = []
     today = today or today_et_date()
-    if isinstance(edition, dict) and edition.get('local_date') == today:
-        return False, ['edition_exists_today']
     if not isinstance(edition, dict) or edition.get('local_date') != today:
         reasons.append('today_edition_missing')
     if (not isinstance(content_checks, list) or not content_checks or
@@ -170,8 +168,6 @@ def inspect_state(state_dir, budget_checker=audio_budget_allows):
             return True, ['multi_reader_incomplete']
         return False, []
     today_bundle, edition = edition_bundle_for_date(state_dir, today)
-    if edition is not None:
-        return False, ['edition_exists_today']
     bundle, _current_edition = load_edition_bundle(state_dir)
     if today_bundle is not None:
         bundle = today_bundle
