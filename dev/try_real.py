@@ -167,7 +167,8 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
             print('Length: ' + length_report['report_line'])
             print('Length stages: ' + json.dumps({key: length_report.get(key) for key in (
                 'writer_words', 'expanded_words', 'verified_words', 'repaired_words', 'final_words',
-                'word_loss_by_stage', 'chapter_expansion', 'chapter_budgets')}, sort_keys=True))
+                'word_loss_by_stage', 'chapter_expansion', 'verified_evidence_expansion',
+                'chapter_budgets')}, sort_keys=True))
         timing = result.get('timing')
         if isinstance(timing, dict):
             print('Stage timing: ' + json.dumps(timing, sort_keys=True))

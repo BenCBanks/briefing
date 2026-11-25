@@ -29,7 +29,7 @@ from dev.ingest.episodes.generate import (EpisodeCancelled, EpisodeError, Gemini
                                          _answer_outline, _outline_pre_audio_issues,
                                          require_minimum_evidence, supported_word_count,
                                          _bad_verdict_ids, _prune_bad_verdicts,
-                                         _with_research_questions)
+                                         _with_research_questions, _expand_verified_chapters)
 from dev.ingest.episodes.policy import WORDS_PER_MINUTE
 from dev.ingest.episodes.comparison import comparison_questions
 from dev.ingest.jobs import EpisodeJobStore
@@ -352,6 +352,75 @@ class EpisodeGenerationTests(unittest.TestCase):
         self.assertEqual(self.client.payloads[1]['requested_minutes'], 10)
         self.assertEqual(self.client.payloads[1]['spoken_length'], 'ten')
 
+    def test_post_verification_expansion_uses_unused_chapter_evidence_and_rechecks(self):
+        original = {'chapters': [{'title': 'How it works', 'title_evidence_ids': ['E1'],
+            'sentences': [
+                {'text': 'Here is the short answer.', 'kind': 'opening', 'evidence_ids': []},
+                {'text': 'The fictional service sends payment instructions through a network.',
+                 'kind': 'claim', 'evidence_ids': ['E1']}]}], 'could_not_confirm': []}
+        evidence = {'E1': {'source_id': 'S1', 'text': 'The fictional service sends payment instructions through a network.'},
+                    'E2': {'source_id': 'S1', 'text': 'The network checks the instruction before passing it onward.'}}
+        plan = [{'question': 'How are instructions checked?', 'target_words': 100,
+                 'source_ids': ['S1']}]
+        expanded = deepcopy(original)
+        expanded['chapters'][0]['sentences'].append({
+            'text': 'The network checks the instruction before passing it onward.',
+            'kind': 'claim', 'evidence_ids': ['E2']})
+        calls = []
+
+        def client(system, payload, schema, call_name=None):
+            calls.append((call_name, payload))
+            if call_name == 'verified_evidence_expansion':
+                return deepcopy(expanded)
+            verdicts = [{'id': row['id'], 'supported': True, 'relevant': True}
+                        for row in payload['script'] if row['kind'] not in {'opening', 'navigation'}]
+            return {'verdicts': verdicts, 'on_topic': True, 'coherent': True,
+                    'uncertainty_relevant': True}
+
+        with patch('dev.ingest.episodes.generate.deterministic_check', return_value={'passed': True}):
+            result, report = _expand_verified_chapters(
+                original, plan, evidence, [{'id': 'S1'}], 'fictional payments', 100, client)
+        self.assertTrue(report['applied'])
+        self.assertGreater(report['words_added'], 0)
+        self.assertEqual(result, expanded)
+        self.assertEqual(calls[0][1]['chapter_expansion_assignments'][0]['unused_evidence_ids'], ['E2'])
+        self.assertEqual(calls[-1][0], 'verified_evidence_expansion_verifier')
+        unchanged, excluded = _expand_verified_chapters(
+            original, plan, evidence, [{'id': 'S1'}], 'fictional payments', 100, client,
+            excluded_evidence_ids={'E2'})
+        self.assertFalse(excluded['attempted'])
+        self.assertEqual(unchanged, original)
+
+    def test_post_verification_expansion_keeps_short_verified_script_if_added_claim_fails(self):
+        original = {'chapters': [{'title': 'How it works', 'title_evidence_ids': ['E1'],
+            'sentences': [
+                {'text': 'Here is the short answer.', 'kind': 'opening', 'evidence_ids': []},
+                {'text': 'The fictional service sends payment instructions through a network.',
+                 'kind': 'claim', 'evidence_ids': ['E1']}]}], 'could_not_confirm': []}
+        evidence = {'E1': {'source_id': 'S1', 'text': 'The fictional service sends payment instructions through a network.'},
+                    'E2': {'source_id': 'S1', 'text': 'The network checks the instruction before passing it onward.'}}
+        plan = [{'question': 'How are instructions checked?', 'target_words': 100,
+                 'source_ids': ['S1']}]
+        expanded = deepcopy(original)
+        expanded['chapters'][0]['sentences'].append({
+            'text': 'The network checks the instruction before passing it onward.',
+            'kind': 'claim', 'evidence_ids': ['E2']})
+
+        def client(system, payload, schema, call_name=None):
+            if call_name == 'verified_evidence_expansion':
+                return deepcopy(expanded)
+            verdicts = [{'id': row['id'], 'supported': row['id'] != 'c1-s3', 'relevant': True}
+                        for row in payload['script'] if row['kind'] not in {'opening', 'navigation'}]
+            return {'verdicts': verdicts, 'on_topic': True, 'coherent': True,
+                    'uncertainty_relevant': True}
+
+        with patch('dev.ingest.episodes.generate.deterministic_check', return_value={'passed': True}):
+            result, report = _expand_verified_chapters(
+                original, plan, evidence, [{'id': 'S1'}], 'fictional payments', 100, client)
+        self.assertFalse(report['applied'])
+        self.assertEqual(report['reason'], 'semantic_check_failed')
+        self.assertEqual(result, original)
+
     def test_arbitrary_question_context_reaches_plan_writer_and_verifier_as_data(self):
         cases = (
             ('explanation', "How do Alder Bay's parcel lockers work?",
@@ -476,13 +545,17 @@ class EpisodeGenerationTests(unittest.TestCase):
 
         writer_calls = [(system, payload) for system, payload in calls
                         if 'question_count' not in payload and 'script' not in payload]
-        self.assertLessEqual(len(writer_calls), 2, 'a single full-script revision is the limit')
+        self.assertLessEqual(len(writer_calls), 3,
+                             'one targeted evidence expansion may follow a verified prune')
+        self.assertEqual(sum('chapter_expansion_assignments' in payload for _system, payload in writer_calls), 1)
         system, payload = writer_calls[0]
         self.assertNotIn('chapter_assignment', payload)
         self.assertEqual(set(payload['evidence']),
                          {f'E-S1-{index}' for index in range(1, len(payload['evidence']) + 1)})
         self.assertIn('complete episode as one coherent script', system)
         self.assertIn('STYLE TARGET EXAMPLE (copy the qualities, never its sentences or facts)', system)
+        self.assertIn('Open with a direct statement, not a rhetorical question.', system)
+        self.assertIn('End on a supported takeaway from this episode, not a disclaimer', system)
         self.assertIn("Here's a question. When you pay someone from your bank account", system)
         self.assertIn('I couldn\'t find solid evidence', STYLE_TARGET_EXAMPLE)
         self.assertTrue(result['verification']['passed'])
@@ -1207,6 +1280,9 @@ class EpisodeGenerationTests(unittest.TestCase):
         result = generate_episode(TOPIC, **self.kwargs)
         self.assertEqual(len(semantic_calls), 3)
         self.assertEqual(len(semantic_calls[2]['script']), len(semantic_calls[1]['script']) - 1)
+        self.assertTrue(result['verification']['verified_evidence_expansion']['attempted'])
+        self.assertEqual(result['verification']['verified_evidence_expansion']['reason'],
+                         'rejected_claim_reintroduced')
         self.assertNotIn(TEXTS[0], result['transcript'])
         self.assertTrue(result['verification']['pruned_and_rechecked'])
         rejected = [item for item in result['could_not_confirm'] if 'unverified_claim' in item]

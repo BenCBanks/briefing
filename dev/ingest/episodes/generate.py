@@ -581,7 +581,7 @@ def _draft_word_count(draft):
 
 def _episode_length_report(requested_words, writer_words, expanded_words,
                            verified_words, repaired_words, final_words, research_plan, final_chapters,
-                           writer_chapter_words, expansion):
+                           writer_chapter_words, expansion, verified_expansion=None):
     """Explain the largest observed source of an episode's word shortfall."""
     losses = {
         'writing': max(0, requested_words - writer_words),
@@ -614,6 +614,9 @@ def _episode_length_report(requested_words, writer_words, expanded_words,
             'repaired_words': repaired_words, 'final_words': final_words,
             'word_loss_by_stage': losses, 'lost_at_stage': lost_at,
             'chapter_budgets': chapter_budgets, 'chapter_expansion': expansion,
+            'verified_evidence_expansion': verified_expansion or {
+                'attempted': False, 'applied': False, 'words_added': 0,
+                'reason': 'not_needed_or_no_unused_evidence'},
             'report_line': line}
 
 
@@ -633,6 +636,124 @@ def _answer_outline(research_plan, evidence):
         else:
             not_found.append(question['question'])
     return {'questions': questions, 'not_found': not_found}
+
+
+def _expand_verified_chapters(draft, research_plan, evidence, sources, topic, target_words,
+                              call, request_context=None, style='explainer', rejected_texts=(),
+                              excluded_evidence_ids=()):
+    """Try one evidence-only expansion after verification has removed unsupported claims."""
+    original_words = _draft_word_count(draft)
+    if original_words >= int(target_words * .90):
+        return draft, {'attempted': False, 'applied': False, 'words_added': 0,
+                       'reason': 'at_target'}
+    planned = [row for row in research_plan if row.get('source_ids')]
+    chapters = draft.get('chapters') if isinstance(draft, dict) else None
+    if not isinstance(chapters, list) or len(chapters) != len(planned):
+        return draft, {'attempted': False, 'applied': False, 'words_added': 0,
+                       'reason': 'chapter_mapping_unavailable'}
+
+    assignments, unused = [], {}
+    rejected_phrases = {' '.join(words(str(text).casefold())) for text in rejected_texts}
+    excluded_ids = set(excluded_evidence_ids)
+    assigned_ids = set()
+    for index, (chapter, plan) in enumerate(zip(chapters, planned)):
+        allowed_ids = plan.get('evidence_ids')
+        scoped = {ident: row for ident, row in evidence.items()
+                  if (ident in allowed_ids if isinstance(allowed_ids, list)
+                      else row.get('source_id') in set(plan.get('source_ids', [])))}
+        cited = {ident for sentence in chapter.get('sentences', [])
+                 if isinstance(sentence, dict)
+                 for ident in sentence.get('evidence_ids', [])}
+        available = {ident: row for ident, row in scoped.items()
+                     if ident not in cited and ident not in excluded_ids and ident not in assigned_ids}
+        text = ' '.join(row.get('text', '') for row in chapter.get('sentences', [])
+                        if isinstance(row, dict) and row.get('kind') != 'navigation')
+        chapter_target = int(plan.get('target_words', 0))
+        if len(words(text)) < _minimum_chapter_words(chapter_target) and available:
+            unused.update(available)
+            assigned_ids.update(available)
+            assignments.append({'chapter': index, 'question': plan.get('question', ''),
+                                'target_words': chapter_target,
+                                'unused_evidence_ids': sorted(available),
+                                'evidence': available})
+    if not assignments:
+        return draft, {'attempted': False, 'applied': False, 'words_added': 0,
+                       'reason': 'no_unused_chapter_evidence'}
+
+    payload = {'topic': topic, 'style': style, 'requested_minutes': target_words // WORDS_PER_MINUTE,
+               'target_words': target_words,
+               'verified_script': draft, 'chapter_expansion_assignments': assignments,
+               'evidence': unused, 'research_plan': research_plan}
+    if request_context is not None:
+        payload['request_context'] = request_context
+    system = (SYSTEM_PROMPT + '\nPOST-VERIFICATION EVIDENCE EXPANSION: The supplied script has already passed its factual checks. '
+              'Keep every existing sentence and its evidence IDs in its original chapter. Expand only the listed chapters, '
+              'using only that chapter’s unused_evidence_ids and evidence. Add distinct plain-language explanation that '
+              'the evidence supports; do not add connective facts, assumptions, advice, or repeated points. Preserve the '
+              'opening and closing unless an added supported sentence is needed to complete the same chapter. Keep the '
+              'same chapter count and order. Return a complete script in the normal schema. If the evidence cannot support '
+              'more detail, return the existing chapter unchanged.')
+    try:
+        candidate = call(system, payload, SCRIPT_SCHEMA,
+                         call_name='verified_evidence_expansion')
+        if (not isinstance(candidate, dict) or not isinstance(candidate.get('chapters'), list) or
+                len(candidate['chapters']) != len(chapters) or
+                candidate.get('could_not_confirm') != draft.get('could_not_confirm')):
+            return draft, {'attempted': True, 'applied': False, 'words_added': 0,
+                           'reason': 'invalid_shape'}
+        # The writer must retain accepted claims verbatim and in their chapter.
+        for before, after in zip(chapters, candidate['chapters']):
+            before_rows = {(row.get('text'), tuple(row.get('evidence_ids', [])), row.get('kind'))
+                           for row in before.get('sentences', []) if isinstance(row, dict)}
+            after_rows = {(row.get('text'), tuple(row.get('evidence_ids', [])), row.get('kind'))
+                          for row in after.get('sentences', []) if isinstance(row, dict)}
+            if not before_rows.issubset(after_rows):
+                return draft, {'attempted': True, 'applied': False, 'words_added': 0,
+                               'reason': 'existing_claim_changed'}
+            added_rows = [row for row in after.get('sentences', []) if isinstance(row, dict) and
+                          (row.get('text'), tuple(row.get('evidence_ids', [])), row.get('kind')) not in before_rows]
+            if any(' '.join(words(str(row.get('text', '')).casefold())) in rejected_phrases
+                   for row in added_rows):
+                return draft, {'attempted': True, 'applied': False, 'words_added': 0,
+                               'reason': 'rejected_claim_reintroduced'}
+        candidate_words = _draft_word_count(candidate)
+        if candidate_words <= original_words or candidate_words > target_words * 1.2:
+            return draft, {'attempted': True, 'applied': False, 'words_added': 0,
+                           'reason': 'no_valid_length_gain'}
+        card = deterministic_check(candidate, evidence, sources)
+        if not card.get('passed'):
+            return draft, {'attempted': True, 'applied': False, 'words_added': 0,
+                           'reason': 'hard_check_failed'}
+        rows = _rows(candidate)
+        verifier_payload = {'topic': topic,
+                            'script': _with_research_questions(rows, research_plan, topic),
+                            'research_plan': research_plan, 'evidence': evidence,
+                            'could_not_confirm': candidate['could_not_confirm']}
+        if request_context is not None:
+            verifier_payload['request_context'] = request_context
+        semantic = call(VERIFY_PROMPT, verifier_payload, VERIFY_SCHEMA,
+                        call_name='verified_evidence_expansion_verifier')
+        verdicts = semantic.get('verdicts', []) if isinstance(semantic, dict) else []
+        verdict_map, relevance_map = _verdict_maps(verdicts)
+        expected = {row['id'] for row in rows if row['kind'] not in {'navigation', 'opening'}}
+        relevant = {row['id'] for row in rows if row['kind'] in {'claim', 'closing'}}
+        complete = all(sum(item.get('id') == ident for item in verdicts
+                           if isinstance(item, dict)) == 1 for ident in expected)
+        passed = (complete and all(verdict_map.get(ident) is True for ident in expected) and
+                  all(relevance_map.get(ident) is True for ident in relevant) and
+                  semantic.get('on_topic') is True and semantic.get('coherent') is True and
+                  semantic.get('uncertainty_relevant') is True)
+        if not passed:
+            return draft, {'attempted': True, 'applied': False, 'words_added': 0,
+                           'reason': 'semantic_check_failed'}
+        return candidate, {'attempted': True, 'applied': True,
+                           'words_added': candidate_words - original_words,
+                           'reason': 'verified'}
+    except EpisodeCancelled:
+        raise
+    except Exception:
+        return draft, {'attempted': True, 'applied': False, 'words_added': 0,
+                       'reason': 'expansion_call_failed'}
 
 
 def _outline_pre_audio_issues(draft, outline, *, paragraph_word_limit=110):
@@ -1353,6 +1474,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
     if request_context is not None:
         payload['request_context'] = request_context
     rejected, off_topic_rejected, verification = [], [], None
+    pruned_evidence_ids = set()
     unanswered = [q['question'] for q in research_plan if not q['source_ids']]
     failed_chapter_questions = set()
     failed_chapter_indexes = set()
@@ -1380,6 +1502,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
             _pruned_ids, rejected_now, off_topic_now = _prune_bad_verdicts(
                 draft, rows, verdict_map, relevance_map, extra_bad_ids,
                 semantic_checked=card['passed'])
+            pruned_evidence_ids.update(ident for row in rows if row['id'] in _pruned_ids
+                                       for ident in row.get('evidence_ids', []))
             rejected.extend(rejected_now)
             off_topic_rejected.extend(off_topic_now)
             if not _is_gemini_client(client):
@@ -1428,12 +1552,14 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                 elif _is_gemini_client(client):
                     host_system = SYSTEM_PROMPT + ("\nHOST PASS: Write the complete episode as one coherent script "
                         "from this full evidence pack. Open in plain words that address the listener's question without "
-                        "reading it back. Use natural transitions that explain the connection between ideas, never "
+                        "reading it back. Open with a direct statement, not a rhetorical question. Use natural transitions that explain the connection between ideas, never "
                         "using ‘Next up’, ‘Moving on’, ‘First up’, ‘Now to’, ‘Turning to’, ‘Going forward’, "
                         "‘Keep an eye on’, ‘Watch for’, or ‘Monitor’. "
                         "section-title bridges. Do not speak unanswered questions; state any evidence gap once in one "
-                        "plain sentence. End with a supported takeaway from this episode, or omit it if the evidence "
-                        "offers no useful synthesis. Do not add unrelated tangents.\n\nSTYLE TARGET EXAMPLE "
+                        "plain sentence, before the ending. End on a supported takeaway from this episode, not a disclaimer; "
+                        "omit the takeaway if the evidence offers no useful synthesis. Develop each chapter with distinct "
+                        "supported details from its evidence, including mechanism, context and implications when available. "
+                        "Do not add unrelated tangents.\n\nSTYLE TARGET EXAMPLE "
                         "(copy the qualities, never its sentences or facts):\n" + STYLE_TARGET_EXAMPLE)
                     draft = call(host_system, payload, SCRIPT_SCHEMA)
                     if attempt == 0:
@@ -1707,6 +1833,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                             'uncertainty_relevant': True,
                             'topic_relevance_checked': True,
                             'off_topic_sentences_pruned': len(set(off_topic_rejected)),
+                            'pruned_claim_count': len(set(rejected)),
                             'pruned_and_rechecked': attempt >= 2,
                             'pruning_checks': max(0, attempt - 1),
                             'scope': 'Episode claim checks reuse edition scorecard 1–5, 8, 9, 13. Historical freshness, reuse rights and audio are not certified.',
@@ -1734,6 +1861,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
         if card.get('passed') and unsupported and _is_gemini_client(client):
             _pruned_ids, rejected_now, off_topic_now = _prune_bad_verdicts(
                 draft, rows, verdict_map, relevance_map)
+            pruned_evidence_ids.update(ident for row in rows if row['id'] in _pruned_ids
+                                       for ident in row.get('evidence_ids', []))
             rejected.extend(rejected_now)
             off_topic_rejected.extend(off_topic_now)
             verification = {'passed': True, 'semantic_support': True,
@@ -1741,6 +1870,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                             'uncertainty_relevant': True,
                             'topic_relevance_checked': True,
                             'off_topic_sentences_pruned': len(set(off_topic_rejected)),
+                            'pruned_claim_count': len(set(rejected)),
                             'soft_warnings': ['unsupported_sentences_pruned']}
         else:
             raise InsufficientEvidence('script_verification_failed', {
@@ -1753,6 +1883,19 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                                        if r['kind'] in {'claim', 'closing'} and verdict_map.get(r['id']) is not True],
                 'sources_read': len(sources)})
     verified_words = _draft_word_count(draft)
+    if verification.get('pruned_claim_count', 0) > 0:
+        draft, evidence_expansion = _expand_verified_chapters(
+            draft, research_plan, evidence, sources, topic, length * WORDS_PER_MINUTE,
+            call, request_context, style, rejected, pruned_evidence_ids)
+    else:
+        evidence_expansion = {'attempted': False, 'applied': False, 'words_added': 0,
+                              'reason': 'verification_did_not_prune'}
+    if evidence_expansion['attempted']:
+        verification['verified_evidence_expansion'] = evidence_expansion
+        logging.info('episode_verified_evidence_expansion %s', json.dumps({
+            'attempted': True, 'applied': evidence_expansion['applied'],
+            'words_added': evidence_expansion['words_added'],
+            'reason': evidence_expansion['reason']}, sort_keys=True))
     def materialize(script_draft):
         rendered, used_sources = [], set()
         for index, chapter in enumerate(script_draft['chapters'], 1):
@@ -1907,7 +2050,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
     length_report = _episode_length_report(length * WORDS_PER_MINUTE, writer_words,
         expanded_words, verified_words, repaired_words, count, research_plan, chapters,
         writer_chapter_words, {'attempts': expansion_attempts,
-                               'applied': expansions_applied, 'failed': expansion_failures})
+                               'applied': expansions_applied, 'failed': expansion_failures},
+        evidence_expansion)
     if count < 80 or count > length * WORDS_PER_MINUTE * 1.2:
         raise InsufficientEvidence('script_length_out_of_bounds')
     final_report = score_episode_script({'chapters': chapters, 'requested_minutes': length})
