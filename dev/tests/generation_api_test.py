@@ -1156,7 +1156,14 @@ class GenerationApiTests(unittest.TestCase):
                           'accepted_words': 220, 'target_words': 700,
                           'target_words_per_story': 223, 'gate': 'soft',
                           'finding_codes': ['narration_underdeveloped_with_unused_evidence'],
-                          'repair_pass': False, 'expansion_pass': False,
+                          'repair_pass': False, 'expansion_requested': True, 'expansion_pass': False,
+                          'finding_details': [{'section_id': 'fictional-story-1',
+                              'story_heading': 'Fictional public notice',
+                              'sentence_index': 2, 'code': 'unsupported_sentence',
+                              'general_context': False, 'verifier_supported': True,
+                              'deterministic_supported': False,
+                              'text': 'private rejected draft sentence'},
+                              {'section_id': '../private', 'code': 'unsupported_sentence'}],
                           'draft': 'must not leak'},
                          {'attempt': 2, 'stories_in': 3, 'words_out': 680,
                           'accepted_words': 660, 'target_words': 700,
@@ -1167,7 +1174,15 @@ class GenerationApiTests(unittest.TestCase):
         self.assertTrue(status['expansion_used'])
         self.assertEqual(len(status['attempts']), 2)
         self.assertEqual(status['attempts'][0]['words_out'], 240)
+        self.assertTrue(status['attempts'][0]['expansion_requested'])
+        self.assertFalse(status['attempts'][0]['expansion_pass'])
+        self.assertEqual(status['attempts'][0]['finding_details'], [{
+            'section_id': 'fictional-story-1', 'code': 'unsupported_sentence',
+            'sentence_index': 2, 'story_heading': 'Fictional public notice',
+            'general_context': False, 'verifier_supported': True,
+            'deterministic_supported': False}])
         self.assertNotIn('must not leak', json.dumps(status))
+        self.assertNotIn('private rejected draft sentence', json.dumps(status))
         self.assertIn('message', status)
 
     def test_narration_failure_preserves_critical_content_gate_and_clears_script(self):

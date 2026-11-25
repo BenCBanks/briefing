@@ -722,6 +722,28 @@ def _daily_narration_job_status(report):
                                      re.fullmatch(r'[a-z0-9_]{1,80}', code)]
             safe['repair_pass'] = row.get('repair_pass') is True
             safe['expansion_pass'] = row.get('expansion_pass') is True
+            safe['expansion_requested'] = row.get('expansion_requested') is True
+            finding_details = []
+            raw_details = row.get('finding_details')
+            for detail in raw_details[:20] if isinstance(raw_details, list) else []:
+                if not isinstance(detail, dict) or detail.get('code') != 'unsupported_sentence':
+                    continue
+                section_id = detail.get('section_id')
+                if not isinstance(section_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,120}', section_id):
+                    continue
+                safe_detail = {'section_id': section_id, 'code': 'unsupported_sentence'}
+                sentence_index = detail.get('sentence_index')
+                if type(sentence_index) is int and 0 <= sentence_index < 10000:
+                    safe_detail['sentence_index'] = sentence_index
+                for key in ('general_context', 'verifier_supported', 'deterministic_supported'):
+                    if type(detail.get(key)) is bool:
+                        safe_detail[key] = detail[key]
+                heading = detail.get('story_heading')
+                if isinstance(heading, str):
+                    safe_detail['story_heading'] = re.sub(r'[\x00-\x1f\x7f]+', ' ', heading)[:160]
+                finding_details.append(safe_detail)
+            if finding_details:
+                safe['finding_details'] = finding_details
             if isinstance(row.get('failed_at'), str) and re.fullmatch(r'[a-z_]{1,40}', row['failed_at']):
                 safe['failed_at'] = row['failed_at']
             if isinstance(row.get('lost_at_stage'), str) and re.fullmatch(r'[a-z_]{1,40}', row['lost_at_stage']):
@@ -793,12 +815,19 @@ def _log_daily_narration_attempts(narration_result):
             continue
         codes = [code for code in row.get('finding_codes', [])[:12]
                  if isinstance(code, str) and re.fullmatch(r'[a-z0-9_]{1,80}', code)]
+        details = row.get('finding_details')
+        unsupported_stories = [detail['section_id'] for detail in details[:20]
+                               if isinstance(detail, dict) and
+                               detail.get('code') == 'unsupported_sentence' and
+                               isinstance(detail.get('section_id'), str)] if isinstance(details, list) else []
         logging.getLogger(__name__).info(
-            'daily_narration_attempt attempt=%s stories=%s words=%s target=%s gate=%s rules=%s repair=%s expansion=%s stage=%s',
+            'daily_narration_attempt attempt=%s stories=%s words=%s target=%s gate=%s rules=%s repair=%s expansion_requested=%s expansion=%s unsupported_stories=%s stage=%s',
             row.get('attempt', 0), row.get('stories_in', 0), row.get('words_out', 0),
             row.get('target_words', 0), row.get('gate', 'unknown'),
             ','.join(codes) or 'none', bool(row.get('repair_pass')),
-            bool(row.get('expansion_pass')), row.get('failed_at', 'script_review'))
+            bool(row.get('expansion_requested')), bool(row.get('expansion_pass')),
+            ','.join(unsupported_stories) or 'none',
+            row.get('failed_at', 'script_review'))
 
 
 def _persist_job_scorecard(directory, job_id, report):

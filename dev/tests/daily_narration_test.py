@@ -175,7 +175,8 @@ class DailyNarrationTests(unittest.TestCase):
         evidence = deepcopy(self.evidence)
         evidence_ids = []
         long_rows = []
-        for group in range(4):
+        # A single unused source sentence is enough to trigger an evidence-bound expansion.
+        for group in range(2):
             evidence_id = f'{sid}-detail-{group}'
             evidence_ids.append(evidence_id)
             sentences = [
@@ -217,9 +218,20 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertEqual(result['status'], 'written', result)
         self.assertEqual(len(writer_prompts), 2)
         self.assertTrue(writer_prompts[1].get('expansion_pass'))
+        self.assertEqual(len(writer_prompts[1]['evidence_expansion']), 1)
+        expansion = writer_prompts[1]['evidence_expansion'][0]
+        self.assertEqual(expansion['section_id'], sid)
+        self.assertEqual(expansion['used_evidence_ids'], [evidence_ids[0]])
+        self.assertEqual([row['id'] for row in expansion['unused_evidence']], [evidence_ids[1]])
+        self.assertEqual(len(expansion['accepted_supported_sentences']), 1)
+        self.assertEqual([row['id'] for row in writer_prompts[1]['stories'][0]['evidence']],
+                         [evidence_ids[1]])
         self.assertTrue(result['expansion_used'])
         self.assertEqual([row['attempt'] for row in result['attempts']], [1, 2])
         self.assertTrue(result['attempts'][0]['finding_codes'])
+        self.assertTrue(result['attempts'][0]['expansion_requested'])
+        self.assertFalse(result['attempts'][0]['expansion_pass'])
+        self.assertTrue(result['attempts'][1]['expansion_pass'])
         self.assertTrue(result['attempts'][1]['repair_pass'])
         self.assertEqual(result['lost_at_stage'], None)
 
@@ -252,6 +264,13 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertEqual(accepted['a'][0]['text'], stories['a'][0]['text'])
         self.assertFalse(any(row.get('code') == 'narration_underdeveloped_with_unused_evidence'
                              for row in findings))
+
+    def test_daily_host_prompt_forbids_factual_glue_sentences(self):
+        prompt = SCRIPT_PROMPT.format(target_words=220)
+        self.assertIn('Do not create factual bridge or glue sentences', prompt)
+        self.assertIn('omit a transition that cannot be grounded', prompt)
+        self.assertIn('General context is for explaining a concept or mechanism, never for connective filler', prompt)
+        self.assertIn("infer an actor's motives", prompt)
 
     def test_enrichment_discards_unknown_ids_and_keeps_bounded_verified_evidence(self):
         evidence = [{'id': 'required'}, *[{'id': f'optional-{index}'} for index in range(25)]]
@@ -1629,6 +1648,16 @@ class DailyNarrationTests(unittest.TestCase):
 
         self.assertEqual(result['status'], 'fallback', result)
         self.assertEqual(result['reason'], 'narration_style_or_evidence_check')
+        unsupported_details = [detail for detail in result['attempts'][0].get('finding_details', [])
+                               if detail.get('code') == 'unsupported_sentence']
+        self.assertTrue(unsupported_details)
+        self.assertEqual(unsupported_details[0]['section_id'], 'story-fed-snb')
+        self.assertEqual(unsupported_details[0]['story_heading'],
+                         'Federal Reserve terminates an action involving SNB Bancshares')
+        self.assertIn('general_context', unsupported_details[0])
+        self.assertIn('verifier_supported', unsupported_details[0])
+        self.assertIn('deterministic_supported', unsupported_details[0])
+        self.assertNotIn(rejected_claim, json.dumps(unsupported_details))
         self.assertEqual(self.edition, before,
                          'an explicitly rejected claim does not mutate or pad the daily edition')
         final = json.loads((Path(STATE_DIR) / result['debug_files'][-1]).read_text(encoding='utf-8'))
