@@ -270,6 +270,14 @@ def _worker(args):
     from dev.ingest import core, daily, generation_api, usage
     from dev.ingest import daily_audio
     from dev.ingest.paths import checked_state_path
+    for name, output_path in (
+            ('default editions', generation_api.DEFAULT_EDITION_DIR),
+            ('status', generation_api._status_file_path()),
+            ('robots cache', core.ROBOTS_CACHE_PATH)):
+        resolved = Path(output_path).expanduser().resolve()
+        if resolved != state and state not in resolved.parents:
+            raise RuntimeError(f'comparison state path escaped temporary root: {name}')
+        assert_isolated_state(resolved)
     profile = json.loads(Path(args.profile_file).read_text(encoding='utf-8'))
     captured_ingest = {}
     if args.frozen_input:
