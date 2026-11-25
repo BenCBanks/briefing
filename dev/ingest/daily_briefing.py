@@ -26,6 +26,9 @@ _JUNK_TITLE = re.compile(
     r'^(?:\d+\s+(?:things|ways|reasons)\b|best\s+.+\bcards?\b|review\b|how\s+to\s+get\b|deals?\b)', re.I)
 _JUNK_TERMS = re.compile(r'\b(?:reviews?|how\s+to\s+get|deals?)\b', re.I)
 _PROMO = re.compile(r'\b(?:affiliate|sponsored|promotion|promo code|advertorial|paid partnership)\b', re.I)
+_ACADEMIC_ABSTRACT = re.compile(
+    r'\b(?:working paper|preprint|arxiv|abstract|research paper|literature review|'
+    r'empirical analysis|methodology|econometric model)\b', re.I)
 _NEWS_VERB = re.compile(
     r'\b(?:adds?|adopts?|approves?|backs?|blocks?|changes?|cuts?|delays?|drops?|expands?|files?|finds?|'
     r'funds?|halts?|increases?|issues?|launches?|limits?|opens?|passes?|plans?|raises?|releases?|'
@@ -173,7 +176,8 @@ def _quick_hit_quality(hit, topic_ids):
     except (OSError, ValueError, TypeError):
         low_tier = False
     rank = freshness_rank(1.0, credibility_score(hit), hit.get('published_at'), source_kind='news')
-    if (not rank['eligible'] or not title or _JUNK_TITLE.search(title) or _JUNK_TERMS.search(title) or _PROMO.search(text) or
+    if (not rank['eligible'] or not title or _JUNK_TITLE.search(title) or _JUNK_TERMS.search(title) or
+            _ACADEMIC_ABSTRACT.search(title) or _ACADEMIC_ABSTRACT.search(text) or _PROMO.search(text) or
             host in _QUICK_HIT_DENY_HOSTS or host.endswith('.bankrate.com') or
             low_tier or
             str(hit.get('tier', '')).casefold() in {'low', 'low-tier', 'tier4'} or
