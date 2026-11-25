@@ -109,11 +109,14 @@ class EpisodeExpansionRegressionTests(unittest.TestCase):
             {'sentences': [{'text': 'One two three.', 'kind': 'claim'}]},
             {'sentences': [{'text': 'Four five six.', 'kind': 'claim'}]},
         ]
-        report = _episode_length_report(700, 710, 700, 260, 250, 245, plan, chapters)
+        report = _episode_length_report(700, 710, 700, 260, 250, 245, plan, chapters,
+                                        [355, 355], {'attempts': 2, 'applied': 2, 'failed': 0})
         self.assertEqual(report['lost_at_stage'], 'verification_pruning')
         self.assertEqual(report['word_loss_by_stage']['verification_pruning'], 440)
         self.assertEqual(report['chapter_budgets'][0], {
-            'chapter': 1, 'target_words': 350, 'minimum_words': 315, 'got_words': 3})
+            'chapter': 1, 'target_words': 350, 'minimum_words': 315,
+            'writer_words': 355, 'got_words': 3})
+        self.assertEqual(report['chapter_expansion'], {'attempts': 2, 'applied': 2, 'failed': 0})
         self.assertEqual(report['report_line'],
                          'requested 700 words, got 245, lost at stage verification_pruning')
 
