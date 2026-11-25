@@ -56,6 +56,13 @@ class DailyCompareTests(unittest.TestCase):
         self.assertEqual(safe, {'source_results': {"('host', 1)": 'timeout'}})
         self.assertEqual(json.loads(json.dumps(safe)), safe)
 
+    def test_audio_state_reads_new_state_field_when_audio_status_is_absent(self):
+        result = compare_daily.snapshot_result(
+            {'daily_run': {'status': 'complete',
+                           'daily_audio': {'audio_status': 'pending'}}},
+            {'audio': {'state': 'recorded'}}, {}, [])
+        self.assertEqual(result['audio_state'], {'edition': 'recorded', 'status': 'pending'})
+
     def test_shape_diff_ignores_content_and_reports_schema_change(self):
         baseline = fake_snapshot()
         same_structure = fake_snapshot(warnings=['old warning'])
