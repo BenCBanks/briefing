@@ -13,6 +13,7 @@ import shutil
 import sys
 import tempfile
 import time
+from datetime import datetime, timezone
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
@@ -35,7 +36,8 @@ def _safe_reason(value):
     if value in {'generation_timeout', 'generation_in_progress', 'gemini_call_limit',
                  'ingestion_disabled_by_kill_switch', 'daily_generation_timeout',
                  'generation_not_started', 'invalid_profile', 'writer_disabled',
-                 'profile_generation_incomplete', 'edition_copy_failed'}:
+                 'profile_generation_incomplete', 'edition_copy_failed',
+                 'edition_exists_today'}:
         return value
     if re.fullmatch(r'generation_failed:(initialization|feed_fetch|edition_writer|scorecard|edition_publish):[A-Za-z][A-Za-z0-9]{0,39}', value):
         return value
@@ -623,6 +625,8 @@ def write_run_report(result, path=None):
         pass
     report = _daily_run_report(result)
     current['daily_run'] = report
+    if report.get('status') == 'complete':
+        current.pop('retry_attempt', None)
     _atomic_json(path, current)
     from dev.tools.morning_report import build_report
     ledger_file = None
@@ -793,9 +797,46 @@ def run_daily(wait_seconds=MAX_GENERATION_SECONDS + 5, poll_seconds=0.25, profil
               report_writer=write_run_report, daily_audio_renderer=render_daily_audio,
               daily_audio_persister=_persist_daily_audio):
     def finish(code, result, record=True):
+        if code != 0 and retry_protection is not None:
+            # A retry may have updated status.json to failed inside the
+            # generation worker before this coordinator sees the result.
+            # Restore the successful record and retain only a bounded retry
+            # diagnostic alongside it.
+            path, prior = retry_protection
+            report = _daily_run_report(result)
+            reason = report.get('failure_reason') or 'generation_failed'
+            prior['retry_attempt'] = {
+                'local_date': retry_day,
+                'status': 'failed',
+                'reason': reason[:160],
+                'attempted_at': datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z'),
+            }
+            _atomic_json(path, prior)
+            return code, result
         if record:
             report_writer(result)
         return code, result
+    retry_protection = None
+    retry_day = None
+    if os.environ.get('BRIEFING_ACCOUNTS', '').strip().lower() != 'on':
+        from dev.tools.daily_guard import edition_bundle_for_date, today_et_date
+        state_dir = checked_state_path(Path(os.environ.get('BRIEFING_STATE_DIR') or
+                                            generation_api.STATE_DIR))
+        retry_day = today_et_date()
+        _bundle, existing = edition_bundle_for_date(state_dir, retry_day)
+        status_path = generation_api._status_file_path(state_dir / 'status.json')
+        prior_status = None
+        try:
+            value = json.loads(status_path.read_text(encoding='utf-8'))
+        except (OSError, ValueError, TypeError):
+            value = None
+        if isinstance(value, dict):
+            prior_status = value
+        daily_report = (prior_status.get('daily_run') if isinstance(prior_status, dict) else None)
+        if (existing is not None and isinstance(prior_status, dict) and prior_status.get('ok') is True and
+                isinstance(daily_report, dict) and daily_report.get('status') == 'complete' and
+                daily_report.get('local_date') == retry_day):
+            retry_protection = (status_path, copy.deepcopy(prior_status))
     try:
         loaded = profile_loader()
     except (OSError, ValueError, TypeError):

@@ -70,22 +70,20 @@ class DailyGuardTests(unittest.TestCase):
             self.assertFalse(retry)
             self.assertEqual(reasons, [])
 
-    def test_retry_follows_today_edition_and_content_health_not_ok_flag(self):
+    def test_same_day_edition_keeps_quality_and_length_retry_reasons(self):
         ok_status = {'ok': True, 'daily_run': {'status': 'complete'}}
         good_checks = [{'name': 'quality', 'passed': True}]
         _bundle, full_edition = bundle()
         short = dict(full_edition)
         short['daily_briefing'] = {'spoken_words': 250}
-        cases = [
-            (ok_status, [{'passed': False}], full_edition, False, 'content_check_failed'),
-            (ok_status, good_checks, short, False, 'spoken_under_3_minutes'),
-        ]
-        for status, checks, edition, cap, reason in cases:
-            with self.subTest(reason=reason):
-                retry, reasons = daily_guard.decide(status=status, content_checks=checks,
-                                                    edition=edition, audio_budget_allows=cap)
-                self.assertTrue(retry)
-                self.assertIn(reason, reasons)
+        retry, reasons = daily_guard.decide(status=ok_status, content_checks=[{'passed': False}],
+                                            edition=full_edition, audio_budget_allows=False)
+        self.assertTrue(retry)
+        self.assertEqual(reasons, ['content_check_failed'])
+        retry, reasons = daily_guard.decide(status=ok_status, content_checks=good_checks,
+                                            edition=short, audio_budget_allows=False)
+        self.assertTrue(retry)
+        self.assertEqual(reasons, ['spoken_under_3_minutes'])
 
         retry, reasons = daily_guard.decide(status={'ok': False}, content_checks=good_checks,
             edition=full_edition, audio_budget_allows=False, today=full_edition['local_date'])
@@ -98,7 +96,7 @@ class DailyGuardTests(unittest.TestCase):
         self.assertTrue(retry)
         self.assertIn('today_edition_missing', reasons)
 
-    def test_missing_audio_retries_only_when_estimate_fits_daily_reserve(self):
+    def test_missing_audio_retries_only_when_the_audio_budget_allows(self):
         status = {'ok': True, 'daily_run': {'status': 'complete'}}
         checks = [{'passed': True}]
         _bundle, edition = bundle(audio_status='pending')
@@ -134,8 +132,11 @@ class DailyGuardTests(unittest.TestCase):
             (state / 'status.json').write_text(json.dumps({'ok': True,
                 'daily_run': {'status': 'complete'}}), encoding='utf-8')
             output = io.StringIO()
-            with patch.dict('os.environ', {'BRIEFING_TTS': 'disabled'}), contextlib.redirect_stdout(output):
-                code = daily_guard.main(['--state-dir', temp], budget_checker=lambda _edition: True)
+            with patch.dict('os.environ', {'BRIEFING_TTS': 'disabled'}), \
+                    patch.object(daily_guard, 'check_content', return_value=[{'passed': True}]), \
+                    contextlib.redirect_stdout(output):
+                code = daily_guard.main(['--state-dir', temp],
+                                        budget_checker=lambda _edition: self.fail('no TTS estimate needed'))
         self.assertEqual(code, 1)
         self.assertEqual(output.getvalue().strip(), 'daily_guard decision=skip reasons=healthy')
         self.assertNotIn('Fictional', output.getvalue())
