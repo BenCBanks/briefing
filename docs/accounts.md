@@ -38,8 +38,12 @@ are unavailable and no account state is created.
   always derive the reader ID from the authenticated session; request fields
   cannot select another reader's directory.
 - Episode use is counted per reader and charged through the normal global usage
-  ledger. The global daily and monthly caps remain authoritative; account
-  attribution adds reporting, not a second way around those caps.
+  ledger. Account-mode `/api/usage` and `/api/account/me` report only that
+  reader's episode job count and recorded cost. The global daily and monthly
+  caps remain authoritative; account attribution adds reporting, not a second
+  way around those caps. The three-job daily limit spans all of one reader's
+  profiles, and account-mode job IDs use 128 bits of randomness before being
+  looked up in that reader's private job store.
 
 ## JSON API contract
 

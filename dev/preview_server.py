@@ -15,6 +15,7 @@ import os
 import re
 import threading
 import time
+from decimal import Decimal, InvalidOperation
 from collections import OrderedDict
 
 # Direct execution must share the writer proxy's dev.ingest.usage ContextVars.
@@ -89,6 +90,44 @@ POST_RATE_LIMITS = {
     '/api/profile/delete': 3, '/api/episodes': 10, '/api/corrections': 10,
     '/api/episode-action': 30, '/api/voice': 10,
 }
+API_ROUTE_CLASSIFICATION = {
+    ('POST', 'prefix:/api/account/'): 'ACCOUNT',
+    ('POST', '/api/account/signup'): 'ACCOUNT',
+    ('POST', '/api/account/login'): 'ACCOUNT',
+    ('POST', '/api/account/logout'): 'ACCOUNT',
+    ('POST', '/api/account/delete'): 'ACCOUNT',
+    ('GET', 'prefix:/api/account/'): 'ACCOUNT',
+    ('GET', '/api/account/me'): 'ACCOUNT',
+    ('GET', '/api/account/csrf'): 'ACCOUNT',
+    ('GET', '/api/account/export'): 'ACCOUNT',
+    ('POST', '/api/corrections'): 'READER_SCOPED',
+    ('POST', '/api/edition/seen'): 'READER_SCOPED',
+    ('POST', '/api/episodes'): 'READER_SCOPED',
+    ('POST', '/api/generate'): 'READER_SCOPED',
+    ('POST', '/api/interpret'): 'READER_SCOPED',
+    ('POST', '/api/profile'): 'READER_SCOPED',
+    ('POST', '/api/profile/delete'): 'READER_SCOPED',
+    ('POST', '/api/voice'): 'READER_SCOPED',
+    ('POST', r're:/api/episodes/([a-f0-9]{32})/cancel'): 'READER_SCOPED',
+    ('GET', '/api/corrections'): 'READER_SCOPED',
+    ('GET', '/api/daily/audio'): 'READER_SCOPED',
+    ('GET', '/api/edition'): 'READER_SCOPED',
+    ('GET', '/api/episodes'): 'READER_SCOPED',
+    ('GET', '/api/profile'): 'READER_SCOPED',
+    ('GET', '/api/profile/export'): 'READER_SCOPED',
+    ('GET', '/api/usage'): 'READER_SCOPED',
+    ('GET', '/api/voice'): 'READER_SCOPED',
+    ('GET', 'prefix:/api/generate/'): 'READER_SCOPED',
+    ('GET', r're:/api/episodes/([A-Za-z0-9][A-Za-z0-9_-]{0,63})/audio'): 'READER_SCOPED',
+    ('GET', r're:/api/episodes/([a-f0-9]{32})'): 'READER_SCOPED',
+    ('GET', r're:/api/episodes/([a-f0-9]{32})/captions\.vtt'): 'READER_SCOPED',
+    ('GET', r're:/api/episodes/([a-f0-9]{32})/chapters/([A-Za-z0-9][A-Za-z0-9_-]{0,63})/audio'): 'READER_SCOPED',
+    ('GET', r're:/api/revisions/(edition|episode)/([A-Za-z0-9_-]+)/([A-Za-z0-9_-]+)'): 'READER_SCOPED',
+    ('GET', '/api/feed'): 'GLOBAL',
+    ('GET', '/api/flags'): 'GLOBAL',
+    ('GET', '/api/health'): 'GLOBAL',
+    ('GET', '/api/status'): 'GLOBAL',
+}
 
 
 def accounts_enabled():
@@ -111,7 +150,7 @@ def _account_episode_store(account_id):
     with _ACCOUNT_STORE_LOCK:
         store = _ACCOUNT_JOB_STORES.get(account_id)
         if store is None:
-            store = EpisodeJobStore(accounts.reader_state_dir(account_id))
+            store = EpisodeJobStore(accounts.reader_state_dir(account_id), account_daily_limit=True)
             store.startup()
             _ACCOUNT_JOB_STORES[account_id] = store
         else:
@@ -745,6 +784,45 @@ class Handler(BaseHTTPRequestHandler):
             return EPISODE_VOICE_FILE
         return self._reader_audio_state_dir() / 'voice.json'
 
+    def _account_usage_summary(self, account_id):
+        root = accounts.reader_state_dir(account_id, create=False) / 'episode-jobs' / 'profiles'
+        if root.is_symlink():
+            raise accounts.AccountError(503, 'account_data_unavailable')
+        total = Decimal('0')
+        jobs_seen = 0
+        if root.exists():
+            for profile_dir in root.iterdir():
+                if not re.fullmatch(r'[a-f0-9]{24}', profile_dir.name):
+                    continue
+                if profile_dir.is_symlink() or not profile_dir.is_dir():
+                    raise accounts.AccountError(503, 'account_data_unavailable')
+                for path in profile_dir.glob('*.json'):
+                    if not re.fullmatch(r'[a-f0-9]{32}\.json', path.name):
+                        continue
+                    if path.is_symlink() or not path.is_file():
+                        raise accounts.AccountError(503, 'account_data_unavailable')
+                    try:
+                        if path.stat().st_size > 2 * 1024 * 1024 or jobs_seen >= 500:
+                            raise accounts.AccountError(413, 'account_export_too_large')
+                        job = json.loads(path.read_text(encoding='utf-8'))
+                        if not isinstance(job, dict):
+                            continue
+                        jobs_seen += 1
+                        cost_record = job.get('cost_record')
+                        if not isinstance(cost_record, dict):
+                            episode = job.get('episode')
+                            cost_record = episode.get('cost_record') if isinstance(episode, dict) else None
+                        if isinstance(cost_record, dict):
+                            amount = Decimal(str(cost_record.get('estimated_cost_usd', '0')))
+                            if amount.is_finite() and amount >= 0:
+                                total += amount
+                    except accounts.AccountError:
+                        raise
+                    except (OSError, ValueError, TypeError, InvalidOperation):
+                        raise accounts.AccountError(503, 'account_data_unavailable') from None
+        return {'episode_jobs': jobs_seen, 'recorded_cost_usd': f'{total:.8f}',
+                'daily_episode_limit': 3, 'daily_limit_scope': 'reader'}
+
     def _account_csrf(self, payload=None):
         return self.headers.get('X-CSRF-Token') or (payload or {}).get('csrf_token')
 
@@ -1105,6 +1183,9 @@ class Handler(BaseHTTPRequestHandler):
             self._send_json(200, result)
             return
         if request.path == '/api/usage':
+            if accounts_enabled():
+                self._send_json(200, self._account_usage_summary(self._reader_session[2]['id']))
+                return
             try:
                 ledger = process_ledger(UsageLedger)
                 result = ledger.summary()
@@ -1245,7 +1326,8 @@ class Handler(BaseHTTPRequestHandler):
             row = accounts.require(self._account_token())
             account = accounts._public(row[2])
             if path == '/api/account/me':
-                self._send_json(200, {'account': account, 'usage': {}})
+                self._send_json(200, {'account': account,
+                                      'usage': self._account_usage_summary(row[2]['id'])})
                 return
             if path == '/api/account/csrf':
                 self._send_json(200, {'csrf_token': row[1]['csrf']})

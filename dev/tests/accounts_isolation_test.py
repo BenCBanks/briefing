@@ -5,12 +5,17 @@ _briefing_sys.path.insert(0, str(_BriefingPath(__file__).resolve().parents[2]))
 from dev.test_guard import enforce_test_environment as _enforce_test_environment
 _enforce_test_environment()
 
+import ast
 import hashlib
 import http.client
+import inspect
 import json
 import os
+import re
 import tempfile
+import textwrap
 import unittest
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 from contextlib import ExitStack
 from http.server import ThreadingHTTPServer
@@ -20,6 +25,7 @@ from unittest.mock import patch
 from dev import accounts, preview_server
 from dev.ingest.jobs import EpisodeJobStore, fake_episode
 from dev.ingest.paths import profile_identifier
+from dev.ingest.usage import UsageLedger
 
 
 class AccountIsolationTests(unittest.TestCase):
@@ -77,7 +83,13 @@ class AccountIsolationTests(unittest.TestCase):
         connection.request(method, path, body=encoded, headers=headers)
         response = connection.getresponse()
         data = response.read()
-        result = json.loads(data) if data else None
+        if data:
+            try:
+                result = json.loads(data)
+            except (ValueError, UnicodeDecodeError):
+                result = data.decode('utf-8', errors='replace')
+        else:
+            result = None
         connection.close()
         return response.status, result
 
@@ -114,10 +126,20 @@ class AccountIsolationTests(unittest.TestCase):
         _, created = self.store_a.submit(scoped_a, {'topic': 'Reader A episode', 'length': 5,
                                                     'style': 'news-brief'}, start=False)
         job_id = created['job_id']
+        self.assertRegex(job_id, r'^[a-f0-9]{32}$')
+        self.store_a._mutate(self.store_a._profile_dir(scoped_a), job_id,
+                             cost_record={'estimated_cost_usd': '0.12345678'})
         list_a = self._request('GET', '/api/episodes', a)[1]['jobs']
         list_b = self._request('GET', '/api/episodes', b)[1]['jobs']
         self.assertTrue(any(row['job_id'] == job_id for row in list_a))
         self.assertFalse(any(row['job_id'] == job_id for row in list_b))
+        usage_a = self._request('GET', '/api/usage', a)[1]
+        usage_b = self._request('GET', '/api/usage', b)[1]
+        self.assertEqual(usage_a['episode_jobs'], 1)
+        self.assertEqual(usage_a['recorded_cost_usd'], '0.12345678')
+        self.assertEqual(usage_b['episode_jobs'], 0)
+        self.assertEqual(usage_b['recorded_cost_usd'], '0.00000000')
+        self.assertEqual(self._request('GET', '/api/account/me', a)[1]['usage'], usage_a)
 
         self.assertEqual(self._request('GET', f'/api/episodes/{job_id}', a)[0], 200)
         self.assertEqual(self._request('GET', f'/api/episodes/{job_id}', b)[0], 404)
@@ -176,6 +198,128 @@ class AccountIsolationTests(unittest.TestCase):
         self.assertEqual(self._request('POST', '/api/voice', a, {'letter': 'C'})[0], 200)
         self.assertEqual(self._request('GET', '/api/voice', a)[1], {'letter': 'C'})
         self.assertEqual(self._request('GET', '/api/voice', b)[1], {'letter': 'A'})
+
+    def test_episode_daily_limit_is_account_wide_across_concurrent_profile_changes(self):
+        store = EpisodeJobStore(
+            self.root / 'limited-reader', generator=fake_episode, stage_delay=0,
+            ledger=UsageLedger(ledger_dir=self.root / 'limited-ledger'),
+            key_available=lambda: True, tts_enabled=False, account_daily_limit=True)
+        profiles = [
+            {'minutes': 12, 'topics': [{'id': f'profile-{index}', 'label': f'Profile {index}'}]}
+            for index in range(4)
+        ]
+
+        def submit(index):
+            return store.submit(profiles[index], {
+                'topic': f'Fictional topic {index}', 'length': 3, 'style': 'explainer'}, start=False)
+
+        with ThreadPoolExecutor(max_workers=4) as workers:
+            responses = list(workers.map(submit, range(4)))
+        statuses = [row[0] for row in responses]
+        self.assertEqual(statuses.count(202), 3)
+        self.assertEqual(statuses.count(429), 1)
+        ids = [row[1]['job_id'] for row in responses if row[0] == 202]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertTrue(all(re.fullmatch(r'[a-f0-9]{32}', job_id) for job_id in ids))
+
+    def test_generation_polling_delete_and_action_routes_do_not_cross_readers(self):
+        _, token_a, csrf_a = accounts.login('reader-a', 'a fictional account password', 'generation-a')
+        _, token_b, csrf_b = accounts.login('reader-b', 'a fictional account password', 'generation-b')
+        a = {'token': token_a, 'csrf': csrf_a}; b = {'token': token_b, 'csrf': csrf_b}
+        profile_a = {'minutes': 12, 'topics': [{'id': 'gen-a', 'label': 'Reader A'}]}
+        profile_b = {'minutes': 12, 'topics': [{'id': 'gen-b', 'label': 'Reader B'}]}
+        self.assertEqual(self._request('POST', '/api/profile', a, {'profile': profile_a})[0], 200)
+        self.assertEqual(self._request('POST', '/api/profile', b, {'profile': profile_b})[0], 200)
+        job_id = 'a' * 32
+        scoped_a = {**profile_a, '_account_scope': accounts.session(token_a)[2]['id']}
+        with patch.object(preview_server, 'start_generation',
+                          return_value=(202, {'job_id': job_id, 'status': 'queued'})) as start:
+            status, _ = self._request('POST', '/api/generate', a, {'profile': profile_a})
+        self.assertEqual(status, 202)
+        self.assertEqual(start.call_args.args[0]['_account_scope'], accounts.session(token_a)[2]['id'])
+        with patch.object(preview_server, 'job_response',
+                          return_value=(200, {'job_id': job_id,
+                                              'profile_id': profile_identifier(scoped_a)})):
+            self.assertEqual(self._request('GET', f'/api/generate/{job_id}', a)[0], 200)
+            status, result = self._request('GET', f'/api/generate/{job_id}', b)
+            self.assertEqual(status, 404)
+            self.assertEqual(result, {'error': 'job_not_found'})
+
+        # The legacy delete path and the old action alias never reveal a target;
+        # cancellation is the routed action and is also tested reader-scoped above.
+        status_a, result_a = self._request('POST', '/api/profile/delete', a, {'profile_id': 'reader-b'})
+        status_b, result_b = self._request('POST', '/api/profile/delete', b, {'profile_id': 'reader-a'})
+        self.assertEqual((status_a, result_a), (404, {'error': 'not_found'}))
+        self.assertEqual((status_b, result_b), (404, {'error': 'not_found'}))
+        self.assertEqual(self._request('GET', '/api/profile', a)[1]['profile']['topics'][0]['id'], 'gen-a')
+        status_a, _ = self._request('POST', '/api/episode-action', a, {'episode_id': job_id})
+        status_b, _ = self._request('POST', '/api/episode-action', b, {'episode_id': job_id})
+        self.assertEqual(status_a, 404)
+        self.assertEqual(status_b, 404)
+
+    def test_revisions_are_reader_scoped_while_interpret_and_feed_are_stateless(self):
+        _, token_a, csrf_a = accounts.login('reader-a', 'a fictional account password', 'routes-a')
+        _, token_b, csrf_b = accounts.login('reader-b', 'a fictional account password', 'routes-b')
+        a = {'token': token_a, 'csrf': csrf_a}; b = {'token': token_b, 'csrf': csrf_b}
+        self._request('POST', '/api/profile', a, {'profile': {'minutes': 12, 'topics': [{'id': 'a', 'label': 'A'}]}})
+        self._request('POST', '/api/profile', b, {'profile': {'minutes': 12, 'topics': [{'id': 'b', 'label': 'B'}]}})
+        account_a = accounts.session(token_a)[2]['id']
+
+        class ScopedRevision:
+            def revision(_self, profile, kind, target, revision):
+                if profile.get('_account_scope') != account_a:
+                    raise preview_server.CorrectionError('Revision not found.', status=404,
+                                                         code='revision_not_found')
+                return {'id': target, 'revision_id': revision, 'chapters': []}
+
+        with patch.object(preview_server.Handler, '_reader_corrections',
+                          autospec=True, return_value=ScopedRevision()):
+            self.assertEqual(self._request('GET', '/api/revisions/episode/topic/rev-one', a)[0], 200)
+            status, result = self._request('GET', '/api/revisions/episode/topic/rev-one', b)
+            self.assertEqual(status, 404)
+            self.assertEqual(result['error'], 'revision_not_found')
+
+        with patch.object(preview_server, 'interpret_request',
+                          side_effect=lambda payload, _ip: (200, {'topic': payload['topic']})), \
+                patch.object(preview_server, 'feed_response',
+                             return_value=(200, {'items': [{'id': 'global-fixture'}]})):
+            self.assertEqual(self._request('POST', '/api/interpret', a, {'topic': 'A question'})[1],
+                             {'topic': 'A question'})
+            self.assertEqual(self._request('POST', '/api/interpret', b, {'topic': 'B question'})[1],
+                             {'topic': 'B question'})
+            self.assertEqual(self._request('GET', '/api/feed', a)[1],
+                             self._request('GET', '/api/feed', b)[1])
+
+    def test_every_dispatched_api_route_has_a_security_classification(self):
+        allowed = {'GLOBAL', 'READER_SCOPED', 'ACCOUNT'}
+        self.assertTrue(set(preview_server.API_ROUTE_CLASSIFICATION.values()) <= allowed)
+        dispatchers = {
+            'POST': ('_handle_post', '_account_post'),
+            'GET': ('_handle_get', '_account_get'),
+        }
+        discovered = set()
+        for method, names in dispatchers.items():
+            for name in names:
+                tree = ast.parse(textwrap.dedent(inspect.getsource(
+                    getattr(preview_server.Handler, name))))
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Compare):
+                        for value in (node.left, *node.comparators):
+                            if isinstance(value, ast.Constant) and isinstance(value.value, str):
+                                if value.value.startswith('/api/') and value.value != '/api/':
+                                    discovered.add((method, value.value))
+                            elif isinstance(value, ast.Set):
+                                discovered.update((method, item.value) for item in value.elts
+                                                  if isinstance(item, ast.Constant) and
+                                                  isinstance(item.value, str) and
+                                                  item.value.startswith('/api/'))
+                    if isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute):
+                        if node.func.attr in {'fullmatch', 'startswith'} and node.args and isinstance(node.args[0], ast.Constant):
+                            value = node.args[0].value
+                            if isinstance(value, str) and value.startswith('/api/') and value != '/api/':
+                                key = f're:{value}' if node.func.attr == 'fullmatch' else f'prefix:{value}'
+                                discovered.add((method, key))
+        self.assertEqual(discovered, set(preview_server.API_ROUTE_CLASSIFICATION))
 
 
 if __name__ == '__main__':
