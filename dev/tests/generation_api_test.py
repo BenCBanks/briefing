@@ -1392,7 +1392,7 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(generation_api.MAX_GENERATION_SECONDS, 180)
         self.assertEqual(generation_api.GENERATION_FINALIZE_RESERVE_SECONDS, 10)
         self.assertEqual(generation_api.FEED_FETCH_BUDGET_SECONDS, 60)
-        self.assertEqual(generation_api.ARTICLE_EXTRACTION_BUDGET_SECONDS, 45)
+        self.assertEqual(generation_api.ARTICLE_EXTRACTION_BUDGET_SECONDS, 80)
         self.assertEqual(generation_api.MAX_ARTICLE_FETCHES_PER_RUN, 24)
         from ingest import write_edition
         # The callback is checked before every outbound call; the 41st is rejected.
@@ -1407,6 +1407,12 @@ class GenerationApiTests(unittest.TestCase):
                 time.sleep(0.01)
         self.assertEqual(job['error'], 'gemini_call_limit')
         self.assertEqual(job['gemini_calls'], 40)
+
+    def test_daily_article_deadline_leaves_thirty_seconds_for_the_writer(self):
+        writer_deadline, article_deadline = generation_api._daily_generation_deadlines(1000.0)
+        self.assertEqual(writer_deadline, 1170.0)
+        self.assertEqual(article_deadline, 1140.0)
+        self.assertEqual(writer_deadline - article_deadline, 30.0)
 
     def test_fill_callback_keeps_the_configured_forty_call_job_cap(self):
         from ingest import write_edition
