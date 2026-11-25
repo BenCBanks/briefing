@@ -19,6 +19,7 @@ from ingest.write_edition import (_needs_daily_retrieval_fill, _publisher_for, _
                                   _candidate_queue_key, _daily_coverage_target_met,
                                   _daily_first_attempt_limit, _daily_refill_candidates,
                                   _daily_refill_pool_limit, _split_daily_candidate_pool,
+                                  _diverse_daily_plan,
                                   _with_prefetched_bodies,
                                   _article_read_funnel, _fetch_article_in_run,
                                   generate_edition)
@@ -272,6 +273,36 @@ class WriterTests(unittest.TestCase):
             {f'candidate-{index}' for index in range(1, 25)})
         self.assertEqual([row['id'] for row in next_round['finance'][:3]],
                          ['candidate-25', 'candidate-26', 'candidate-27'])
+
+    def test_daily_candidate_plan_caps_feed_full_concentration(self):
+        candidates = []
+        for index in range(30):
+            source_id = ('feed-a' if index < 10 else 'feed-b' if index < 20 else f'source-{index}')
+            host = f'{source_id}.example.test'
+            item = {'source_id': source_id,
+                    'url': f'https://{host}/story-{index}',
+                    'title': f'AI chips policy update {index}',
+                    'snippet': 'New policy update for AI chip manufacturing.'}
+            source = {'id': source_id,
+                      'article_access': 'feed-full' if index < 20 else 'full-text'}
+            if index < 20:
+                item['feed_body'] = 'The full report describes the policy update and its effect.'
+            candidates.append({'id': f'cluster-{index}', 'rows': [{'item': item, 'source': source}]})
+
+        plan = _diverse_daily_plan({'finance': candidates}, [{'id': 'finance'}], {}, 30)
+        planned_source_ids = [row['source_id'] for row in plan]
+        source_counts = {source_id: planned_source_ids.count(source_id)
+                         for source_id in set(planned_source_ids)}
+        host_counts = {host: sum(row['host'] == host for row in plan)
+                       for host in {row['host'] for row in plan}}
+
+        self.assertGreaterEqual(len(set(planned_source_ids)), 6)
+        self.assertLessEqual(max(source_counts.values()), 3)
+        self.assertLessEqual(max(host_counts.values()), 2)
+        self.assertEqual([row['cluster']['id'] for row in plan[:6]],
+                         ['cluster-0', 'cluster-1', 'cluster-10', 'cluster-11',
+                          'cluster-20', 'cluster-21'],
+                         'the candidate plan keeps relevance order before applying caps')
 
     def test_search_first_and_refill_prefetch_wrappers_compose_without_recursion(self):
         calls = []
@@ -1688,7 +1719,7 @@ class WriterTests(unittest.TestCase):
         for index in range(4):
             item = {**ITEM, 'title': f'Weekend route update for distinct service zone {index}',
                     'snippet': f'Temporary boarding changes affect service zone {index}.',
-                    'url': f'https://transit.example.test/story/zone-{index}',
+                    'url': f'https://transit-{index}.example.test/story/zone-{index}',
                     'source_id': source['id'], 'topics': ['payments'],
                     'feed_body': ARTICLE_BODY}
             items.append(item)
@@ -1980,13 +2011,15 @@ class WriterTests(unittest.TestCase):
 
     def test_writer_attempts_six_candidates_when_available_even_if_none_yields_a_story(self):
         from unittest.mock import patch
-        items = [{**ITEM, 'title': f'Fictional payments update {index}',
-                  'url': f'https://transit.example.test/story/{index}'}
+        items = [{**ITEM, 'source_id': f'payments-source-{index}',
+                  'title': f'Fictional payments update {index}',
+                  'url': f'https://transit-{index}.example.test/story/{index}'}
                  for index in range(6)]
         def no_story(*_args, **_kwargs):
             return None, {}, 0, []
         clusters = [{'id': f'candidate-{index}', 'key': item['title'], 'context': item['snippet'],
-                     'rows': [{'item': item, 'source': {**REGISTRY[0], 'name': f'Fictional Desk {index}',
+                     'rows': [{'item': item, 'source': {**REGISTRY[0], 'id': item['source_id'],
+                                                          'name': f'Fictional Desk {index}',
                                                           'publisher_group': f'desk-{index}'},
                                'key': item['title']}]} for index, item in enumerate(items)]
         with patch.dict(os.environ, {'BRIEFING_CANDIDATE_ATTEMPT_LIMIT': '8'}), \
@@ -2008,12 +2041,14 @@ class WriterTests(unittest.TestCase):
         from itertools import count
         from ingest.write_edition import EXTRACTION_WORKERS, MAX_STORY_WRITER_WORKERS
         from ingest.flags import setting
-        items = [{**ITEM, 'title': f'Fictional payments update {index}',
-                  'url': f'https://transit.example.test/story/{index}',
+        items = [{**ITEM, 'source_id': f'payments-source-{index}',
+                  'title': f'Fictional payments update {index}',
+                  'url': f'https://transit-{index}.example.test/story/{index}',
                   'snippet': f'The fictional transit office reported a distinct payment update {index}.'}
                  for index in range(8)]
         clusters = [{'id': f'candidate-{index}', 'key': item['title'], 'context': item['snippet'],
-                     'rows': [{'item': item, 'source': {**REGISTRY[0], 'name': f'Fictional Desk {index}',
+                     'rows': [{'item': item, 'source': {**REGISTRY[0], 'id': item['source_id'],
+                                                          'name': f'Fictional Desk {index}',
                                                           'publisher_group': f'desk-{index}'},
                                'key': item['title']}]} for index, item in enumerate(items)]
         scored = []

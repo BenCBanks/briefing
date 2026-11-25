@@ -84,6 +84,8 @@ THIN_EVIDENCE_PROMPT = """Write a brief news card using only the supplied headli
 MAX_TOPIC_ITEMS = 30
 MAX_TOPIC_REFILL_ITEMS = 30
 MAX_CANDIDATE_ATTEMPTS = 30
+MAX_PLANNED_CANDIDATES_PER_SOURCE = 3
+MAX_PLANNED_CANDIDATES_PER_HOST = 2
 MAX_STORY_WRITER_WORKERS = 4
 EDITION_TIMEZONE = ZoneInfo('America/New_York')
 MAX_PREFETCH_CANDIDATES = 30
@@ -415,6 +417,58 @@ def _split_daily_candidate_pool(candidates, primary_limit=MAX_TOPIC_ITEMS,
     primary_limit = max(0, int(primary_limit))
     refill_limit = max(0, int(refill_limit))
     return rows[:primary_limit], rows[primary_limit:primary_limit + refill_limit]
+
+
+def _diverse_daily_plan(pool, topics, registry_by_id, limit,
+                        max_per_source=MAX_PLANNED_CANDIDATES_PER_SOURCE,
+                        max_per_host=MAX_PLANNED_CANDIDATES_PER_HOST,
+                        source_counts=None, host_counts=None):
+    """Plan in topic/rank order while limiting concentration by source and host."""
+    positions = Counter()
+    source_counts = source_counts if source_counts is not None else Counter()
+    host_counts = host_counts if host_counts is not None else Counter()
+    selected, by_cluster = [], {}
+    while len(selected) < max(0, int(limit)):
+        found = False
+        for topic in topics:
+            topic_id = topic['id']
+            clusters = pool.get(topic_id, [])
+            while positions[topic_id] < len(clusters):
+                depth = positions[topic_id]
+                positions[topic_id] += 1
+                cluster = clusters[depth]
+                found = True
+                cluster_id = cluster['id']
+                existing = by_cluster.get(cluster_id)
+                if existing is not None:
+                    if topic_id not in existing['also_topic_ids']:
+                        existing['also_topic_ids'].append(topic_id)
+                    continue
+                fetch_rows = [row for row in cluster['rows']
+                              if row['source'].get('article_access') in
+                              {'full-text', 'transient-read', 'feed-full'} or
+                              row['item'].get('feed_body')]
+                primary = fetch_rows[0] if fetch_rows else cluster['rows'][0]
+                item = primary['item']
+                source = primary.get('source') or registry_by_id.get(item.get('source_id')) or {}
+                source_id = str(item.get('source_id') or source.get('id') or 'unknown')
+                host = (urlsplit(item.get('url', '')).hostname or '').lower()
+                if (source_counts[source_id] >= max(1, int(max_per_source)) or
+                        host_counts[host] >= max(1, int(max_per_host))):
+                    continue
+                entry = {'topic_id': topic_id, 'topic': topic, 'cluster': cluster,
+                         'depth': depth, 'primary': primary, 'source': source,
+                         'source_id': source_id, 'host': host, 'also_topic_ids': []}
+                selected.append(entry)
+                by_cluster[cluster_id] = entry
+                source_counts[source_id] += 1
+                host_counts[host] += 1
+                break
+            if len(selected) >= max(0, int(limit)):
+                break
+        if not found:
+            break
+    return selected
 
 
 def _daily_refill_candidates(feed_candidates, fallback_candidates, topics, attempted_cluster_ids):
@@ -1323,6 +1377,7 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
     candidate_read_trace = []
     candidate_trace_by_id = {}
     candidate_plan_counter = 0
+    planned_source_counts, planned_host_counts = Counter(), Counter()
     candidate_attempts = 0
     candidate_pool_diagnostics = {}
     funnel_drop_reasons = {}
@@ -1469,8 +1524,9 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                 recency = max(0.0, 1.0 - age / freshness_days()) if age is not None else 0.0
                 relevance = 1.0 / (1.0 + relevance_rank)
                 scores.append(0.60 * relevance + 0.30 * source_quality + 0.10 * recency)
-            return (core.article_candidate_priority(cluster, extraction_deadline or deadline),
-                    relevance_rank, -max(scores, default=0.0), -fresh_epoch,
+            return (relevance_rank,
+                    core.article_candidate_priority(cluster, extraction_deadline or deadline),
+                    -max(scores, default=0.0), -fresh_epoch,
                     min((_article_access_rank(row['source'], row['item']) for row in cluster['rows']), default=4),
                     -evidence_chars, -publisher_count, -host_count)
 
@@ -1549,54 +1605,38 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
         extraction_limit = min(MAX_PREFETCH_CANDIDATES,
                                max(0, int(max_candidate_attempts if limit is None else limit)))
         prefetch_plan = []
-        planned_by_cluster = {}
-        depth = 0
-        while len(prefetch_plan) < extraction_limit:
-            found = False
-            for topic in topic_profiles:
-                clusters = pool.get(topic['id'], [])
-                if depth >= len(clusters):
-                    continue
-                cluster = clusters[depth]
-                found = True
-                existing = planned_by_cluster.get(cluster['id'])
-                if existing is not None:
-                    if topic['id'] not in existing['also_topic_ids']:
-                        existing['also_topic_ids'].append(topic['id'])
-                    continue
-                fetch_rows = [row for row in cluster['rows'] if row['source'].get('article_access') in
-                              {'full-text', 'transient-read', 'feed-full'} or row['item'].get('feed_body')]
-                primary = fetch_rows[0] if fetch_rows else cluster['rows'][0]
-                source = primary.get('source') or registry_by_id.get(primary['item'].get('source_id')) or {}
-                host = (urlsplit(primary['item'].get('url', '')).hostname or '').lower()
-                candidate_plan_counter += 1
-                candidate_id = f'daily-{candidate_plan_counter}'
-                candidate = {'topic_id': topic['id'], 'topic': topic, 'cluster': cluster,
-                             'candidate_id': candidate_id,
-                             'sports': topic['id'] in SPORTS_IDS, 'also_topic_ids': [], 'host': host,
-                             'supply_origin': ('followup' if cluster['id'] in followup_clusters else
-                                               'search-first' if any(row['item'].get('supply_origin') == 'search-first'
-                                                                     for row in cluster['rows']) else supply_origin),
-                             'topic_round': depth,
-                             'outlet_item': primary['item'], 'outlet_source': source,
-                             'topic_match': len(_tokens(' '.join([topic.get('label', ''), topic.get('scope', ''),
-                                                                 *topic.get('include', [])])) &
-                                                _tokens(' '.join(row['item'].get('title', '') + ' ' +
-                                                                 row['item'].get('snippet', '') for row in cluster['rows'])))}
-                trace_row = {'candidate_id': candidate_id, 'topic_id': topic['id'],
-                             'source_ids': list(dict.fromkeys(
-                                 row['item'].get('source_id') for row in cluster['rows']
-                                 if row['item'].get('source_id'))),
-                             'article_reads': [], 'evidence': 'pending', 'writer': 'not_attempted'}
-                candidate_read_trace.append(trace_row)
-                candidate_trace_by_id[candidate_id] = trace_row
-                planned_by_cluster[cluster['id']] = candidate
-                prefetch_plan.append(candidate)
-                if len(prefetch_plan) >= extraction_limit:
-                    break
-            if not found:
-                break
-            depth += 1
+        diverse_plan = _diverse_daily_plan(
+            pool, topic_profiles, registry_by_id, extraction_limit,
+            source_counts=planned_source_counts, host_counts=planned_host_counts)
+        for entry in diverse_plan:
+            topic = entry['topic']
+            cluster = entry['cluster']
+            primary = entry['primary']
+            source = entry['source']
+            host = entry['host']
+            candidate_plan_counter += 1
+            candidate_id = f'daily-{candidate_plan_counter}'
+            candidate = {'topic_id': topic['id'], 'topic': topic, 'cluster': cluster,
+                         'candidate_id': candidate_id,
+                         'sports': topic['id'] in SPORTS_IDS,
+                         'also_topic_ids': entry['also_topic_ids'], 'host': host,
+                         'supply_origin': ('followup' if cluster['id'] in followup_clusters else
+                                           'search-first' if any(row['item'].get('supply_origin') == 'search-first'
+                                                                 for row in cluster['rows']) else supply_origin),
+                         'topic_round': entry['depth'],
+                         'outlet_item': primary['item'], 'outlet_source': source,
+                         'topic_match': len(_tokens(' '.join([topic.get('label', ''), topic.get('scope', ''),
+                                                             *topic.get('include', [])])) &
+                                            _tokens(' '.join(row['item'].get('title', '') + ' ' +
+                                                             row['item'].get('snippet', '') for row in cluster['rows'])))}
+            trace_row = {'candidate_id': candidate_id, 'topic_id': topic['id'],
+                         'source_ids': list(dict.fromkeys(
+                             row['item'].get('source_id') for row in cluster['rows']
+                             if row['item'].get('source_id'))),
+                         'article_reads': [], 'evidence': 'pending', 'writer': 'not_attempted'}
+            candidate_read_trace.append(trace_row)
+            candidate_trace_by_id[candidate_id] = trace_row
+            prefetch_plan.append(candidate)
         return prefetch_plan
 
     if search_first_enabled and topic_profiles:
