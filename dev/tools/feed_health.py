@@ -6,6 +6,7 @@ as ingestion. The checker never calls a writing or audio provider.
 """
 
 from datetime import datetime, timedelta, timezone
+from concurrent.futures import ThreadPoolExecutor, as_completed
 import argparse
 import json
 from pathlib import Path
@@ -23,6 +24,7 @@ DEFAULT_HISTORY = DEFAULT_REPORT_DIR / 'feed-health-history.json'
 STALE_AFTER = timedelta(days=45)
 WEEKLY_MIN = timedelta(days=6)
 WEEKLY_MAX = timedelta(days=8)
+DEFAULT_WORKERS = 16
 
 
 def feed_rows(registry):
@@ -132,18 +134,32 @@ def render_report(results, *, checked_at, history):
 
 
 def run(*, registry_path=DEFAULT_REGISTRY, report_dir=DEFAULT_REPORT_DIR,
-        history_path=DEFAULT_HISTORY, checked_at=None, fetcher=core.fetch_source):
+        history_path=DEFAULT_HISTORY, checked_at=None, fetcher=core.fetch_source,
+        max_workers=DEFAULT_WORKERS):
     now = checked_at or datetime.now(timezone.utc)
     registry = core.load_registry(registry_path)
     rows = feed_rows(registry)
     history = _history_read(history_path)
-    results = []
+    host_groups = {}
+    for source in rows:
+        host = source['url'].split('/')[2].lower()
+        host_groups.setdefault(host, []).append(source)
+    # Schedule quick hosts first so a few sources with hourly intervals do not
+    # occupy every worker before independent hosts have started.
+    groups = sorted(host_groups.values(), key=lambda group: (
+        max(int(row.get('minimum_interval_seconds', 60)) for row in group), len(group),
+        group[0]['url']))
     # Isolate the robots cache from a reader's state. Feed content stays in RAM.
     import tempfile
     with tempfile.TemporaryDirectory(prefix='briefing-feed-health-') as temporary:
         robots_cache = Path(temporary) / 'robots.json'
-        for source in rows:
-            results.append(inspect_feed(source, fetcher, robots_cache_path=robots_cache, now=now))
+        def inspect_host(group):
+            return [inspect_feed(source, fetcher, robots_cache_path=robots_cache, now=now)
+                    for source in group]
+        with ThreadPoolExecutor(max_workers=max(1, min(32, int(max_workers))),
+                                thread_name_prefix='briefing-feed-health') as pool:
+            futures = [pool.submit(inspect_host, group) for group in groups]
+            results = [result for future in as_completed(futures) for result in future.result()]
     _history_update(results, history, now)
     report_dir = Path(report_dir)
     report_dir.mkdir(parents=True, exist_ok=True)
@@ -163,8 +179,11 @@ def main():
     parser.add_argument('--registry', type=Path, default=DEFAULT_REGISTRY)
     parser.add_argument('--report-dir', type=Path, default=DEFAULT_REPORT_DIR)
     parser.add_argument('--history', type=Path, default=DEFAULT_HISTORY)
+    parser.add_argument('--workers', type=int, default=DEFAULT_WORKERS,
+                        help='maximum distinct hosts checked at once (default: 16)')
     args = parser.parse_args()
-    run(registry_path=args.registry, report_dir=args.report_dir, history_path=args.history)
+    run(registry_path=args.registry, report_dir=args.report_dir, history_path=args.history,
+        max_workers=args.workers)
 
 
 if __name__ == '__main__':

@@ -8,6 +8,7 @@ _enforce_test_environment()
 from datetime import datetime, timedelta, timezone
 import json
 import tempfile
+from threading import Barrier
 import unittest
 from urllib.error import HTTPError
 import xml.etree.ElementTree as ET
@@ -106,6 +107,22 @@ class FeedHealthToolTests(unittest.TestCase):
             report = report_dir / 'feed-health-2026-11-25.md'
             self.assertIn('Fictional feed', report.read_text(encoding='utf-8'))
             self.assertEqual(json.loads(history_path.read_text())['version'], 1)
+
+    def test_run_checks_distinct_hosts_concurrently_but_keeps_host_groups_separate(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = _Path(temporary)
+            registry = root / 'registry.json'
+            second = {**SOURCE, 'id': 'second-fixture-feed', 'name': 'Second fictional feed',
+                      'url': 'https://second.example/feed.xml'}
+            registry.write_text(json.dumps({'version': 1, 'sources': [SOURCE, second]}), encoding='utf-8')
+            both_started = Barrier(2)
+            def fetch(_source, **_options):
+                both_started.wait(timeout=3)
+                return [], {}
+            results = feed_health.run(registry_path=registry, report_dir=root / 'reports',
+                                      history_path=root / 'history.json', checked_at=NOW,
+                                      fetcher=fetch, max_workers=2)
+            self.assertEqual({row['status'] for row in results}, {'OK'})
 
 
 if __name__ == '__main__':
