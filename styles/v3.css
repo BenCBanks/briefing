@@ -405,6 +405,7 @@ body.keyboard-open .app-toast{bottom:calc(12px + var(--virtual-keyboard-inset,0p
 .episode-request-page .ask-episodes{margin-top:32px}
 .episode-request-page .ask-episodes h2{margin:0 0 8px;color:var(--ink);font:600 20px/26px var(--ui)}
 .episode-making-page .episode-making-intro{margin:0 0 18px;color:var(--ink);font:400 16px/24px var(--ui)}
+.episode-making-page .episode-done-card{margin:24px 0 0;padding:16px 0 0;border:0;border-top:1px solid var(--line);border-radius:0;background:transparent}
 @media(min-width:900px){.episode-request-page{padding-bottom:48px}}
 
 /* A calm, readable fallback for a link that no longer resolves. */
