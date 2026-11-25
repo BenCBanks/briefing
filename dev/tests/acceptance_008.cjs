@@ -219,7 +219,7 @@ function clipReport(page) {
 }
 
 async function verifyPageHeading(page, title = null) {
-  const heading = page.locator('main h1, #content h1').first();
+  const heading = page.getByRole('heading', { level: 1 }).first();
   await heading.waitFor({ state: 'visible' });
   const text = (await heading.innerText()).trim();
   if (title) assert.equal(text, title, `Unexpected page heading for ${page.url()}`);
@@ -338,12 +338,12 @@ async function run() {
         for (const root of ['today', 'topics', 'library']) {
           await gotoRoot(page, root);
           const names = await activeNavNames(page);
-          assert.ok(names.includes('Today') && names.includes('On demand') && names.includes('Topics') && names.includes('Earlier'), `${root} root tabs missing: ${names.join(', ')}`);
+          assert.ok(names.includes('Today') && names.includes('On demand') && names.includes('Topics') && names.includes('Library'), `${root} root tabs missing: ${names.join(', ')}`);
         }
         for (const [name, hash] of [['story', routes.story?.hash], ['source', routes.source?.hash], ['explanation', routes.explanation?.hash]]) {
           if (!hash) throw new Error(`${name} route unavailable`);
           await page.goto(`${baseURL}/${hash}`, { waitUntil: 'networkidle' });
-          assert.deepEqual(await activeNavNames(page), ['Today','On demand','Earlier','Topics'], `V3 text tabs remain available on ${name}`);
+          assert.deepEqual(await activeNavNames(page), ['Today','On demand','Library','Topics'], `V3 text tabs remain available on ${name}`);
         }
         return 'Today, Earlier and Topics stay reachable from content pages';
       } finally { await page.close(); }
@@ -417,7 +417,7 @@ async function run() {
             return { name: label.textContent.trim(), icon: Boolean(icon), size: icon ? parseFloat(getComputedStyle(icon).width) : 0, fontSize: parseFloat(getComputedStyle(label).fontSize), visible: box.width > 0 && box.height > 0 };
           });
         });
-        assert.deepEqual(tabs.map(tab => tab.name), ['Today', 'On demand', 'Earlier', 'Topics']);
+        assert.deepEqual(tabs.map(tab => tab.name), ['Today', 'On demand', 'Library', 'Topics']);
         assert.ok(tabs.every(tab => tab.icon && tab.size === 24), 'V3 navigation retains 24px icons alongside readable labels');
         assert.ok(tabs.every(tab => tab.fontSize >= 16 && tab.visible), JSON.stringify(tabs));
         assert.equal(await page.getByRole('link', { name: 'Settings' }).count(), 1, 'Settings is available in Topics');

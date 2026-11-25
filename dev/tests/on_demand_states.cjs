@@ -128,7 +128,7 @@ async function captureThemes(page, name, anchor) {
     requestState = 'cost-cap';
     await page.getByRole('button', { name: 'Make episode' }).click();
     const capNotice = page.locator('.episode-request-error');
-    await page.getByText('We cannot make this episode right now. Your request is saved here; try again later.', { exact: true }).waitFor();
+    await page.getByText("We couldn't make this episode right now. Your topic is saved. Try again later.", { exact: true }).waitFor();
     assert.equal(await prompt.inputValue(), 'Fictional harbor transit schedules', 'A cost cap keeps the request intact');
     assert.equal(await page.locator('.episode-making-page').count(), 0, 'A cost refusal does not open a making screen');
     assert.equal(await page.locator('#episode-request-start').isDisabled(), true, 'A reached cost limit does not invite an immediate repeat request');
@@ -143,7 +143,7 @@ async function captureThemes(page, name, anchor) {
     await page.locator('.episode-making-page').waitFor();
     const failed = page.locator('.episode-job-error');
     await page.getByRole('button', { name: 'Try again' }).waitFor();
-    assert.equal(await failed.innerText(), 'We could not finish this episode this time. You can try again.');
+    assert.equal(await failed.innerText(), "We couldn't finish this episode. Your topic is saved. Try again.");
     assert.equal(await page.getByText('A fictional internal error that should not appear.', { exact: true }).count(), 0);
     assert.equal(await page.locator('.episode-stage-list,.episode-live-panel').count(), 0, 'A failed episode shows only its status and next step');
     assert.equal(await page.locator('.episode-retry-button').evaluate(button => button.getBoundingClientRect().height >= 44), true,
@@ -166,14 +166,14 @@ async function captureThemes(page, name, anchor) {
       {
         reason: 'insufficient_evidence',
         diagnostic: 'Private source diagnostic: fictional full-text coverage is insufficient.',
-        publicCopy: "We couldn't find enough good sources to make this episode. Try broadening your question.",
+        publicCopy: "We couldn't find enough useful sources to make this episode. Your topic is saved. Try a more specific question.",
         kickerCopy: 'Ready to try again',
         retryCount: 1,
       },
       {
         reason: 'cost_cap_reached',
         diagnostic: 'Private cost diagnostic: fictional reservation details must stay hidden.',
-        publicCopy: 'We cannot make this episode right now. Your request is saved here; try again later.',
+        publicCopy: "We couldn't make this episode right now. Your topic is saved. Try again later.",
         kickerCopy: 'Try again later',
         retryCount: 0,
       },

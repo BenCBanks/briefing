@@ -61,7 +61,7 @@ async function verifyEarlierAndRecap(page, prefix) {
   assert.equal(await page.locator('.earlier-weekly-card-action').innerText(), 'Open recap →');
   const cardStyle = await page.locator('.earlier-weekly-card').evaluate(el => ({ height: el.getBoundingClientRect().height, columns: getComputedStyle(el).gridTemplateColumns, action: el.querySelector('.earlier-weekly-card-action').getBoundingClientRect().height }));
   assert.ok(cardStyle.height >= 78 && cardStyle.action >= 44, `Featured card has clear two-line hierarchy and a 44px action: ${JSON.stringify(cardStyle)}`);
-  assert.ok(await page.locator('.library-briefing-list li').count() > 0, 'Editions segment lists dated daily briefings');
+  assert.ok(await page.locator('.library-briefing-list li').count() > 0, 'Briefings tab lists dated daily editions');
   assert.match(await page.locator('.library-briefing-list li').first().innerText(), /\d+ stories · \d+ min read/, 'daily briefing date includes its story count and reading time');
   assert.equal(await page.getByText('Clarity before commitment', { exact: true }).count(), 0, 'latest recap is not repeated in the lower archive list');
   if (page.viewportSize().width <= 400) {

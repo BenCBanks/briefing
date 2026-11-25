@@ -71,7 +71,10 @@ export function createRouteLifecycleController(app) {
       app.deepDiveReturnTo = { hash: '#topics', sectionId: null, scrollY: 0 };
     }
     app.document.body.classList.toggle('is-reader', isReader);
-    app.document.querySelector('[data-page-title]').textContent = pageTitle;
+    const pageHeading = app.document.querySelector('[data-page-title]');
+    pageHeading.textContent = pageTitle;
+    if (group === 'library') { pageHeading.setAttribute('role', 'heading'); pageHeading.setAttribute('aria-level', '1'); }
+    else { pageHeading.removeAttribute('role'); pageHeading.removeAttribute('aria-level'); }
     app.document.body.classList.toggle('is-today', routeName === 'today');
     app.document.body.classList.toggle('is-topics', routeName === 'topics');
     app.document.body.classList.toggle('is-episodes-list', routeName === 'episodes');

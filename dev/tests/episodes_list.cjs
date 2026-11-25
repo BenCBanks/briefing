@@ -15,7 +15,7 @@ const readyEpisode = require('./fixtures/episodes.json').episodes[0];
 const jobs = [
   { job_id: readyID, topic: 'Payments and banking', length: 10, status: 'done', created_at: '2026-11-18T10:00:00Z', episode: { ...readyEpisode, id: readyID, title: readyEpisode.title } },
   { job_id: makingID, topic: 'Fictional weekend transit', length: 5, status: 'writing', stage: 'writing', created_at: '2026-11-18T11:00:00Z' },
-  { job_id: failedID, topic: 'Fictional market history', length: 5, status: 'failed', created_at: '2026-11-17T10:00:00Z' },
+  { job_id: failedID, topic: 'Fictional market history', length: 5, status: 'failed', failure_reason: 'insufficient_evidence', created_at: '2026-11-17T10:00:00Z' },
   { job_id: cancelledID, topic: 'Fictional weather records', length: 5, status: 'cancelled', created_at: '2026-11-16T10:00:00Z' },
 ];
 
@@ -54,7 +54,7 @@ async function run() {
     assert.equal(new URL(directMaking.url()).hash, `#episode-making/${makingID}`);
     assert.equal(await directMaking.locator('.episode-history-making h1').innerText(), 'Your episode is being made');
     assert.equal(await directMaking.locator('.episode-history-making .episode-topic').innerText(), 'Fictional weekend transit');
-    assert.equal(await directMaking.locator('.episode-history-making .episode-job-card-status').innerText(), 'Writing your episode.', 'A cold deep link explains its current stage in reader language');
+    assert.equal(await directMaking.locator('.episode-history-making .episode-job-card-status').innerText(), 'Making your episode. You can leave this screen and come back.', 'A cold deep link explains that the request continues in the background');
     await directMaking.close();
 
     const page = await openList(browser, { saved: [readyID] });
@@ -105,7 +105,15 @@ async function run() {
     await page.locator('.episode-history-filters').getByRole('button', { name: 'All', exact: true }).click();
 
     const failedRow = page.locator(`[data-job-id="${failedID}"]`);
-    await failedRow.getByRole('button', { name: 'Delete Fictional market history from this list' }).click();
+    await failedRow.locator('.episode-job-title').click();
+    await page.locator('.episode-history-making').waitFor();
+    assert.equal(await page.locator('.episode-history-making .episode-job-card-status').innerText(),
+      "We couldn't find enough useful sources to make this episode. Your topic is saved. Try a more specific question.");
+    assert.equal(await page.getByRole('button', { name: 'Try again' }).count(), 1, 'failed history keeps its topic and offers a retry');
+    await page.getByRole('link', { name: '‹ Episodes' }).click();
+    await page.locator('.episode-list-page').waitFor();
+    const restoredFailedRow = page.locator(`[data-job-id="${failedID}"]`);
+    await restoredFailedRow.getByRole('button', { name: 'Delete Fictional market history from this list' }).click();
     assert.equal(await page.locator(`[data-job-id="${failedID}"]`).count(), 0, 'Delete hides the row');
     await page.getByRole('button', { name: 'Undo' }).click();
     assert.equal(await page.locator(`[data-job-id="${failedID}"]`).count(), 1, 'Undo restores the row');

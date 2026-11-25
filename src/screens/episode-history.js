@@ -1,3 +1,5 @@
+import { episodeFailureCopy } from './episode-making.js';
+
 export function episodeHistoryState(job) {
   const status = String(job.status || job.stage || 'queued').toLowerCase();
   if (['done', 'ready', 'complete', 'completed'].includes(status)) return { key: 'ready', label: 'Ready', ring: 'done' };
@@ -34,7 +36,7 @@ export function saveEpisodeHistoryDismissed(ids) {
   catch { /* The visible list still works for this visit if storage is blocked. */ }
 }
 
-export function renderEpisodeMakingFromHistory({ content, node, link, job }) {
+export function renderEpisodeMakingFromHistory({ content, node, link, job, onRetry }) {
   const page = node('section', null, 'episode-history-making');
   page.append(link('‹ Episodes', '#episodes', 'episode-back'));
   const view = episodeHistoryState(job);
@@ -46,9 +48,14 @@ export function renderEpisodeMakingFromHistory({ content, node, link, job }) {
   const ring = node('span', null, 'episode-stage-ring'); ring.setAttribute('aria-hidden', 'true');
   ring.dataset.check = view.ring === 'done' ? '✓' : view.ring === 'failed' ? '!' : view.ring === 'cancelled' ? '–' : '';
   chip.append(ring, node('span', view.label)); page.append(chip);
-  const detail = view.key === 'making' ? episodeMakingStageCopy(job.stage || job.status) :
-    view.key === 'failed' ? 'You can ask for another episode when you’re ready.' : 'This request will stay in your episode history.';
+  const detail = view.key === 'making' ? 'Making your episode. You can leave this screen and come back.' :
+    view.key === 'failed' ? episodeFailureCopy({ ...job, failureReason: job.failure_reason || job.failureReason }) :
+      view.key === 'cancelled' ? 'This episode was canceled. Your topic is saved.' : 'This request will stay in your episode history.';
   page.append(node('p', detail, 'episode-job-card-status'));
+  if (view.key === 'failed' && onRetry) {
+    const retry = node('button', 'Try again', 'primary episode-retry-button'); retry.type = 'button'; retry.addEventListener('click', onRetry);
+    page.append(retry);
+  }
   content.replaceChildren(page);
 }
 
@@ -61,7 +68,7 @@ export function renderEpisodeHistory({ content, node, link, result, available, c
     const retry = node('button', 'Try again', 'episode-list-retry'); retry.type = 'button'; retry.addEventListener('click', onRetry);
     page.append(retry); content.replaceChildren(page); return;
   }
-  if (jobs.length) page.append(link('Ask for an episode', '#ask-episode', 'button-link'));
+  if (jobs.length) page.append(link('Make an episode', '#ask-episode', 'button-link'));
   if (Number.isInteger(result?.left_today)) page.append(node('p', result.left_today
     ? `You can make ${result.left_today} more ${result.left_today === 1 ? 'episode' : 'episodes'} today.`
     : "You have used today's three episodes. More tomorrow.", 'episode-list-allowance'));

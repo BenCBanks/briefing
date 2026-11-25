@@ -17,7 +17,7 @@ async function capture(page, name) {
   if (!process.env.BRIEFING_SHOT_DIR) return;
   fs.mkdirSync(process.env.BRIEFING_SHOT_DIR, { recursive: true });
   await page.evaluate(() => document.fonts.ready);
-  await page.locator('h1').click();
+  await page.locator('[data-page-title]').click();
   await page.mouse.move(0, 0);
   await page.evaluate(() => document.activeElement?.blur());
   await page.screenshot({ animations: 'disabled', caret: 'hide', path: path.join(process.env.BRIEFING_SHOT_DIR, `${name}.png`) });
@@ -27,7 +27,7 @@ async function expectSavedEmpty(page) {
   assert.equal(await empty.locator('h2').innerText(), 'Nothing saved yet');
   assert.equal(await empty.locator('p').innerText(), 'Save a story or briefing to find it here.');
   assert.equal(await empty.locator('a[href],button').count(), 1, 'Saved empty state offers one action');
-  assert.equal(await empty.getByRole('button', { name: 'Browse editions', exact: true }).count(), 1);
+  assert.equal(await empty.getByRole('button', { name: 'Browse briefings', exact: true }).count(), 1);
 }
 
 (async () => {
@@ -48,7 +48,7 @@ async function expectSavedEmpty(page) {
     }, { savedId: savedStory });
 
     await page.goto(`${baseURL}/#library`);
-    const search = page.getByRole('searchbox', { name: 'Search earlier briefings, saved items, and topics' });
+    const search = page.getByRole('searchbox', { name: 'Search the Library' });
     await search.waitFor();
     assert.equal(await search.evaluate(input => getComputedStyle(input).fontSize), '16px', 'search input avoids mobile focus zoom');
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true, 'search fits the phone viewport');
@@ -91,10 +91,10 @@ async function expectSavedEmpty(page) {
     await expectSavedEmpty(page);
     assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('briefing:v1:state')).savedIds), [], 'an unsaved item stays removed after reload');
 
-    await page.getByRole('button', { name: 'Editions', exact: true }).click();
+    await page.getByRole('button', { name: 'Briefings', exact: true }).click();
     await search.fill('Confirm the payment');
     await page.getByText('Confirm the payment before it moves', { exact: true }).waitFor();
-    assert.equal(await page.locator('.library-row').filter({ hasText: 'Confirm the payment before it moves' }).locator('.library-kind-label').innerText(), 'Story', 'Earlier stories are searchable by heading');
+    assert.equal(await page.locator('.library-row').filter({ hasText: 'Confirm the payment before it moves' }).locator('.library-kind-label').innerText(), 'Story', 'Library stories are searchable by heading');
     assert.equal(await page.locator('.library-item-link .library-item-title').first().evaluate(title => getComputedStyle(title).textDecorationLine), 'underline', 'search result titles are visibly recognizable as links');
     await search.focus();
     for (let index = 0; index < 4; index++) await page.keyboard.press('Tab');
@@ -125,7 +125,7 @@ async function expectSavedEmpty(page) {
     await page.emulateMedia({ colorScheme: 'dark' }); await capture(page, 'earlier-search-empty-dark');
     await page.emulateMedia({ colorScheme: 'light' });
     await page.getByRole('button', { name: 'Clear search', exact: true }).click();
-    assert.equal(await search.inputValue(), '', 'Clear search returns to the selected Earlier segment');
+    assert.equal(await search.inputValue(), '', 'Clear search returns to the selected Library filter');
     assert.equal(await search.evaluate(input => document.activeElement === input), true, 'Clear search returns focus to the search field');
     await search.fill('no fictional result matches this');
     await search.focus(); await page.keyboard.press('Escape');
@@ -141,7 +141,7 @@ async function expectSavedEmpty(page) {
     assert.deepEqual(await page.evaluate(() => JSON.parse(localStorage.getItem('briefing:v1:state')).savedIds), [savedStory]);
     await page.locator('[data-nav="library"]').click();
     await page.locator('.library-filters').getByRole('button', { name: 'Saved', exact: true }).click();
-    await page.getByRole('searchbox', { name: 'Search earlier briefings, saved items, and topics' }).fill('');
+    await page.getByRole('searchbox', { name: 'Search the Library' }).fill('');
     const persistedStory = page.locator('.library-row').filter({ hasText: 'Confirm the payment before it moves' });
     await persistedStory.waitFor();
     await page.reload({ waitUntil: 'networkidle' });

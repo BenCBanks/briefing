@@ -91,7 +91,7 @@ async function assertTabAndStoryOrder(page, label, story = false) {
     { name: 'Skip to content', selector: '.skip' },
     { name: 'Today tab', selector: '[data-nav="today"]' },
     { name: 'On demand tab', selector: '[data-nav="on-demand"]' },
-    { name: 'Earlier tab', selector: '[data-nav="library"]' },
+    { name: 'Library tab', selector: '[data-nav="library"]' },
     { name: 'Topics tab', selector: '[data-nav="topics"]' },
     { name: story ? 'Story back to Today' : 'Today Listen action', selector: story ? '.reader-back' : '.today-listen-pill' },
   ];

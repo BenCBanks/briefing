@@ -167,9 +167,9 @@ async function run() {
 
     await page.locator('[data-nav="library"]').click();
     await page.locator('.library-filters').waitFor();
-    assert.equal(await page.locator('[data-page-title]').innerText(), 'Earlier', 'Earlier keeps its shared screen header');
+    assert.equal(await page.locator('[data-page-title]').innerText(), 'Library', 'Earlier keeps its shared screen header');
     assert.equal(await page.locator('[aria-current="page"][data-nav="library"]').count(), 1);
-    await page.locator('.library-filters button').filter({ hasText: 'Editions' }).click();
+    await page.locator('.library-filters button').filter({ hasText: 'Briefings' }).click();
     await capture(page, 'library-390-light.png');
     await page.emulateMedia({ colorScheme: 'dark' }); await capture(page, 'library-390-dark.png'); await page.emulateMedia({ colorScheme: 'light' });
     await page.locator('.earlier-weekly-card').first().click();

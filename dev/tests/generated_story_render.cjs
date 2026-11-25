@@ -200,7 +200,7 @@ async function run() {
     await page.locator('.library-briefing-link').nth(1).click();
     await page.locator('body.is-reader .edition-section').waitFor();
     assert.equal(await page.locator('.reader-story-header h1').innerText(), 'Medicare Administrative Contractors Announce a Nationwide Moratorium on Enrollment of New Hospice Providers', 'Earlier briefing dates open their own story');
-    assert.equal(await page.locator('.reader-back').innerText(), '‹ Earlier', 'Library briefing returns to Library');
+    assert.equal(await page.locator('.reader-back').innerText(), '‹ Library', 'Library briefing returns to Library');
     await page.goto(`${baseURL}/#today`, { waitUntil: 'domcontentloaded' });
     await page.locator('.today-story-row').first().waitFor();
 

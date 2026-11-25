@@ -24,7 +24,7 @@ export function createEditionReaderScreen(services) {
     const routeContext = history.state?.routeContext || {};
     const parentHash = routeContext.parentHash;
     const returnHash = parentHash?.startsWith('#edition/') || parentHash?.startsWith('#topic-detail/') || parentHash === '#weekly' ? parentHash : parentHash === '#library' ? '#library' : '#today';
-    const returnLabel = routeContext.parentLabel || (returnHash === '#library' ? 'Earlier' : returnHash === '#today' ? 'Today' : returnHash === '#weekly' ? 'Weekly recap' : parentHash?.startsWith('#edition/') ? 'Today' : 'Topics');
+    const returnLabel = routeContext.parentLabel || (returnHash === '#library' ? 'Library' : returnHash === '#today' ? 'Today' : returnHash === '#weekly' ? 'Weekly recap' : parentHash?.startsWith('#edition/') ? 'Today' : 'Topics');
     const readerHeader = node('div', null, 'reader-sticky');
     const backButton = node('button', `‹ ${returnLabel}`, 'reader-back');
     if (transcriptDestination(edition.id, edition.kind)) backButton.classList.add('transcript-return');
@@ -144,7 +144,7 @@ export function createEditionReaderScreen(services) {
   function renderWeeklyRecapPage(edition) {
     const routeContext = history.state?.routeContext || {};
     const returnHash = routeContext.parentHash === '#library' ? '#library' : '#today';
-    const returnLabel = returnHash === '#library' ? 'Earlier' : 'Today';
+    const returnLabel = returnHash === '#library' ? 'Library' : 'Today';
     const sticky = node('div', null, 'reader-sticky');
     const backButton = node('button', `‹ ${returnLabel}`, 'reader-back'); backButton.type = 'button';
     backButton.addEventListener('click', () => {

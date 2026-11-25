@@ -3,7 +3,7 @@
 A web app that turns any question into a short, cited, spoken episode, plus a
 short daily briefing on the topics you follow.
 
-- **On demand:** type any topic or question, pick a length (3, 5, 10 or 15
+- **On demand:** type any topic or question, pick a length (3, 5 or 10
   minutes) and get a narrated episode with a matching transcript and sources.
 - **Daily:** every morning, a short briefing on your selected topics with
   developments you have not heard yet. Recent is preferred, not required; it is

@@ -130,7 +130,7 @@ async function run() {
     assert.match(await page.locator('.library-list').innerText(), /Corrected/, 'The saved-items section retains the corrected status');
     const savedRow = page.locator('.library-row').filter({ hasText: 'A fictional checkout pilot' });
     assert.deepEqual(await savedRow.locator('.library-status-tag').allTextContents(), ['Corrected', 'Updated'], 'Corrected and Updated stay as distinct orange row labels');
-    assert.equal(await page.locator('.library-filters button').count(), 3, 'Earlier has Editions, Episodes and Saved filters');
+    assert.equal(await page.locator('.library-filters button').count(), 3, 'Library has Briefings, Episodes and Saved filters');
     await capture(page, 'fictional-correction-library-saved-light.png');
     await page.emulateMedia({ colorScheme: 'dark' });
     await capture(page, 'fictional-correction-library-saved-dark.png');

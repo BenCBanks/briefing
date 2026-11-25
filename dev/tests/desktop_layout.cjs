@@ -51,7 +51,7 @@ async function capture(page, name) {
     assert.ok(shell.columnWidth <= 640, `reading column is at most 640px, got ${shell.columnWidth}`);
     assert.ok(Math.abs(shell.columnX + shell.columnWidth / 2 - 640) <= 1, 'reading column is centered in the desktop viewport');
     assert.equal(shell.pageWidth, 1280, 'desktop page has no horizontal overflow');
-    assert.deepEqual(await page.locator('[data-nav]').evaluateAll(items => items.map(item => item.innerText.trim())), ['Today', 'On demand', 'Earlier', 'Topics']);
+    assert.deepEqual(await page.locator('[data-nav]').evaluateAll(items => items.map(item => item.innerText.trim())), ['Today', 'On demand', 'Library', 'Topics']);
     await capture(page, 'desktop-today-light');
     await page.emulateMedia({ colorScheme: 'dark' });
     await capture(page, 'desktop-today-dark');

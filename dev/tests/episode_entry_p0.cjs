@@ -195,16 +195,16 @@ async function run() {
     const earlier = await newPage(browser);
     await installBaseRoutes(earlier);
     await earlier.goto(`${baseURL}/#library`, { waitUntil: 'domcontentloaded' });
-    await earlier.locator('.library-page h1, main h1').first().waitFor();
+    await earlier.getByRole('heading', { name: 'Library', level: 1 }).waitFor();
     await auditLargeText(earlier, 'earlier-editions');
     await earlier.getByRole('button', {name:'Episodes',exact:true}).click();
-    await earlier.getByRole('link', { name: 'Ask for a briefing', exact: true }).waitFor();
+    await earlier.getByRole('link', { name: 'Make an episode', exact: true }).waitFor();
     assert.equal(await earlier.locator('.earlier-episodes a[href],.earlier-episodes button').count(), 1, 'Earlier empty state has one action');
     await screenshot(earlier, 'earlier-light');
     await earlier.emulateMedia({ colorScheme: 'dark' }); await screenshot(earlier, 'earlier-dark');
     await earlier.emulateMedia({ colorScheme: 'light' });
     await auditLargeText(earlier, 'earlier');
-    await earlier.getByRole('link', { name: 'Ask for a briefing', exact: true }).click();
+    await earlier.getByRole('link', { name: 'Make an episode', exact: true }).click();
     await earlier.locator('.episode-request-page').waitFor();
 
     const earlierError = await newPage(browser);
