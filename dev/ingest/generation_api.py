@@ -39,6 +39,7 @@ ARTICLE_EXTRACTION_BUDGET_SECONDS = 80
 MAX_GEMINI_CALLS_PER_RUN = 40
 MAX_GEMINI_CALLS_WITH_FILL = 40
 MAX_ARTICLE_FETCHES_PER_RUN = 24
+MAX_ARTICLE_FETCHES_PER_HOST = 3
 CACHED_FEED_MAX_AGE = timedelta(hours=2)
 # A reader's repeat window is fourteen days, not fourteen rebuilds. Retain
 # enough revisions for repeated manual rebuilds without letting this private
@@ -846,6 +847,7 @@ def _budgeted_article_fetcher(deadline, max_fetches=MAX_ARTICLE_FETCHES_PER_RUN,
     calls = 0
     calls_lock = Lock()
     diagnostics = []
+    host_fetch_counts = {}
     blocked_hosts = {host.lower().rstrip('.') for host in blocked_hosts if isinstance(host, str)}
     blocked_source_ids = set(blocked_source_ids)
     article_cache = None
@@ -884,16 +886,31 @@ def _budgeted_article_fetcher(deadline, max_fetches=MAX_ARTICLE_FETCHES_PER_RUN,
         if article_cache is not None:
             with cache_lock:
                 fetch_budget = shared_context['article_fetch_budget']
+                host_counts = shared_context.setdefault('article_fetch_counts_by_host', {})
+                if host_counts.get(host, 0) >= MAX_ARTICLE_FETCHES_PER_HOST:
+                    diagnostic = {'source_id': source.get('id'), 'reason': 'host_read_cap'}
+                    if source.get('_briefing_candidate_id'):
+                        diagnostic['candidate_id'] = source['_briefing_candidate_id']
+                    diagnostics.append(diagnostic)
+                    return None
                 if fetch_budget['calls'] >= fetch_budget['limit']:
                     diagnostics.append({'source_id': source.get('id'), 'reason': 'run_fetch_cap'})
                     return None
                 fetch_budget['calls'] += 1
+                host_counts[host] = host_counts.get(host, 0) + 1
         else:
             with calls_lock:
+                if host_fetch_counts.get(host, 0) >= MAX_ARTICLE_FETCHES_PER_HOST:
+                    diagnostic = {'source_id': source.get('id'), 'reason': 'host_read_cap'}
+                    if source.get('_briefing_candidate_id'):
+                        diagnostic['candidate_id'] = source['_briefing_candidate_id']
+                    diagnostics.append(diagnostic)
+                    return None
                 if calls >= max_fetches:
                     diagnostics.append({'source_id': source.get('id'), 'reason': 'run_fetch_cap'})
                     return None
                 calls += 1
+                host_fetch_counts[host] = host_fetch_counts.get(host, 0) + 1
         try:
             value = core.fetch_article_text(url, source, diagnostics=diagnostics, deadline=deadline)
         except TypeError as error:
@@ -1331,6 +1348,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
             report['candidate_attempt_limit'] = detail.get('candidate_attempt_limit', 0)
             report['candidate_results'] = detail.get('candidate_results', [])
             report['candidate_pool_diagnostics'] = detail.get('candidate_pool_diagnostics', {})
+            report['candidate_read_trace'] = detail.get('candidate_read_trace', [])
             report['funnel_drop_reasons'] = detail.get('funnel_drop_reasons', {})
             selected_by_topic = {}
             for story in edition.get('sections', []):
