@@ -187,12 +187,14 @@ class IngestTests(unittest.TestCase):
         self.assertTrue(next(source for source in sources if source['id'] == 'fedreg-rss-cms')['enabled'])
         self.assertEqual(next(source for source in sources if source['id'] == 'fedreg-rss-cms')['source_class'], 'official')
         self.assertEqual(next(source for source in sources if source['id'] == 'fedreg-rss-cms')['article_access'], 'full-text')
+        self.assertTrue(next(source for source in sources if source['id'] == 'cms-newsroom')['enabled'])
+        self.assertEqual(next(source for source in sources if source['id'] == 'cms-newsroom')['source_tier'], 'primary')
         registry_doc = json.loads((Path(__file__).resolve().parents[2] / 'content/sources-registry.json').read_text())
         watched = {row['id'] for row in registry_doc.get('watched_pages', [])}
         self.assertEqual(len(watched), 6)
         self.assertIn('fdic-national-rates', watched)
         self.assertEqual(len(watched), 6)
-        for skipped in ('cms-newsroom', 'thepointsguy-deals', 'frankfurter', 'wikipedia-feed', 'newscientist'):
+        for skipped in ('thepointsguy-deals', 'frankfurter', 'wikipedia-feed', 'newscientist'):
             self.assertFalse(next(source for source in sources if source['id'] == skipped)['enabled'])
         probation = [source for source in sources if source.get('tier') == 'probation']
         self.assertEqual({source['id'] for source in probation}, {'bpc-health'})
@@ -393,8 +395,11 @@ class IngestTests(unittest.TestCase):
         self.assertEqual(item['title'], 'Coverage rule update for fictional readers')
         self.assertEqual(item['url'], 'https://www.cms.gov/newsroom/updates/coverage')
         fierce = {**cms, 'id': 'fierce-healthcare', 'url': 'https://www.fiercehealthcare.com/rss/xml'}
-        fierce_item = core.parse_source(rss('&lt;b&gt;Payer policy&lt;/b&gt; update'), fierce, NOW)[0]
+        fierce_item = core.parse_source(rss('&lt;b&gt;Payer policy&lt;/b&gt; update',
+            link='&amp;lt;a href=&amp;quot;/news/fictional-rule&amp;quot;&amp;gt;Read more&amp;lt;/a&amp;gt;'),
+            fierce, NOW)[0]
         self.assertEqual(fierce_item['title'], 'Payer policy update')
+        self.assertEqual(fierce_item['url'], 'https://www.fiercehealthcare.com/news/fictional-rule')
 
     def test_stat_plus_markers_and_broad_feed_keyword_filters_run_before_storage(self):
         stat = {**SOURCE, 'id': 'statnews', 'item_exclude_markers': ['STAT+']}

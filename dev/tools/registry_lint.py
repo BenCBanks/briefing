@@ -15,6 +15,7 @@ KNOWN_TOPICS = {
     'housing-market', 'insurance', 'materials', 'mlb', 'nba', 'nfl', 'nhl', 'payments',
     'premier-league', 'science', 'security', 'sports', 'travel', 'us', 'world',
     'energy', 'local-news', 'sports-business', 'privacy', 'running', 'books',
+    'semiconductors', 'climate-policy', 'space',
 }
 ACCESS = {'feed-full', 'full-text', 'headline', 'transient-read'}
 _SLUG = re.compile(r'^[a-z0-9]+(?:-[a-z0-9]+)*$')
