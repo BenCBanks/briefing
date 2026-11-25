@@ -106,7 +106,10 @@ class CorrectionDurationProvider(FakeProvider):
 class EpisodeAudioRenderTests(unittest.TestCase):
     def test_audio_failure_reason_is_specific_bounded_and_never_echoes_provider_text(self):
         cases = [
+            (TtsProviderError('Gemini API returned HTTP 400.'), 'tts_http_400'),
+            (TtsProviderError('Gemini API returned HTTP 429.'), 'tts_http_429'),
             (TtsProviderError('Gemini API returned HTTP 503.'), 'tts_http_503'),
+            (TtsProviderError('Gemini API returned HTTP 599.'), 'tts_http_599'),
             (TtsProviderError('Gemini API response was too large.'), 'tts_response_too_large'),
             (TtsOutputLimitError('Bounded TTS result reached its output-token limit.'),
              'tts_output_limit'),

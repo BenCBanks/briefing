@@ -177,12 +177,14 @@ async function run() {
     await page.close();
 
     const priorAudio = firstEpisode.audio;
-    firstEpisode.audio = { ...priorAudio, status: 'failed', reason: 'tts_http_503' };
-    const audioFailed = await openPage(browser, `episode/${firstEpisode.id}`, true);
-    await audioFailed.page.locator('.episode-audio-unavailable').waitFor();
-    assert.match(await audioFailed.page.locator('.episode-audio-unavailable').innerText(),
-      /Audio could not be recorded\. The speech service returned HTTP 503\./);
-    await audioFailed.page.close();
+    for (const status of [400, 429, 503, 599]) {
+      firstEpisode.audio = { ...priorAudio, status: 'failed', reason: `tts_http_${status}` };
+      const audioFailed = await openPage(browser, `episode/${firstEpisode.id}`, true);
+      await audioFailed.page.locator('.episode-audio-unavailable').waitFor();
+      assert.equal(await audioFailed.page.locator('.episode-audio-unavailable').innerText(),
+        `Audio could not be recorded. The speech service returned HTTP ${status}.`);
+      await audioFailed.page.close();
+    }
     firstEpisode.audio = priorAudio;
 
     const failed = await openPage(browser, `episode/${firstEpisode.id}`, true, route => route.fulfill({ status: 404, body: 'missing fixture audio' }));
