@@ -836,13 +836,14 @@ def _review_writer_draft(stories, verdicts, evidence_by_story, target_words, *, 
             if not verifier_supported or not deterministic_supported:
                 findings.append({'section_id': section_id, 'sentence_index': index,
                                  'code': 'unsupported_sentence',
+                                 'gate': 'hard',
                                  'verifier_supported': verifier_supported,
                                  'deterministic_supported': deterministic_supported})
                 continue
             reused = set(sentence['evidence_ids']) & background_ids & used_background_ids
             if reused:
                 findings.append({'section_id': section_id, 'sentence_index': index,
-                                 'code': 'repeated_background_evidence'})
+                                 'code': 'repeated_background_evidence', 'gate': 'hard'})
                 continue
             kept.append(sentence)
             used_background_ids.update(set(sentence['evidence_ids']) & background_ids)
@@ -852,14 +853,14 @@ def _review_writer_draft(stories, verdicts, evidence_by_story, target_words, *, 
         for index, sentence in enumerate(kept):
             if _contains_read_takeaway(sentence['text'], takeaway_keys):
                 findings.append({'section_id': section_id, 'sentence_index': index,
-                                 'code': 'narration_repeated_read_takeaway'})
+                                 'code': 'narration_repeated_read_takeaway', 'gate': 'hard'})
                 repeated_read_takeaway = True
             elif _has_high_read_takeaway_overlap(sentence['text'], takeaway_keys):
                 # Word overlap can hide a changed date, entity, or development.
                 # Ask for a revision once, then let the semantic verifier and
                 # evidence checks decide whether the supported wording stands.
                 findings.append({'section_id': section_id, 'sentence_index': index,
-                                 'code': 'narration_read_takeaway_overlap'})
+                                 'code': 'narration_read_takeaway_overlap', 'gate': 'soft'})
         from .audio_script import _speak_text
         kept = [{**row, 'text': _speak_text(row['text'])} for row in kept]
         general_context_words = sum(_words(row['text']) for row in kept if row.get('general_context') is True)
@@ -882,12 +883,12 @@ def _review_writer_draft(stories, verdicts, evidence_by_story, target_words, *, 
         soft_style_failure = not lint['ok'] or lint['general_context_too_low']
         if hard_lint_failure or not kept:
             fatal_reason = 'narration_style_or_evidence_check'
-            findings.append({'section_id': section_id, 'code': fatal_reason, 'lint': lint})
+            findings.append({'section_id': section_id, 'code': fatal_reason, 'gate': 'hard', 'lint': lint})
         elif soft_style_failure:
             code = ('narration_context_below_guidance' if lint['general_context_too_low'] and lint['ok']
                     else 'narration_style_or_evidence_check')
             findings.append({'section_id': section_id, 'code': code,
-                             'lint': lint, 'spoken_words': spoken_words})
+                             'gate': 'soft', 'lint': lint, 'spoken_words': spoken_words})
             if not allow_soft_style:
                 fatal_reason = 'narration_style_or_evidence_check'
         if (spoken_words < target_min and
@@ -895,6 +896,7 @@ def _review_writer_draft(stories, verdicts, evidence_by_story, target_words, *, 
             depth_finding = {
                 'section_id': section_id,
                 'code': 'narration_underdeveloped_with_unused_evidence',
+                'gate': 'soft',
                 'spoken_words': spoken_words,
                 'minimum_words': target_min,
                 'maximum_words': target_max,
@@ -905,10 +907,11 @@ def _review_writer_draft(stories, verdicts, evidence_by_story, target_words, *, 
         accepted[section_id] = kept
     set_lint = lint_story_set(accepted, headings)
     if set_lint['repeated_headlines']:
-        findings.append({'code': 'narration_repeated_headline', 'lint': set_lint})
+        findings.append({'code': 'narration_repeated_headline', 'gate': 'hard', 'lint': set_lint})
         fatal_reason = 'narration_repeated_headline'
     elif not set_lint['ok']:
-        findings.append({'code': 'narration_repeated_formula_or_vague_ending', 'lint': set_lint})
+        findings.append({'code': 'narration_repeated_formula_or_vague_ending',
+                         'gate': 'soft', 'lint': set_lint})
         if not allow_soft_style:
             fatal_reason = 'narration_repeated_formula_or_vague_ending'
     if repeated_read_takeaway:
@@ -919,6 +922,7 @@ def _review_writer_draft(stories, verdicts, evidence_by_story, target_words, *, 
         if daily_spoken_words < DAILY_MIN_USEFUL_WORDS:
             findings.append({
                 'code': 'narration_underdeveloped_with_unused_evidence',
+                'gate': 'soft',
                 'daily_spoken_words': daily_spoken_words,
                 'minimum_daily_words': DAILY_MIN_USEFUL_WORDS,
                 'deep_short_sections': underdeveloped,
@@ -1331,13 +1335,14 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                         allow_soft_style=(attempt == 1))
 
             finding_codes = [str(row.get('code')) for row in findings if isinstance(row, dict) and row.get('code')]
-            hard_codes = {
-                'unsupported_sentence', 'narration_style_or_evidence_check',
-                'narration_repeated_headline', 'narration_writer_shape',
-                'narration_verifier_shape', 'narration_assembly',
-            }
-            gate = ('hard' if any(code in hard_codes for code in finding_codes) else
-                    'soft' if finding_codes else 'pass')
+            hard_findings = any(isinstance(row, dict) and row.get('gate') == 'hard'
+                                for row in findings)
+            soft_findings = any(isinstance(row, dict) and row.get('gate') == 'soft'
+                                for row in findings)
+            hard_shape_failure = fatal_reason in {
+                'narration_writer_shape', 'narration_verifier_shape', 'narration_assembly'}
+            gate = ('hard' if hard_findings or hard_shape_failure else
+                    'soft' if soft_findings or finding_codes else 'pass')
             draft_rows = []
             if isinstance(stories, dict):
                 draft_rows = [row.get('text', '') for rows in stories.values()

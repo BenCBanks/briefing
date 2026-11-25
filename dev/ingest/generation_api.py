@@ -695,6 +695,12 @@ def _daily_narration_job_status(report):
     }
     if status == 'fallback':
         result['message'] = messages.get(reason, 'The narration could not be completed.')
+    if narration.get('lost_at_stage') in {
+            'preparation', 'evidence_selection', 'writer', 'verifier',
+            'sentence_review', 'length_gate', 'script_review', 'narration_assembly'}:
+        result['lost_at_stage'] = narration['lost_at_stage']
+    if type(narration.get('expansion_used')) is bool:
+        result['expansion_used'] = narration['expansion_used']
     attempts = narration.get('attempts')
     safe_attempts = []
     if isinstance(attempts, list):

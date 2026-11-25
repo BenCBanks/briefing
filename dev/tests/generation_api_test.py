@@ -1139,6 +1139,28 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(generation_api._safe_narration_exception_reason(
             ValueError('private path token')), 'ValueError')
 
+    def test_daily_narration_status_exposes_bounded_attempt_diagnostics_only(self):
+        status = generation_api._daily_narration_job_status({'daily_narration': {
+            'status': 'fallback', 'reason': 'narration_underdeveloped_with_unused_evidence',
+            'lost_at_stage': 'length_gate', 'expansion_used': True,
+            'attempts': [{'attempt': 1, 'stories_in': 3, 'words_out': 240,
+                          'accepted_words': 220, 'target_words': 700,
+                          'target_words_per_story': 223, 'gate': 'soft',
+                          'finding_codes': ['narration_underdeveloped_with_unused_evidence'],
+                          'repair_pass': False, 'expansion_pass': False,
+                          'draft': 'must not leak'},
+                         {'attempt': 2, 'stories_in': 3, 'words_out': 680,
+                          'accepted_words': 660, 'target_words': 700,
+                          'gate': 'pass', 'finding_codes': [],
+                          'repair_pass': True, 'expansion_pass': True}],
+        }})
+        self.assertEqual(status['lost_at_stage'], 'length_gate')
+        self.assertTrue(status['expansion_used'])
+        self.assertEqual(len(status['attempts']), 2)
+        self.assertEqual(status['attempts'][0]['words_out'], 240)
+        self.assertNotIn('must not leak', json.dumps(status))
+        self.assertIn('message', status)
+
     def test_narration_failure_preserves_critical_content_gate_and_clears_script(self):
         edition = {'audio': {'state': 'pending'},
                    'daily_briefing': {'briefing_script': [{'text': 'Old narration'}],

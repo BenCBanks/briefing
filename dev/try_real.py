@@ -418,6 +418,17 @@ def run_daily(*, search_first=False) -> int:
             _print_failed_daily_cost(before, started)
             _print_funnel(scorecard, selected)
             return 1
+        narration = job.get('daily_narration') if isinstance(job.get('daily_narration'), dict) else {}
+        briefing = edition.get('daily_briefing') if isinstance(edition.get('daily_briefing'), dict) else {}
+        print('Daily narration diagnostics: ' + json.dumps({key: narration.get(key) for key in
+              ('status', 'reason', 'message', 'attempts', 'lost_at_stage', 'expansion_used')
+              if key in narration}, sort_keys=True))
+        print(f"Narration length: {len([row for row in edition.get('sections', []) if isinstance(row, dict) and row.get('cluster_id')])} stories, "
+              f"requested {briefing.get('target_spoken_words', narration.get('target_daily_words', 'unknown'))} words, "
+              f"got {briefing.get('spoken_words', 0)} words, lost at stage {narration.get('lost_at_stage') or 'none'}")
+        audio = edition.get('audio') if isinstance(edition.get('audio'), dict) else {}
+        print('Audio: ' + ('yes' if audio.get('state') == 'ready' else 'no') +
+              (f" ({audio.get('state')})" if audio.get('state') else ' (not rendered by this check)'))
         _print_result('daily', edition, before, started)
         _print_funnel(scorecard, selected)
         return 0
