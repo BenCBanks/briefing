@@ -2032,6 +2032,8 @@ class EpisodeJobStoreTests(unittest.TestCase):
         self.assertEqual(job['episode']['transcript'], expected_transcript)
         self.assertEqual(job['episode']['audio']['status'], 'failed')
         self.assertEqual(job['episode']['audio']['reason'], 'tts_http_503')
+        public = store._safe_audio_job(job, 'failed', None)
+        self.assertEqual(public['episode']['audio']['reason'], 'tts_http_503')
 
     def test_streaming_publishes_first_chapter_before_later_audio_and_completes(self):
         generated = fake_episode({'job_id': 'episode-fixture', 'topic': REQUEST['topic'],
