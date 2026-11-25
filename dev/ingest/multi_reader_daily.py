@@ -69,7 +69,8 @@ def _rotation(profiles: list[dict], run_date: date) -> list[dict]:
 def run_daily(*, profiles: list[dict], run_date: date, retrieve_topic, write_reader,
               render_audio, budget: DailyBudget, single_reader=None,
               deadline_seconds: float = 300.0, now=None, source_pack_version: str = 'default',
-              freshness_window: str = '90d', pool_cache: dict | None = None) -> dict:
+              freshness_window: str = '90d', pool_cache: dict | None = None,
+              completed_reader_ids: set[str] | None = None, on_reader_result=None) -> dict:
     """Build one shared evidence pool and fan it out to reader callbacks.
 
     With accounts disabled, ``single_reader`` is called directly and its return
@@ -108,33 +109,48 @@ def run_daily(*, profiles: list[dict], run_date: date, retrieve_topic, write_rea
             retrieval_failures[topic] = 'evidence was unavailable'
 
     results = []
+    completed_reader_ids = completed_reader_ids or set()
+
+    def record(row):
+        results.append(row)
+        if callable(on_reader_result):
+            on_reader_result(row)
+
     for profile in _rotation(profiles, run_date):
         account_id = _account_id(profile)
+        if account_id in completed_reader_ids:
+            continue
+        reader_budget = DailyBudget(cap=min(budget.remaining, budget.reserve),
+                                    reserve=budget.reserve)
         topics = _topic_ids(profile)
-        evidence = {topic: pool[topic] for topic in topics if topic in pool}
+        evidence = {topic: pool[topic] for topic in topics if topic in pool and pool[topic]}
         if not evidence:
-            results.append({'account_id': account_id, 'status': 'not_today',
-                            'message': "There was not enough evidence or shared budget to make your briefing today.",
-                            'topics': list(topics), 'retrieval_failures':
-                            {topic: retrieval_failures.get(topic, 'not available') for topic in topics}})
+            record({'account_id': account_id, 'status': 'not_today',
+                    'message': "There was not enough evidence or shared budget to make your briefing today.",
+                    'topics': list(topics), 'cost_usd': 0.0, 'retrieval_failures':
+                    {topic: retrieval_failures.get(topic, 'not available') for topic in topics}})
             continue
         if time.monotonic() - started >= deadline_seconds:
-            results.append({'account_id': account_id, 'status': 'not_today',
-                            'message': 'The daily run reached its time limit before your briefing was complete.',
-                            'topics': list(topics)})
+            record({'account_id': account_id, 'status': 'not_today',
+                    'message': 'The daily run reached its time limit before your briefing was complete.',
+                    'topics': list(topics), 'cost_usd': 0.0})
             continue
         try:
-            edition = write_reader(profile, evidence, budget)
-            audio = render_audio(profile, edition, budget)
-            results.append({'account_id': account_id, 'status': 'complete',
-                            'edition': edition, 'audio': audio, 'topics': list(topics)})
+            edition = write_reader(profile, evidence, reader_budget)
+            audio = render_audio(profile, edition, reader_budget)
+            budget.charge(reader_budget.spent, purpose='reader allocation')
+            record({'account_id': account_id, 'status': 'complete',
+                    'edition': edition, 'audio': audio, 'topics': list(topics),
+                    'cost_usd': reader_budget.spent})
         except DailyBudgetError:
-            results.append({'account_id': account_id, 'status': 'not_today',
-                            'message': "There was not enough shared budget to make your briefing today.",
-                            'topics': list(topics)})
+            budget.charge(reader_budget.spent, purpose='reader allocation')
+            record({'account_id': account_id, 'status': 'not_today',
+                    'message': "There was not enough shared budget to make your briefing today.",
+                    'topics': list(topics), 'cost_usd': reader_budget.spent})
         except Exception:
-            results.append({'account_id': account_id, 'status': 'failed',
-                            'message': 'Your briefing could not be completed today.',
-                            'topics': list(topics)})
+            budget.charge(reader_budget.spent, purpose='reader allocation')
+            record({'account_id': account_id, 'status': 'failed',
+                    'message': 'Your briefing could not be completed today.',
+                    'topics': list(topics), 'cost_usd': reader_budget.spent})
     return {'mode': 'multi', 'topics': unique_topics, 'retrieval_failures': retrieval_failures,
             'spent': budget.spent, 'remaining': budget.remaining, 'readers': results}

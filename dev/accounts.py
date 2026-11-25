@@ -84,6 +84,37 @@ def reader_profile_path(account_id):
     return path
 
 
+def daily_readers():
+    """Load bounded account profiles for the opt-in scheduled daily job."""
+    rows = _read('accounts.json', {})
+    if not isinstance(rows, dict):
+        return []
+    from .ingest.generation_api import validate_profile
+    result = []
+    for account in rows.values():
+        if not isinstance(account, dict):
+            continue
+        account_id = account.get('id')
+        if not isinstance(account_id, str) or not re.fullmatch(r'[a-f0-9]{32}', account_id):
+            continue
+        try:
+            reader_dir = reader_state_dir(account_id, create=False)
+            readers_dir = reader_dir.parent
+            path = reader_dir / 'profile.json'
+            if (readers_dir.is_symlink() or reader_dir.is_symlink() or
+                    path.is_symlink() or not path.is_file()):
+                continue
+            value = json.loads(path.read_text(encoding='utf-8'))
+            profile = value.get('profile') if isinstance(value, dict) and isinstance(value.get('profile'), dict) else value
+            validate_profile(profile)
+        except (OSError, ValueError, TypeError, AccountError):
+            continue
+        result.append({'account_id': account_id, 'profile': profile})
+        if len(result) >= 200:
+            break
+    return result
+
+
 def reader_generated_dir(account_id, profile_id, *, create=True):
     if not isinstance(profile_id, str) or not re.fullmatch(r'[a-f0-9]{24}', profile_id):
         raise AccountError(400, 'invalid_profile')

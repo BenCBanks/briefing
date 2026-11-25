@@ -67,6 +67,43 @@ class MultiReaderDailyTests(unittest.TestCase):
         self.assertEqual(states['reader-a'], 'not_today')
         self.assertLessEqual(result['spent'], 0.5)
 
+    def test_crash_retry_skips_readers_already_persisted_ready(self):
+        profiles = readers()
+        persisted = {}
+        write_calls = []
+        crash_once = [True]
+
+        def record(row):
+            persisted[row['account_id']] = row['status']
+            if row['account_id'] == 'reader-b' and crash_once[0]:
+                crash_once[0] = False
+                raise SystemExit('simulated process crash after persisted result')
+
+        with patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'on'}):
+            with self.assertRaises(SystemExit):
+                run_daily(
+                    profiles=profiles, run_date=date(2026, 11, 25),
+                    retrieve_topic=lambda topic, _budget: [topic],
+                    write_reader=lambda profile, _evidence, _budget: (
+                        write_calls.append(profile['account_id']) or {'ok': True}),
+                    render_audio=lambda *_: {}, budget=DailyBudget(1.0),
+                    on_reader_result=record)
+
+            complete = {reader_id for reader_id, status in persisted.items() if status == 'complete'}
+            resumed = run_daily(
+                profiles=profiles, run_date=date(2026, 11, 25),
+                retrieve_topic=lambda topic, _budget: [topic],
+                write_reader=lambda profile, _evidence, _budget: (
+                    write_calls.append(profile['account_id']) or {'ok': True}),
+                render_audio=lambda *_: {}, budget=DailyBudget(1.0),
+                completed_reader_ids=complete)
+
+        self.assertTrue(complete)
+        self.assertEqual(len(complete), 1)
+        self.assertEqual(len(write_calls), 3)
+        self.assertEqual({row['account_id'] for row in resumed['readers']},
+                         {row['account_id'] for row in profiles} - complete)
+
     def test_rotation_is_stable_and_fair_over_five_days(self):
         order_by_day = []
         with patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'on'}):

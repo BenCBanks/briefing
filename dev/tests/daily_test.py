@@ -24,7 +24,130 @@ from dev.ingest.tts.base import TtsResult
 from dev.ingest.tts.gemini import DEFAULT_MODEL
 
 
+def fake_reader_run(profile, start):
+    code, queued = start(profile)
+    if code != 202:
+        return 1, {'status': 'failed'}
+    if profile['topics'] and profile['topics'][0]['id'] == 'writer-fails':
+        return 1, {'status': 'failed', 'job_id': queued['job_id'], 'reason': 'generation_failed'}
+    return 0, {'status': 'complete', 'job_id': queued['job_id'],
+                'edition_ready': {'edition': {'id': 'fixture-edition', 'sections': []}}}
+
+
 class DailyTests(unittest.TestCase):
+    def test_account_daily_reserve_scales_per_reader_but_stops_at_global_balance(self):
+        with patch.dict(os.environ, {'BRIEFING_ACCOUNT_DAILY_RESERVE_USD': '0.25'}):
+            budget = daily._account_daily_budget(3.0, 10)
+            self.assertEqual(budget.cap, 2.5)
+            self.assertEqual(budget.reserve, 0.25)
+            capped = daily._account_daily_budget(1.2, 10)
+            self.assertEqual(capped.cap, 1.2)
+        with patch.dict(os.environ, {'BRIEFING_ACCOUNT_DAILY_RESERVE_USD': 'invalid'}):
+            fallback = daily._account_daily_budget(5.0, 2)
+            self.assertEqual(fallback.cap, 0.8)
+
+    def test_accounts_daily_fans_out_status_and_isolates_reader_states(self):
+        account_rows = [
+            {'account_id': 'a' * 32, 'profile': {'topics': [{'id': 'writer-fails'}]}},
+            {'account_id': 'b' * 32, 'profile': {'topics': []}},
+            {'account_id': 'c' * 32, 'profile': {'topics': [{'id': 'ready-topic'}]}},
+        ]
+        started = []
+        reports = []
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'on'}), \
+             patch.object(daily, '_status_path', return_value=Path(temp) / 'status.json'), \
+             patch('dev.accounts.reader_state_dir', side_effect=lambda account_id: Path(temp) / account_id), \
+             patch('dev.accounts.reader_generated_dir',
+                   side_effect=lambda account_id, profile_id: Path(temp) / account_id / 'generated' / profile_id), \
+             patch.object(daily, '_ledger_daily_totals', return_value=(0.0, 1.0)), \
+             patch.object(daily.generation_api, 'start_generation',
+                          side_effect=lambda profile, **kwargs: (started.append((profile, kwargs)) or
+                                                                 (202, {'job_id': f'job-{len(started)}'}))), \
+             patch.object(daily, '_one_profile', side_effect=lambda profile, _wait, _poll, start, _get, _sleep,
+                          _renderer, _persister: fake_reader_run(profile, start)), \
+             patch.object(daily, 'render_daily_audio',
+                          return_value={'audio_status': 'ready', 'duration_seconds': 60}), \
+             patch.object(daily, '_persist_daily_audio', side_effect=lambda _p, _e, audio, **_kw: audio):
+            code, result = daily.run_accounts_daily(
+                profile_loader=lambda: account_rows, report_writer=reports.append, sleep=lambda _delay: None,
+                pool_loader=lambda profiles, context: ({
+                    'writer-fails': ['fixture item'], 'ready-topic': ['fixture item']
+                }, 'fixture-source-pack'))
+
+        statuses = {row['reader_id']: row['status'] for row in result['multi_reader']['readers']}
+        self.assertEqual(code, 1)
+        self.assertEqual(statuses, {'aaaaaaaa': 'failed', 'bbbbbbbb': 'not_today', 'cccccccc': 'ready'})
+        self.assertEqual(len(started), 2)
+        self.assertNotEqual(started[0][1]['directory'], started[1][1]['directory'])
+        self.assertEqual(len(reports), 1)
+
+    def test_accounts_daily_second_run_skips_readers_complete_today(self):
+        account_rows = [
+            {'account_id': 'd' * 32, 'profile': {'topics': [{'id': 'chips'}]}},
+            {'account_id': 'e' * 32, 'profile': {'topics': [{'id': 'climate'}]}},
+        ]
+        starts = []
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'on'}), \
+             patch.object(daily, '_status_path', return_value=Path(temp) / 'status.json'), \
+             patch('dev.accounts.reader_state_dir', side_effect=lambda account_id: Path(temp) / account_id), \
+             patch('dev.accounts.reader_generated_dir',
+                   side_effect=lambda account_id, profile_id: Path(temp) / account_id / 'generated' / profile_id), \
+             patch.object(daily, '_ledger_daily_totals', return_value=(0.0, 1.0)), \
+             patch.object(daily.generation_api, 'start_generation',
+                          side_effect=lambda _profile, **kwargs: (starts.append(kwargs['directory']) or
+                                                                  (202, {'job_id': f'job-{len(starts)}'}))), \
+             patch.object(daily, '_one_profile', side_effect=lambda profile, _wait, _poll, start, _get, _sleep,
+                          _renderer, _persister: fake_reader_run(profile, start)), \
+             patch.object(daily, 'render_daily_audio',
+                          return_value={'audio_status': 'ready', 'duration_seconds': 60}), \
+             patch.object(daily, '_persist_daily_audio', side_effect=lambda _p, _e, audio, **_kw: audio):
+            for _ in range(2):
+                code, result = daily.run_accounts_daily(
+                    profile_loader=lambda: account_rows, report_writer=lambda _result: None,
+                    sleep=lambda _delay: None,
+                    pool_loader=lambda _profiles, _context: ({'chips': ['fixture'], 'climate': ['fixture']}, 'pack'))
+                self.assertEqual(code, 0)
+                self.assertEqual(result['profiles_completed'], 2)
+        self.assertEqual(len(starts), 2)
+        self.assertNotEqual(starts[0], starts[1])
+
+    def test_shared_topic_pool_fetches_union_once_and_slices_topic_items(self):
+        profiles = [
+            {'account_id': 'a' * 32, 'local_sources': ['fictional-a'],
+             'topics': [{'id': 'chips', 'label': 'AI chips', 'scope': 'semiconductors'}]},
+            {'account_id': 'b' * 32, 'local_sources': ['fictional-b'],
+             'topics': [{'id': 'climate', 'label': 'Climate policy', 'scope': 'climate laws'}]},
+        ]
+        registry = [{'id': 'fixture-source', 'enabled': True}]
+        items = [
+            {'source_id': 'fixture-source', 'url': 'https://fictional.test/chips',
+             'title': 'AI chips update', 'snippet': 'Semiconductor policy.', 'topics': ['chips']},
+            {'source_id': 'fixture-source', 'url': 'https://fictional.test/climate',
+             'title': 'Climate policy update', 'snippet': 'New climate laws.', 'topics': ['climate']},
+        ]
+        ingest = Mock(return_value={'parsed_items': 2, 'source_results': {}, 'source_stats': {}})
+        shared = {}
+        with patch('dev.ingest.discover.run_weekly_watches', return_value=[]) as watches, \
+             patch('dev.ingest.core.load_registry', return_value=registry) as load_registry, \
+             patch('dev.ingest.generation_api._read_feed_health', return_value={}), \
+             patch('dev.ingest.generation_api._ready_sources', return_value=registry), \
+             patch('dev.ingest.core.ingest_enabled', ingest), \
+             patch('dev.ingest.generation_api._update_feed_health', return_value=[]), \
+             patch('dev.ingest.feed_health.counts', return_value={'enabled': 1, 'backing_off': 0,
+                                                                  'disabled_permanent': 0}), \
+             patch('dev.ingest.core.load_store', return_value=items):
+            pool, version = daily._load_shared_topic_pool(profiles, shared)
+
+        self.assertEqual(watches.call_args.kwargs['local_source_ids'], ['fictional-a', 'fictional-b'])
+        self.assertEqual(load_registry.call_args.kwargs['local_source_ids'], ['fictional-a', 'fictional-b'])
+        ingest.assert_called_once()
+        self.assertEqual([item['url'] for item in pool['chips']], ['https://fictional.test/chips'])
+        self.assertEqual([item['url'] for item in pool['climate']], ['https://fictional.test/climate'])
+        self.assertEqual(len(version), 64)
+        self.assertIn('feed_snapshot', shared)
+
     def test_accounts_off_daily_entry_path_golden_trace(self):
         """Freeze the legacy scheduled callbacks before adding account fan-out."""
         profiles = [
@@ -67,6 +190,16 @@ class DailyTests(unittest.TestCase):
         self.assertEqual(result['gemini_calls'], 2)
         self.assertEqual([row['edition_id'] for row in result['profile_runs']],
                          ['edition-job-1', 'edition-job-3'])
+
+    def test_accounts_off_main_delegates_to_exact_legacy_entry_call(self):
+        expected = {'status': 'complete', 'job_id': 'legacy-fixture'}
+        with patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'off'}), \
+             patch.object(daily, 'run_daily', return_value=(0, expected)) as legacy, \
+             patch.object(daily, 'run_accounts_daily', side_effect=AssertionError('accounts runner called')), \
+             patch('builtins.print'):
+            self.assertEqual(daily.main(), 0)
+        legacy.assert_called_once_with()
+        self.assertNotIn('multi_reader', daily._daily_run_report({'status': 'complete'}))
 
     def test_daily_uses_saved_profile_and_waits_for_completion(self):
         observed = []

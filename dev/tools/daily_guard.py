@@ -156,6 +156,17 @@ def inspect_state(state_dir, budget_checker=audio_budget_allows):
     status = read_json(state_dir / 'status.json')
     status = status if isinstance(status, dict) else {}
     today = today_et_date()
+    if os.environ.get('BRIEFING_ACCOUNTS', '').strip().lower() == 'on':
+        daily_run = status.get('daily_run') if isinstance(status.get('daily_run'), dict) else {}
+        multi = daily_run.get('multi_reader') if isinstance(daily_run.get('multi_reader'), dict) else {}
+        if multi.get('local_date') != today:
+            return True, ['multi_reader_incomplete']
+        readers = multi.get('readers') if isinstance(multi.get('readers'), list) else []
+        if not readers:
+            return False, ['no_active_readers']
+        if any(not isinstance(row, dict) or row.get('status') != 'ready' for row in readers):
+            return True, ['multi_reader_incomplete']
+        return False, []
     today_bundle, edition = edition_bundle_for_date(state_dir, today)
     bundle, _current_edition = load_edition_bundle(state_dir)
     if today_bundle is not None:

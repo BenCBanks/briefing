@@ -37,6 +37,25 @@ REAL_SHAPED_PROFILE = {'version': 1, 'words': 'payments and Pinevale health insu
 
 
 class GenerationApiTests(unittest.TestCase):
+    def test_shared_topic_pool_is_filtered_to_each_reader(self):
+        chips = {'source_id': 'source-1', 'url': 'https://fictional.test/chips', 'topics': ['chips']}
+        climate = {'source_id': 'source-2', 'url': 'https://fictional.test/climate', 'topics': ['climate']}
+        shared = {'topic_items': {'chips': [chips], 'climate': [climate]}}
+        self.assertEqual(generation_api._shared_items_for_profile(
+            shared, {'topics': [{'id': 'chips'}]}), [chips])
+        self.assertEqual(generation_api._shared_items_for_profile(
+            shared, {'topics': [{'id': 'climate'}]}), [climate])
+        self.assertEqual(generation_api._shared_items_for_profile(
+            {}, {'topics': [{'id': 'chips'}]}), None)
+        self.assertNotIn('multi_reader', generation_api._public_daily_run({'status': 'complete'}))
+        public = generation_api._public_daily_run({'status': 'complete', 'multi_reader': {
+            'local_date': '2026-11-25', 'readers': [
+                {'reader_id': 'a1b2c3d4', 'status': 'ready', 'cost_usd': 0.1,
+                 'email': 'private@example.test'}]}})
+        self.assertEqual(public['multi_reader']['readers'], [
+            {'reader_id': 'a1b2c3d4', 'status': 'ready', 'cost_usd': 0.1, 'reason': None}])
+        self.assertEqual(public['profiles_completed'], 1)
+
 
     def test_profile_accepts_bounded_reader_selected_local_source_ids(self):
         selected = generation_api.validate_profile({**PROFILE, 'local_sources': [

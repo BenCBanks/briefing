@@ -8,6 +8,7 @@ import contextlib
 from datetime import datetime, timezone
 import io
 import json
+import os
 from pathlib import Path
 import sys
 import tempfile
@@ -45,6 +46,30 @@ def bundle(*, words=900, audio_status='ready', local_date=None):
 
 
 class DailyGuardTests(unittest.TestCase):
+    def test_accounts_guard_retries_only_incomplete_multi_reader_runs(self):
+        with tempfile.TemporaryDirectory() as temp, patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'on'}):
+            state = Path(temp)
+            today = daily_guard.today_et_date()
+            status_path = state / 'status.json'
+            status_path.write_text(json.dumps({'daily_run': {'multi_reader': {
+                'local_date': today, 'readers': [
+                    {'reader_id': 'a1b2c3d4', 'status': 'ready'},
+                    {'reader_id': 'b1b2c3d4', 'status': 'not_today'},
+                    {'reader_id': 'c1b2c3d4', 'status': 'failed'},
+                ]}}}))
+            retry, reasons = daily_guard.inspect_state(state)
+            self.assertTrue(retry)
+            self.assertEqual(reasons, ['multi_reader_incomplete'])
+
+            status_path.write_text(json.dumps({'daily_run': {'multi_reader': {
+                'local_date': today, 'readers': [
+                    {'reader_id': 'a1b2c3d4', 'status': 'ready'},
+                    {'reader_id': 'b1b2c3d4', 'status': 'ready'},
+                ]}}}))
+            retry, reasons = daily_guard.inspect_state(state)
+            self.assertFalse(retry)
+            self.assertEqual(reasons, [])
+
     def test_retry_follows_today_edition_and_content_health_not_ok_flag(self):
         ok_status = {'ok': True, 'daily_run': {'status': 'complete'}}
         good_checks = [{'name': 'quality', 'passed': True}]
