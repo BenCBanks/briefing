@@ -203,6 +203,17 @@
       "evidence_url": "https://archpaper.com/",
       "rights_status": "unverified"
     },
+    "arm.com": {
+      "tier": "vendor",
+      "origin": "arm.com",
+      "reason": "Arm publishes first-party product and research material; useful for its own claims, but never a sole source for a story.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://arm.com/",
+      "rights_status": "unverified"
+    },
     "arsenal.com": {
       "tier": "primary",
       "origin": "arsenal.com",
@@ -1510,6 +1521,17 @@
       "evidence_url": "https://globalpayments.com/",
       "rights_status": "unverified"
     },
+    "google.com": {
+      "tier": "vendor",
+      "origin": "google.com",
+      "reason": "Google publishes first-party product and research material; useful for its own claims, but never a sole source for a story.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://google.com/",
+      "rights_status": "unverified"
+    },
     "governing.com": {
       "tier": "trade",
       "origin": "governing.com",
@@ -2072,6 +2094,17 @@
       "evidence_url": "https://medpac.gov/",
       "rights_status": "unverified"
     },
+    "micron.com": {
+      "tier": "vendor",
+      "origin": "micron.com",
+      "reason": "Micron publishes first-party product and research material; useful for its own claims, but never a sole source for a story.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://micron.com/",
+      "rights_status": "unverified"
+    },
     "minneapolisfed.org": {
       "tier": "primary",
       "origin": "federal-reserve",
@@ -2407,6 +2440,17 @@
       "evidence_url": "https://nufc.co.uk/",
       "rights_status": "unverified"
     },
+    "nvidia.com": {
+      "tier": "vendor",
+      "origin": "nvidia.com",
+      "reason": "NVIDIA publishes first-party product and research material; useful for its own claims, but never a sole source for a story.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://nvidia.com/",
+      "rights_status": "unverified"
+    },
     "nytimes.com": {
       "tier": "major",
       "origin": "nytimes.com",
@@ -2442,14 +2486,13 @@
       "rights_status": "unverified"
     },
     "openai.com": {
-      "tier": "primary",
+      "tier": "vendor",
       "origin": "openai.com",
-      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "reason": "OpenAI publishes first-party product and research material; useful for its own claims, but never a sole source for a story.",
       "basis": [
-        "great-sources-2026-11-17",
-        "universal-sourcing-2026-11-17"
+        "feed-coverage-2026-11-25"
       ],
-      "reviewed_at": "2026-11-18",
+      "reviewed_at": "2026-11-25",
       "evidence_url": "https://openai.com/",
       "rights_status": "unverified"
     },

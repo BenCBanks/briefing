@@ -20,7 +20,7 @@ NOW = datetime(2026, 11, 18, 12, tzinfo=timezone.utc)
 TIERS = {host: {'tier': tier, 'origin': host, 'reviewed_at': '2026-11-18', 'reason': 'Fictional editorial fixture.'}
          for host, tier in [('agency.example', 'primary'), ('paper.example', 'major'),
                             ('trade.example', 'trade'), ('blog.example', 'blog'),
-                            ('wire.example', 'major')]}
+                            ('wire.example', 'major'), ('vendor.example', 'vendor')]}
 BODY = 'The fictional Alder council opened a library. Residents can visit it on weekdays.'
 
 
@@ -153,6 +153,14 @@ class CredibilityTest(unittest.TestCase):
         self.assertEqual(primary['promotion'], 'probation')
         self.assertEqual(assess(row('paper.example'))['originality']['kind'], 'secondary')
         self.assertEqual(assess(row(url='https://agency.example/'))['originality']['kind'], 'unknown')
+
+    def test_vendor_tier_is_reviewable_but_has_low_authority(self):
+        value = row('vendor.example', title='Vendor describes a fictional accelerator')
+        assessment = assess(value)
+        self.assertEqual(assessment['tier'], 'vendor')
+        self.assertEqual(assessment['authority']['points'], c.AUTHORITY['vendor'])
+        with patch.object(c, '_DEFAULT_TIERS', {**c._DEFAULT_TIERS, 'vendor.example': TIERS['vendor.example']}):
+            self.assertIsNone(c.news_quality_reason(value['item'], value['source'], now=NOW))
 
     def test_freshness_missing_invalid_future_old_and_fetch_does_not_refresh(self):
         for date, expected in [(None, 'unknown'), ('invalid', 'unknown'), (17, 'unknown'),

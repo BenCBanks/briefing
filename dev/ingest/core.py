@@ -371,6 +371,35 @@ def _child_text(element, name):
     return next((_clean_text(' '.join(node.itertext())) for node in element if _local_name(node.tag) == target), '')
 
 
+class _FeedLinkParser(HTMLParser):
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.href = ''
+
+    def handle_starttag(self, tag, attrs):
+        if tag.lower() == 'a' and not self.href:
+            self.href = dict(attrs).get('href', '')
+
+
+def _feed_link(raw, base_url):
+    """Recover a link from publisher RSS fields that contain escaped anchor HTML."""
+    raw = str(raw or '').strip()
+    if not raw:
+        return None
+    decoded = html.unescape(raw)
+    if '<a' in decoded.casefold():
+        parser = _FeedLinkParser()
+        try:
+            parser.feed(decoded)
+        except (ValueError, AssertionError):
+            pass
+        raw = parser.href or decoded
+    else:
+        raw = decoded
+    raw = _clean_text(raw, 2000)
+    return canonical_link(urljoin(base_url, raw)) if raw else None
+
+
 def _feed_items(body, source, fetched_at):
     root = ET.fromstring(body)
     records = [node for node in root.iter() if _local_name(node.tag) in {'item', 'entry'}]
@@ -382,11 +411,10 @@ def _feed_items(body, source, fetched_at):
         link = ''
         for child in record:
             if _local_name(child.tag) == 'link':
-                link = child.attrib.get('href') or _clean_text(child.text)
+                link = child.attrib.get('href') or ''.join(child.itertext()).strip()
                 if child.attrib.get('rel', 'alternate') == 'alternate':
                     break
-        original_link = urljoin(source['url'], link) if link else None
-        link = canonical_link(original_link) if original_link else None
+        link = _feed_link(link, source['url']) if link else None
         if not link:
             continue
         description = _child_text(record, 'description') or _child_text(record, 'summary')
@@ -404,7 +432,7 @@ def _feed_items(body, source, fetched_at):
         published = _child_text(record, 'pubDate') or _child_text(record, 'published')
         updated = _child_text(record, 'updated') or _child_text(record, 'modified')
         item = _make_item(source, title, summary, link, published, fetched_at, updated=updated,
-                          original_url=original_link)
+                          original_url=link)
         if access in {'feed-full', 'full-text'} and len(feed_body) >= 300:
             item['feed_body'] = feed_body
             item['feed_body_method'] = feed_body_method or 'feed_full'
@@ -782,13 +810,20 @@ def parse_source(body, source, fetched_at=None):
 
 
 def _filter_source_items(items, source):
-    """Apply registry-declared item filters before housing-TV firehoses enter storage."""
+    """Apply registry-declared include and paywall-marker filters to feed items."""
     keywords = source.get('item_keyword_filter')
-    if not isinstance(keywords, list) or not keywords:
-        return items
-    terms = [str(value).strip().casefold() for value in keywords if isinstance(value, str) and value.strip()]
-    return [item for item in items if any(term in f"{item.get('title', '')} {item.get('snippet', '')}".casefold()
-                                          for term in terms)]
+    if isinstance(keywords, list) and keywords:
+        terms = [str(value).strip().casefold() for value in keywords if isinstance(value, str) and value.strip()]
+        items = [item for item in items if any(term in f"{item.get('title', '')} {item.get('snippet', '')}".casefold()
+                                               for term in terms)]
+    excluded = source.get('item_exclude_markers')
+    if isinstance(excluded, list) and excluded:
+        markers = [str(value).strip().casefold() for value in excluded
+                   if isinstance(value, str) and value.strip()]
+        items = [item for item in items if not any(
+            marker in f"{item.get('title', '')} {item.get('snippet', '')}".casefold()
+            for marker in markers)]
+    return items
 
 
 def _json_value(record, path):
