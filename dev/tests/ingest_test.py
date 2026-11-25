@@ -649,6 +649,91 @@ class IngestTests(unittest.TestCase):
         self.assertEqual(request.get_header('User-agent'), core.USER_AGENT)
         self.assertEqual(timeout, core.TIMEOUT_SECONDS)
 
+    def test_cold_robots_check_does_not_consume_sixty_second_feed_slot(self):
+        source = {**SOURCE, 'enabled': True, 'minimum_interval_seconds': 60}
+        calls = []
+        def opener(request, timeout):
+            calls.append(request.full_url)
+            if request.full_url.endswith('/robots.txt'):
+                return FakeResponse(b'User-agent: *\nAllow: /', url=request.full_url)
+            return FakeResponse(rss(link='https://news.example.test/story/cold'), url=request.full_url)
+        start = time.monotonic()
+        items, _metadata = core.fetch_source(source, opener=opener, now=NOW,
+            robots_cache_path=Path(self.temp.name) / 'cold-robots.json', deadline=start + 60)
+        self.assertEqual(len(items), 1)
+        self.assertEqual(calls, ['https://news.example.test/robots.txt', SOURCE['url']])
+
+    def test_host_group_obeys_interval_between_two_feeds_on_same_host(self):
+        host = 'news.example.test'
+        sources = [
+            {**SOURCE, 'id': f'feed-{index}', 'url': f'https://{host}/feed-{index}.xml',
+             'enabled': True, 'minimum_interval_seconds': 2}
+            for index in (1, 2)
+        ]
+        clock = [100.0]
+        feed_starts = []
+        def opener(request, timeout):
+            if request.full_url.endswith('/robots.txt'):
+                return FakeResponse(b'User-agent: *\nAllow: /', url=request.full_url)
+            feed_starts.append(clock[0])
+            return FakeResponse(rss(title=request.full_url.rsplit('/', 1)[-1],
+                                    link=request.full_url.replace('/feed-', '/story/')),
+                                url=request.full_url)
+        with patch.object(core.time, 'monotonic', side_effect=lambda: clock[0]), \
+             patch.object(core.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            result = core._fetch_host_group(sources, {}, Path(self.temp.name) / 'shared-robots.json',
+                                            opener, NOW, deadline=110.0)
+        self.assertEqual([row[3] for row in result], [None, None])
+        self.assertEqual(feed_starts, [100.0, 102.0])
+
+    def test_nine_same_host_feeds_fit_budget_with_capped_gap_and_robot_delay(self):
+        host = 'federal.example.test'
+        sources = [
+            {**SOURCE, 'id': f'feed-{index}', 'url': f'https://{host}/feed-{index}.xml',
+             'allowed_domains': [host], 'enabled': True, 'minimum_interval_seconds': 60}
+            for index in range(9)
+        ]
+        clock = [100.0]
+        feed_starts = []
+        def opener(request, timeout):
+            if request.full_url.endswith('/robots.txt'):
+                return FakeResponse(b'User-agent: *\nAllow: /\nCrawl-delay: 5', url=request.full_url)
+            feed_starts.append(clock[0])
+            return FakeResponse(rss(title=request.full_url.rsplit('/', 1)[-1],
+                                    link=request.full_url.replace('/feed-', '/story/')),
+                                url=request.full_url)
+        with patch.object(core.time, 'monotonic', side_effect=lambda: clock[0]), \
+             patch.object(core.time, 'sleep', side_effect=lambda delay: clock.__setitem__(0, clock[0] + delay)):
+            results = core._fetch_host_group(sources, {}, Path(self.temp.name) / 'nine-robots.json',
+                                             opener, NOW, deadline=160.0)
+        self.assertEqual(len(results), 9)
+        self.assertTrue(all(result[3] is None and len(result[1]) == 1 for result in results))
+        self.assertEqual(feed_starts, [100.0 + index * 5 for index in range(9)])
+        self.assertTrue(all(later - earlier >= 3 for earlier, later in zip(feed_starts, feed_starts[1:])))
+
+    def test_ingest_cold_robots_fetches_twenty_distinct_hosts(self):
+        sources = []
+        for index in range(20):
+            host = f'feed-{index}.example.test'
+            sources.append({**SOURCE, 'id': f'feed-{index}', 'name': f'Feed {index}',
+                            'url': f'https://{host}/feed.xml', 'allowed_domains': [host],
+                            'enabled': True, 'robots_ok': True, 'minimum_interval_seconds': 60})
+        calls = []
+        def opener(request, timeout):
+            calls.append(request.full_url)
+            if request.full_url.endswith('/robots.txt'):
+                return FakeResponse(b'User-agent: *\nAllow: /', url=request.full_url)
+            host = request.full_url.split('/')[2]
+            link = f'https://{host}/story/1'
+            body = rss(title=f'Fictional update from {host}', link=link)
+            return FakeResponse(body, url=request.full_url)
+        result = core.ingest_enabled(sources, self.store, opener=opener, now=NOW,
+                                     budget_seconds=60, max_workers=8)
+        self.assertEqual(result['enabled_sources'], 20)
+        self.assertGreaterEqual(result['fetched_sources'], 19)
+        self.assertEqual(result['timed_out_sources'], 0)
+        self.assertEqual(sum(url.endswith('/robots.txt') for url in calls), 20)
+
     def test_disabled_sources_never_call_fetcher_and_dry_run_counts(self):
         def forbidden(*_args, **_kwargs):
             self.fail('disabled source attempted a network fetch')
@@ -720,6 +805,7 @@ class IngestTests(unittest.TestCase):
         def opener(request, timeout):
             if request.full_url.endswith('/robots.txt'):
                 return FakeResponse(b'User-agent: *\nAllow: /', url=request.full_url)
+            time.sleep(0.12)
             return FakeResponse(rss(), url=request.full_url)
         result = core.ingest_enabled([source], self.store, opener=opener, now=NOW, budget_seconds=0.00001)
         self.assertEqual(result['fetched_sources'], 0)

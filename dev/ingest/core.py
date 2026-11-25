@@ -33,6 +33,8 @@ MAX_RESPONSE_BYTES = 2_000_000
 MAX_TRANSPORT_READ_BYTES = 8_000_000
 TIMEOUT_SECONDS = 12
 MAX_SINGLE_WAIT_SECONDS = 60
+ROBOTS_REQUEST_INTERVAL_SECONDS = 1
+SAME_HOST_FEED_INTERVAL_CAP_SECONDS = 3
 FETCH_BUDGET_SECONDS = 90
 FETCH_MAX_WORKERS = 8
 USER_AGENT = 'BriefingBot/1.0'
@@ -951,12 +953,12 @@ def _wait_for_host(host, interval, deadline=None):
     with _schedule_lock:
         previous = _last_request_by_host.get(host)
         scheduled = max(now, previous + interval) if previous is not None else now
-        if deadline is not None and scheduled >= deadline:
+        wait = scheduled - now
+        if deadline is not None and wait >= max(0.0, deadline - now):
             raise TimeoutError('Feed fetch budget expired while observing the host rate limit.')
         _last_request_by_host[host] = scheduled
-    delay = scheduled - now
-    if delay > 0:
-        time.sleep(delay)
+    if wait > 0:
+        time.sleep(wait)
     if deadline is not None and time.monotonic() >= deadline:
         raise TimeoutError('Feed fetch budget expired while observing the host rate limit.')
 
@@ -1144,7 +1146,7 @@ def _robots_policy(url, opener=None, cache_path=ROBOTS_CACHE_PATH, now=None, dea
     rules = []
     try:
         if not skip_rate_limit:
-            _wait_for_host(host, max(1, 5 if host.endswith('gdeltproject.org') else 1), deadline)
+            _wait_for_host(host + '#robots', ROBOTS_REQUEST_INTERVAL_SECONDS, deadline)
         response = opener(Request(robots_url, headers={'User-Agent': USER_AGENT}), timeout=_timeout_for_deadline(deadline))
         with response:
             final = urlsplit(response.geturl())
@@ -1343,19 +1345,25 @@ def _fetch_host_group(host_sources, source_cache, robots_path, opener, now, dead
             break
         request_source = dict(source)
         request_source.update(source_cache.get(source['id'], {}))
+        if len(host_sources) > 1:
+            # A registry interval protects repeat access to a publisher across
+            # runs. Within one feed batch, same-host URLs share a bounded gap;
+            # fetch_source still honors any longer robots crawl-delay.
+            request_source['minimum_interval_seconds'] = min(
+                request_source.get('minimum_interval_seconds', 60),
+                SAME_HOST_FEED_INTERVAL_CAP_SECONDS)
         if include_transient and source.get('article_access') in {'feed-full', 'full-text'}:
             # The store deliberately excludes bodies. A 304 cannot rehydrate
             # this run's ephemeral evidence, even though its headlines survive.
             request_source.pop('etag', None)
             request_source.pop('last_modified', None)
         try:
-            # Sources sharing one host are already serialized by this worker.
-            # Apply the host politeness interval before the first request, but
-            # do not spend the entire fetch window sleeping between feeds in
-            # the same run.
+            # Sources sharing one host are serialized by this worker. Robots
+            # checks have their own short schedule; feed requests still obey
+            # the source's content-request interval.
             items, metadata = fetch_source(request_source, opener=opener, now=now,
                                           robots_cache_path=robots_path, deadline=deadline,
-                                          skip_rate_limit=(index > 0))
+                                          skip_rate_limit=False)
             results.append((source['id'], items, metadata, None))
         except TimeoutError:
             results.append((source['id'], [], {}, 'timeout'))
