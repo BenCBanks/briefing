@@ -26,6 +26,7 @@ from zoneinfo import ZoneInfo
 
 from dev.ingest.episodes_audio import (
     DEFAULT_VOICE, MAX_SEGMENT_ATTEMPTS, EpisodeAudioError, _chapter_output_token_estimate, _chapter_scripts,
+    MAX_TTS_CHUNK_CHARS, _tts_chunks,
     _fingerprints, add_chapter_timestamps, approve_bounded_audio_candidate,
     _read_wav, audio_directory, current_audio_asset, load_voice, main, persisted_audio_matches_manifest,
     persisted_audio_selector, render_episode_audio,
@@ -70,6 +71,23 @@ class FakeProvider:
         self.calls.append((text, voice_name))
         if len(self.calls) in self.failures:
             raise RuntimeError('fictional provider failure detail')
+        return TtsResult(wav_bytes(), 'audio/wav', 0.1, len(text), Decimal('0.0001'),
+                         DEFAULT_MODEL, voice_name)
+
+
+class ShortRequestProvider(FakeProvider):
+    def __init__(self, *, fail_call_once=None):
+        super().__init__()
+        self.fail_call_once = fail_call_once
+        self.failed = False
+
+    def synthesize(self, text, voice_name):
+        self.calls.append((text, voice_name))
+        if len(text) > MAX_TTS_CHUNK_CHARS:
+            raise RuntimeError('fictional provider rejects long requests')
+        if self.fail_call_once == len(self.calls) and not self.failed:
+            self.failed = True
+            raise RuntimeError('fictional transient failure')
         return TtsResult(wav_bytes(), 'audio/wav', 0.1, len(text), Decimal('0.0001'),
                          DEFAULT_MODEL, voice_name)
 
@@ -232,6 +250,56 @@ class EpisodeAudioRenderTests(unittest.TestCase):
                                       state_dir=self.state_dir)
         self.assertTrue(cached['cached'])
         self.assertEqual(cached['provider_calls'], 0)
+
+    def test_tts_chunks_respect_limit_and_keep_sentence_boundaries(self):
+        text = ' '.join(f'Fictional sentence number {index} ends here.' for index in range(50))
+        chunks = _tts_chunks(text)
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(0 < len(chunk) <= MAX_TTS_CHUNK_CHARS for chunk in chunks))
+        self.assertTrue(all(chunk.endswith('.') for chunk in chunks[:-1]))
+        self.assertEqual(' '.join(chunks), text)
+
+    def test_failed_chunk_retries_without_repeating_prior_audio(self):
+        sentences = [f'Fictional sentence {index} ' + 'word ' * 35 + 'ends here.'
+                     for index in range(3)]
+        text = ' '.join(sentences)
+        chunks = _tts_chunks(normalize_narration(text))
+        self.assertGreaterEqual(len(chunks), 2)
+        episode = {'id': 'fictional-chunk-retry', 'profile_id': 'a' * 24,
+                   'revision_id': 'fixture-r1', 'transcript': text,
+                   'script_hash': hashlib.sha256(text.encode()).hexdigest(),
+                   'chapters': [{'id': 'chapter-one', 'title': 'Fixture', 'spoken_text': text}]}
+        provider = ShortRequestProvider(fail_call_once=2)
+        result = render_episode_audio(episode, episode['profile_id'], provider=provider,
+                                      voice_file=self.voice_file, state_dir=self.state_dir)
+        self.assertEqual(provider.calls[0][0], chunks[0])
+        self.assertEqual(provider.calls[1][0], chunks[1])
+        self.assertEqual(provider.calls[2][0], chunks[1])
+        self.assertEqual(result['provider_calls'], len(chunks) + 1)
+
+    def test_fifteen_minute_2200_word_episode_stitches_short_tts_requests(self):
+        sentence = 'Fictional systems move clear signals between separate stages safely today.'
+        chapters = []
+        for index in range(4):
+            chapters.append({'id': f'chapter-{index + 1}', 'title': f'Fixture {index + 1}',
+                             'spoken_text': ' '.join([sentence] * 55)})
+        transcript = '\n\n'.join(row['spoken_text'] for row in chapters)
+        episode = {'id': 'fictional-long-episode', 'profile_id': 'b' * 24,
+                   'revision_id': 'fixture-r1', 'duration_minutes': 15,
+                   'transcript': transcript,
+                   'script_hash': hashlib.sha256(transcript.encode()).hexdigest(),
+                   'chapters': chapters}
+        provider = ShortRequestProvider()
+        result = render_episode_audio(episode, episode['profile_id'], provider=provider,
+                                      voice_file=self.voice_file, state_dir=self.state_dir)
+        words = len(transcript.split())
+        self.assertEqual(words, 2200)
+        self.assertEqual(len(result['manifest']['chapters']), 4)
+        self.assertGreater(result['provider_calls'], len(chapters))
+        self.assertTrue(all(0 < len(text) <= MAX_TTS_CHUNK_CHARS for text, _voice in provider.calls))
+        self.assertEqual(result['manifest']['provider_calls'], result['provider_calls'])
+        with wave.open(str(result['directory'] / 'episode.wav'), 'rb') as stitched:
+            self.assertEqual(stitched.getnframes(), len(provider.calls) * 100)
 
     def test_stream_callback_publishes_each_validated_chapter_in_recording_order(self):
         episode = read_fixture()
