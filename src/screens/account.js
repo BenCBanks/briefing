@@ -77,8 +77,7 @@ export function renderAccountAccess({ content, node, api, gateRoute = '', onAcco
   loadAccountStyles();
   const section = node('section', null, `account-access${gateRoute ? ' account-gate' : ''}`);
   section.setAttribute('aria-labelledby', 'account-heading');
-  const title = gateRoute === 'ask-episode' || gateRoute === 'ask'
-    ? 'Sign in to make an episode' : gateRoute ? 'Sign in to see your briefing' : 'Account';
+  const title = gateRoute ? 'Sign in to see your briefing' : 'Account';
   const heading = node(gateRoute ? 'h1' : 'h2', title, 'account-heading'); heading.id = 'account-heading';
   section.append(heading);
   if (gateRoute) section.append(node('p', 'Your topics and listening history are saved with your account.'));
@@ -126,8 +125,6 @@ export function renderAccountAccess({ content, node, api, gateRoute = '', onAcco
   function focusError(message) {
     busy(false);
     announce(message, { focus: true });
-    const invalid = formHost.querySelector('input:invalid') || formHost.querySelector('input');
-    invalid?.focus();
   }
 
   function showSignIn({ message = '', mode = 'sign-in' } = {}) {
@@ -136,10 +133,34 @@ export function renderAccountAccess({ content, node, api, gateRoute = '', onAcco
     formHost.replaceChildren();
     const title = mode === 'create' ? 'Create an account' : 'Sign in';
     const form = node('form', null, 'account-form');
+    form.noValidate = true;
     form.append(node('h3', title));
     const account = field('Account name', 'text', 'username');
     const password = field('Password', 'password', mode === 'create' ? 'new-password' : 'current-password');
-    form.append(account.label, password.label);
+    password.input.id = 'account-password';
+    if (mode === 'create') password.input.minLength = 10;
+    const passwordHint = mode === 'create' ? node('p', 'At least 10 characters', 'account-password-hint') : null;
+    if (passwordHint) {
+      passwordHint.id = 'account-password-hint';
+      password.input.setAttribute('aria-describedby', passwordHint.id);
+    }
+    const passwordField = node('div', null, 'account-password-field');
+    passwordField.append(password.label);
+    if (passwordHint) passwordField.append(passwordHint);
+    let passwordToggle;
+    passwordToggle = button('Show', () => {
+      const visible = password.input.type === 'text';
+      password.input.type = visible ? 'password' : 'text';
+      passwordToggle.textContent = visible ? 'Show' : 'Hide';
+      passwordToggle.setAttribute('aria-label', visible ? 'Show password' : 'Hide password');
+      passwordToggle.setAttribute('aria-pressed', String(!visible));
+    }, 'account-action account-password-toggle');
+    passwordToggle.setAttribute('aria-label', 'Show password');
+    passwordToggle.setAttribute('aria-controls', password.input.id);
+    passwordToggle.setAttribute('aria-pressed', 'false');
+    const passwordControl = node('div', null, 'account-password-control');
+    passwordControl.append(passwordField, passwordToggle);
+    form.append(account.label, passwordControl);
     let invite;
     if (mode === 'create') {
       invite = field('Invite code', 'text', 'off');
@@ -155,6 +176,10 @@ export function renderAccountAccess({ content, node, api, gateRoute = '', onAcco
         focusError('Enter your account name and password.');
         return;
       }
+      if (mode === 'create' && password.input.value.length < 10) {
+        focusError('Use at least 10 characters for your password.');
+        return;
+      }
       if (mode === 'create' && !invite.input.value.trim()) {
         focusError('Enter your invite code.');
         return;
@@ -168,8 +193,12 @@ export function renderAccountAccess({ content, node, api, gateRoute = '', onAcco
         if (!result?.ok) {
           if (['rate-limited', 'login_temporarily_locked'].includes(result?.reason)) {
             focusError('Too many tries, wait a few minutes.');
-          } else if (['invalid_credentials', 'wrong-password', 'invalid_invite_code', 'invalid-invite'].includes(result?.reason)) {
-            focusError(mode === 'create' ? 'That invite code could not be used. Check it and try again.' : 'That account name and password do not match. Try again.');
+          } else if (mode === 'create' && ['invalid_invite_code', 'invalid-invite'].includes(result?.reason)) {
+            focusError('That invite code could not be used. Check it and try again.');
+          } else if (mode === 'sign-in' && ['invalid_credentials', 'wrong-password'].includes(result?.reason)) {
+            focusError('We could not sign you in. Check your details and try again.');
+          } else if (mode === 'create') {
+            focusError('We could not create your account. Check your details and try again.');
           } else {
             focusError('We could not sign you in just now. Try again.');
           }
@@ -274,6 +303,7 @@ export function renderAccountAccess({ content, node, api, gateRoute = '', onAcco
 
   function showDeleteConfirmation(step) {
     pendingDelete = true;
+    announce('');
     formHost.replaceChildren();
     const heading = node('h3', step === 1 ? 'Delete your account?' : 'Confirm account deletion');
     const detail = node('p', step === 1
