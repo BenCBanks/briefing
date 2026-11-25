@@ -197,7 +197,10 @@ class DailyTests(unittest.TestCase):
         self.assertIn('feed_snapshot', shared)
 
     def test_accounts_off_daily_entry_path_golden_trace(self):
-        """Freeze the legacy scheduled callbacks before adding account fan-out."""
+        """Freeze legacy calls, audio persistence, status JSON, and status projection."""
+        from dev.tests.daily_legacy_oracle import (
+            legacy_daily_run_report, legacy_public_daily_run)
+
         profiles = [
             {'version': 1, 'words': 'Fictional reader one', 'minutes': 12,
              'topics': [{'id': 'chips', 'label': 'AI chips', 'scope': 'Fictional chips'}]},
@@ -205,44 +208,103 @@ class DailyTests(unittest.TestCase):
              'topics': [{'id': 'climate', 'label': 'Climate policy', 'scope': 'Fictional policy'}]},
         ]
         trace = []
+        jobs = {}
+        status = {}
 
         def start(profile):
-            trace.append(('start', profile))
-            return 202, {'job_id': f'job-{len(trace)}'}
+            job_id = f'job-{len(jobs) + 1}'
+            jobs[job_id] = profile
+            trace.append(('start', daily.profile_identifier(profile)))
+            return 202, {'job_id': job_id}
 
         def get_job(job_id):
+            profile = jobs[job_id]
+            profile_id = daily.profile_identifier(profile)
+            edition = {'id': f'edition-{job_id}', 'revision_id': f'{job_id}-r1',
+                       'script_hash': f'{job_id}-script', 'local_date': '2026-11-25',
+                       'sections': [{'cluster_id': f'{job_id}-story', 'source_ids': []}]}
+            bundle = {'editions': {'editions': [edition]}}
+            for directory in (default_dir, profile_dirs[profile_id]):
+                directory.mkdir(parents=True, exist_ok=True)
+                for name in ('current.json', 'editions.json'):
+                    (directory / name).write_text(json.dumps(bundle), encoding='utf-8')
             trace.append(('poll', job_id))
             return 200, {'job_id': job_id, 'status': 'complete', 'gemini_calls': 1,
-                         'edition_ready': {'edition': {'id': f'edition-{job_id}',
-                                                       'sections': [{'cluster_id': 'fixture'}]}}}
+                         'edition_ready': {'edition': edition}}
 
-        with patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'off'}), \
-             patch('dev.ingest.multi_reader_daily.run_daily',
-                   side_effect=AssertionError('accounts-off path entered multi-reader runner')):
-            code, result = daily.run_daily(
-                profile_loader=lambda: profiles, start=start, get_job=get_job,
-                sleep=lambda _delay: None, report_writer=lambda _result: trace.append(('report',)),
-                daily_audio_renderer=lambda edition, **_kwargs: {
-                    'audio_status': 'pending', 'edition': edition['id']},
-                daily_audio_persister=lambda _profile, _edition, audio: audio)
+        def render(edition, **_kwargs):
+            trace.append(('audio', edition['id']))
+            return {'audio_status': 'pending', 'audio_url': None,
+                    'duration_seconds': None, 'reason': 'fixture_pending'}
 
-        self.assertEqual(code, 0)
-        self.assertEqual(trace, [
-            ('start', profiles[0]), ('poll', 'job-1'),
-            ('start', profiles[1]), ('poll', 'job-3'),
-            ('report',),
-        ])
-        self.assertEqual(result['status'], 'complete')
-        self.assertEqual(result['profiles_attempted'], 2)
-        self.assertEqual(result['profiles_completed'], 2)
-        self.assertEqual(result['gemini_calls'], 2)
-        self.assertEqual([row['edition_id'] for row in result['profile_runs']],
-                         ['edition-job-1', 'edition-job-3'])
-        self.assertEqual(daily.summary_line(result),
-                         '{"elapsed_seconds":0.0,"event":"daily_job_finished","feeds_disabled":0,'
-                         '"gemini_calls":2,"items_fetched":0,"job_id":"job-1",'
-                         '"profiles_attempted":2,"profiles_completed":2,"reason":null,'
-                         '"status":"complete","stories_written":0,"topic_count":0}')
+        def persist(profile, edition, audio):
+            trace.append(('persist', daily.profile_identifier(profile)))
+            return daily._persist_daily_audio(profile, edition, audio)
+
+        def report_writer(result):
+            trace.append(('status',))
+            status['daily_run'] = daily.write_run_report(result, path=status_path)
+
+        with tempfile.TemporaryDirectory() as temp:
+            state_dir = Path(temp) / 'state'
+            ledger_dir = Path(temp) / 'ledger'
+            ledger_dir.mkdir()
+            status_path = state_dir / 'status.json'
+            state_dir.mkdir()
+            status_path.write_text('{"previous_marker": "preserved"}', encoding='utf-8')
+            default_dir = state_dir / 'generated' / 'default'
+            profile_dirs = {
+                daily.profile_identifier(profile): state_dir / 'generated' / 'profiles' /
+                daily.profile_identifier(profile) for profile in profiles
+            }
+            with patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'off', 'BRIEFING_TESTING': '1',
+                                         'BRIEFING_STATE_DIR': str(state_dir),
+                                         'BRIEFING_TEST_LEDGER_DIR': str(ledger_dir)}), \
+                 patch('dev.ingest.generation_api.DEFAULT_EDITION_DIR', default_dir), \
+                 patch('dev.ingest.generation_api.profile_generated_dir',
+                       side_effect=lambda profile: profile_dirs[daily.profile_identifier(profile)]), \
+                 patch('dev.ingest.multi_reader_daily.run_daily',
+                       side_effect=AssertionError('accounts-off path entered multi-reader runner')), \
+                 patch('dev.tools.morning_report.build_report', return_value=[]):
+                code, result = daily.run_daily(
+                    profile_loader=lambda: profiles, start=start, get_job=get_job,
+                    sleep=lambda _delay: None, report_writer=report_writer,
+                    daily_audio_renderer=render, daily_audio_persister=persist)
+
+            self.assertEqual(code, 0)
+            self.assertEqual(trace, [
+                ('start', daily.profile_identifier(profiles[0])), ('poll', 'job-1'),
+                ('audio', 'edition-job-1'), ('persist', daily.profile_identifier(profiles[0])),
+                ('start', daily.profile_identifier(profiles[1])), ('poll', 'job-2'),
+                ('audio', 'edition-job-2'), ('persist', daily.profile_identifier(profiles[1])),
+                ('status',),
+            ])
+            self.assertEqual(result['profiles_attempted'], 2)
+            self.assertEqual(result['profiles_completed'], 2)
+            self.assertEqual(result['gemini_calls'], 2)
+            self.assertEqual([row['edition_id'] for row in result['profile_runs']],
+                             ['edition-job-1', 'edition-job-2'])
+
+            old_daily_json = legacy_daily_run_report(result)
+            self.assertEqual(daily._daily_run_report(result), old_daily_json)
+            saved = json.loads(status_path.read_text(encoding='utf-8'))
+            self.assertEqual(saved, {'previous_marker': 'preserved', 'daily_run': old_daily_json})
+            self.assertEqual(status['daily_run'], old_daily_json)
+            self.assertEqual(generation_api._public_daily_run(saved['daily_run']),
+                             legacy_public_daily_run(saved['daily_run']))
+            self.assertNotIn('multi_reader', saved['daily_run'])
+            for directory in [default_dir, *profile_dirs.values()]:
+                for name in ('current.json', 'editions.json'):
+                    persisted = json.loads((directory / name).read_text())
+                    edition = persisted['editions']['editions'][0]
+                    self.assertEqual(edition['audio']['audio_status'], 'pending')
+                    self.assertEqual(edition['audio']['reason'], 'fixture_pending')
+
+            self.assertEqual(daily.summary_line(result),
+                             '{"elapsed_seconds":0.0,"event":"daily_job_finished","feeds_disabled":0,'
+                             '"gemini_calls":2,"items_fetched":0,"job_id":"job-1",'
+                             '"profiles_attempted":2,"profiles_completed":2,"reason":null,'
+                             '"status":"complete","stories_written":0,"topic_count":0}')
 
     def test_accounts_off_main_delegates_to_exact_legacy_entry_call(self):
         expected = {'status': 'complete', 'job_id': 'legacy-fixture'}

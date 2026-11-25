@@ -684,7 +684,7 @@ class GenerationApiTests(unittest.TestCase):
              patch.object(generation_api, 'DEFAULT_EDITION_DIR', directory), \
              patch.object(generation_api.core, 'ingest_enabled', return_value={
                  'parsed_items': 1, 'fetched_sources': 1, 'errors': 0, 'source_results': {}}), \
-             patch.object(generation_api.core, 'load_store', return_value=[]), \
+             patch.object(generation_api.core, 'load_store', return_value=[]) as load_store, \
              patch.object(write_edition, 'generate_edition', return_value=(
                  {'editions': [edition]}, {'sources': []}, {'sentence_evidence': {}})) as writer, \
              patch.object(score_edition, 'score_edition', return_value=score), \
@@ -700,6 +700,8 @@ class GenerationApiTests(unittest.TestCase):
                 time.sleep(0.01)
         self.assertEqual(job['status'], 'complete', job)
         self.assertEqual(writer.call_args.kwargs['daily_word_target'], 750)
+        self.assertGreaterEqual(load_store.call_count, 1)
+        self.assertEqual(writer.call_args.kwargs['items'], [])
 
     def test_default_generation_builds_from_cached_unseen_window_after_total_feed_outage(self):
         from ingest import core, score_edition, write_edition
