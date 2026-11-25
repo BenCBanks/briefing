@@ -81,14 +81,18 @@ class MultiReaderDailyTests(unittest.TestCase):
         firsts = [order[0] for order in order_by_day]
         self.assertEqual(firsts, ['reader-b', 'reader-c', 'reader-a', 'reader-b', 'reader-c'])
 
-    def test_accounts_off_delegates_without_touching_multi_reader_callbacks(self):
+    def test_accounts_off_golden_delegates_byte_for_byte_without_multi_reader_callbacks(self):
+        golden = {'edition': {'kind': 'daily', 'sections': [{'id': 'golden-story'}]},
+                  'sources': [{'id': 'golden-source'}]}
         with patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'off'}):
             result = run_daily(profiles=[readers()[0]], run_date=date(2026, 11, 25),
                                retrieve_topic=lambda *_: self.fail('retrieval called'),
                                write_reader=lambda *_: self.fail('writer called'),
                                render_audio=lambda *_: self.fail('audio called'),
-                               budget=DailyBudget(1.0), single_reader=lambda profile: {'legacy': profile})
-        self.assertEqual(result, {'mode': 'single', 'readers': [{'legacy': readers()[0]}]})
+                               budget=DailyBudget(1.0), single_reader=lambda profile: golden)
+        self.assertEqual(result['readers'][0], golden)
+        self.assertEqual(__import__('json').dumps(result['readers'][0], sort_keys=True),
+                         __import__('json').dumps(golden, sort_keys=True))
 
     def test_pool_cache_requires_source_pack_and_freshness_keys(self):
         calls = []
