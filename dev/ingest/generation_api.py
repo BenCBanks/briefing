@@ -1343,6 +1343,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                         reason = f'scorecard:{check}'
                         topic_reasons[reason] = topic_reasons.get(reason, 0) + 1
             report['source_quality_rejections'] = detail.get('source_quality_rejections', [])
+            report['source_funnels'] = detail.get('source_funnels', {})
             report['low_tier_sources'] = detail.get('low_tier_sources', [])
             report['source_selection'] = detail.get('source_selection', {})
             report['also_today_source_selection'] = detail.get('also_today_source_selection', {})
