@@ -35,6 +35,7 @@ from .script_checks import score_episode_script, _valid_transition
 MAX_SECONDS = 335
 MIN_SUPPORTED_WORD_FRACTION = 0.60
 MINUTE_WORDS = {3: 'three', 5: 'five', 10: 'ten', 15: 'fifteen'}
+MIN_CHAPTER_WORD_FRACTION = 0.90
 NAVIGATION = ("Turning to {topic}.", "Let's turn to {topic}.",
               "Now, let's look at {topic}.", "From there, we can consider {topic}.",
               "The next question concerns {topic}.")
@@ -289,6 +290,10 @@ def _creative_request_format(topic):
 
 def words(text):
     return re.findall(r"\b[\w’'-]+\b", text)
+
+
+def _minimum_chapter_words(target):
+    return (target * 9 + 9) // 10
 
 
 def supported_word_count(chapters, evidence):
@@ -567,6 +572,43 @@ def _hybrid_background_draft_valid(draft, evidence):
 def transcript(chapters):
     """Canonical speech: sentences joined with spaces, chapters with blank lines."""
     return '\n\n'.join(' '.join(row['text'] for row in chapter['sentences']) for chapter in chapters)
+
+
+def _draft_word_count(draft):
+    chapters = draft.get('chapters') if isinstance(draft, dict) else []
+    return len(words(transcript(chapters))) if isinstance(chapters, list) else 0
+
+
+def _episode_length_report(requested_words, writer_words, expanded_words,
+                           verified_words, repaired_words, final_words, research_plan, final_chapters):
+    """Explain the largest observed source of an episode's word shortfall."""
+    losses = {
+        'writing': max(0, requested_words - writer_words),
+        'expansion': max(0, writer_words - expanded_words),
+        'verification_pruning': max(0, expanded_words - verified_words),
+        'quality_repair': max(0, verified_words - repaired_words),
+        'finalization': max(0, repaired_words - final_words),
+    }
+    lost_at = max(losses, key=losses.get) if any(losses.values()) else 'none'
+    if final_words < requested_words and not any(losses.values()):
+        lost_at = 'writing' if writer_words < requested_words else 'evidence_limited'
+    chapter_budgets = []
+    for index, row in enumerate(research_plan):
+        target = row.get('target_words', 0) if isinstance(row, dict) else 0
+        if type(target) is not int or target <= 0:
+            continue
+        final_chapter = final_chapters[index] if index < len(final_chapters) else {}
+        chapter_budgets.append({'chapter': index + 1, 'target_words': target,
+                                'minimum_words': _minimum_chapter_words(target),
+                                'got_words': len(words(transcript([final_chapter])))
+                                if isinstance(final_chapter, dict) and
+                                isinstance(final_chapter.get('sentences'), list) else 0})
+    line = f'requested {requested_words} words, got {final_words}, lost at stage {lost_at}'
+    return {'requested_words': requested_words, 'writer_words': writer_words,
+            'expanded_words': expanded_words, 'verified_words': verified_words,
+            'repaired_words': repaired_words, 'final_words': final_words,
+            'word_loss_by_stage': losses, 'lost_at_stage': lost_at,
+            'chapter_budgets': chapter_budgets, 'report_line': line}
 
 
 def _answer_outline(research_plan, evidence):
@@ -1312,6 +1354,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
     expansion_attempts = 0
     expansions_applied = 0
     expansion_failures = 0
+    writer_words = expanded_words = verified_words = repaired_words = 0
+    length_report = None
     outline_pre_audio = None
     outline_writer_on = os.environ.get('BRIEFING_EPISODE_OUTLINE_WRITER', '').strip().lower() in {'1', 'on', 'true'}
     for attempt in range(5):
@@ -1365,6 +1409,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                     outline_pre_audio = {'passed': not outline_issues, 'issues': outline_issues,
                                          'rewrite_attempted': rewritten,
                                          'paragraph_word_limit': 110}
+                    if attempt == 0:
+                        writer_words = expanded_words = _draft_word_count(draft)
                     chapter_assignments = [
                         {'chapter_assignment': {'target_words': int(item['target_words'])}}
                         for item in answer_outline['questions']]
@@ -1381,12 +1427,15 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                         "offers no useful synthesis. Do not add unrelated tangents.\n\nSTYLE TARGET EXAMPLE "
                         "(copy the qualities, never its sentences or facts):\n" + STYLE_TARGET_EXAMPLE)
                     draft = call(host_system, payload, SCRIPT_SCHEMA)
+                    if attempt == 0:
+                        writer_words = expanded_words = _draft_word_count(draft)
                 else:
                     pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='episode-chapter')
                     chapter_payloads = [{**payload, 'chapter_assignment': {**question, 'index': index + 1,
                                          'is_first_chapter': index == 0,
                                          'is_last_chapter': index == len(research_plan) - 1},
                                          'target_words': question['target_words'],
+                                'minimum_words': _minimum_chapter_words(question['target_words']),
                                          'evidence': {eid: row for eid, row in evidence.items()
                                                       if (eid in question['evidence_ids'] if 'evidence_ids' in question
                                                           else row['source_id'] in question['source_ids'])}}
@@ -1479,6 +1528,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                                                                          for q in part['could_not_confirm']))[:20]}
                     finally:
                         pool.shutdown(wait=False, cancel_futures=True)
+                    if attempt == 0:
+                        writer_words = _draft_word_count(draft)
                     # One bounded second writer pass for each short chapter. It sees
                     # only that chapter's already-retrieved evidence; no new search
                     # or fetch path is available here. The normal call wrapper and
@@ -1489,35 +1540,38 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                         target = int(assignment['chapter_assignment']['target_words'])
                         spoken = ' '.join(row.get('text', '') for row in chapter.get('sentences', [])
                                           if isinstance(row, dict) and row.get('kind') != 'navigation')
-                        if len(words(spoken)) < target * .60:
+                        minimum = _minimum_chapter_words(target)
+                        if len(words(spoken)) < minimum:
                             expansion_attempts += 1
-                            short_chapters.append((chapter_index, chapter, assignment, target))
+                            short_chapters.append((chapter_index, chapter, assignment, target, minimum))
                     counts['chapter_expansion_attempts'] = expansion_attempts
                     if short_chapters and not outline_writer_on:
                         expansion_pool = ThreadPoolExecutor(max_workers=4, thread_name_prefix='episode-expand')
                         expansion_futures = []
                         expanded_draft = deepcopy(draft)
                         proposed_expansions = 0
-                        for chapter_index, chapter, assignment, target in short_chapters:
+                        for chapter_index, chapter, assignment, target, minimum in short_chapters:
                             expansion_payload = {**assignment,
                                 'target_words': target,
+                                'minimum_words': minimum,
                                 'chapter_assignment': {**assignment['chapter_assignment'],
-                                                       'target_words': target},
+                                                       'target_words': target, 'minimum_words': minimum},
                                 'previous_chapter': chapter,
                                 'expansion_pass': True,
                                 # Preserve the exact scoped evidence from the original
                                 # assignment, including evidence-id based fixture plans.
                                 'evidence': assignment['evidence']}
-                            system = SYSTEM_PROMPT + ('\nEXPANSION PASS: Expand only the assigned chapter toward its target_words. '
+                            system = SYSTEM_PROMPT + ('\nEXPANSION PASS: Expand only the assigned chapter toward target_words, '
+                                'and reach minimum_words when the supplied evidence supports it. '
                                 'Retain supported existing details, add distinct relevant steps, comparisons or impacts only '
                                 'when this supplied evidence supports them, and cite exact evidence IDs. Return exactly one '
                                 'chapter. If evidence cannot support more detail, preserve the honest shorter answer.')
-                            expansion_futures.append((chapter_index, chapter, target, expansion_pool.submit(
+                            expansion_futures.append((chapter_index, chapter, target, minimum, expansion_pool.submit(
                                 copy_context().run, call, system, expansion_payload, SCRIPT_SCHEMA)))
                         try:
                             done, _ = wait([future for *_rest, future in expansion_futures],
                                            timeout=max(0, deadline - clock()))
-                            for chapter_index, original, target, future in expansion_futures:
+                            for chapter_index, original, target, minimum, future in expansion_futures:
                                 if future not in done:
                                     expansion_failures += 1
                                     logging.warning('episode_optional_pass_failed %s', json.dumps({
@@ -1569,6 +1623,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                                 deterministic_check(expanded_draft, evidence, sources)['passed']):
                             draft = expanded_draft
                             expansions_applied += proposed_expansions
+                    if attempt == 0:
+                        expanded_words = _draft_word_count(draft)
                     counts['chapter_expansions_applied'] = expansions_applied
             else:
                 draft = call(SYSTEM_PROMPT, payload, SCRIPT_SCHEMA)
@@ -1683,6 +1739,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
                 'unsupported_claims': [{'id': r['id'], 'text': r['text']} for r in rows
                                        if r['kind'] in {'claim', 'closing'} and verdict_map.get(r['id']) is not True],
                 'sources_read': len(sources)})
+    verified_words = _draft_word_count(draft)
     def materialize(script_draft):
         rendered, used_sources = [], set()
         for index, chapter in enumerate(script_draft['chapters'], 1):
@@ -1801,6 +1858,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
         except Exception as error:
             quality_report['repair_rejected'] = True
             quality_report['repair_issues'] = [type(error).__name__]
+    repaired_words = _draft_word_count(draft)
     content_words = len(words(transcript(chapters)))
     shortfall = content_words < length * WORDS_PER_MINUTE * .90
     notices = []
@@ -1833,6 +1891,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
         {'chapters': chapters, 'could_not_confirm': draft['could_not_confirm']}, evidence)
     refresh_episode_quality_check(quality_report, final_honesty)
     count = len(words(script))
+    length_report = _episode_length_report(length * WORDS_PER_MINUTE, writer_words,
+        expanded_words, verified_words, repaired_words, count, research_plan, chapters)
     if count < 80 or count > length * WORDS_PER_MINUTE * 1.2:
         raise InsufficientEvidence('script_length_out_of_bounds')
     final_report = score_episode_script({'chapters': chapters, 'requested_minutes': length})
@@ -1881,6 +1941,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
             'spoken_minutes': round(count / WORDS_PER_MINUTE, 2),
             'duration_basis': f'estimated at {WORDS_PER_MINUTE} words per minute; no audio rendered',
             'target_words': length * WORDS_PER_MINUTE, 'content_word_count': content_words,
+            'length_report': length_report,
             'shorter_than_requested': shortfall,
             'shortfall_notice': ('The verified script is shorter than requested; see What we couldn’t confirm.'
                                  if shortfall else None),
@@ -1906,7 +1967,7 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
             'partial_reasons': (['quality_rubric'] if not quality_report['passed'] else []) +
                                (['chapter_expansion_failed'] if expansion_failures else []),
             'quality_repair_attempts': quality_repair_attempts,
-            'chapter_expansion': {'threshold_fraction': 0.60,
+            'chapter_expansion': {'threshold_fraction': MIN_CHAPTER_WORD_FRACTION,
                                   'attempts': expansion_attempts,
                                   'applied': expansions_applied,
                                   'failed': expansion_failures},

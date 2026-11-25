@@ -334,7 +334,7 @@ class EpisodeScriptChecksTests(unittest.TestCase):
         report = score_episode_script(episode)
         self.assertTrue(report["passed"], report)
         self.assertEqual(report["score"], report["out_of"])
-        self.assertEqual(report["words_per_minute"], 140)
+        self.assertEqual(report["words_per_minute"], 150)
         self.assertEqual(len(report["chapters"]), 2)
         self.assertEqual(report["word_count"], sum(row["word_count"] for row in report["chapters"]))
         self.assertIn("shorter_than_requested", report["warnings"][0])

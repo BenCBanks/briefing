@@ -3,7 +3,7 @@
   "length_options": [
     {
       "minutes": 3,
-      "target_words": 420,
+      "target_words": 450,
       "question_count": 3,
       "max_rounds": 2,
       "max_reads": 12,
@@ -11,7 +11,7 @@
     },
     {
       "minutes": 5,
-      "target_words": 700,
+      "target_words": 750,
       "question_count": 4,
       "max_rounds": 2,
       "max_reads": 12,
@@ -19,7 +19,7 @@
     },
     {
       "minutes": 10,
-      "target_words": 1400,
+      "target_words": 1500,
       "question_count": 4,
       "max_rounds": 3,
       "max_reads": 16,
@@ -27,7 +27,7 @@
     },
     {
       "minutes": 15,
-      "target_words": 2100,
+      "target_words": 2250,
       "question_count": 5,
       "max_rounds": 3,
       "max_reads": 20,
@@ -46,8 +46,8 @@
       "created_at": "2026-11-18T00:00:00Z",
       "requested_minutes": 3,
       "duration_minutes": 1.06,
-      "duration_basis": "estimated at 140 words per minute; no audio rendered",
-      "target_words": 420,
+      "duration_basis": "estimated at 150 words per minute; no audio rendered",
+      "target_words": 450,
       "content_word_count": 124,
       "shorter_than_requested": true,
       "shortfall_notice": "The verified script is shorter than requested; see What we couldn’t confirm.",
@@ -469,7 +469,7 @@
           "word_count": 149,
           "estimated_minutes": 1.06,
           "requested_minutes": 3.0,
-          "words_per_minute": 140,
+          "words_per_minute": 150,
           "chapters": [
             {
               "chapter": 1,
@@ -503,17 +503,17 @@
       "research_plan": [
         {
           "question": "How does the fictional parcel locker trial work?",
-          "target_words": 140,
+          "target_words": 150,
           "sources_read": 1
         },
         {
           "question": "When can residents use the fictional parcel lockers?",
-          "target_words": 140,
+          "target_words": 150,
           "sources_read": 1
         },
         {
           "question": "How is the fictional parcel locker trial reviewed?",
-          "target_words": 140,
+          "target_words": 150,
           "sources_read": 1
         }
       ],
@@ -556,8 +556,8 @@
       "created_at": "2026-11-18T00:00:00Z",
       "requested_minutes": 5,
       "duration_minutes": 1.06,
-      "duration_basis": "estimated at 140 words per minute; no audio rendered",
-      "target_words": 700,
+      "duration_basis": "estimated at 150 words per minute; no audio rendered",
+      "target_words": 750,
       "content_word_count": 124,
       "shorter_than_requested": true,
       "shortfall_notice": "The verified script is shorter than requested; see What we couldn’t confirm.",
@@ -979,7 +979,7 @@
           "word_count": 149,
           "estimated_minutes": 1.06,
           "requested_minutes": 5.0,
-          "words_per_minute": 140,
+          "words_per_minute": 150,
           "chapters": [
             {
               "chapter": 1,
@@ -1013,17 +1013,17 @@
       "research_plan": [
         {
           "question": "How does the fictional parcel locker trial work?",
-          "target_words": 234,
+          "target_words": 251,
           "sources_read": 1
         },
         {
           "question": "When can residents use the fictional parcel lockers?",
-          "target_words": 233,
+          "target_words": 250,
           "sources_read": 1
         },
         {
           "question": "How is the fictional parcel locker trial reviewed?",
-          "target_words": 233,
+          "target_words": 250,
           "sources_read": 1
         }
       ],
@@ -1078,8 +1078,8 @@
       "created_at": "2026-11-18T00:00:00Z",
       "requested_minutes": 10,
       "duration_minutes": 1.06,
-      "duration_basis": "estimated at 140 words per minute; no audio rendered",
-      "target_words": 1400,
+      "duration_basis": "estimated at 150 words per minute; no audio rendered",
+      "target_words": 1500,
       "content_word_count": 124,
       "shorter_than_requested": true,
       "shortfall_notice": "The verified script is shorter than requested; see What we couldn’t confirm.",
@@ -1501,7 +1501,7 @@
           "word_count": 149,
           "estimated_minutes": 1.06,
           "requested_minutes": 10.0,
-          "words_per_minute": 140,
+          "words_per_minute": 150,
           "chapters": [
             {
               "chapter": 1,
@@ -1535,17 +1535,17 @@
       "research_plan": [
         {
           "question": "How does the fictional parcel locker trial work?",
-          "target_words": 467,
+          "target_words": 500,
           "sources_read": 1
         },
         {
           "question": "When can residents use the fictional parcel lockers?",
-          "target_words": 467,
+          "target_words": 500,
           "sources_read": 1
         },
         {
           "question": "How is the fictional parcel locker trial reviewed?",
-          "target_words": 466,
+          "target_words": 499,
           "sources_read": 1
         }
       ],
@@ -1612,8 +1612,8 @@
       "created_at": "2026-11-18T00:00:00Z",
       "requested_minutes": 15,
       "duration_minutes": 1.06,
-      "duration_basis": "estimated at 140 words per minute; no audio rendered",
-      "target_words": 2100,
+      "duration_basis": "estimated at 150 words per minute; no audio rendered",
+      "target_words": 2250,
       "content_word_count": 124,
       "shorter_than_requested": true,
       "shortfall_notice": "The verified script is shorter than requested; see What we couldn’t confirm.",
@@ -2035,7 +2035,7 @@
           "word_count": 149,
           "estimated_minutes": 1.06,
           "requested_minutes": 15.0,
-          "words_per_minute": 140,
+          "words_per_minute": 150,
           "chapters": [
             {
               "chapter": 1,
@@ -2069,17 +2069,17 @@
       "research_plan": [
         {
           "question": "How does the fictional parcel locker trial work?",
-          "target_words": 700,
+          "target_words": 750,
           "sources_read": 1
         },
         {
           "question": "When can residents use the fictional parcel lockers?",
-          "target_words": 700,
+          "target_words": 750,
           "sources_read": 1
         },
         {
           "question": "How is the fictional parcel locker trial reviewed?",
-          "target_words": 700,
+          "target_words": 750,
           "sources_read": 1
         }
       ],

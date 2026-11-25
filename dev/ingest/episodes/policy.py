@@ -2,7 +2,7 @@
 from decimal import Decimal, ROUND_CEILING
 
 LENGTHS = (3, 5, 10, 15)
-WORDS_PER_MINUTE = 140
+WORDS_PER_MINUTE = 150
 BUDGET_MESSAGE = "Today's budget is used. Try tomorrow."
 
 

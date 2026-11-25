@@ -145,7 +145,7 @@
       "used_today": 1,
       "left_today": 2,
       "length_options": [{"minutes": 5, "target_words": 700}],
-      "words_per_minute": 140
+      "words_per_minute": 150
     },
     "episode": {
       "job_id": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",

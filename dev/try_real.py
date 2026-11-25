@@ -161,6 +161,9 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
     print(f'Ledger cost: ${cost:.5f}')
     print(f'Wall time: {wall:.2f}s')
     if kind == 'episode':
+        length_report = result.get('length_report')
+        if isinstance(length_report, dict) and isinstance(length_report.get('report_line'), str):
+            print('Length: ' + length_report['report_line'])
         timing = result.get('timing')
         if isinstance(timing, dict):
             print('Stage timing: ' + json.dumps(timing, sort_keys=True))
