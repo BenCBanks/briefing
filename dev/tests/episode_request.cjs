@@ -17,6 +17,8 @@ async function screenshot(page, name) {
   if (!process.env.BRIEFING_SHOT_DIR) return;
   fs.mkdirSync(process.env.BRIEFING_SHOT_DIR, { recursive: true });
   await page.evaluate(() => document.fonts.ready);
+  await page.mouse.move(0, 0);
+  await page.evaluate(() => document.activeElement?.blur());
   await page.screenshot({ animations: 'disabled', caret: 'hide', path: path.join(process.env.BRIEFING_SHOT_DIR, `${name}.png`) });
 }
 

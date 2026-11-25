@@ -25,7 +25,7 @@ async function capture(page, name) {
 async function expectSavedEmpty(page) {
   const empty = page.locator('.library-empty');
   assert.equal(await empty.locator('h2').innerText(), 'Nothing saved yet');
-  assert.equal(await empty.locator('p').innerText(), 'Save a story or briefing to find it here.');
+  assert.equal(await empty.locator('p').innerText(), 'Episodes and briefings you keep will appear here.');
   assert.equal(await empty.locator('a[href],button').count(), 1, 'Saved empty state offers one action');
   assert.equal(await empty.getByRole('button', { name: 'Browse briefings', exact: true }).count(), 1);
 }

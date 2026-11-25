@@ -28,7 +28,7 @@ async function newPage(browser, viewport = { width: 390, height: 844 }) {
 
 async function gotoRoot(page, root = 'today') {
   await page.goto(`${baseURL}/#${root}`, { waitUntil: 'networkidle' });
-  await page.locator('main h1, #content h1').first().waitFor({ state: 'visible' });
+  await page.getByRole('heading', { level: 1 }).first().waitFor({ state: 'visible' });
 }
 
 function firstStoryRow(page) {
@@ -537,6 +537,7 @@ async function run() {
   for (const result of results) console.log(`${result.status} | ${result.name}${result.detail ? ` | ${result.detail}` : ''}`);
   const failed = results.filter(result => result.status === 'FAIL').length;
   console.log(`Result: ${results.length - failed}/${results.length} checks passed`);
+  for (const result of results.filter(item => item.status === 'FAIL')) console.error(`Failed check: ${result.name} — ${result.detail}`);
   if (failed) process.exitCode = 1;
 }
 

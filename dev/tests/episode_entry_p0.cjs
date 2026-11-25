@@ -183,6 +183,8 @@ async function run() {
     const apiState = await page.evaluate(() => ({ hash: location.hash }));
     assert.equal(apiState.hash, '#episode-making');
     await screenshot(page, 'episode-done-light');
+    await page.emulateMedia({ colorScheme: 'dark' }); await screenshot(page, 'episode-done-dark');
+    await page.emulateMedia({ colorScheme: 'light' });
     await page.getByRole('button', { name: 'Open transcript' }).click();
     await page.locator('.episode-page h1').waitFor();
     assert.match(await page.locator('.episode-page h1').innerText(), /Fictional briefing on Fictional Alder Bay transit/);
