@@ -47,7 +47,8 @@ def inspect_feed(source, fetcher=core.fetch_source, *, robots_cache_path=None, n
         if metadata.get('not_modified'):
             result.update(status='Not modified', valid_xml=True, item_count=0)
             return result
-        dates = [core.parse_date(item.get('published')) for item in items]
+        dates = [core.parse_date(item.get('published')) or core.parse_date(item.get('updated'))
+                 for item in items]
         dates = [date for date in dates if date is not None]
         newest = max(dates) if dates else None
         result.update(status='OK', valid_xml=True, item_count=len(items),

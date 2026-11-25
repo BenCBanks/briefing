@@ -31,10 +31,11 @@ class FeedHealthToolTests(unittest.TestCase):
 
     def test_valid_items_report_count_and_newest_date(self):
         items = [{'published': '2026-11-20T10:00:00Z'},
-                 {'published': '2026-11-24T10:00:00Z'}, {'published': None}]
+                 {'published': '2026-11-24T10:00:00Z'}, {'published': None},
+                 {'published': None, 'updated': '2026-11-25T10:00:00Z'}]
         result = self.inspect(items)
-        self.assertEqual((result['status'], result['valid_xml'], result['item_count']), ('OK', True, 3))
-        self.assertEqual(result['newest_item'], '2026-11-24')
+        self.assertEqual((result['status'], result['valid_xml'], result['item_count']), ('OK', True, 4))
+        self.assertEqual(result['newest_item'], '2026-11-25')
 
     def test_empty_valid_feed_is_distinct_from_invalid_xml(self):
         empty = self.inspect([])
