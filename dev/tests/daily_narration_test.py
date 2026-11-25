@@ -20,6 +20,7 @@ from dev.ingest.daily_narration import (ENRICH_PROMPT, ENRICH_SCHEMA, NARRATION_
                                         SCRIPT_MODEL, SCRIPT_PROMPT, SCRIPT_SCHEMA, VERIFY_MODEL, VERIFY_PROMPT,
                                         VERIFY_SCHEMA,
                                         _apply_narration, _deterministically_supported,
+                                        _apply_daily_publish_floor, _daily_publish_floor_words,
                                         _contains_read_takeaway, _has_high_read_takeaway_overlap,
                                         _review_writer_draft,
                                         _daily_answer_outline, _daily_outline_pre_audio_issues,
@@ -161,6 +162,235 @@ class DailyNarrationTests(unittest.TestCase):
                          if row.get('minimum_daily_words'))
         self.assertEqual(aggregate['minimum_daily_words'], 550)
 
+    def test_attempt_diagnostics_capture_short_then_expanded_daily_draft(self):
+        writer_prompts = []
+        edition = deepcopy(self.edition)
+        section = edition['sections'][0]
+        edition['sections'] = [section]
+        edition['daily_briefing']['target_spoken_words'] = 100
+        edition['daily_briefing']['briefing_script'] = [
+            row for row in edition['daily_briefing'].get('briefing_script', [])
+            if row.get('section_id') == section['cluster_id'] or row.get('kind') != 'story_intro'
+        ]
+        sid = section['cluster_id']
+        source_id = section['source_ids'][0]
+        evidence = deepcopy(self.evidence)
+        evidence_ids = []
+        long_rows = []
+        # A single unused source sentence is enough to trigger an evidence-bound expansion.
+        for group in range(2):
+            evidence_id = f'{sid}-detail-{group}'
+            evidence_ids.append(evidence_id)
+            sentences = [
+                'The fictional office records the first review step for local teams in its public process notice.',
+                'Staff compare the documented process with the recorded handoff before preparing an update.',
+                'The notice explains how the review team tracks outcomes and reports remaining work.',
+                'This detail shows which part of the published process staff can check during routine review.',
+                'The public notice describes the process clearly and ties the reported outcome to that review.',
+            ]
+            evidence[evidence_id] = {'text': ' '.join(sentences), 'source_id': source_id,
+                                     'source_number': 1}
+            long_rows.extend({'text': text, 'evidence_ids': [evidence_id], 'general_context': False}
+                             for text in sentences)
+        section['claim_links'] = [{'text': 'The fictional office records a review step.',
+                                   'source_sentence_ids': evidence_ids, 'citation_numbers': [1],
+                                   'verified': True}]
+        short = {'stories': [{'section_id': sid, 'sentences': [
+            {'text': long_rows[0]['text'], 'evidence_ids': [evidence_ids[0]], 'general_context': False},
+            {'text': 'Commercial property data tracks office occupancy for investment teams.',
+             'evidence_ids': [evidence_ids[0]], 'general_context': False}]}]}
+        expanded_rows = [*long_rows, {
+            'text': 'Commercial property data tracks office occupancy for investment teams.',
+            'evidence_ids': [evidence_ids[1]], 'general_context': False,
+        }]
+        expanded = {'stories': [{'section_id': sid, 'sentences': expanded_rows}]}
+        writer_number = 0
+
+        def call_json(_system, user, schema, _key, **kwargs):
+            nonlocal writer_number
+            payload = json.loads(user)
+            if schema == ENRICH_SCHEMA:
+                return {'stories': [{'section_id': row['section_id'],
+                                     'evidence_ids': [item['id'] for item in row['evidence']]}
+                                    for row in payload['stories']]}
+            if schema == SCRIPT_SCHEMA:
+                writer_prompts.append(payload)
+                writer_number += 1
+                return deepcopy(short if writer_number == 1 else expanded)
+            return {'verdicts': [{'section_id': row['section_id'],
+                                  'sentence_index': row['sentence_index'],
+                                  'supported': 'Commercial property data' not in row.get('text', '')}
+                                 for row in payload['sentences']]}
+
+        result = self.narrate(edition, self.profile, evidence, self.sources,
+                              call_json=call_json)
+        self.assertEqual(result['status'], 'written', result)
+        self.assertEqual(len(writer_prompts), 2)
+        self.assertTrue(writer_prompts[1].get('expansion_pass'))
+        self.assertEqual(len(writer_prompts[1]['evidence_expansion']), 1)
+        expansion = writer_prompts[1]['evidence_expansion'][0]
+        self.assertEqual(expansion['section_id'], sid)
+        self.assertEqual(expansion['used_evidence_ids'], [evidence_ids[0]])
+        self.assertEqual([row['id'] for row in expansion['unused_evidence']], [evidence_ids[1]])
+        self.assertEqual(len(expansion['accepted_supported_sentences']), 1)
+        self.assertEqual([row['id'] for row in writer_prompts[1]['stories'][0]['evidence']],
+                         [evidence_ids[1]])
+        self.assertTrue(result['expansion_used'])
+        self.assertEqual([row['attempt'] for row in result['attempts']], [1, 2])
+        self.assertTrue(result['attempts'][0]['finding_codes'])
+        self.assertIn('unsupported_sentence', result['attempts'][0]['finding_codes'])
+        self.assertTrue(result['attempts'][0]['expansion_requested'])
+        self.assertFalse(result['attempts'][0]['expansion_pass'])
+        self.assertEqual(result['attempts'][0]['finding_details'][0]['story_heading'],
+                         section['heading'])
+        self.assertTrue(result['attempts'][1]['expansion_pass'])
+        self.assertTrue(result['attempts'][1]['repair_pass'])
+        self.assertIn('unsupported_sentence', result['attempts'][1]['finding_codes'])
+        self.assertEqual(result['attempts'][1]['gate'], 'soft',
+                         'the unsupported draft sentence is removed before final hard checks')
+        final_script = ' '.join(row['text'] for row in edition['daily_briefing']['briefing_script'])
+        self.assertNotIn('Commercial property data', final_script)
+        self.assertGreaterEqual(result['attempts'][1]['accepted_words'], 55,
+                                'the supported remainder clears this fixture’s 100-word target floor')
+        self.assertEqual(result['lost_at_stage'], None)
+
+        borderline_edition = deepcopy(edition)
+        def borderline_call(_system, user, schema, _key, **_kwargs):
+            payload = json.loads(user)
+            if schema == ENRICH_SCHEMA:
+                return {'stories': [{'section_id': row['section_id'],
+                                     'evidence_ids': [item['id'] for item in row['evidence']]}
+                                    for row in payload['stories']]}
+            if schema == SCRIPT_SCHEMA:
+                return {'stories': [{'section_id': sid, 'sentences': long_rows[:18]}]}
+            return {'verdicts': [{'section_id': row['section_id'],
+                                  'sentence_index': row['sentence_index'], 'supported': True}
+                                 for row in payload['sentences']]}
+        borderline = self.narrate(borderline_edition, self.profile, evidence, self.sources,
+                                  call_json=borderline_call)
+        self.assertEqual(borderline['status'], 'written', borderline)
+        self.assertFalse(borderline['expansion_used'])
+        self.assertLessEqual(len(borderline['attempts']), 2)
+
+    def test_requested_expansion_records_call_budget_block_before_completion(self):
+        edition = deepcopy(self.edition)
+        section = edition['sections'][0]
+        edition['sections'] = [section]
+        edition['daily_briefing']['briefing_script'] = [
+            row for row in edition['daily_briefing'].get('briefing_script', [])
+            if row.get('section_id') == section['cluster_id'] or row.get('kind') != 'story_intro'
+        ]
+        sid = section['cluster_id']
+        source_id = section['source_ids'][0]
+        used_id, unused_id = f'{sid}-used', f'{sid}-unused'
+        used_text = 'The fictional office records its review step for local staff.'
+        unused_text = ('The same notice describes the next review stage and explains how staff '
+                       'record its result during the published process.')
+        section['claim_links'] = [{'text': used_text,
+            'source_sentence_ids': [used_id, unused_id], 'citation_numbers': [1], 'verified': True}]
+        evidence = deepcopy(self.evidence)
+        evidence[used_id] = {'text': used_text, 'source_id': source_id, 'source_number': 1}
+        evidence[unused_id] = {'text': unused_text, 'source_id': source_id, 'source_number': 1}
+        script_calls = 0
+
+        def call_json(_system, user, schema, _key, **_kwargs):
+            nonlocal script_calls
+            payload = json.loads(user)
+            if schema == ENRICH_SCHEMA:
+                return {'stories': [{'section_id': row['section_id'],
+                                     'evidence_ids': [item['id'] for item in row['evidence']]}
+                                    for row in payload['stories']]}
+            if schema == SCRIPT_SCHEMA:
+                script_calls += 1
+                if script_calls == 2:
+                    raise RuntimeError('gemini_call_limit')
+                return {'stories': [{'section_id': sid, 'sentences': [
+                    {'text': used_text, 'evidence_ids': [used_id], 'general_context': False}]}]}
+            return {'verdicts': [{'section_id': row['section_id'],
+                                  'sentence_index': row['sentence_index'], 'supported': True}
+                                 for row in payload['sentences']]}
+
+        result = self.narrate(edition, self.profile, evidence, self.sources, call_json=call_json)
+        self.assertEqual(result['status'], 'fallback')
+        self.assertEqual(result['reason'], 'gemini_call_limit')
+        self.assertFalse(result['expansion_used'])
+        self.assertEqual(len(result['attempts']), 2)
+        first, second = result['attempts']
+        self.assertTrue(first['expansion_requested'])
+        self.assertFalse(first['expansion_pass_started'])
+        self.assertFalse(first['expansion_pass'])
+        self.assertTrue(second['expansion_requested'])
+        self.assertTrue(second['expansion_pass_started'])
+        self.assertFalse(second['expansion_pass'])
+        self.assertEqual(second['failed_at'], 'writer')
+
+    def test_adequate_draft_does_not_spend_expansion_pass(self):
+        stories = {'a': [{'text': 'A concise supported development is clear to the listener.',
+                          'evidence_ids': ['E1'], 'general_context': False}]}
+        evidence = {'a': [{'id': 'E1', 'text': 'A concise supported development is clear to the listener.',
+                           'type': 'reported', 'outlet': 'Fictional desk', 'title': 'Fictional notice'}]}
+        accepted, findings, fatal = _review_writer_draft(
+            stories, {('a', 0): True}, evidence, 100, allow_soft_style=True)
+        self.assertIsNone(fatal)
+        self.assertEqual(accepted['a'][0]['text'], stories['a'][0]['text'])
+        self.assertFalse(any(row.get('code') == 'narration_underdeveloped_with_unused_evidence'
+                             for row in findings))
+
+    def test_checked_short_daily_uses_55_percent_publish_floor(self):
+        self.assertEqual(_daily_publish_floor_words(675), 372)
+        reason, floor_used = _apply_daily_publish_floor(
+            'narration_underdeveloped_with_unused_evidence', 433, 675)
+        self.assertIsNone(reason)
+        self.assertTrue(floor_used)
+
+        reason, floor_used = _apply_daily_publish_floor(None, 371, 675)
+        self.assertEqual(reason, 'narration_minimum_length')
+        self.assertFalse(floor_used)
+
+        reason, floor_used = _apply_daily_publish_floor(
+            'narration_style_or_evidence_check', 433, 675)
+        self.assertIsNone(reason)
+        self.assertTrue(floor_used)  # soft style warnings do not block checked narration
+
+        reason, floor_used = _apply_daily_publish_floor(
+            None, 433, 675, hard_gate_failed=True)
+        self.assertEqual(reason, 'narration_style_or_evidence_check')
+        self.assertFalse(floor_used)
+
+    def test_daily_host_prompt_forbids_factual_glue_sentences(self):
+        prompt = SCRIPT_PROMPT.format(target_words=220)
+        self.assertIn('Do not create factual bridge or glue sentences', prompt)
+        self.assertIn('omit a transition that cannot be grounded', prompt)
+        self.assertIn('General context is for explaining a concept or mechanism, never for connective filler', prompt)
+        self.assertIn("infer an actor's motives", prompt)
+
+    def test_expansion_scope_keeps_only_accepted_text_and_unused_evidence_additions(self):
+        from dev.ingest.daily_narration import _scope_expansion_draft
+
+        accepted = {'text': 'The notice records the first review step.',
+                    'evidence_ids': ['used-1'], 'general_context': False}
+        rows = {'fictional-story': [
+            deepcopy(accepted),
+            {'text': 'A new claim cites evidence already used.',
+             'evidence_ids': ['used-1'], 'general_context': False},
+            {'text': 'The unused notice gives a second documented review step.',
+             'evidence_ids': ['unused-1'], 'general_context': False},
+            {'text': 'More broadly, teams can compare ordinary processes.',
+             'evidence_ids': [], 'general_context': True},
+        ]}
+        context = [{'section_id': 'fictional-story', 'expand': True,
+                    'accepted_supported_sentences': [accepted],
+                    'used_evidence_ids': ['used-1'],
+                    'unused_evidence': [{'id': 'unused-1', 'type': 'reported'}]}]
+
+        scoped, findings = _scope_expansion_draft(rows, context)
+        self.assertEqual([row['text'] for row in scoped['fictional-story']], [
+            accepted['text'], 'The unused notice gives a second documented review step.'
+        ])
+        self.assertEqual(len(findings), 2)
+        self.assertTrue(all(row['code'] == 'unsupported_sentence' for row in findings))
+        self.assertEqual([row['sentence_index'] for row in findings], [1, 3])
+
     def test_enrichment_discards_unknown_ids_and_keeps_bounded_verified_evidence(self):
         evidence = [{'id': 'required'}, *[{'id': f'optional-{index}'} for index in range(25)]]
         stories = [{'section_id': 'fictional-story', 'heading': 'Fictional payment notice',
@@ -234,6 +464,7 @@ class DailyNarrationTests(unittest.TestCase):
     def test_flagged_daily_outline_writes_short_story_paragraphs_and_gap_beat(self):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 150
         writer_response = deepcopy(fixture['writer_response'])
         calls = []
 
@@ -288,6 +519,7 @@ class DailyNarrationTests(unittest.TestCase):
     def test_daily_outline_failure_uses_current_writer_without_blocking_edition(self):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 150
         writer_response = deepcopy(fixture['writer_response'])
         calls = []
 
@@ -400,6 +632,7 @@ class DailyNarrationTests(unittest.TestCase):
         fixture = json.loads(CORRECTED_REVISION_FIXTURE.read_text(encoding='utf-8'))
         self.assertTrue(fixture['fixture_only'])
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 150
         profile = deepcopy(fixture['profile'])
         old_claim = fixture['superseded_revision']['claim']
         current_claim = fixture['current_claim']
@@ -451,6 +684,7 @@ class DailyNarrationTests(unittest.TestCase):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
         self.assertTrue(fixture['fixture_only'])
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 150
         sources = deepcopy(fixture['sources'])
         runtime_evidence = deepcopy(fixture['runtime_evidence'])
         writer_response = deepcopy(fixture['writer_response'])
@@ -749,6 +983,7 @@ class DailyNarrationTests(unittest.TestCase):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
         self.assertTrue(fixture['fixture_only'])
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 150
         original_sections = deepcopy(edition['sections'])
         writer_response = deepcopy(fixture['writer_response'])
         calls = []
@@ -855,6 +1090,7 @@ class DailyNarrationTests(unittest.TestCase):
     def test_numeric_range_keeps_both_endpoints_and_unit_in_daily_export(self):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 100
         sentence = ('Fictional County set a review window of 14-21 business days for standard home permits; '
                     'at least 14 business days are required.')
         evidence = fixture['runtime_evidence']['permits-1']
@@ -895,6 +1131,7 @@ class DailyNarrationTests(unittest.TestCase):
     def test_complete_three_story_script_survives_global_verifier_indices(self):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 150
         calls = []
 
         def call_json(_system, user, schema, _api_key, **kwargs):
@@ -926,6 +1163,7 @@ class DailyNarrationTests(unittest.TestCase):
 
     def test_one_based_global_verifier_indices_are_normalized_only_when_complete(self):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
+        fixture['edition']['daily_briefing']['target_spoken_words'] = 150
 
         def run_variant(verdict_rows):
             edition = deepcopy(fixture['edition'])
@@ -975,6 +1213,7 @@ class DailyNarrationTests(unittest.TestCase):
         for consumed in (False, True):
             with self.subTest(consumed=consumed):
                 edition = deepcopy(fixture['edition'])
+                edition['daily_briefing']['target_spoken_words'] = 150
                 writer_response = deepcopy(fixture['writer_response'])
                 if consumed:
                     writer_response['stories'][0]['sentences'][0]['evidence_ids'].append('transit-bg-1')
@@ -1372,6 +1611,7 @@ class DailyNarrationTests(unittest.TestCase):
     def test_rejected_draft_is_retried_with_feedback_and_saved_privately(self):
         from dev.ingest.daily_narration import STATE_DIR
 
+        self.edition['daily_briefing']['target_spoken_words'] = 300
         writer_prompts = []
         def call_json(_system, user, schema, _key, **kwargs):
             if schema == ENRICH_SCHEMA:
@@ -1537,6 +1777,16 @@ class DailyNarrationTests(unittest.TestCase):
 
         self.assertEqual(result['status'], 'fallback', result)
         self.assertEqual(result['reason'], 'narration_style_or_evidence_check')
+        unsupported_details = [detail for detail in result['attempts'][0].get('finding_details', [])
+                               if detail.get('code') == 'unsupported_sentence']
+        self.assertTrue(unsupported_details)
+        self.assertEqual(unsupported_details[0]['section_id'], 'story-fed-snb')
+        self.assertEqual(unsupported_details[0]['story_heading'],
+                         'Federal Reserve terminates an action involving SNB Bancshares')
+        self.assertIn('general_context', unsupported_details[0])
+        self.assertIn('verifier_supported', unsupported_details[0])
+        self.assertIn('deterministic_supported', unsupported_details[0])
+        self.assertNotIn(rejected_claim, json.dumps(unsupported_details))
         self.assertEqual(self.edition, before,
                          'an explicitly rejected claim does not mutate or pad the daily edition')
         final = json.loads((Path(STATE_DIR) / result['debug_files'][-1]).read_text(encoding='utf-8'))
@@ -1610,6 +1860,7 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertFalse(replay['writer_response']['stories'][0]['sentences'][0]['general_context'],
                          'the replay also covers a supported development-led opening')
         edition = deepcopy(self.edition)
+        edition['daily_briefing']['target_spoken_words'] = 300
         runtime_evidence = {}
         sources = []
         topics = []

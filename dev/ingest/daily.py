@@ -254,7 +254,8 @@ def _daily_narration_report(value):
         status = 'unavailable'
     reason = value.get('reason')
     if not isinstance(reason, str) or not re.fullmatch(
-            r'(?:narration_[a-z0-9_]{1,80}|budget_estimate|flag_disabled|'
+            r'(?:narration_[a-z0-9_]{1,80}|budget_estimate|flag_disabled|gemini_call_limit|'
+            r'narration_deadline|generation_budget_expired|'
             r'ProxyError:[0-5][0-9]{2}:[a-z0-9_]{1,80}:[a-z0-9_]{1,80}|'
             r'[A-Z][A-Za-z0-9]{0,39})', reason):
         reason = None

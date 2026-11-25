@@ -87,6 +87,9 @@ class TryRealTests(unittest.TestCase):
                 self.assertEqual(os.environ.get('BRIEFING_EPISODES'), 'real')
                 self.assertIsNone(os.environ.get('BRIEFING_FLAGS_FILE'))
                 self.assertIsNone(os.environ.get('BRIEFING_SEARCH_FIRST'))
+                from dev.ingest.flags import setting_details
+                self.assertEqual(setting_details('daily_narration'), {
+                    'value': True, 'default': False, 'source': 'env'})
         finally:
             if before_flags is None:
                 os.environ.pop('BRIEFING_FLAGS_FILE', None)

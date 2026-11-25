@@ -1116,7 +1116,8 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(malformed['daily_run']['daily_briefing']['supply_ladder'][0]['status'], 'unknown')
         self.assertEqual(malformed['daily_run']['daily_audio']['audio_status'], 'unavailable')
         self.assertEqual(malformed['daily_run']['daily_narration'], {
-            'status': 'fallback', 'reason': 'narration_failed'})
+            'status': 'fallback', 'reason': 'narration_failed',
+            'message': 'The narration could not be completed.'})
         self.assertNotIn('PRIVATE_VERIFIER_DETAIL_DO_NOT_EXPOSE', json.dumps(malformed))
         self.assertNotIn('/private/fictional/verifier-debug.json', json.dumps(malformed))
 
@@ -1124,10 +1125,12 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(generation_api._daily_narration_job_status({
             'daily_narration': {'status': 'fallback', 'reason': 'narration_writer_shape',
                                 'debug_file': '/private/path'}}),
-            {'status': 'fallback', 'reason': 'narration_writer_shape'})
+            {'status': 'fallback', 'reason': 'narration_writer_shape',
+             'message': 'The narration could not be written in the required format.'})
         self.assertEqual(generation_api._daily_narration_job_status({
             'daily_narration': {'status': 'fallback', 'reason': 'secret token'}}),
-            {'status': 'fallback', 'reason': 'narration_failed'})
+            {'status': 'fallback', 'reason': 'narration_failed',
+             'message': 'The narration could not be completed.'})
         self.assertEqual(generation_api._daily_narration_job_status({
             'daily_narration': {'status': 'off', 'reason': 'flag_disabled'}}),
             {'status': 'off', 'reason': 'flag_disabled'})
@@ -1145,6 +1148,50 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(proxy_status['reason'], safe_reason)
         self.assertNotIn('must not leak', json.dumps(proxy_status))
 
+    def test_daily_narration_status_exposes_bounded_attempt_diagnostics_only(self):
+        status = generation_api._daily_narration_job_status({'daily_narration': {
+            'status': 'fallback', 'reason': 'narration_underdeveloped_with_unused_evidence',
+            'lost_at_stage': 'length_gate', 'expansion_used': True,
+            'attempts': [{'attempt': 1, 'stories_in': 3, 'words_out': 240,
+                          'accepted_words': 220, 'target_words': 700,
+                          'target_words_per_story': 223, 'gate': 'soft',
+                          'finding_codes': ['narration_underdeveloped_with_unused_evidence'],
+                          'repair_pass': False, 'expansion_requested': True, 'expansion_pass': False,
+                          'expansion_pass_started': False, 'publication_floor_used': False,
+                          'finding_details': [{'section_id': 'fictional-story-1',
+                              'story_heading': 'Fictional public notice',
+                              'sentence_index': 2, 'code': 'unsupported_sentence',
+                              'general_context': False, 'verifier_supported': True,
+                              'deterministic_supported': False,
+                              'text': 'private rejected draft sentence'},
+                              {'section_id': '../private', 'code': 'unsupported_sentence'}],
+                          'draft': 'must not leak'},
+                         {'attempt': 2, 'stories_in': 3, 'words_out': 680,
+                          'accepted_words': 660, 'target_words': 700,
+                          'gate': 'pass', 'finding_codes': [],
+                          'repair_pass': True, 'expansion_pass_started': True,
+                          'expansion_pass': True, 'publication_floor_used': True,
+                          'publish_floor_words': 372}],
+        }})
+        self.assertEqual(status['lost_at_stage'], 'length_gate')
+        self.assertTrue(status['expansion_used'])
+        self.assertEqual(len(status['attempts']), 2)
+        self.assertEqual(status['attempts'][0]['words_out'], 240)
+        self.assertTrue(status['attempts'][0]['expansion_requested'])
+        self.assertFalse(status['attempts'][0]['expansion_pass_started'])
+        self.assertFalse(status['attempts'][0]['expansion_pass'])
+        self.assertTrue(status['attempts'][1]['expansion_pass_started'])
+        self.assertTrue(status['attempts'][1]['publication_floor_used'])
+        self.assertEqual(status['attempts'][1]['publish_floor_words'], 372)
+        self.assertEqual(status['attempts'][0]['finding_details'], [{
+            'section_id': 'fictional-story-1', 'code': 'unsupported_sentence',
+            'sentence_index': 2, 'story_heading': 'Fictional public notice',
+            'general_context': False, 'verifier_supported': True,
+            'deterministic_supported': False}])
+        self.assertNotIn('must not leak', json.dumps(status))
+        self.assertNotIn('private rejected draft sentence', json.dumps(status))
+        self.assertIn('message', status)
+
     def test_narration_failure_preserves_critical_content_gate_and_clears_script(self):
         edition = {'audio': {'state': 'pending'},
                    'daily_briefing': {'briefing_script': [{'text': 'Old narration'}],
@@ -1156,7 +1203,8 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(report['failed_critical'], ['content_quality'])
         self.assertTrue(report['critical_failed'], 'narration fallback must not clear a hard content failure')
         self.assertEqual(report['daily_narration'], {
-            'status': 'fallback', 'reason': 'narration_underdeveloped_with_unused_evidence'})
+            'status': 'fallback', 'reason': 'narration_underdeveloped_with_unused_evidence',
+            'message': 'The draft stayed short after one evidence based expansion pass.'})
         self.assertEqual(edition['daily_briefing']['briefing_script'], [])
         self.assertEqual(edition['daily_briefing']['background_segments'], [])
         self.assertEqual(edition['daily_briefing']['spoken_words'], 0)

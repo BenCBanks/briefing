@@ -285,7 +285,8 @@ def _public_daily_run(value):
         narration_status = 'unavailable'
     narration_reason = narration.get('reason')
     if not isinstance(narration_reason, str) or not re.fullmatch(
-            r'(?:narration_[a-z0-9_]{1,80}|budget_estimate|flag_disabled|'
+            r'(?:narration_[a-z0-9_]{1,80}|budget_estimate|flag_disabled|gemini_call_limit|'
+            r'generation_budget_expired|narration_deadline|'
             r'ProxyError:[0-5][0-9]{2}:[a-z0-9_]{1,80}:[a-z0-9_]{1,80}|'
             r'[A-Z][A-Za-z0-9]{0,39})', narration_reason):
         narration_reason = None
@@ -374,7 +375,7 @@ def _public_daily_run(value):
             'duration_seconds': count_brief(brief.get('duration_seconds'), 86400),
             'supply_ladder': ladder,
         },
-        'daily_narration': {'status': narration_status, 'reason': narration_reason},
+        'daily_narration': _daily_narration_job_status(value),
         'daily_audio': {'audio_status': audio_status, 'ready_at': ready_at},
         'profiles_attempted': profiles_attempted,
         'profiles_completed': profiles_completed,
@@ -678,12 +679,92 @@ def _daily_narration_job_status(report):
         return {'status': 'unavailable', 'reason': 'narration_status_unavailable'}
     reason = narration.get('reason')
     if not isinstance(reason, str) or not re.fullmatch(
-            r'(?:narration_[a-z0-9_]{1,80}|budget_estimate|flag_disabled|'
+            r'(?:narration_[a-z0-9_]{1,80}|budget_estimate|flag_disabled|gemini_call_limit|'
             r'ProxyError:[0-5][0-9]{2}:[a-z0-9_]{1,80}:[a-z0-9_]{1,80}|'
             r'[A-Z][A-Za-z0-9]{0,39})', reason):
         reason = ('narration_failed' if status == 'fallback' else
                   'flag_disabled' if status == 'off' else None)
-    return {'status': status, 'reason': reason}
+    result = {'status': status, 'reason': reason}
+    messages = {
+        'narration_underdeveloped_with_unused_evidence':
+            'The draft stayed short after one evidence based expansion pass.',
+        'narration_minimum_length':
+            'There was not enough checked material for a complete spoken briefing.',
+        'gemini_call_limit': 'The narration could not finish within its model call budget.',
+        'narration_deadline': 'The narration could not finish within its time budget.',
+        'generation_budget_expired': 'The daily briefing ran out of time before narration finished.',
+        'narration_style_or_evidence_check':
+            'The narration did not pass its content checks.',
+        'narration_writer_shape': 'The narration could not be written in the required format.',
+        'narration_verifier_shape': 'The narration could not be checked against its evidence.',
+        'narration_enrichment_shape': 'The narration evidence could not be prepared.',
+        'budget_estimate': 'The narration budget was not available.',
+        'flag_disabled': 'Spoken narration is turned off.',
+    }
+    if status == 'fallback':
+        result['message'] = messages.get(reason, 'The narration could not be completed.')
+    if narration.get('lost_at_stage') in {
+            'preparation', 'evidence_selection', 'writer', 'verifier',
+            'sentence_review', 'length_gate', 'script_review', 'narration_assembly'}:
+        result['lost_at_stage'] = narration['lost_at_stage']
+    if type(narration.get('expansion_used')) is bool:
+        result['expansion_used'] = narration['expansion_used']
+    for key in ('expansion_requested', 'publication_floor_used'):
+        if type(narration.get(key)) is bool:
+            result[key] = narration[key]
+    if type(narration.get('publish_floor_words')) is int and 0 <= narration['publish_floor_words'] <= 10000:
+        result['publish_floor_words'] = narration['publish_floor_words']
+    attempts = narration.get('attempts')
+    safe_attempts = []
+    if isinstance(attempts, list):
+        for row in attempts[:2]:
+            if not isinstance(row, dict):
+                continue
+            safe = {}
+            for key in ('attempt', 'stories_in', 'words_out', 'accepted_words', 'target_words',
+                        'target_words_per_story', 'publish_floor_words'):
+                value = row.get(key)
+                if type(value) is int and 0 <= value <= 10000:
+                    safe[key] = value
+            if row.get('gate') in {'hard', 'soft', 'pass'}:
+                safe['gate'] = row['gate']
+            safe['finding_codes'] = [code for code in row.get('finding_codes', [])[:20]
+                                     if isinstance(code, str) and
+                                     re.fullmatch(r'[a-z0-9_]{1,80}', code)]
+            safe['repair_pass'] = row.get('repair_pass') is True
+            safe['expansion_requested'] = row.get('expansion_requested') is True
+            safe['expansion_pass_started'] = row.get('expansion_pass_started') is True
+            safe['expansion_pass'] = row.get('expansion_pass') is True
+            safe['publication_floor_used'] = row.get('publication_floor_used') is True
+            finding_details = []
+            raw_details = row.get('finding_details')
+            for detail in raw_details[:20] if isinstance(raw_details, list) else []:
+                if not isinstance(detail, dict) or detail.get('code') != 'unsupported_sentence':
+                    continue
+                section_id = detail.get('section_id')
+                if not isinstance(section_id, str) or not re.fullmatch(r'[A-Za-z0-9_-]{1,120}', section_id):
+                    continue
+                safe_detail = {'section_id': section_id, 'code': 'unsupported_sentence'}
+                sentence_index = detail.get('sentence_index')
+                if type(sentence_index) is int and 0 <= sentence_index < 10000:
+                    safe_detail['sentence_index'] = sentence_index
+                for key in ('general_context', 'verifier_supported', 'deterministic_supported'):
+                    if type(detail.get(key)) is bool:
+                        safe_detail[key] = detail[key]
+                heading = detail.get('story_heading')
+                if isinstance(heading, str):
+                    safe_detail['story_heading'] = re.sub(r'[\x00-\x1f\x7f]+', ' ', heading)[:160]
+                finding_details.append(safe_detail)
+            if finding_details:
+                safe['finding_details'] = finding_details
+            if isinstance(row.get('failed_at'), str) and re.fullmatch(r'[a-z_]{1,40}', row['failed_at']):
+                safe['failed_at'] = row['failed_at']
+            if isinstance(row.get('lost_at_stage'), str) and re.fullmatch(r'[a-z_]{1,40}', row['lost_at_stage']):
+                safe['lost_at_stage'] = row['lost_at_stage']
+            safe_attempts.append(safe)
+    if safe_attempts:
+        result['attempts'] = safe_attempts
+    return result
 
 
 def _safe_narration_exception_reason(error):
@@ -695,6 +776,8 @@ def _safe_narration_exception_reason(error):
     message = str(error)
     if isinstance(error, NameError) and re.fullmatch(r"name '[A-Za-z_][A-Za-z0-9_]*' is not defined", message):
         return 'NameError:' + message.split("'")[1]
+    if message in {'gemini_call_limit', 'narration_deadline', 'generation_budget_expired'}:
+        return message
     if re.fullmatch(r'(?:narration_[a-z0-9_]{1,80}|budget_estimate)', message):
         return message
     error_type = type(error).__name__
@@ -712,6 +795,16 @@ def _publish_text_only_after_narration_failure(edition, report, narration_result
         {'daily_narration': {'status': 'fallback', 'reason': reason}})
     reason = safe_status.get('reason') or 'narration_unavailable'
     report['daily_narration'] = {'status': 'fallback', 'reason': reason}
+    # Preserve bounded, public-safe diagnostics so a story-bearing edition never
+    # looks like it silently became text-only.  Draft text and provider details
+    # remain in the private debug file, not in status.
+    if isinstance(narration_result, dict):
+        for key in ('attempts', 'lost_at_stage', 'expansion_requested', 'expansion_used',
+                    'publication_floor_used', 'publish_floor_words'):
+            if key in narration_result:
+                report['daily_narration'][key] = narration_result[key]
+    report['daily_narration']['message'] = _daily_narration_job_status(
+        {'daily_narration': report['daily_narration']}).get('message')
     daily = edition.setdefault('daily_briefing', {})
     if not isinstance(daily, dict):
         daily = edition['daily_briefing'] = {}
@@ -727,6 +820,31 @@ def _publish_text_only_after_narration_failure(edition, report, narration_result
     logging.getLogger(__name__).warning(
         'Daily narration unavailable; publishing the text edition only (%s).', reason)
     return True
+
+
+def _log_daily_narration_attempts(narration_result):
+    attempts = narration_result.get('attempts') if isinstance(narration_result, dict) else None
+    if not isinstance(attempts, list):
+        return
+    for row in attempts[:2]:
+        if not isinstance(row, dict):
+            continue
+        codes = [code for code in row.get('finding_codes', [])[:12]
+                 if isinstance(code, str) and re.fullmatch(r'[a-z0-9_]{1,80}', code)]
+        details = row.get('finding_details')
+        unsupported_stories = [detail['section_id'] for detail in details[:20]
+                               if isinstance(detail, dict) and
+                               detail.get('code') == 'unsupported_sentence' and
+                               isinstance(detail.get('section_id'), str)] if isinstance(details, list) else []
+        logging.getLogger(__name__).info(
+            'daily_narration_attempt attempt=%s stories=%s words=%s target=%s gate=%s rules=%s repair=%s expansion_requested=%s expansion_started=%s expansion=%s unsupported_stories=%s stage=%s',
+            row.get('attempt', 0), row.get('stories_in', 0), row.get('words_out', 0),
+            row.get('target_words', 0), row.get('gate', 'unknown'),
+            ','.join(codes) or 'none', bool(row.get('repair_pass')),
+            bool(row.get('expansion_requested')), bool(row.get('expansion_pass_started')),
+            bool(row.get('expansion_pass')),
+            ','.join(unsupported_stories) or 'none',
+            row.get('failed_at', 'script_review'))
 
 
 def _persist_job_scorecard(directory, job_id, report):
@@ -1574,6 +1692,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                     # Keep the checked written edition if optional narration fails.
                     narration_result = {'status': 'fallback',
                                         'reason': _safe_narration_exception_reason(error)}
+                _log_daily_narration_attempts(narration_result)
                 if isinstance(narration_result, dict) and narration_result.get('status') == 'written':
                     report['daily_narration'] = narration_result
                     report['daily_briefing'] = {
