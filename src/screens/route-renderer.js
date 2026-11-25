@@ -28,8 +28,13 @@ export function renderRouteContent(routeName, app) {
     getLibrarySearchQuery, setLibrarySearchQuery, loadEpisodeCards, canListen,
     listenEstimate: getListenEstimate, createPlayIcon, startListening, browserCanSpeak,
     loadEditionHistory,
-    accountsEnabled, accountReader, accountApi, onAccountChange,
+    accountsEnabled, accountReader, accountApi, onAccountChange, accountModePending,
   } = app;
+
+  if (accountModePending) {
+    content.replaceChildren(node('p', 'Preparing'));
+    return;
+  }
 
   if (accountsEnabled && !accountReader && ['today', 'ask', 'ask-episode'].includes(routeName)) {
     renderAccountAccess({ content, node, api: accountApi, gateRoute: routeName, onAccountChange });

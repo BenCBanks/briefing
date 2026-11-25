@@ -23,11 +23,12 @@ export function accountApi(fetcher = fetch) {
   return {
     async sessionState() {
       const { response, body } = await request('/api/account/me');
-      if (response.status === 401) return { expired: localStorage.getItem(SESSION_MARKER) === '1' };
-      if (!response.ok) throw Error('session unavailable');
+      if (response.status === 404) return { enabled: false };
+      if (response.status === 401) return { enabled: true, expired: localStorage.getItem(SESSION_MARKER) === '1' };
+      if (!response.ok) return { enabled: true, unavailable: true };
       localStorage.setItem(SESSION_MARKER, '1');
       await csrf();
-      return { reader: body.account };
+      return { enabled: true, reader: body.account };
     },
     async signIn(details) {
       const { response, body } = await request('/api/account/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account: details.account, password: details.password }) });
@@ -54,13 +55,12 @@ export function accountApi(fetcher = fetch) {
     },
   };
 }
-export async function mountAccountSettings({ content, node, api = accountApi(), fetcher = fetch, onAccountChange, enabled }) {
+export async function mountAccountSettings({ content, node, api = accountApi(), onAccountChange, enabled }) {
   if (enabled !== true) {
     if (enabled === false) return null;
     try {
-      const response = await fetcher('/api/flags', { cache: 'no-store' });
-      const data = await response.json();
-      if (data?.flags?.accounts?.value !== true) return null;
+      const state = await api.sessionState();
+      if (!state.enabled) return null;
     } catch { return null; }
   }
   if (content.querySelector('h1')?.textContent !== 'Settings') return null;

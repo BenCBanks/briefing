@@ -33,7 +33,6 @@ async function main() {
   const profile = { version: 1, words: 'AI chips and climate policy', minutes: 12, background: null, topics, muted: [] };
   const history = [{ title: 'A fictional story about chip design' }];
 
-  await page.route('**/api/flags', route => route.fulfill({ json: { flags: { accounts: { value: true } } } }));
   await page.route('**/api/account**', async route => {
     const url = new URL(route.request().url());
     const pathName = url.pathname;
@@ -97,7 +96,7 @@ async function main() {
   await page.getByLabel('Password').fill('correct');
   await page.getByRole('button', { name: 'Sign in', exact: true }).click();
   await page.getByRole('heading', { name: 'Signed in as reader-example' }).waitFor();
-  await page.getByText('AI chips').waitFor();
+  await page.getByText('AI chips', { exact: true }).waitFor();
   await page.getByText('A fictional story about chip design').waitFor();
   assert.deepEqual([...new Set(loaded)].sort(), ['history', 'topics'], 'reader-specific topics and history load after sign-in');
   await shot(page, 'account-signed-in.png');

@@ -93,6 +93,7 @@ let interestProfile = getProfile();
 const accountApi = createAccountApi();
 let accountsEnabled = false;
 let accountReader = null;
+let accountModePending = true;
 let interestDraft = null;
 let interestPageFlags = [];
 let interestPageNotice = '';
@@ -222,11 +223,14 @@ function onAccountChange(reader, data = {}) {
 
 async function initializeAccountFeature() {
   try {
-    const response = await fetch('/api/flags', { cache: 'no-store' });
-    const result = await response.json();
-    if (result?.flags?.accounts?.value !== true) return;
-    accountsEnabled = true;
     const session = await accountApi.sessionState();
+    if (!session.enabled) return;
+    accountsEnabled = true;
+    if (session.unavailable) {
+      accountReader = null; clearProfile(); interestProfile = null;
+      window.dispatchEvent(new Event('hashchange'));
+      return;
+    }
     accountReader = session.reader || null;
     if (accountReader) {
       const [topics] = await Promise.all([accountApi.loadTopics(), accountApi.loadHistory()]);
@@ -239,8 +243,10 @@ async function initializeAccountFeature() {
     // If account mode is on but session lookup fails, fail closed to the sign-in view.
     if (!accountsEnabled) return;
     accountReader = null; clearProfile(); interestProfile = null;
+  } finally {
+    accountModePending = false;
+    window.dispatchEvent(new Event('hashchange'));
   }
-  window.dispatchEvent(new Event('hashchange'));
 }
 
 const storyInteractionController = createStoryInteractionController({
@@ -759,7 +765,7 @@ const routeLifecycleController = createRouteLifecycleController({
   invalidateMaterialCorrections, finishStoryVisit, trackRouteSignals, focusToken, navigate,
   startBuildGeneration, showToast, rootForHash,
   renderRouteContent: (routeName, descriptor) => renderRouteContent(routeName, {
-    accountsEnabled, accountReader, accountApi, onAccountChange,
+    accountsEnabled, accountReader, accountApi, onAccountChange, accountModePending,
     episodeRoute: descriptor.episodeRoute, content, node, link, history, interestProfile, pendingTopicsUpdate, buildInProgress,
     todayListSkeleton, renderTodayScreen, getState: () => state, setState: value => { state = value; },
     FIRST_EDITION_WELCOME_KEY, profileBuildKey, BUILD_GENERAL_FALLBACK_KEY, currentEdition,

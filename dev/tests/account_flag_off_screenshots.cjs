@@ -22,7 +22,7 @@ async function main() {
     localStorage.setItem('briefing:v1:built-profile-key', key);
     localStorage.setItem('briefing:v1:edition-mode', '{}');
   }, { profile: DEFAULT_PROFILE, key: builtProfileKey(DEFAULT_PROFILE) });
-  await page.route('**/api/flags', route => route.fulfill({ json: { flags: { accounts: { value: false } } } }));
+  await page.route('**/api/account/me', route => route.fulfill({ status: 404, json: { error: 'not_found' } }));
 
   for (const [name, hash] of routes) {
     await page.goto(`${baseURL}/${hash}`, { waitUntil: 'domcontentloaded' });
