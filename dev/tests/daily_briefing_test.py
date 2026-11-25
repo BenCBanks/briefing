@@ -603,6 +603,53 @@ class DailyBriefingTests(unittest.TestCase):
         self.assertEqual(cited_background['source_sentence_ids'], [f"bg-{cited_background['topic_id']}"])
         self.assertEqual(cited_background['citation_numbers'], [2])
 
+    def test_feed_open_web_and_worth_knowing_fill_three_selected_topics(self):
+        profile = {'topics': [
+            {'id': 'payments', 'label': 'Payments', 'scope': 'Payment settlement rules'},
+            {'id': 'health-policy', 'label': 'Health insurance policy',
+             'scope': 'Health insurance coverage rules'},
+            {'id': 'ai-finance', 'label': 'AI in finance',
+             'scope': 'Artificial intelligence in financial services'},
+        ]}
+
+        def story(cluster_id, topic_id, origin):
+            return {'cluster_id': cluster_id, 'heading': f'Fictional {topic_id} update',
+                    'topic_ids': [topic_id], 'scorecard_passed': True,
+                    'relevance_score': 1.0, 'credibility_score': 1.0,
+                    'published_at': '2026-11-18T10:00:00Z', 'supply_origin': origin,
+                    'claim_links': [{'section': 'what_happened',
+                                     'text': f'A fictional source explains the {topic_id} update.',
+                                     'verified': True, 'source_sentence_ids': [f'{cluster_id}-claim'],
+                                     'citation_numbers': [1]}]}
+
+        edition = self.fresh_copy()
+        edition['sections'] = [story('feed-payments', 'payments', 'feed')]
+
+        def web(_profile, **_kwargs):
+            return [story('search-health', 'health-policy', 'open-web')]
+
+        def background(topic_id, **_kwargs):
+            if topic_id != 'ai-finance':
+                return None
+            return {'segment_id': 'reference-ai-finance', 'source_kind': 'reference',
+                    'scorecard_passed': True, 'reviewed_at': '2026-11-01',
+                    'sentences': [{'text': 'A fictional reference guide explains how financial institutions use automated tools and where human review fits in the process.',
+                                   'source_sentence_ids': ['ai-reference-sentence'],
+                                   'citation_numbers': [2]}]}
+
+        with self.assertLogs(daily.__name__, level='INFO') as captured:
+            result = daily.assemble(edition, profile, target=3, retrieval_fill=web,
+                                    background_fill=background, today=NOW.date())
+
+        coverage = {row['topic_id']: row['has_item']
+                    for row in result['daily_briefing']['topic_allocation']['coverage']}
+        self.assertEqual(coverage, {'payments': True, 'health-policy': True, 'ai-finance': True})
+        self.assertEqual([row['topic_id'] for row in result['daily_briefing']['background_segments']],
+                         ['ai-finance'])
+        self.assertTrue(any('Daily topic payments: feed' in row for row in captured.output))
+        self.assertTrue(any('Daily topic health-policy: targeted search' in row for row in captured.output))
+        self.assertTrue(any('Daily topic ai-finance: Worth knowing' in row for row in captured.output))
+
     def test_history_blocks_repeated_explainers_and_thin_day_requires_all_rungs_exhausted(self):
         prior = [{'segment_id': 'prior-reference', 'sentences': [
             {'text': 'A fictional source explains a program.'}]}]

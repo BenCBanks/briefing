@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime, timezone
 import json
 import hashlib
+import logging
 import os
 import re
 from pathlib import Path
@@ -1037,6 +1038,17 @@ def assemble(edition, profile, target=None, *, retrieval_fill=None, followup_fil
                                  'items': quality_hits}
     else:
         edition.pop('also_today', None)
+    topic_log = logging.getLogger(__name__)
+    for topic_id in ordered_topic_ids:
+        topic_sections = [section for section in sections if topic_id in section.get('topic_ids', [])]
+        if topic_sections:
+            rung = ('targeted search' if any(section.get('supply_origin') in {'search-first', 'open-web'}
+                                             for section in topic_sections) else 'feed')
+        elif topic_id in background_topics:
+            rung = 'Worth knowing'
+        else:
+            rung = 'no checked story or background available'
+        topic_log.info('Daily topic %s: %s', topic_id, rung)
     return edition
 
 

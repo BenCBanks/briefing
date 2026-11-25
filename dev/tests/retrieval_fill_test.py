@@ -218,6 +218,13 @@ class FillTests(unittest.TestCase):
         self.assertEqual(safe['guarded_reads'], 2)
         self.assertNotIn('http', json.dumps(safe))
 
+    def test_safe_report_preserves_fixed_provider_status_class(self):
+        safe = fill.safe_report({'enabled': True,
+                                 'provider_statuses': {'rate_limited': 2, 'secret text': 8},
+                                 'providers': {'gdelt': {'rate_limited': 2, 'secret text': 8}}})
+        self.assertEqual(safe['provider_statuses'], {'rate_limited': 2})
+        self.assertEqual(safe['providers'], {'gdelt': {'rate_limited': 2}})
+
     def test_search_first_rejects_articles_older_than_ninety_days(self):
         old_date = (NOW - timedelta(days=91)).isoformat()
         self.rows = [self.hint('Payment network adopts new settlement timetable',
@@ -229,6 +236,60 @@ class FillTests(unittest.TestCase):
         self.assertEqual(bodies, {})
         self.assertEqual(report['rejected']['outside_window'], 1)
         self.assertEqual(self.reads, [])
+
+    def test_topic_floor_search_targets_only_empty_topics_with_two_queries_each(self):
+        topics = [
+            {'id': 'payments', 'label': 'Payments', 'scope': 'Payment settlement rules', 'include': []},
+            {'id': 'health-policy', 'label': 'Health insurance policy',
+             'scope': 'Health insurance coverage policy', 'include': []},
+            {'id': 'ai-finance', 'label': 'AI in finance',
+             'scope': 'Artificial intelligence in financial services', 'include': []},
+        ]
+        for row in self.registry:
+            if row['id'] == 'health':
+                row['topics'] = ['health-policy']
+            elif row['id'] == 'wire':
+                row['topics'] = ['ai-finance']
+        self.rows = [
+            self.hint('State regulator updates health insurance coverage rules', 'health-policy', 'health'),
+            self.hint('Bank adopts artificial intelligence review for loan decisions', 'ai-finance', 'wire'),
+        ]
+        payment = self.hint('Regulator updates payment settlement rules', 'feed-payment', 'payments')
+        payment_clusters = cluster_items([{'url': payment.url, 'title': payment.title,
+                                           'published': payment.published, 'source_id': payment.source_id}],
+                                         _source_maps(self.registry))
+        topics_to_search = topics[1:]
+        pool, bodies, report = fill.fill_candidates(
+            {'payments': payment_clusters, 'health-policy': [], 'ai-finance': []},
+            topics_to_search, [], self.registry, self.history, NOW,
+            passed_candidates={'payments': payment_clusters, 'health-policy': [], 'ai-finance': []},
+            enabled=True, topic_floor_search=True)
+
+        queried = [provider for provider, _query in self.queries]
+        self.assertEqual(len(queried), 4)
+        self.assertNotIn('feeds', queried, 'the topic floor uses open-web providers only')
+        self.assertLessEqual(report['search_requests'], 2 * len(topics_to_search))
+        self.assertEqual(report['planner_queries'], 2 * len(topics_to_search))
+        self.assertTrue(report['topic_floor'])
+        self.assertEqual(report['candidates_added'], 2)
+        self.assertEqual(len(pool['payments']), 1)
+        self.assertEqual(len(pool['health-policy']), 1)
+        self.assertEqual(len(pool['ai-finance']), 1)
+        self.assertEqual(len(bodies), 2)
+
+    def test_topic_floor_search_respects_global_grounding_query_ceiling(self):
+        topics = [
+            {'id': f'topic-{index}', 'label': f'Topic {index}',
+             'scope': f'Fictional topic {index} developments', 'include': []}
+            for index in range(4)
+        ]
+        empty = {topic['id']: [] for topic in topics}
+        fill.fill_candidates(empty, topics, [], self.registry, self.history, NOW,
+                             passed_candidates=empty, enabled=True, topic_floor_search=True)
+
+        search_requests = [provider for provider, _query in self.queries if provider != 'feeds']
+        self.assertEqual(len(search_requests), fill.MAX_GROUNDING_QUERIES)
+        self.assertLessEqual(len(search_requests), fill.MAX_GROUNDING_QUERIES)
 
     def test_quality_prefers_relevance_and_credibility_without_a_recency_gate(self):
         self.rows = [self.hint('Seven insights', host='blog'), self.hint('Top 7 payment tips', 'tips'),
@@ -494,7 +555,7 @@ class FillTests(unittest.TestCase):
         observed = []
 
         def fallback(pool, topics, *_args, **kwargs):
-            observed.append((topics, kwargs.get('enabled'), kwargs.get('search_first')))
+            observed.append((topics, kwargs.get('enabled'), kwargs.get('topic_floor_search')))
             report = empty_report(True)
             report['triggered'] = True
             return pool, {}, report
@@ -510,6 +571,22 @@ class FillTests(unittest.TestCase):
         self.assertEqual([topic['id'] for topic in observed[0][0]], ['payments'])
         self.assertEqual(observed[0][1:], (True, True))
         self.assertTrue(detail['retrieval_fill']['triggered'])
+
+    def test_topic_floor_search_exception_does_not_fail_daily(self):
+        with patch('dev.ingest.retrieval_fill.fill_candidates',
+                   side_effect=RuntimeError('fixture search failure')):
+            with self.assertLogs('dev.ingest.write_edition', level='WARNING') as captured:
+                editions, _sources, detail = generate_edition(
+                    {'topics': TOPICS}, [], self.registry, NOW,
+                    call_json=lambda *_args, **_kwargs: self.fail('empty feed reached writer'),
+                    max_candidate_attempts=3, daily_coverage_fallback_enabled=True)
+
+        self.assertEqual(len(editions['editions']), 1)
+        self.assertEqual(editions['editions'][0]['sections'], [])
+        self.assertTrue(detail['retrieval_fill']['topic_floor'])
+        self.assertFalse(detail['retrieval_fill']['triggered'])
+        self.assertEqual(len(captured.output), 1)
+        self.assertIn('continuing without the search fallback', captured.output[0])
 
     def test_story_quality_gate_all_topics_and_broad_fallback(self):
         junk = {'url': 'https://nerdwallet.com/travel/news', 'source_id': 'payments',
