@@ -563,6 +563,17 @@ class DailyTests(unittest.TestCase):
         self.assertIn('Narration: fallback (budget_estimate)', first_text)
         self.assertIn('audio ready', first_text)
 
+        proxy_reason = 'ProxyError:502:invalid_model_response:invalid_json'
+        with patch.dict(os.environ, environment):
+            proxy_report = daily.write_run_report({
+                **common, 'daily_narration': {'status': 'fallback', 'reason': proxy_reason}
+            }, path)
+            proxy_status = json.loads(path.read_text(encoding='utf-8'))['daily_run']
+            proxy_text = (root / 'morning-report.txt').read_text(encoding='utf-8')
+        self.assertEqual(proxy_report['daily_narration'], {'status': 'fallback', 'reason': proxy_reason})
+        self.assertEqual(proxy_status['daily_narration'], {'status': 'fallback', 'reason': proxy_reason})
+        self.assertIn(f'Narration: fallback ({proxy_reason})', proxy_text)
+
         self.assertEqual(recovered['daily_narration'], {'status': 'written', 'reason': None})
         self.assertEqual(recovered['daily_audio']['audio_status'], 'ready')
         self.assertEqual(recovered_status['daily_narration'], {'status': 'written', 'reason': None})
