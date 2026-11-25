@@ -31,14 +31,27 @@ export function createTodayDataController(app) {
     return runDate === easternToday();
   }
 
+  function latestEarlierBriefing() {
+    const today = easternToday();
+    return app.dailyBriefings(app.pack?.editions || []).find(edition =>
+      String(edition.local_date || '').slice(0, 10) < today && app.firstReadableSection(edition));
+  }
+
   function todayRunFailurePanel() {
     const panel = app.node('aside', null, 'today-service-preparing');
     panel.setAttribute('role', 'status');
+    const earlier = latestEarlierBriefing();
     panel.append(
-      app.node('h2', "Today's briefing is still being prepared"),
-      app.node('p', 'The scheduled run did not finish. Please check back soon.'),
-      app.link('View earlier briefings', '#library', 'button-link'),
+      app.node('h2', "Today's briefing isn't ready yet"),
+      app.node('p', earlier
+        ? 'Today’s briefing did not finish. You can listen to the latest earlier edition while we prepare another.'
+        : 'Today’s briefing did not finish. Please check back later.'),
     );
+    if (earlier) {
+      const section = app.firstReadableSection(earlier);
+      const href = `#edition/daily/${encodeURIComponent(earlier.id)}/${encodeURIComponent(section.id)}`;
+      panel.append(app.link(`Listen to the latest briefing · ${app.briefingDate(earlier.local_date)}`, href, 'button-link primary'));
+    }
     return panel;
   }
 
@@ -144,7 +157,7 @@ export function createTodayDataController(app) {
       const report = status?.daily_run;
       const brief = report?.daily_briefing;
       if (!article.isConnected) return;
-      if (dailyRunFailedToday(status) && report?.local_date !== edition.local_date) {
+      if (dailyRunFailedToday(status) && String(edition.local_date || '').slice(0, 10) !== easternToday()) {
         article.prepend(todayRunFailurePanel());
         return;
       }

@@ -5,10 +5,14 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const { chromium } = require('playwright');
+const { builtProfileKey } = require('./helpers/profile.cjs');
 
 const baseURL = process.env.BRIEFING_URL || 'http://127.0.0.1:8932';
+const shotDir = process.env.BRIEFING_SHOT_DIR;
 const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/daily-run-status.json'), 'utf8'));
 const failureFixture = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures/daily-run-failure.json'), 'utf8'));
+const sampleEdition = JSON.parse(fs.readFileSync(path.join(__dirname, '../../content/editions.json'), 'utf8'))
+  .editions.find(edition => edition.kind === 'daily');
 
 function easternDate() {
   const parts = new Intl.DateTimeFormat('en-US', {
@@ -16,6 +20,12 @@ function easternDate() {
   }).formatToParts(new Date());
   const value = type => parts.find(part => part.type === type)?.value;
   return `${value('year')}-${value('month')}-${value('day')}`;
+}
+
+async function capture(page, name) {
+  if (!shotDir) return;
+  fs.mkdirSync(shotDir, { recursive: true });
+  await page.screenshot({ path: path.join(shotDir, name), animations: 'disabled' });
 }
 
 async function main() {
@@ -76,9 +86,61 @@ async function main() {
       return route.fulfill({ status: 503, json: { error: 'fixture generation unavailable' } });
     });
     await failurePage.goto(`${baseURL}/#today`, { waitUntil: 'domcontentloaded' });
-    await failurePage.getByRole('heading', { name: "Today's briefing is still being prepared" }).waitFor();
-    assert.equal(await failurePage.locator('.today-service-preparing p').innerText(), 'The scheduled run did not finish. Please check back soon.');
+    await failurePage.getByRole('heading', { name: "Today's briefing isn't ready yet" }).waitFor();
+    assert.match(await failurePage.locator('.today-service-preparing p').innerText(), /Today’s briefing did not finish/);
+    const earlierAction = failurePage.locator('.today-service-preparing a.primary');
+    await earlierAction.waitFor();
+    assert.match(await earlierAction.innerText(), /^Listen to the latest briefing · /,
+      'The failed state leads with the latest earlier edition');
+    assert.match(await earlierAction.getAttribute('href'), /^#edition\/daily\//);
+    await capture(failurePage, 'failed-run-phone-light.png');
+    await failurePage.emulateMedia({ colorScheme: 'dark' });
+    await capture(failurePage, 'failed-run-phone-dark.png');
+    await failurePage.emulateMedia({ colorScheme: 'light' });
+    await failurePage.setViewportSize({ width: 1440, height: 1000 });
+    await capture(failurePage, 'failed-run-desktop-light.png');
+    await failurePage.setViewportSize({ width: 390, height: 844 });
     assert.equal(generationRequests, 0, 'A failed scheduled run does not start a second generation request');
+
+    const availableTodayPage = await browser.newPage({ viewport: { width: 390, height: 844 }, timezoneId: 'America/New_York' });
+    const failedWithoutReportDate = structuredClone(failedStatus);
+    failedWithoutReportDate.daily_run.local_date = null;
+    const availableToday = { ...structuredClone(sampleEdition), id: 'generated-today-status-fixture',
+      revision_id: 'generated-today-status-r1', generated: true, local_date: today,
+      generated_at: `${today}T06:00:00-05:00`, title: 'A fictional briefing for today' };
+    const availableProfile = {
+      version: 1, words: 'I follow payments.', minutes: 10, background: null, muted: [], topics: [{
+        id: 'payments', label: 'Payments', scope: 'Payment systems and settlement.', include: ['card payments'], exclude: [],
+        depth: 'standard', cadence: 'daily', mustFollow: false, sourcePhrase: 'payments',
+      }],
+    };
+    await availableTodayPage.addInitScript(({ profile, key }) => {
+      localStorage.setItem('briefing:v1:interest-profile', JSON.stringify(profile));
+      localStorage.setItem('briefing:v1:built-profile-key', key);
+    }, { profile: availableProfile, key: builtProfileKey(availableProfile) });
+    await availableTodayPage.route('**/api/profile', route => route.fulfill({ status: 404, json: { error: 'fixture profile absent' } }));
+    await availableTodayPage.route('**/api/edition*', route => route.fulfill({ status: 200, json: {
+      generated: true, edition: availableToday, sources: [],
+    } }));
+    await availableTodayPage.route('**/api/status', route => route.fulfill({ status: 200, json: failedWithoutReportDate }));
+    const failedStatusResponse = availableTodayPage.waitForResponse(response => response.url().includes('/api/status'));
+    await availableTodayPage.goto(`${baseURL}/#today`, { waitUntil: 'domcontentloaded' });
+    await availableTodayPage.locator('.today-page').waitFor();
+    await failedStatusResponse;
+    await availableTodayPage.waitForTimeout(30);
+    assert.equal(await availableTodayPage.locator('.today-date').innerText(),
+      new Intl.DateTimeFormat('en-GB', { weekday: 'long', day: 'numeric', month: 'long', timeZone: 'UTC' })
+        .format(new Date(`${today}T12:00:00Z`)), 'Today keeps the actual date on its available edition');
+    assert.equal(await availableTodayPage.locator('.today-service-preparing').count(), 0,
+      'A failed status never covers an edition already dated today');
+    assert.equal(await availableTodayPage.locator('.today-listen-pill').count(), 1,
+      'Today keeps the available briefing action');
+    await capture(availableTodayPage, 'today-edition-failed-status-phone-light.png');
+    await availableTodayPage.emulateMedia({ colorScheme: 'dark' });
+    await capture(availableTodayPage, 'today-edition-failed-status-phone-dark.png');
+    await availableTodayPage.emulateMedia({ colorScheme: 'light' });
+    await availableTodayPage.setViewportSize({ width: 1440, height: 1000 });
+    await capture(availableTodayPage, 'today-edition-failed-status-desktop-light.png');
   } finally {
     await browser.close();
   }
