@@ -69,16 +69,18 @@ def _edition_from_payload(payload):
     return payload
 
 
-def snapshot_result(status, edition, usage, warnings, exit_code=0):
+def snapshot_result(status, edition, usage, warnings, exit_code=0, topic_ids=()):
     daily = status.get('daily_run') if isinstance(status, dict) else {}
     daily = daily if isinstance(daily, dict) else {}
-    topic_counts = {}
+    topic_counts = {topic_id: 0 for topic_id in topic_ids if isinstance(topic_id, str)}
     coverage = daily.get('topic_supply')
+    has_coverage = False
     if isinstance(coverage, list):
         for row in coverage:
             if isinstance(row, dict) and isinstance(row.get('topic_id'), str):
                 topic_counts[row['topic_id']] = row.get('stories', 0)
-    if not topic_counts:
+                has_coverage = True
+    if not has_coverage:
         sections = edition.get('sections') if isinstance(edition, dict) else []
         for row in sections if isinstance(sections, list) else []:
             if not isinstance(row, dict) or not isinstance(row.get('cluster_id'), str):
@@ -357,7 +359,9 @@ def _worker(args):
     status = _read_json(status_path, {})
     edition = _find_current_edition(state, generation_api.DEFAULT_EDITION_DIR)
     warnings = _safe_warning_lines(log_buffer.getvalue())
-    result = snapshot_result(status, edition, typed_costs, warnings, exit_code=code)
+    topics = [row.get('id') for row in profile.get('topics', []) if isinstance(row, dict)]
+    result = snapshot_result(status, edition, typed_costs, warnings, exit_code=code,
+                             topic_ids=topics)
     Path(args.result_file).write_text(json.dumps(result, sort_keys=True, indent=2), encoding='utf-8')
 
     if args.export_input:

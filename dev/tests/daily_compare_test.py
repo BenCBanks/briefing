@@ -31,6 +31,13 @@ def fake_snapshot(*, added_key=False, warnings=()):
 
 
 class DailyCompareTests(unittest.TestCase):
+    def test_topic_counts_include_topics_with_no_story(self):
+        status = {'daily_run': {'topic_supply': [
+            {'topic_id': 'digital', 'stories': 2}]}}
+        result = compare_daily.snapshot_result(status, {'sections': []}, {}, [],
+                                               topic_ids=['digital', 'finance'])
+        self.assertEqual(result['stories_per_topic'], {'digital': 2, 'finance': 0})
+
     def test_shape_diff_ignores_content_and_reports_schema_change(self):
         baseline = fake_snapshot()
         same_structure = fake_snapshot(warnings=['old warning'])
