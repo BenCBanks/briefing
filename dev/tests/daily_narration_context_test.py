@@ -42,6 +42,6 @@ class LinkedContextTests(unittest.TestCase):
         self.assertEqual(accepted, {'fictional-story': []})
         self.assertEqual(reason, 'narration_style_or_evidence_check')
         self.assertIn({'section_id': 'fictional-story', 'sentence_index': 0,
-                       'code': 'unsupported_sentence', 'verifier_supported': False,
+                       'code': 'unsupported_sentence', 'gate': 'hard', 'verifier_supported': False,
                        'deterministic_supported': True}, findings)
         self.assertEqual(self.sentence, before)
