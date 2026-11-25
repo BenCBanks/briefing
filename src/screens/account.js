@@ -1,6 +1,5 @@
-// Account UI is deliberately isolated from the single-reader screens. The
-// account flag gates mounting; API calls are injected so the flow can be
-// exercised with fixtures before the server contract is enabled.
+// Account calls follow docs/accounts.md. The screen is mounted only when the
+// backend account routes are available, leaving single-reader UI unchanged.
 
 export function accountApi(fetcher = fetch) {
   const SESSION_MARKER = 'briefing:account-session';
@@ -144,7 +143,6 @@ export function renderAccountAccess({ content, node, api, gateRoute = '', onAcco
     let invite;
     if (mode === 'create') {
       invite = field('Invite code', 'text', 'off');
-      invite.input.autocapitalize = 'characters';
       form.append(invite.label);
     }
     const submit = node('button', mode === 'create' ? 'Create account' : 'Sign in', 'account-primary');
@@ -315,10 +313,5 @@ export function renderAccountAccess({ content, node, api, gateRoute = '', onAcco
     } else showSignIn();
   }).catch(() => showSignIn());
 
-  // Leave a hook for a future session-expiry event without coupling the
-  // single-reader app to the account service before its contract is ready.
-  section.addEventListener('account-session-expired', () => {
-    showSignIn({ message: 'Your session ended. Sign in again to continue. Your place is saved.' });
-  });
   return { section, showSignIn, get signedIn() { return signedIn; } };
 }
