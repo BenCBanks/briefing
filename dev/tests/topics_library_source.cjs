@@ -552,7 +552,8 @@ async function run() {
     await assert200PercentFit(page, 'Settings');
     assert.equal(await page.locator('.settings-link').isVisible(), false, 'Settings hides its redundant header link');
     assert.equal(await page.locator('.narrator-sample').count(), 6, 'Settings shows the six audition samples');
-    assert.equal(await page.locator('.main-nav [aria-current="page"]').count(), 0, 'Settings is outside the three reader tabs');
+    assert.equal(await page.locator('.main-nav [aria-current="page"]').count(), 1, 'Settings keeps its owning Topics destination selected');
+    assert.equal(await page.locator('.main-nav [aria-current="page"][data-nav="topics"]').count(), 1);
     await page.goto(`${baseURL}/#weekly`, { waitUntil: 'networkidle' });
     await page.locator('.weekly-recap-page').waitFor();
     await assert200PercentFit(page, 'Weekly recap');
