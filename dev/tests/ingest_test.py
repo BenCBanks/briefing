@@ -133,13 +133,12 @@ class IngestTests(unittest.TestCase):
                               'item': {'url': 'https://news.example.test/story', **(item or {})}}]}
         with patch.object(core, '_last_request_by_host', {'news.example.test': 100}), \
              patch.object(core.time, 'monotonic', return_value=110):
-            self.assertEqual(core.article_candidate_priority(cluster(), 111), 3)
-            self.assertEqual(core.article_candidate_priority(cluster(), 180), 2)
-            self.assertEqual(core.article_candidate_priority(cluster({'article_access': 'full-text'}), 180), 1)
-            self.assertEqual(core.article_candidate_priority(cluster({'paywalled': 'unknown'}), 180), 2)
+            self.assertEqual(core.article_candidate_priority(cluster(), 111), 1)
+            self.assertEqual(core.article_candidate_priority(cluster(), 180), 0)
+            self.assertEqual(core.article_candidate_priority(cluster({'paywalled': 'unknown'}), 180), 0)
             self.assertEqual(core.article_candidate_priority(cluster({'article_access': 'feed-full'},
                                                                       {'feed_body': 'Readable evidence.'}), 140), 0)
-            self.assertEqual(core.article_candidate_priority(cluster({'paywalled': True}), 180), 4)
+            self.assertEqual(core.article_candidate_priority(cluster({'paywalled': True}), 180), 2)
             self.assertEqual(core._last_request_by_host, {'news.example.test': 100})
 
     def test_candidate_shortlist_diversifies_hosts_without_reordering_each_publisher(self):
