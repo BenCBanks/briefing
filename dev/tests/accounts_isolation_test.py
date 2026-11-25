@@ -248,6 +248,21 @@ class AccountIsolationTests(unittest.TestCase):
         self.assertEqual(len(ids), len(set(ids)))
         self.assertTrue(all(re.fullmatch(r'[a-f0-9]{32}', job_id) for job_id in ids))
 
+    def test_operator_configured_limit_has_plain_reader_message(self):
+        with patch.dict(os.environ, {'BRIEFING_ACCOUNT_DAILY_EPISODE_LIMIT': '1'}):
+            store = EpisodeJobStore(
+                self.root / 'configured-reader', generator=fake_episode, stage_delay=0,
+                ledger=UsageLedger(ledger_dir=self.root / 'configured-ledger'),
+                key_available=lambda: True, tts_enabled=False, account_daily_limit=True,
+                daily_limit=accounts.daily_episode_limit())
+            profile = {'minutes': 12, 'topics': [{'id': 'configured', 'label': 'Configured'}]}
+            request = {'topic': 'A fictional configured topic', 'length': 3, 'style': 'explainer'}
+            self.assertEqual(store.submit(profile, request, start=False)[0], 202)
+            status, result = store.submit(profile, {**request, 'fresh': True}, start=False)
+            self.assertEqual(status, 429)
+            self.assertEqual(result['daily_limit'], 1)
+            self.assertEqual(result['message'], "You have used today's episodes. They reset at midnight ET.")
+
     def test_generation_polling_delete_and_action_routes_do_not_cross_readers(self):
         _, token_a, csrf_a = accounts.login('reader-a', 'a fictional account password', 'generation-a')
         _, token_b, csrf_b = accounts.login('reader-b', 'a fictional account password', 'generation-b')

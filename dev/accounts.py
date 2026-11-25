@@ -24,6 +24,8 @@ PASSWORD_MIN, PASSWORD_MAX = 10, 256
 MAX_SESSIONS = 10_000
 SESSION_ABSOLUTE_SECONDS = 60 * 60 * 24 * 30
 SESSION_IDLE_SECONDS = 60 * 60 * 24 * 7
+DEFAULT_DAILY_EPISODE_LIMIT = 3
+MAX_DAILY_EPISODE_LIMIT = 100
 MAX_LOGIN_FAILURES = 5
 MAX_SIGNUP_FAILURES = 5
 LOCKOUT_SECONDS = 15 * 60
@@ -34,6 +36,18 @@ COMMON_PASSWORDS = frozenset({
 })
 _lock = threading.RLock()
 _attempts: dict[tuple[str, str], list[float]] = {}
+
+
+def daily_episode_limit() -> int:
+    """Return the operator's per-reader limit without allowing bad config."""
+    raw = os.environ.get('BRIEFING_ACCOUNT_DAILY_EPISODE_LIMIT', '').strip()
+    if not raw:
+        return DEFAULT_DAILY_EPISODE_LIMIT
+    try:
+        value = int(raw, 10)
+    except ValueError:
+        return DEFAULT_DAILY_EPISODE_LIMIT
+    return value if 1 <= value <= MAX_DAILY_EPISODE_LIMIT else DEFAULT_DAILY_EPISODE_LIMIT
 
 
 class AccountError(Exception):

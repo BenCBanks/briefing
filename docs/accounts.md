@@ -45,6 +45,9 @@ are unavailable and no account state is created.
   way around those caps. The three-job daily limit spans all of one reader's
   profiles, and account-mode job IDs use 128 bits of randomness before being
   looked up in that reader's private job store.
+  The operator may set `BRIEFING_ACCOUNT_DAILY_EPISODE_LIMIT` from 1 through
+  100; the default is 3. A limit response is HTTP 429 with a reader-safe
+  message and no account or filesystem details.
 
 ## JSON API contract
 
