@@ -93,7 +93,9 @@ class RelevanceTuneTests(unittest.TestCase):
         system, user, _schema = prompts[0]
         payload = json.loads(user)
         self.assertIn('aim for about 165 spoken words', system)
-        self.assertIn('Never invent or use generic filler', system)
+        self.assertIn('do not pad with generic filler', system.lower())
+        self.assertIn('one thing to watch', system)
+        self.assertIn('first body sentence must add information beyond the headline', system)
         self.assertEqual(payload['daily_story_word_target'], 165)
         self.assertTrue(payload['source_sentences_only'])
 

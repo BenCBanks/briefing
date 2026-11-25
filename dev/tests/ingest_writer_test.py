@@ -345,7 +345,7 @@ class WriterTests(unittest.TestCase):
         edition = editions['editions'][0]
         self.assertEqual(edition['local_date'], '2026-11-17')
         self.assertTrue(edition['id'].startswith('daily-20261117-'))
-        self.assertIn('Tuesday 17 November', edition['title'])
+        self.assertEqual(edition['title'], 'Your daily briefing')
 
     def test_candidate_makes_one_timeout_bounded_gemini_call(self):
         from ingest.write_edition import _candidate_call_json
@@ -636,13 +636,13 @@ class WriterTests(unittest.TestCase):
             self.assertIn('source_sentences_only', args[1])
             self.assertNotIn('article_text', args[1])
             return response(self.evidence_id(args[1]))
-        editions, sources, result = generate_edition(PROFILE, [item_without_feed_body], REGISTRY, NOW, article, model)
+        editions, sources, result = generate_edition(
+            PROFILE, [item_without_feed_body], REGISTRY, NOW, article, model, daily_word_target=750)
         edition = editions['editions'][0]
         section = next(row for row in edition['sections'] if row.get('cluster_id'))
         self.assertTrue(edition['generated'])
         local_now = NOW.astimezone(ZoneInfo('America/New_York'))
-        expected_title = f"Your briefing · {local_now.strftime('%A')} {local_now.day} {local_now.strftime('%B')}"
-        self.assertEqual(edition['title'], expected_title)
+        self.assertEqual(edition['title'], 'Payments')
         self.assertEqual(edition['audio']['state'], 'pending')
         self.assertEqual(edition['audio']['script_hash'], edition['script_hash'])
         self.assertIn('Limits:', section['body'])
@@ -664,6 +664,8 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(sources['sources'][0]['url'], ITEM['url'])
         self.assertEqual(sources['sources'][0]['published_at'], ITEM['published'])
         self.assertEqual(article_calls, [(ITEM['url'], 'transit-office')])
+        self.assertIn('about 250 spoken words', model_calls[0][0])
+        self.assertEqual(json.loads(model_calls[0][1])['daily_story_word_target'], 250)
         self.assertTrue(result['sentence_evidence'])
         self.assertNotIn('temporary stops this weekend', str(sources))
         self.assertNotIn('sentence_evidence', str(editions))
@@ -751,6 +753,59 @@ class WriterTests(unittest.TestCase):
         ]
         ordered = sorted(rows, key=lambda row: _candidate_queue_key(row, counts, attempts))
         self.assertEqual([row['topic']['id'] for row in ordered], ['climate', 'space', 'ai'])
+
+    def test_candidate_writer_prefers_a_new_source_class_after_topic_fairness(self):
+        counts = {'payments': 0}
+        topic_attempts = {'payments': 0}
+        rows = [
+            {'topic': {'id': 'payments'}, 'topic_round': 1, 'topic_match': 1.0,
+             'outlet_source': {'source_class': 'news'}},
+            {'topic': {'id': 'payments'}, 'topic_round': 1, 'topic_match': 0.2,
+             'outlet_source': {'source_class': 'official'}},
+        ]
+        ordered = sorted(rows, key=lambda row: _candidate_queue_key(
+            row, counts, topic_attempts, {'news': 1, 'official': 0}))
+        self.assertEqual(ordered[0]['outlet_source']['source_class'], 'official')
+
+    def test_daily_writer_contract_requires_spoken_evidence_based_story_beats(self):
+        from ingest.write_edition import DAILY_CONTEXT_PROMPT, _daily_story_word_target
+        prompt = DAILY_CONTEXT_PROMPT.format(word_target=_daily_story_word_target(750, 3)).casefold()
+        self.assertIn('plain, spoken language', prompt)
+        self.assertIn('why it matters to this reader', prompt)
+        self.assertIn('one thing to watch', prompt)
+        self.assertIn('first body sentence must add information beyond the headline', prompt)
+        self.assertIn('cite every factual sentence', prompt)
+        self.assertIn('do not add outside claims', prompt)
+        self.assertEqual(_daily_story_word_target(675, 3), 225)
+        self.assertEqual(_daily_story_word_target(825, 3), 275)
+        self.assertIsNone(_daily_story_word_target(None, 3))
+
+    def test_headline_repetition_is_removed_only_when_supported_detail_remains(self):
+        from ingest.write_edition import _drop_headline_repeat_claims
+        repeated = {'section': 'what_happened', 'text': 'The payment network adds a new settlement window.'}
+        detail = {'section': 'why_it_matters', 'text': 'Banks can process transfers later in the day.'}
+        claims = [repeated, detail]
+        kept = _drop_headline_repeat_claims(claims, 'The payment network adds a new settlement window')
+        self.assertEqual(kept, [detail])
+        self.assertEqual(_drop_headline_repeat_claims([repeated], 'The payment network adds a new settlement window'),
+                         [repeated], 'Do not remove the only sourced account of what happened')
+
+    def test_daily_title_and_summary_use_topics_instead_of_concatenated_headlines(self):
+        from ingest.write_edition import _edition_dek, _edition_title
+        sections = [
+            {'cluster_id': 'one', 'heading': 'A long headline about a new payment system', 'topic_ids': ['payments']},
+            {'cluster_id': 'two', 'heading': 'Another long headline about AI and lending', 'topic_ids': ['ai-banking']},
+            {'cluster_id': 'three', 'heading': 'A third headline with details', 'topic_ids': ['climate-policy']},
+        ]
+        profile = {'topics': [
+            {'id': 'payments', 'label': 'Payments'},
+            {'id': 'ai-banking', 'label': 'AI in banking'},
+            {'id': 'climate-policy', 'label': 'Climate policy'},
+        ]}
+        self.assertEqual(_edition_title(sections, profile), 'Payments, AI in banking, and Climate policy')
+        summary = _edition_dek(sections)
+        self.assertIn('Payments, AI Banking, and Climate Policy', summary)
+        self.assertNotIn('long headline', summary)
 
     def test_topic_only_fallback_finds_relevant_items_from_mistagged_feeds(self):
         from ingest.write_edition import _canonical_profile, _rank_profile_topic_items

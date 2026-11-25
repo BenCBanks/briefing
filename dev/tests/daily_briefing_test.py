@@ -79,6 +79,25 @@ class DailyBriefingTests(unittest.TestCase):
             path.write_text(json.dumps({'freshness_days': 0}))
             self.assertEqual(daily.freshness_days(path), 90)
 
+    def test_quick_hit_quality_drops_working_paper_abstracts_but_keeps_news(self):
+        from unittest.mock import patch
+        abstract = {
+            'topic_id': 'payments', 'title': 'Working paper finds a new pattern in bank transfers',
+            'sentences': ['The working paper estimates a model using historical bank data.'],
+            'url': 'https://research.example.test/paper', 'published_at': '2026-11-18T00:00:00Z',
+            'tier': 1,
+        }
+        news = {
+            **abstract, 'title': 'Regulator sets a new transfer reporting deadline',
+            'sentences': ['The regulator says banks must use the new reporting deadline.'],
+            'url': 'https://news.example.test/deadline',
+        }
+        with patch('dev.ingest.credibility.load_tiers', return_value={
+                'research.example.test': {'tier': 'primary'},
+                'news.example.test': {'tier': 'major'}}):
+            self.assertFalse(daily._quick_hit_quality(abstract, {'payments'}))
+            self.assertTrue(daily._quick_hit_quality(news, {'payments'}))
+
     def test_duration_uses_selected_narrator_speed_and_daily_floor_is_three_minutes(self):
         edition = daily.assemble(self.fresh_copy(), self.data['profile'], target=1,
                                  narrator_wpm=120, today=NOW.date())
