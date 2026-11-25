@@ -1116,7 +1116,8 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(malformed['daily_run']['daily_briefing']['supply_ladder'][0]['status'], 'unknown')
         self.assertEqual(malformed['daily_run']['daily_audio']['audio_status'], 'unavailable')
         self.assertEqual(malformed['daily_run']['daily_narration'], {
-            'status': 'fallback', 'reason': 'narration_failed'})
+            'status': 'fallback', 'reason': 'narration_failed',
+            'message': 'The narration could not be completed.'})
         self.assertNotIn('PRIVATE_VERIFIER_DETAIL_DO_NOT_EXPOSE', json.dumps(malformed))
         self.assertNotIn('/private/fictional/verifier-debug.json', json.dumps(malformed))
 
@@ -1124,10 +1125,12 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(generation_api._daily_narration_job_status({
             'daily_narration': {'status': 'fallback', 'reason': 'narration_writer_shape',
                                 'debug_file': '/private/path'}}),
-            {'status': 'fallback', 'reason': 'narration_writer_shape'})
+            {'status': 'fallback', 'reason': 'narration_writer_shape',
+             'message': 'The narration could not be written in the required format.'})
         self.assertEqual(generation_api._daily_narration_job_status({
             'daily_narration': {'status': 'fallback', 'reason': 'secret token'}}),
-            {'status': 'fallback', 'reason': 'narration_failed'})
+            {'status': 'fallback', 'reason': 'narration_failed',
+             'message': 'The narration could not be completed.'})
         self.assertEqual(generation_api._daily_narration_job_status({
             'daily_narration': {'status': 'off', 'reason': 'flag_disabled'}}),
             {'status': 'off', 'reason': 'flag_disabled'})
@@ -1147,7 +1150,8 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual(report['failed_critical'], ['content_quality'])
         self.assertTrue(report['critical_failed'], 'narration fallback must not clear a hard content failure')
         self.assertEqual(report['daily_narration'], {
-            'status': 'fallback', 'reason': 'narration_underdeveloped_with_unused_evidence'})
+            'status': 'fallback', 'reason': 'narration_underdeveloped_with_unused_evidence',
+            'message': 'The draft stayed short after one evidence based expansion pass.'})
         self.assertEqual(edition['daily_briefing']['briefing_script'], [])
         self.assertEqual(edition['daily_briefing']['background_segments'], [])
         self.assertEqual(edition['daily_briefing']['spoken_words'], 0)

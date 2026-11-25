@@ -373,7 +373,7 @@ def _public_daily_run(value):
             'duration_seconds': count_brief(brief.get('duration_seconds'), 86400),
             'supply_ladder': ladder,
         },
-        'daily_narration': {'status': narration_status, 'reason': narration_reason},
+        'daily_narration': _daily_narration_job_status(value),
         'daily_audio': {'audio_status': audio_status, 'ready_at': ready_at},
         'profiles_attempted': profiles_attempted,
         'profiles_completed': profiles_completed,
@@ -681,7 +681,47 @@ def _daily_narration_job_status(report):
             r'[A-Z][A-Za-z0-9]{0,39})', reason):
         reason = ('narration_failed' if status == 'fallback' else
                   'flag_disabled' if status == 'off' else None)
-    return {'status': status, 'reason': reason}
+    result = {'status': status, 'reason': reason}
+    messages = {
+        'narration_underdeveloped_with_unused_evidence':
+            'The draft stayed short after one evidence based expansion pass.',
+        'narration_style_or_evidence_check':
+            'The narration did not pass its content checks.',
+        'narration_writer_shape': 'The narration could not be written in the required format.',
+        'narration_verifier_shape': 'The narration could not be checked against its evidence.',
+        'narration_enrichment_shape': 'The narration evidence could not be prepared.',
+        'budget_estimate': 'The narration budget was not available.',
+        'flag_disabled': 'Spoken narration is turned off.',
+    }
+    if status == 'fallback':
+        result['message'] = messages.get(reason, 'The narration could not be completed.')
+    attempts = narration.get('attempts')
+    safe_attempts = []
+    if isinstance(attempts, list):
+        for row in attempts[:2]:
+            if not isinstance(row, dict):
+                continue
+            safe = {}
+            for key in ('attempt', 'stories_in', 'words_out', 'accepted_words', 'target_words',
+                        'target_words_per_story'):
+                value = row.get(key)
+                if type(value) is int and 0 <= value <= 10000:
+                    safe[key] = value
+            if row.get('gate') in {'hard', 'soft', 'pass'}:
+                safe['gate'] = row['gate']
+            safe['finding_codes'] = [code for code in row.get('finding_codes', [])[:20]
+                                     if isinstance(code, str) and
+                                     re.fullmatch(r'[a-z0-9_]{1,80}', code)]
+            safe['repair_pass'] = row.get('repair_pass') is True
+            safe['expansion_pass'] = row.get('expansion_pass') is True
+            if isinstance(row.get('failed_at'), str) and re.fullmatch(r'[a-z_]{1,40}', row['failed_at']):
+                safe['failed_at'] = row['failed_at']
+            if isinstance(row.get('lost_at_stage'), str) and re.fullmatch(r'[a-z_]{1,40}', row['lost_at_stage']):
+                safe['lost_at_stage'] = row['lost_at_stage']
+            safe_attempts.append(safe)
+    if safe_attempts:
+        result['attempts'] = safe_attempts
+    return result
 
 
 def _safe_narration_exception_reason(error):
@@ -705,6 +745,15 @@ def _publish_text_only_after_narration_failure(edition, report, narration_result
         {'daily_narration': {'status': 'fallback', 'reason': reason}})
     reason = safe_status.get('reason') or 'narration_unavailable'
     report['daily_narration'] = {'status': 'fallback', 'reason': reason}
+    # Preserve bounded, public-safe diagnostics so a story-bearing edition never
+    # looks like it silently became text-only.  Draft text and provider details
+    # remain in the private debug file, not in status.
+    if isinstance(narration_result, dict):
+        for key in ('attempts', 'lost_at_stage', 'expansion_used'):
+            if key in narration_result:
+                report['daily_narration'][key] = narration_result[key]
+    report['daily_narration']['message'] = _daily_narration_job_status(
+        {'daily_narration': report['daily_narration']}).get('message')
     daily = edition.setdefault('daily_briefing', {})
     if not isinstance(daily, dict):
         daily = edition['daily_briefing'] = {}
@@ -720,6 +769,23 @@ def _publish_text_only_after_narration_failure(edition, report, narration_result
     logging.getLogger(__name__).warning(
         'Daily narration unavailable; publishing the text edition only (%s).', reason)
     return True
+
+
+def _log_daily_narration_attempts(narration_result):
+    attempts = narration_result.get('attempts') if isinstance(narration_result, dict) else None
+    if not isinstance(attempts, list):
+        return
+    for row in attempts[:2]:
+        if not isinstance(row, dict):
+            continue
+        codes = [code for code in row.get('finding_codes', [])[:12]
+                 if isinstance(code, str) and re.fullmatch(r'[a-z0-9_]{1,80}', code)]
+        logging.getLogger(__name__).info(
+            'daily_narration_attempt attempt=%s stories=%s words=%s target=%s gate=%s rules=%s repair=%s expansion=%s stage=%s',
+            row.get('attempt', 0), row.get('stories_in', 0), row.get('words_out', 0),
+            row.get('target_words', 0), row.get('gate', 'unknown'),
+            ','.join(codes) or 'none', bool(row.get('repair_pass')),
+            bool(row.get('expansion_pass')), row.get('failed_at', 'script_review'))
 
 
 def _persist_job_scorecard(directory, job_id, report):
@@ -1567,6 +1633,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                     # Keep the checked written edition if optional narration fails.
                     narration_result = {'status': 'fallback',
                                         'reason': _safe_narration_exception_reason(error)}
+                _log_daily_narration_attempts(narration_result)
                 if isinstance(narration_result, dict) and narration_result.get('status') == 'written':
                     report['daily_narration'] = narration_result
                     report['daily_briefing'] = {

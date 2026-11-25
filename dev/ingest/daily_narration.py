@@ -1185,12 +1185,18 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
     draft = None
     findings = []
     verifier_results = []
+    attempt_reports = []
+    expansion_used = False
+    current_attempt = 0
+    current_stage = 'preparation'
+    story_count = 0
     try:
         story_payload, evidence_by_story = _story_payload(
             edition, profile, runtime_evidence if isinstance(runtime_evidence, dict) else {},
             sources if isinstance(sources, list) else [])
         if not story_payload:
             return {'status': 'skipped', 'reason': 'no_stories'}
+        story_count = len(story_payload)
         # Background chapters already have stable audio IDs. Keep their facts
         # in those chapters instead of repeating them inside a story rewrite.
         prior_script = edition.get('daily_briefing', {}).get('briefing_script', [])
@@ -1212,6 +1218,7 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                 evidence_by_story[story['section_id']] = story['evidence']
         expected_ids = [row['section_id'] for row in story_payload]
         estimate = narration_cost_estimate(edition, evidence_by_story)
+        current_stage = 'evidence_selection'
         selected_ids = _select_story_evidence(story_payload, bounded_call_json)
         for story in story_payload:
             story['evidence'] = [row for row in story['evidence']
@@ -1236,22 +1243,34 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
         revision_feedback = None
         retry_used = False
         retry_reason = None
+        expansion_requested = False
         for attempt in range(2):
+            current_attempt = attempt + 1
             verifier_results = []
             user_prompt = prompt
             if revision_feedback:
                 user_payload = json.loads(prompt)
                 user_payload['revision_feedback'] = revision_feedback
+                if expansion_requested:
+                    user_payload['expansion_pass'] = True
+                    user_payload['expansion_instruction'] = (
+                        'Expand only within the supplied evidence already in this request. Keep every '
+                        'existing supported point, then add distinct supported context, mechanism, scope, '
+                        'or consequence details. Do not research, invent, repeat, or add generic filler. '
+                        'Meet the requested word range where the evidence supports it.'
+                    )
                 user_prompt = json.dumps(user_payload, ensure_ascii=False, separators=(',', ':'))
             if outline_writer_on:
                 outline_payload = json.loads(user_prompt)
                 outline_payload['daily_answer_outline'] = answer_outline
                 user_prompt = json.dumps(outline_payload, ensure_ascii=False, separators=(',', ':'))
+            current_stage = 'writer'
             draft = bounded_call_json(outline_system if outline_writer_on else
                                       SCRIPT_PROMPT.format(target_words=target_words), user_prompt,
                               OUTLINE_SCRIPT_SCHEMA if outline_writer_on else SCRIPT_SCHEMA, None, model=SCRIPT_MODEL,
                               max_output_tokens=MAX_OUTPUT_TOKENS, timeout=35, thinking_level='low')
             if outline_writer_on:
+                current_stage = 'outline_pre_audio_check'
                 outline_issues = _daily_outline_pre_audio_issues(draft, answer_outline)
                 if outline_issues:
                     rewrite_payload = json.loads(user_prompt)
@@ -1280,6 +1299,7 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                         flattened.append({'section_id': section_id, 'sentence_index': index, **row})
                 verdict_prompt = json.dumps({'evidence': evidence_by_story, 'sentences': flattened},
                                             ensure_ascii=False, separators=(',', ':'))
+                current_stage = 'verifier'
                 verified = bounded_call_json(VERIFY_PROMPT, verdict_prompt, VERIFY_SCHEMA, None,
                                      model=VERIFY_MODEL, max_output_tokens=MAX_VERIFY_OUTPUT_TOKENS,
                                      timeout=20, thinking_level='off')
@@ -1310,6 +1330,43 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                                         if isinstance(row, dict) and row.get('cluster_id')},
                         allow_soft_style=(attempt == 1))
 
+            finding_codes = [str(row.get('code')) for row in findings if isinstance(row, dict) and row.get('code')]
+            hard_codes = {
+                'unsupported_sentence', 'narration_style_or_evidence_check',
+                'narration_repeated_headline', 'narration_writer_shape',
+                'narration_verifier_shape', 'narration_assembly',
+            }
+            gate = ('hard' if any(code in hard_codes for code in finding_codes) else
+                    'soft' if finding_codes else 'pass')
+            draft_rows = []
+            if isinstance(stories, dict):
+                draft_rows = [row.get('text', '') for rows in stories.values()
+                              for row in rows if isinstance(row, dict)]
+            elif isinstance(draft, dict):
+                draft_rows = [row.get('text', '') for item in draft.get('stories', [])
+                              if isinstance(item, dict) for row in item.get('sentences', [])
+                              if isinstance(row, dict)]
+            words_out = sum(_words(text) for text in draft_rows)
+            accepted_words = (sum(_words(' '.join(row.get('text', '') for row in rows))
+                              for rows in accepted.values()) + DAILY_TARGET_OVERHEAD_WORDS
+                              if accepted else 0)
+            lost_stage = ('sentence_review' if 'unsupported_sentence' in finding_codes else
+                          'length_gate' if 'narration_underdeveloped_with_unused_evidence' in finding_codes else
+                          'script_review' if finding_codes else None)
+            attempt_reports.append({
+                'attempt': attempt + 1,
+                'stories_in': len(story_payload),
+                'words_out': words_out,
+                'accepted_words': accepted_words,
+                'target_words': DAILY_TARGET_WORDS,
+                'target_words_per_story': target_words,
+                'finding_codes': finding_codes,
+                'gate': gate,
+                'repair_pass': bool(attempt > 0),
+                'expansion_pass': bool(expansion_used or expansion_requested),
+                'lost_at_stage': lost_stage,
+            })
+
             if findings and (fatal_reason or attempt == 0):
                 reason = fatal_reason or str(findings[0].get('code') or 'narration_review_rejected')
                 debug_file = _write_narration_debug(reason, draft, findings, verifier_results)
@@ -1318,6 +1375,11 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
             if findings and attempt == 0:
                 retry_used = True
                 retry_reason = fatal_reason or str(findings[0].get('code') or 'narration_review_rejected')
+                expansion_requested = any(
+                    isinstance(row, dict) and row.get('code') == 'narration_underdeveloped_with_unused_evidence'
+                    for row in findings
+                )
+                expansion_used = expansion_requested
                 revision_feedback = []
                 for row in findings:
                     if not isinstance(row, dict):
@@ -1338,6 +1400,9 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
         return {'status': 'written', **estimate, 'stories': len(accepted),
                 'retry_used': retry_used, 'retry_reason': retry_reason,
                 'debug_files': debug_files,
+                'attempts': attempt_reports,
+                'lost_at_stage': None,
+                'expansion_used': expansion_used,
                 'target_words_per_story': target_words, 'target_daily_words': DAILY_TARGET_WORDS,
                 'story_word_counts': {key: _words(' '.join(row['text'] for row in value))
                                       for key, value in accepted.items()},
@@ -1350,6 +1415,14 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
         edition.clear()
         edition.update(original)
         reason = _safe_failure_reason(error)
+        if current_attempt and (not attempt_reports or attempt_reports[-1].get('attempt') != current_attempt):
+            attempt_reports.append({'attempt': current_attempt, 'stories_in': story_count,
+                                   'words_out': 0, 'target_words': DAILY_TARGET_WORDS,
+                                   'accepted_words': 0,
+                                   'finding_codes': [reason], 'gate': 'hard',
+                                   'repair_pass': current_attempt > 1,
+                                   'expansion_pass': expansion_used,
+                                   'failed_at': current_stage})
         if outline_writer_on:
             legacy = write_spoken_script(edition, profile, runtime_evidence, sources,
                 call_json=call_json, input_token_counter=input_token_counter,
@@ -1359,4 +1432,7 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
             debug_file = _write_narration_debug(reason, draft, findings or [{'code': reason}], verifier_results)
             if debug_file:
                 debug_files.append(debug_file)
-        return {'status': 'fallback', 'reason': reason, 'debug_files': debug_files}
+        return {'status': 'fallback', 'reason': reason, 'debug_files': debug_files,
+                'attempts': attempt_reports,
+                'lost_at_stage': reason,
+                'expansion_used': expansion_used}

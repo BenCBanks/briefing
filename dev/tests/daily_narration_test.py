@@ -161,6 +161,98 @@ class DailyNarrationTests(unittest.TestCase):
                          if row.get('minimum_daily_words'))
         self.assertEqual(aggregate['minimum_daily_words'], 550)
 
+    def test_attempt_diagnostics_capture_short_then_expanded_daily_draft(self):
+        writer_prompts = []
+        edition = deepcopy(self.edition)
+        section = edition['sections'][0]
+        edition['sections'] = [section]
+        edition['daily_briefing']['briefing_script'] = [
+            row for row in edition['daily_briefing'].get('briefing_script', [])
+            if row.get('section_id') == section['cluster_id'] or row.get('kind') != 'story_intro'
+        ]
+        sid = section['cluster_id']
+        source_id = section['source_ids'][0]
+        evidence = deepcopy(self.evidence)
+        evidence_ids = []
+        long_rows = []
+        for group in range(4):
+            evidence_id = f'{sid}-detail-{group}'
+            evidence_ids.append(evidence_id)
+            sentences = [
+                'The fictional office records the first review step for local teams in its public process notice.',
+                'Staff compare the documented process with the recorded handoff before preparing an update.',
+                'The notice explains how the review team tracks outcomes and reports remaining work.',
+                'This detail shows which part of the published process staff can check during routine review.',
+                'The public notice describes the process clearly and ties the reported outcome to that review.',
+            ]
+            evidence[evidence_id] = {'text': ' '.join(sentences), 'source_id': source_id,
+                                     'source_number': 1}
+            long_rows.extend({'text': text, 'evidence_ids': [evidence_id], 'general_context': False}
+                             for text in sentences)
+        section['claim_links'] = [{'text': 'The fictional office records a review step.',
+                                   'source_sentence_ids': evidence_ids, 'citation_numbers': [1],
+                                   'verified': True}]
+        short = {'stories': [{'section_id': sid, 'sentences': [
+            {'text': long_rows[0]['text'], 'evidence_ids': [evidence_ids[0]], 'general_context': False}]}]}
+        expanded = {'stories': [{'section_id': sid, 'sentences': long_rows}]}
+        writer_number = 0
+
+        def call_json(_system, user, schema, _key, **kwargs):
+            nonlocal writer_number
+            payload = json.loads(user)
+            if schema == ENRICH_SCHEMA:
+                return {'stories': [{'section_id': row['section_id'],
+                                     'evidence_ids': [item['id'] for item in row['evidence']]}
+                                    for row in payload['stories']]}
+            if schema == SCRIPT_SCHEMA:
+                writer_prompts.append(payload)
+                writer_number += 1
+                return deepcopy(short if writer_number == 1 else expanded)
+            return {'verdicts': [{'section_id': row['section_id'],
+                                  'sentence_index': row['sentence_index'], 'supported': True}
+                                 for row in payload['sentences']]}
+
+        result = self.narrate(edition, self.profile, evidence, self.sources,
+                              call_json=call_json)
+        self.assertEqual(result['status'], 'written', result)
+        self.assertEqual(len(writer_prompts), 2)
+        self.assertTrue(writer_prompts[1].get('expansion_pass'))
+        self.assertTrue(result['expansion_used'])
+        self.assertEqual([row['attempt'] for row in result['attempts']], [1, 2])
+        self.assertTrue(result['attempts'][0]['finding_codes'])
+        self.assertTrue(result['attempts'][1]['repair_pass'])
+        self.assertEqual(result['lost_at_stage'], None)
+
+        borderline_edition = deepcopy(edition)
+        def borderline_call(_system, user, schema, _key, **_kwargs):
+            payload = json.loads(user)
+            if schema == ENRICH_SCHEMA:
+                return {'stories': [{'section_id': row['section_id'],
+                                     'evidence_ids': [item['id'] for item in row['evidence']]}
+                                    for row in payload['stories']]}
+            if schema == SCRIPT_SCHEMA:
+                return {'stories': [{'section_id': sid, 'sentences': long_rows[:18]}]}
+            return {'verdicts': [{'section_id': row['section_id'],
+                                  'sentence_index': row['sentence_index'], 'supported': True}
+                                 for row in payload['sentences']]}
+        borderline = self.narrate(borderline_edition, self.profile, evidence, self.sources,
+                                  call_json=borderline_call)
+        self.assertEqual(borderline['status'], 'written', borderline)
+        self.assertFalse(borderline['expansion_used'])
+        self.assertLessEqual(len(borderline['attempts']), 2)
+
+    def test_adequate_draft_does_not_spend_expansion_pass(self):
+        stories = {'a': [{'text': 'A concise supported development is clear to the listener.',
+                          'evidence_ids': ['E1'], 'general_context': False}]}
+        evidence = {'a': [{'id': 'E1', 'text': 'A concise supported development is clear to the listener.',
+                           'type': 'reported', 'outlet': 'Fictional desk', 'title': 'Fictional notice'}]}
+        accepted, findings, fatal = _review_writer_draft(
+            stories, {('a', 0): True}, evidence, 100, allow_soft_style=True)
+        self.assertIsNone(fatal)
+        self.assertEqual(accepted['a'][0]['text'], stories['a'][0]['text'])
+        self.assertFalse(any(row.get('code') == 'narration_underdeveloped_with_unused_evidence'
+                             for row in findings))
+
     def test_enrichment_discards_unknown_ids_and_keeps_bounded_verified_evidence(self):
         evidence = [{'id': 'required'}, *[{'id': f'optional-{index}'} for index in range(25)]]
         stories = [{'section_id': 'fictional-story', 'heading': 'Fictional payment notice',
