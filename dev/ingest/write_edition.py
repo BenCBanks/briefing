@@ -11,6 +11,7 @@ from urllib.parse import urlsplit
 import argparse
 import hashlib
 import json
+import logging
 import os
 import re
 import stat
@@ -1896,44 +1897,58 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
     within_deadline = deadline is None or time.monotonic() < deadline
     if (not budget_exhausted and within_deadline and writer_capacity_remains and
             (fallback_topics or needs_word_fill)):
-        if on_fill_start:
-            on_fill_start()
-        accepted = {topic['id']: [cluster for cluster in topic_candidates.get(topic['id'], [])
-                                  if cluster['id'] in story_by_cluster] for topic in topic_profiles}
-        search_for_uncovered = bool(fallback_topics) and not search_first_report.get('triggered')
-        filled, fill_bodies, fill_report = fill_candidates(
-            topic_candidates, fallback_topics or topic_profiles, items, registry, recent_history, now,
-            deadline=deadline, passed_candidates=accepted, before_model_call=before_model_call,
-            enabled=True if fallback_topics else fill_enabled,
-            search_first=search_for_uncovered)
-        old_candidates = topic_candidates
-        from .source_selection import select_daily_clusters
-        filtered_fill = {}
-        refill_pool_limit = _daily_refill_pool_limit(max_candidate_attempts, candidate_attempts)
-        for topic in topic_profiles:
-            key = topic['id']
-            filtered_fill[key], source_selection_reports[key] = select_daily_clusters(
-                filled.get(key, []), registry_by_id, topic, limit=refill_pool_limit,
-                max_per_outlet=refill_pool_limit, now=now)
-        fallback_pool = {key: [cluster for cluster in rows if cluster['id'] not in
-                               {old['id'] for old in old_candidates.get(key, [])}]
-                         for key, rows in filtered_fill.items()}
-        first_round_cluster_ids = {candidate['cluster']['id'] for candidate in prefetch_plan}
-        new_pool = _daily_refill_candidates(old_candidates, fallback_pool,
-                                            fallback_topics or topic_profiles,
-                                            first_round_cluster_ids)
-        topic_candidates = filtered_fill
-        if fill_bodies:
-            article_fetcher = _with_prefetched_bodies(article_fetcher, fill_bodies)
-            round_deadline = extraction_end = deadline
-            budget_exhausted = False
-            second_plan = plan_round(new_pool, max_candidate_attempts - candidate_attempt_limit,
-                                     supply_origin='open-web')
-            candidate_attempt_limit = min(max_candidate_attempts,
-                                          candidate_attempt_limit + len(second_plan))
-            run_round(second_plan, max_candidate_attempts)
-        for key, clusters in filtered_fill.items():
-            candidate_pool_diagnostics[key]['candidate_clusters'] = len(clusters)
+        floor_search_failed = False
+        source_selection_before_floor = dict(source_selection_reports)
+        try:
+            if on_fill_start:
+                on_fill_start()
+            accepted = {topic['id']: [cluster for cluster in topic_candidates.get(topic['id'], [])
+                                      if cluster['id'] in story_by_cluster] for topic in topic_profiles}
+            filled, fill_bodies, fill_report = fill_candidates(
+                topic_candidates, fallback_topics or topic_profiles, items, registry, recent_history, now,
+                deadline=deadline, passed_candidates=accepted, before_model_call=before_model_call,
+                enabled=True if fallback_topics else fill_enabled,
+                topic_floor_search=bool(fallback_topics))
+            old_candidates = topic_candidates
+            from .source_selection import select_daily_clusters
+            filtered_fill = {}
+            refill_pool_limit = _daily_refill_pool_limit(max_candidate_attempts, candidate_attempts)
+            for topic in topic_profiles:
+                key = topic['id']
+                filtered_fill[key], source_selection_reports[key] = select_daily_clusters(
+                    filled.get(key, []), registry_by_id, topic, limit=refill_pool_limit,
+                    max_per_outlet=refill_pool_limit, now=now)
+            fallback_pool = {key: [cluster for cluster in rows if cluster['id'] not in
+                                   {old['id'] for old in old_candidates.get(key, [])}]
+                             for key, rows in filtered_fill.items()}
+            first_round_cluster_ids = {candidate['cluster']['id'] for candidate in prefetch_plan}
+            new_pool = _daily_refill_candidates(old_candidates, fallback_pool,
+                                                fallback_topics or topic_profiles,
+                                                first_round_cluster_ids)
+        except Exception:
+            if not fallback_topics:
+                raise
+            logging.getLogger(__name__).warning(
+                'Daily topic search failed; continuing without the search fallback.')
+            source_selection_reports.clear()
+            source_selection_reports.update(source_selection_before_floor)
+            fill_report = empty_report(True)
+            fill_report['topic_floor'] = True
+            filled, fill_bodies, filtered_fill, new_pool = topic_candidates, {}, None, {}
+            floor_search_failed = True
+        if not floor_search_failed:
+            topic_candidates = filtered_fill
+            if fill_bodies:
+                article_fetcher = _with_prefetched_bodies(article_fetcher, fill_bodies)
+                round_deadline = extraction_end = deadline
+                budget_exhausted = False
+                second_plan = plan_round(new_pool, max_candidate_attempts - candidate_attempt_limit,
+                                         supply_origin='open-web')
+                candidate_attempt_limit = min(max_candidate_attempts,
+                                              candidate_attempt_limit + len(second_plan))
+                run_round(second_plan, max_candidate_attempts)
+            for key, clusters in filtered_fill.items():
+                candidate_pool_diagnostics[key]['candidate_clusters'] = len(clusters)
     fill_report.update(first_round_passed=first_round_passed,
                        first_round_readable=first_round_readable,
                        second_round_passed=selected_count - first_round_passed)
@@ -1943,6 +1958,8 @@ def generate_edition(profile, items=None, registry=None, now=None, article_fetch
                     'quality_passed', 'novelty_passed'):
             fill_report[key] += search_first_report.get(key, 0)
         fill_report['search_first'] = True
+        fill_report['topic_floor'] = (fill_report.get('topic_floor') is True or
+                                      search_first_report.get('topic_floor') is True)
         fill_report['enabled'] = True
         fill_report['triggered'] = True
         merged_statuses = Counter(fill_report.get('provider_statuses', {}))
