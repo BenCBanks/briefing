@@ -30,6 +30,16 @@ class TryRealTests(unittest.TestCase):
                       'reads attempted/read/skipped-deadline/skipped-host-gap/failed 9/7/1/0/1; '
                       'research 42.50s / 165s budget', output.getvalue())
 
+    def test_episode_report_prints_requested_and_final_length_stage(self):
+        output = StringIO()
+        result = {'word_count': 400, 'duration_minutes': 2.67, 'transcript': 'Fictional words.',
+                  'timing': {}, 'length_report': {
+                      'report_line': 'requested 750 words, got 400, lost at stage writing'}}
+        with redirect_stdout(output):
+            _print_result('episode', result, {'daily': {'estimated_cost_usd': 0}}, 0)
+        self.assertIn('Length: requested 750 words, got 400, lost at stage writing', output.getvalue())
+        self.assertIn('Length stages: ', output.getvalue())
+
     def test_refuses_live_state_root_and_children(self):
         live = Path.home() / '.local' / 'state' / 'briefing'
         for path in (live, live / 'status.json'):

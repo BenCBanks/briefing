@@ -206,7 +206,7 @@ class EpisodeGenerationTests(unittest.TestCase):
         self.assertEqual(result['audio']['status'], 'not_recorded')
         self.assertEqual(result['source_count'], 1)
         self.assertEqual(result['spoken_minutes'], round(result['word_count'] / WORDS_PER_MINUTE, 2))
-        self.assertEqual(result['chapter_expansion']['threshold_fraction'], .60)
+        self.assertEqual(result['chapter_expansion']['threshold_fraction'], .90)
         self.assertGreaterEqual(result['chapter_expansion']['attempts'], 1)
         self.assertIsNone(result['sources'][0]['date'])
         self.assertNotIn('This unused fictional evidence passage', json.dumps(result))
@@ -650,7 +650,7 @@ class EpisodeGenerationTests(unittest.TestCase):
         self.assertTrue(all(payload['evidence'] == assignments[payload['chapter_assignment']['index'] - 1]['evidence']
                             for payload in expansions))
         self.assertEqual(len(fetches), 1, 'expansion is writer-only and does not retrieve again')
-        self.assertEqual(episode['chapter_expansion'], {'threshold_fraction': .60, 'attempts': 4,
+        self.assertEqual(episode['chapter_expansion'], {'threshold_fraction': .90, 'attempts': 4,
                                                         'applied': 4, 'failed': 0})
         self.assertEqual(len(episode['chapters']), 4)
         self.assertGreater(episode['spoken_minutes'], 3)
@@ -946,7 +946,7 @@ class EpisodeGenerationTests(unittest.TestCase):
                               'thin_evidence')
         self.assertEqual(refused.exception.args[0], 'insufficient_evidence')
         self.assertEqual(refused.exception.diagnostics['supported_words'], 8)
-        self.assertEqual(refused.exception.diagnostics['minimum_supported_words'], 420)
+        self.assertEqual(refused.exception.diagnostics['minimum_supported_words'], 450)
 
     def test_fallback_with_enough_source_supported_words_is_publishable(self):
         source_text = ' '.join(['The fictional source explains how a parcel locker stores and routes a package safely.'] * 60)
@@ -957,7 +957,7 @@ class EpisodeGenerationTests(unittest.TestCase):
                                     [{'id': 'source-1'}], {}, {}, 1, 1, 1, [], self.client,
                                     'thin_evidence')
         self.assertEqual(episode['verification']['fallback'], 'thin_evidence')
-        self.assertGreaterEqual(supported_word_count(episode['chapters'], evidence), 420)
+        self.assertGreaterEqual(supported_word_count(episode['chapters'], evidence), 450)
         self.assertEqual(episode['verification']['passed'], True)
 
     def test_general_background_with_zero_sources_is_not_a_normal_episode(self):
@@ -971,9 +971,9 @@ class EpisodeGenerationTests(unittest.TestCase):
     def test_minimum_gate_counts_only_claim_words_with_valid_evidence_ids(self):
         evidence = {'E-1': {'id': 'E-1', 'text': 'source', 'source_id': 'source-1'}}
         chapters = [{'sentences': [
-            {'text': 'supported factual words ' * 140, 'kind': 'claim', 'evidence_ids': ['E-1']},
+            {'text': 'supported factual words ' * 150, 'kind': 'claim', 'evidence_ids': ['E-1']},
             {'text': 'unsupported words ' * 500, 'kind': 'claim', 'evidence_ids': []}]}]
-        self.assertEqual(supported_word_count(chapters, evidence), 420)
+        self.assertEqual(supported_word_count(chapters, evidence), 450)
         require_minimum_evidence(chapters, evidence, 5)
 
     def test_questions_search_separately_and_duplicate_pages_are_read_once(self):
