@@ -2,7 +2,7 @@
   "version": 1,
   "fallback_tags": ["digital"],
   "rules": [
-    {"match_any": ["ai chips", "semiconductor", "semiconductors", "chip manufacturing"], "tags": ["semiconductors", "ai", "digital"]},
+    {"match_any": ["ai chips", "semiconductor", "semiconductors", "chip manufacturing"], "tags": ["semiconductors", "ai"]},
     {"match_any": ["ai", "artificial intelligence"], "tags": ["ai", "finance", "digital", "payments"]},
     {"match_any": ["climate policy", "climate", "climate change", "clean energy"], "tags": ["climate-policy", "energy", "science"]},
     {"match_any": ["space launch", "space launches", "spaceflight", "rocket launch"], "tags": ["space", "science", "digital"]},
