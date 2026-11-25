@@ -56,6 +56,9 @@ main { padding-top: var(--space-3); }
 button,
 .button-link,
 summary,
+select,
+input:not([type="checkbox"]):not([type="radio"]),
+textarea,
 .main-nav a,
 .site-header a {
   min-height: var(--target);
