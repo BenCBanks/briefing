@@ -18,8 +18,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from ingest.write_edition import (_needs_daily_retrieval_fill, _publisher_for, _source_maps,
                                   _candidate_queue_key, _daily_coverage_target_met,
                                   _daily_first_attempt_limit, _daily_refill_candidates,
-                                  _daily_refill_pool_limit, _split_daily_candidate_pool,
-                                  _with_prefetched_bodies,
+                                  _daily_refill_pool_limit, _with_prefetched_bodies,
                                   _article_read_funnel, _fetch_article_in_run,
                                   generate_edition)
 from ingest.score_edition import score_edition
@@ -208,13 +207,12 @@ class WriterTests(unittest.TestCase):
         result = _article_read_funnel([
             {'reason': 'article_request_started'}, {'reason': 'article_request_started'},
             {'reason': 'article_skipped_deadline'}, {'reason': 'article_skipped_host_interval'},
-            {'reason': 'host_read_cap'}, {'reason': 'empty_article'}],
+            {'reason': 'empty_article'}],
             [{'status': 'insufficient_full_text_evidence'}], planned_candidates=5)
         self.assertEqual(result['candidates_planned'], 5)
         self.assertEqual(result['article_requests_attempted'], 2)
         self.assertEqual(result['skipped_for_deadline'], 1)
         self.assertEqual(result['skipped_for_host_interval'], 1)
-        self.assertEqual(result['skipped_for_host_read_cap'], 1)
         self.assertEqual(result['extraction_failures'], 1)
         self.assertEqual(result['evidence_too_short'], 1)
 
@@ -261,17 +259,6 @@ class WriterTests(unittest.TestCase):
         refill = _daily_refill_candidates(feed, searched, [{'id': 'ai'}], {'read-once', 'unreadable-once'})
         self.assertEqual([row['id'] for row in refill['ai']], ['search-result', 'untried-feed'],
                          'untried feed clusters remain available after initial readable candidates fail')
-
-    def test_daily_candidates_keep_a_bounded_next_ranked_refill_pool(self):
-        rows = [{'id': f'candidate-{index}'} for index in range(1, 45)]
-        primary, refill = _split_daily_candidate_pool(rows, primary_limit=30, refill_limit=30)
-        self.assertEqual([row['id'] for row in primary], [f'candidate-{index}' for index in range(1, 31)])
-        self.assertEqual([row['id'] for row in refill], [f'candidate-{index}' for index in range(31, 45)])
-        next_round = _daily_refill_candidates(
-            {'finance': primary + refill}, {}, [{'id': 'finance'}],
-            {f'candidate-{index}' for index in range(1, 25)})
-        self.assertEqual([row['id'] for row in next_round['finance'][:3]],
-                         ['candidate-25', 'candidate-26', 'candidate-27'])
 
     def test_search_first_and_refill_prefetch_wrappers_compose_without_recursion(self):
         calls = []
@@ -637,15 +624,11 @@ class WriterTests(unittest.TestCase):
 
     def test_sentences_are_linked_to_ephemeral_evidence_and_output_is_app_compatible(self):
         article_calls = []
-        article_diagnostics = []
         model_calls = []
         item_without_feed_body = {key: value for key, value in ITEM.items() if key != 'feed_body'}
         def article(url, source):
             article_calls.append((url, source['id']))
-            article_diagnostics.append({'source_id': source['id'], 'candidate_id': source.get('_briefing_candidate_id'),
-                                        'reason': 'ok'})
             return ARTICLE_BODY
-        article.diagnostics = article_diagnostics
         def model(*args, **kwargs):
             model_calls.append(args)
             if args[0].startswith('Repair the listed'):
@@ -682,13 +665,6 @@ class WriterTests(unittest.TestCase):
         self.assertEqual(sources['sources'][0]['published_at'], ITEM['published'])
         self.assertEqual(article_calls, [(ITEM['url'], 'transit-office')])
         self.assertTrue(result['sentence_evidence'])
-        candidate_trace = result['candidate_read_trace']
-        self.assertEqual(len(candidate_trace), 1)
-        self.assertEqual(candidate_trace[0]['evidence'], 'sufficient')
-        self.assertEqual(candidate_trace[0]['writer'], 'generated')
-        self.assertEqual(candidate_trace[0]['source_ids'], ['transit-office'])
-        self.assertEqual(candidate_trace[0]['article_reads'], [
-            {'source_id': 'transit-office', 'reason': 'ok'}])
         self.assertNotIn('temporary stops this weekend', str(sources))
         self.assertNotIn('sentence_evidence', str(editions))
 

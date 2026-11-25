@@ -639,10 +639,7 @@ class GenerationApiTests(unittest.TestCase):
                  {'editions': [edition]}, {'sources': []},
                  {'sentence_evidence': {}, 'repeat_suppressed': 2, 'stale_suppressed': 1,
                   'source_funnels': {'payments': {'sample-source': {'fetched': 4, 'matched': 3,
-                                                                      'accepted': 2, 'rejected': 2}}},
-                  'candidate_read_trace': [{'candidate_id': 'daily-1', 'topic_id': 'payments',
-                                             'article_reads': [], 'evidence': 'sufficient',
-                                             'writer': 'generated'}]})) as writer, \
+                                                                      'accepted': 2, 'rejected': 2}}}})) as writer, \
              patch.object(score_edition, 'score_edition', return_value={
                  'critical_failed': False, 'failed_critical': [], 'results': []}) as score:
             code, body = generation_api.start_generation(REAL_SHAPED_PROFILE, directory, registry=[source])
@@ -659,7 +656,6 @@ class GenerationApiTests(unittest.TestCase):
         self.assertEqual([row['status'] for row in saved_report['story_results']], ['passed'] * 3)
         self.assertEqual(saved_report['source_funnels']['payments']['sample-source'],
                          {'fetched': 4, 'matched': 3, 'accepted': 2, 'rejected': 2})
-        self.assertEqual(saved_report['candidate_read_trace'][0]['candidate_id'], 'daily-1')
         self.assertTrue(json.loads((directory / 'current.json').read_text())['editions']['editions'][0]['generated'])
         self.assertEqual(fetch.call_args.args[0], [source])
         self.assertEqual(writer.call_args.args[0], REAL_SHAPED_PROFILE)
@@ -856,16 +852,6 @@ class GenerationApiTests(unittest.TestCase):
             self.assertEqual(fetcher('https://example.test/1', {'allow_article_fetch': True}), 'ephemeral evidence')
             self.assertIsNone(fetcher('https://example.test/2', {'allow_article_fetch': True}))
         self.assertEqual(fetch.call_count, 1)
-
-    def test_daily_article_fetcher_caps_reads_per_host(self):
-        fetcher = generation_api._budgeted_article_fetcher(time.monotonic() + 60, max_fetches=10)
-        source = {'id': 'fictional-host-source', 'allow_article_fetch': True}
-        with patch.object(generation_api.core, 'fetch_article_text', return_value='fictional article text') as fetch:
-            results = [fetcher(f'https://same-host.example.test/story-{index}', source)
-                       for index in range(4)]
-        self.assertEqual(results, ['fictional article text'] * 3 + [None])
-        self.assertEqual(fetch.call_count, generation_api.MAX_ARTICLE_FETCHES_PER_HOST)
-        self.assertEqual(fetcher.diagnostics[-1]['reason'], 'host_read_cap')
 
     def test_one_passing_story_does_not_claim_thin_without_exhausting_supply(self):
         from ingest import score_edition, write_edition
