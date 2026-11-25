@@ -190,6 +190,11 @@ class DailyTests(unittest.TestCase):
         self.assertEqual(result['gemini_calls'], 2)
         self.assertEqual([row['edition_id'] for row in result['profile_runs']],
                          ['edition-job-1', 'edition-job-3'])
+        self.assertEqual(daily.summary_line(result),
+                         '{"elapsed_seconds":0.0,"event":"daily_job_finished","feeds_disabled":0,'
+                         '"gemini_calls":2,"items_fetched":0,"job_id":"job-1",'
+                         '"profiles_attempted":2,"profiles_completed":2,"reason":null,'
+                         '"status":"complete","stories_written":0,"topic_count":0}')
 
     def test_accounts_off_main_delegates_to_exact_legacy_entry_call(self):
         expected = {'status': 'complete', 'job_id': 'legacy-fixture'}
