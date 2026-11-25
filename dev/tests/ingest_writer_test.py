@@ -609,6 +609,7 @@ class WriterTests(unittest.TestCase):
             ('Climate policy', ['climate-policy', 'energy', 'science']),
             ('Space launches', ['space', 'science', 'digital']),
             ('Payments', ['payments', 'banking', 'finance']),
+            ('Health insurance', ['insurance', 'health']),
             ('An unfamiliar research question', ['digital']),
         ]
         for label, expected in cases:
