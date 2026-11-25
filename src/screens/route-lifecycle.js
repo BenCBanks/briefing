@@ -77,8 +77,7 @@ export function createRouteLifecycleController(app) {
     app.document.body.classList.toggle('is-episodes-list', routeName === 'episodes');
     app.document.title = `${pageTitle} · Personal briefing`;
     for (const item of app.nav) {
-      if (routeName === 'preferences') item.removeAttribute('aria-current');
-      else if (item.dataset.nav === group) item.setAttribute('aria-current', 'page');
+      if (item.dataset.nav === group) item.setAttribute('aria-current', 'page');
       else item.removeAttribute('aria-current');
     }
     app.renderRouteContent(routeName, descriptor);

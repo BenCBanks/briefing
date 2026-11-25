@@ -62,7 +62,6 @@ export function createTopicsManagementController(app) {
   }
 
   function renderTopicsPage() {
-    app.document.querySelector('[data-page-title]').textContent = '';
     const profileTopics = (app.interestProfile?.topics || app.pack.topics.filter(topic => app.state.selectedIds.includes(topic.id)))
       .filter(topic => (topic.include || []).length || !topic.exclude?.length || topic.mustFollow);
     const daily = app.currentEdition('daily');

@@ -55,7 +55,6 @@ export function renderEpisodeMakingFromHistory({ content, node, link, job }) {
 export function renderEpisodeHistory({ content, node, link, result, available, corrections = [],
   filter, searchQuery, savedIds, onRetry, onFilter, onSearch, onSave, onDelete }) {
   const jobs = Array.isArray(result?.jobs) ? result.jobs.filter(job => job && typeof job === 'object' && !Array.isArray(job) && typeof (job.job_id || job.id) === 'string') : [];
-  document.querySelector('[data-page-title]').textContent = '';
   const page = node('section', null, 'episode-list-page'); page.append(node('h1', 'Episodes'));
   if (!available) {
     page.append(node('p', 'Your episode list is not available right now.', 'episode-list-empty'));
