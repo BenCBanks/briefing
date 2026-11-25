@@ -38,6 +38,19 @@ class DailyCompareTests(unittest.TestCase):
                                                topic_ids=['digital', 'finance'])
         self.assertEqual(result['stories_per_topic'], {'digital': 2, 'finance': 0})
 
+    def test_comparison_daily_calls_use_non_reserved_budget(self):
+        calls = []
+
+        class Usage:
+            @staticmethod
+            def usage_caller(name):
+                calls.append(name)
+                return name
+
+        self.assertEqual(compare_daily._comparison_usage_caller(Usage, 'daily'), 'other')
+        self.assertEqual(compare_daily._comparison_usage_caller(Usage, 'episode'), 'episode')
+        self.assertEqual(calls, ['other', 'episode'])
+
     def test_shape_diff_ignores_content_and_reports_schema_change(self):
         baseline = fake_snapshot()
         same_structure = fake_snapshot(warnings=['old warning'])

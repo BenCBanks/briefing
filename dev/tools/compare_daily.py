@@ -249,6 +249,11 @@ def _ledger_cost_types(usage_module, lock, captured):
     return tracked_record, tracked_search
 
 
+def _comparison_usage_caller(usage_module, name):
+    """Keep a comparison from spending the reserve dedicated to the scheduled run."""
+    return usage_module.usage_caller('other' if name == 'daily' else name)
+
+
 def _worker(args):
     code_root = Path(args.code_root).resolve()
     state = Path(args.state_dir).resolve()
@@ -317,15 +322,14 @@ def _worker(args):
     warning_handler.setFormatter(logging.Formatter('%(levelname)s:%(name)s:%(message)s'))
     root_logger = logging.getLogger()
     root_logger.addHandler(warning_handler)
-    original_tts_caller = daily_audio.usage_caller
-
     def protect_daily_reserve(name):
-        return usage.usage_caller('other') if name == 'daily' else original_tts_caller(name)
+        return _comparison_usage_caller(usage, name)
 
     from unittest.mock import patch
     try:
         with patch.object(usage.UsageLedger, '_record', tracked_record), \
              patch.object(usage.UsageLedger, 'record_search', tracked_search), \
+             patch.object(generation_api, 'usage_caller', protect_daily_reserve), \
              patch.object(daily_audio, 'usage_caller', protect_daily_reserve):
             if args.export_input and not args.frozen_input:
                 registry = core.load_registry()
