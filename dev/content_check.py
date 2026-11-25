@@ -444,7 +444,6 @@ def check_content(payload, history, profile, *, now=None):
                                           (len(sentence.split()) >= 6 and sentence in read))
                             for sentence in normalized_sentences):
                 reasons['boilerplate'].append(f'{label}: Read: repeats a body sentence')
-    reasons['quality'].extend(quality_failures)
     daily = edition.get('daily_briefing')
     if isinstance(daily, dict):
         reasons['daily length'] = []
@@ -499,6 +498,25 @@ def check_content(payload, history, profile, *, now=None):
         reasons['story count'].append('no substantive stories in the edition')
     if not isinstance(daily, dict):
         reasons['relevance'].extend(quality_failures)
+    else:
+        # Sourced background segments are separate edition components, but
+        # need two distinct cited sentences to stand on their own. Uncited
+        # general context remains eligible and is not padded.
+        for number, segment in enumerate(daily.get('background_segments', []), 1):
+            if not isinstance(segment, dict):
+                continue
+            sentences = segment.get('sentences') if isinstance(segment.get('sentences'), list) else []
+            cited = [row for row in sentences if isinstance(row, dict) and
+                     isinstance(row.get('citation_numbers'), list) and row.get('citation_numbers')]
+            distinct = {' '.join(re.findall(r'\w+', str(row.get('text') or '').casefold()))
+                        for row in cited}
+            distinct.discard('')
+            if cited and len(distinct) < 2:
+                label = str(segment.get('label') or segment.get('topic_id') or 'background')
+                quality_failures.append(
+                    f'segment {number} ({label}): insufficient cited substance '
+                    f'({len(distinct)} distinct cited sentences; need 2 distinct cited sentences)')
+    reasons['quality'].extend(quality_failures)
     return [{'name': name, 'passed': not failures,
              'reasons': failures or [
                  f'{len(rows)} substantive {"story" if len(rows) == 1 else "stories"}'

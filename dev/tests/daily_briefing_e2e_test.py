@@ -20,7 +20,7 @@ import wave
 from unittest.mock import patch
 
 from dev import content_check, preview_server
-from dev.ingest import daily, daily_audio, daily_briefing, episodes_audio, repeats
+from dev.ingest import daily, daily_audio, daily_briefing, episodes_audio, generation_api, repeats
 from dev.ingest.score_edition import score_edition
 from dev.ingest.paths import profile_identifier
 from dev.ingest.tts.base import TtsResult
@@ -361,6 +361,21 @@ class DailyBriefingEndToEndTests(unittest.TestCase):
                                     f'{name} stories must remain substantive and cited')
                 payload = {'edition': assembled, 'sources': sources}
                 checks = content_check.check_content(payload, history, profile, now=NOW)
+                hard_failures = generation_api._hard_content_failures(
+                    generation_api._content_failure_codes(checks))
+                if hard_failures:
+                    dropped = generation_api._repair_daily_content_items(
+                        assembled, checks, profile,
+                        source_dates=source_dates,
+                        source_tiers=daily_briefing.source_tier_map(sources),
+                        recent_history=history,
+                        detail={'retrieval_fill': {
+                            'enabled': True, 'triggered': bool(retrieval_calls),
+                            'provider_statuses': {'unavailable': 1} if name == 'search-failure' else {}},
+                            'followup_count': len(updates)})
+                    self.assertTrue(dropped, f'{name} named content failures should be repairable')
+                    payload = {'edition': assembled, 'sources': sources}
+                    checks = content_check.check_content(payload, history, profile, now=NOW)
                 self.assertTrue(all(row['passed'] for row in checks),
                                 f"{name} content check failed: {checks}")
                 self._assert_truthful_duration(assembled)
@@ -503,7 +518,10 @@ class DailyBriefingEndToEndTests(unittest.TestCase):
                     actual_rungs.add('followups')
                 if published['daily_briefing']['background_segments']:
                     actual_rungs.add('background')
-                self.assertEqual(actual_rungs, set(scenario['rungs_used']))
+                expected_rungs = set(scenario['rungs_used'])
+                if background_provider is not None and published['daily_briefing']['background_segments']:
+                    expected_rungs.add('background')
+                self.assertEqual(actual_rungs, expected_rungs)
                 script_text = ' '.join(row['text'] for row in published['daily_briefing']['briefing_script'])
                 self.assertIn('Today, we are following', script_text)
                 self.assertIn('Now to', script_text)
@@ -710,11 +728,17 @@ class DailyBriefingEndToEndTests(unittest.TestCase):
                 self.assertEqual(len(normalized), len(set(normalized)),
                                  'factual material is never repeated to meet duration')
                 if topic_count < 6:
-                    self.assertTrue(daily['background_segments'],
-                                    'thin news uses cited Worth knowing fixture evidence')
-                    self.assertTrue(any(row['kind'] == 'background_intro' and
-                                        row['text'].startswith('Worth knowing.')
-                                        for row in daily['briefing_script']))
+                    if name in {'one-topic', 'thin'}:
+                        self.assertTrue(daily['background_segments'],
+                                        'multi-sentence cited fixture background remains eligible')
+                        self.assertTrue(any(row['kind'] == 'background_intro' and
+                                            row['text'].startswith('Worth knowing.')
+                                            for row in daily['briefing_script']))
+                    else:
+                        self.assertFalse(daily['background_segments'],
+                                         'one-sentence cited background is dropped by the final content gate')
+                        self.assertFalse(any(row['kind'] == 'background_intro'
+                                             for row in daily['briefing_script']))
 
     def test_daily_audio_flows_through_http_and_morning_report(self):
         self._run_case('rich', verify_delivery=True)

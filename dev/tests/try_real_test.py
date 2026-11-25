@@ -8,12 +8,31 @@ from contextlib import redirect_stdout
 from io import StringIO
 from unittest.mock import patch
 
-from dev.try_real import (_print_funnel, _print_result, assert_isolated_state, fictional_profile,
+from dev.try_real import (_print_failed_content_checks, _print_funnel, _print_result,
+                          assert_isolated_state, fictional_profile,
                           isolated_run, ledger_cost_delta)
 from dev.ingest.usage import UsageCapReached, UsageLedger
 
 
 class TryRealTests(unittest.TestCase):
+    def test_failed_daily_content_checks_print_named_rules_without_unexpected_detail(self):
+        output = StringIO()
+        scorecard = {'content_checks': [
+            {'name': 'quality', 'passed': False, 'reasons': [
+                'story 3 (Fictional payment update): insufficient cited substance '
+                '(1 distinct cited sentences; need 2 distinct cited sentences)',
+                'unexpected article body should not be printed']},
+            {'name': 'relevance', 'passed': False,
+             'reasons': ['unrelated checks are omitted']},
+            {'name': 'citations', 'passed': True, 'reasons': []},
+        ]}
+        with redirect_stdout(output):
+            _print_failed_content_checks(scorecard)
+        self.assertEqual(output.getvalue(),
+                         'Failed content checks by label:\n'
+                         '  story 3 (Fictional payment update): insufficient cited substance '
+                         '(1 distinct cited sentences; need 2 distinct cited sentences)\n')
+
     def test_episode_report_pairs_research_speed_with_evidence_counts(self):
         output = StringIO()
         result = {'word_count': 80, 'duration_minutes': 1, 'transcript': 'A fictional script.',
