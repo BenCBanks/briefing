@@ -9,6 +9,7 @@ import math
 import os
 from pathlib import Path
 import re
+import shutil
 import sys
 import tempfile
 import time
@@ -304,6 +305,33 @@ def _ledger_daily_totals():
     return float(daily.get('estimated_cost_usd', 0)), remaining
 
 
+def _publish_reader_bundle(staging_dir, generated_dir):
+    """Publish a checked staging bundle, replacing current.json last."""
+    staging_dir, generated_dir = Path(staging_dir), checked_state_path(Path(generated_dir))
+    current = staging_dir / 'current.json'
+    if current.is_symlink() or not current.is_file():
+        raise RuntimeError('staged edition unavailable')
+    try:
+        current_payload = json.loads(current.read_text(encoding='utf-8'))
+    except (OSError, ValueError, TypeError) as error:
+        raise RuntimeError('staged edition unavailable') from error
+    if not isinstance(current_payload, dict):
+        raise RuntimeError('staged edition unavailable')
+    generated_dir.mkdir(parents=True, exist_ok=True)
+    for name in ('editions.json', 'sources.json', 'scorecard.json', 'editions-history.json', 'current.json'):
+        source = staging_dir / name
+        if source.is_symlink() or not source.is_file():
+            continue
+        if name == 'current.json':
+            payload = current_payload
+        else:
+            try:
+                payload = json.loads(source.read_text(encoding='utf-8'))
+            except (OSError, ValueError, TypeError):
+                continue
+        _atomic_json(generated_dir / name, payload)
+
+
 def _account_daily_budget(global_remaining, reader_count):
     from dev.ingest.multi_reader_daily import DailyBudget, DEFAULT_READER_RESERVE
     raw = os.environ.get('BRIEFING_ACCOUNT_DAILY_RESERVE_USD', '').strip()
@@ -454,11 +482,22 @@ def run_accounts_daily(*, profile_loader=None, report_writer=None,
             reader_profile['local_sources'] = local_sources
             first_writer[0] = False
         generated_dir = accounts.reader_generated_dir(account_id, profile_identifier(reader_profile))
+        state_dir = accounts.reader_state_dir(account_id)
+        staging_root = state_dir / 'daily-staging'
+        if staging_root.is_symlink():
+            raise RuntimeError('reader staging unavailable')
+        shutil.rmtree(staging_root, ignore_errors=True)
+        staging_root.mkdir(parents=True, exist_ok=True, mode=0o700)
+        staging_dir = Path(tempfile.mkdtemp(prefix=f'{local_date.isoformat()}-', dir=staging_root))
+        for name in ('current.json', 'editions.json', 'sources.json', 'scorecard.json', 'editions-history.json'):
+            previous = generated_dir / name
+            if previous.is_file() and not previous.is_symlink():
+                shutil.copyfile(previous, staging_dir / name)
         shared_context['topic_items'] = copy.deepcopy(topic_pool)
 
         def start(value):
             return generation_api.start_generation(
-                value, directory=generated_dir, is_default=True, publish_default=False,
+                value, directory=staging_dir, is_default=True, publish_default=False,
                 shared_context=shared_context)
 
         code, result = _one_profile(
@@ -472,15 +511,25 @@ def run_accounts_daily(*, profile_loader=None, report_writer=None,
             current_total = before_total
         actual_cost = max(0.0, current_total - before_total - sum(reader_costs.values()))
         reader_costs[account_id] = actual_cost
-        budget_state.charge(actual_cost, purpose='reader generation')
+        try:
+            budget_state.charge(actual_cost, purpose='reader generation')
+        except Exception:
+            shutil.rmtree(staging_dir, ignore_errors=True)
+            raise
         if code != 0 or not isinstance(result, dict) or result.get('status') != 'complete':
+            shutil.rmtree(staging_dir, ignore_errors=True)
             if 'cost_cap' in str(result.get('error') or result.get('reason') or ''):
                 raise multi_reader_daily.DailyBudgetError('global usage cap reached')
             raise RuntimeError('reader generation failed')
         ready = result.get('edition_ready')
         edition = ready.get('edition') if isinstance(ready, dict) else None
         if not isinstance(edition, dict):
+            shutil.rmtree(staging_dir, ignore_errors=True)
             raise RuntimeError('reader edition missing')
+        try:
+            _publish_reader_bundle(staging_dir, generated_dir)
+        finally:
+            shutil.rmtree(staging_dir, ignore_errors=True)
         return edition
 
     def render_reader_audio(profile, edition, budget_state):

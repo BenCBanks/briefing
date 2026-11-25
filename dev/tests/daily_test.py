@@ -54,6 +54,14 @@ class DailyTests(unittest.TestCase):
         ]
         started = []
         reports = []
+
+        def start_generation(profile, **kwargs):
+            staging = Path(kwargs['directory'])
+            staging.mkdir(parents=True, exist_ok=True)
+            (staging / 'current.json').write_text('{"fixture": true}')
+            started.append((profile, kwargs))
+            return 202, {'job_id': f'job-{len(started)}'}
+
         with tempfile.TemporaryDirectory() as temp, \
              patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'on'}), \
              patch.object(daily, '_status_path', return_value=Path(temp) / 'status.json'), \
@@ -61,9 +69,7 @@ class DailyTests(unittest.TestCase):
              patch('dev.accounts.reader_generated_dir',
                    side_effect=lambda account_id, profile_id: Path(temp) / account_id / 'generated' / profile_id), \
              patch.object(daily, '_ledger_daily_totals', return_value=(0.0, 1.0)), \
-             patch.object(daily.generation_api, 'start_generation',
-                          side_effect=lambda profile, **kwargs: (started.append((profile, kwargs)) or
-                                                                 (202, {'job_id': f'job-{len(started)}'}))), \
+             patch.object(daily.generation_api, 'start_generation', side_effect=start_generation), \
              patch.object(daily, '_one_profile', side_effect=lambda profile, _wait, _poll, start, _get, _sleep,
                           _renderer, _persister: fake_reader_run(profile, start)), \
              patch.object(daily, 'render_daily_audio',
@@ -74,6 +80,8 @@ class DailyTests(unittest.TestCase):
                 pool_loader=lambda profiles, context: ({
                     'writer-fails': ['fixture item'], 'ready-topic': ['fixture item']
                 }, 'fixture-source-pack'))
+            published = Path(temp) / ('c' * 32) / 'generated'
+            self.assertEqual(len(list(published.rglob('current.json'))), 1)
 
         statuses = {row['reader_id']: row['status'] for row in result['multi_reader']['readers']}
         self.assertEqual(code, 1)
@@ -88,6 +96,14 @@ class DailyTests(unittest.TestCase):
             {'account_id': 'e' * 32, 'profile': {'topics': [{'id': 'climate'}]}},
         ]
         starts = []
+
+        def start_generation(_profile, **kwargs):
+            staging = Path(kwargs['directory'])
+            staging.mkdir(parents=True, exist_ok=True)
+            (staging / 'current.json').write_text('{"fixture": true}')
+            starts.append(kwargs['directory'])
+            return 202, {'job_id': f'job-{len(starts)}'}
+
         with tempfile.TemporaryDirectory() as temp, \
              patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'on'}), \
              patch.object(daily, '_status_path', return_value=Path(temp) / 'status.json'), \
@@ -95,9 +111,7 @@ class DailyTests(unittest.TestCase):
              patch('dev.accounts.reader_generated_dir',
                    side_effect=lambda account_id, profile_id: Path(temp) / account_id / 'generated' / profile_id), \
              patch.object(daily, '_ledger_daily_totals', return_value=(0.0, 1.0)), \
-             patch.object(daily.generation_api, 'start_generation',
-                          side_effect=lambda _profile, **kwargs: (starts.append(kwargs['directory']) or
-                                                                  (202, {'job_id': f'job-{len(starts)}'}))), \
+             patch.object(daily.generation_api, 'start_generation', side_effect=start_generation), \
              patch.object(daily, '_one_profile', side_effect=lambda profile, _wait, _poll, start, _get, _sleep,
                           _renderer, _persister: fake_reader_run(profile, start)), \
              patch.object(daily, 'render_daily_audio',
@@ -112,6 +126,40 @@ class DailyTests(unittest.TestCase):
                 self.assertEqual(result['profiles_completed'], 2)
         self.assertEqual(len(starts), 2)
         self.assertNotEqual(starts[0], starts[1])
+
+    def test_reader_over_budget_does_not_publish_staged_edition(self):
+        account_id = 'f' * 32
+        account_rows = [{'account_id': account_id,
+                         'profile': {'topics': [{'id': 'chips'}]}}]
+        def start_generation(_profile, **kwargs):
+            staging = Path(kwargs['directory'])
+            staging.mkdir(parents=True, exist_ok=True)
+            (staging / 'current.json').write_text('{"fixture": true}')
+            return 202, {'job_id': 'staged-job'}
+
+        def complete_staged_writer(profile, _wait, _poll, start, _get, _sleep, _renderer, _persister):
+            _code, result = start(profile)
+            return 0, {'status': 'complete', 'job_id': result['job_id'],
+                       'edition_ready': {'edition': {'id': 'staged-edition', 'sections': []}}}
+
+        with tempfile.TemporaryDirectory() as temp, \
+             patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'on',
+                                     'BRIEFING_ACCOUNT_DAILY_RESERVE_USD': '0.40'}), \
+             patch.object(daily, '_status_path', return_value=Path(temp) / 'status.json'), \
+             patch('dev.accounts.reader_state_dir', side_effect=lambda _id: Path(temp) / account_id), \
+             patch('dev.accounts.reader_generated_dir',
+                   side_effect=lambda _id, profile_id: Path(temp) / account_id / 'generated' / profile_id), \
+             patch.object(daily, '_ledger_daily_totals', side_effect=[(0.0, 0.4), (0.5, 0.0)]), \
+             patch.object(daily.generation_api, 'start_generation', side_effect=start_generation), \
+             patch.object(daily, '_one_profile', side_effect=complete_staged_writer):
+            code, result = daily.run_accounts_daily(
+                profile_loader=lambda: account_rows, report_writer=lambda _result: None,
+                pool_loader=lambda _profiles, _context: ({'chips': ['fixture']}, 'pack'))
+
+        self.assertEqual(code, 1)
+        self.assertEqual(result['multi_reader']['readers'][0]['status'], 'not_today')
+        generated = Path(temp) / account_id / 'generated'
+        self.assertEqual(list(generated.rglob('current.json')), [])
 
     def test_shared_topic_pool_fetches_union_once_and_slices_topic_items(self):
         profiles = [
