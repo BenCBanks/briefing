@@ -362,7 +362,12 @@ def _poll_daily(job_id: str) -> dict:
 def run_daily(*, search_first=False) -> int:
     with isolated_run(search_first=search_first) as state:
         from dev.ingest import core
+        from dev.ingest.flags import flag_enabled, setting_details
         from dev.ingest.generation_api import start_generation
+        narration_flag = setting_details('daily_narration')
+        if not flag_enabled('daily_narration'):
+            raise RuntimeError('try_real daily narration flag is not enabled')
+        print(f"Daily narration flag: on ({narration_flag.get('source', 'unknown')})")
         original_ingest = core.ingest_enabled
 
         def diagnostic_ingest(*args, **kwargs):
