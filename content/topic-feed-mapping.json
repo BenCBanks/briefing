@@ -8,6 +8,7 @@
     {"match_any": ["space launch", "space launches", "spaceflight", "rocket launch"], "tags": ["space", "science", "digital"]},
     {"match_any": ["payments", "payment", "banking"], "tags": ["payments", "banking", "finance"]},
     {"match_any": ["ai in finance", "artificial intelligence finance"], "tags": ["ai", "finance", "digital", "payments"]},
+    {"match_any": ["health finance policy", "health policy finance"], "tags": ["health", "finance"]},
     {"match_any": ["health insurance", "medicaid", "medicare", "insurance policy"], "tags": ["insurance", "health"]},
     {"match_any": ["health"], "tags": ["insurance", "health"]},
     {"match_any": ["affordable housing", "rent"], "tags": ["housing-market", "affordable-housing"]},

@@ -603,7 +603,7 @@ class WriterTests(unittest.TestCase):
     def test_profile_topics_map_to_ordered_registry_tags_from_content_rules(self):
         from ingest.write_edition import _feed_topic_ids
         available = {'semiconductors', 'ai', 'digital', 'climate-policy', 'energy', 'science',
-                     'space', 'payments', 'banking', 'finance'}
+                     'space', 'payments', 'banking', 'finance', 'health', 'insurance'}
         cases = [
             ('AI chips', ['semiconductors', 'ai', 'digital']),
             ('Climate policy', ['climate-policy', 'energy', 'science']),
@@ -615,6 +615,10 @@ class WriterTests(unittest.TestCase):
             with self.subTest(label=label):
                 topic = {'id': label.lower().replace(' ', '-'), 'label': label, 'scope': '', 'include': []}
                 self.assertEqual(_feed_topic_ids(topic, available), expected)
+        custom_health = {'id': 'custom-nc-health-finance-policy',
+                         'label': 'NC health insurance, ACA, Medicare, Medicaid and finance policy',
+                         'scope': 'Health coverage and finance policy', 'include': []}
+        self.assertEqual(_feed_topic_ids(custom_health, available), ['health', 'finance'])
 
     def evidence_id(self, prompt):
         data = json.loads(prompt)
