@@ -35,6 +35,7 @@ MAX_STORY_EVIDENCE_CHARS = 6000
 DAILY_TARGET_WORDS = 700
 DAILY_TARGET_OVERHEAD_WORDS = 30
 DAILY_MIN_USEFUL_WORDS = 550
+DAILY_MINIMUM_PUBLISH_RATIO_PERCENT = 55
 STORY_WORDS_FLOOR = 60
 # Three-story editions need roughly 215 words per story to honor the 675-word
 # daily aim. This remains guidance: the writer stays shorter when evidence is
@@ -51,7 +52,8 @@ NARRATION_FAILURE_REASONS = {
     'narration_repeated_formula_or_vague_ending', 'narration_assembly',
     'narration_repeated_headline',
     'narration_repeated_read_takeaway',
-    'daily_outline_pre_audio_check',
+    'daily_outline_pre_audio_check', 'narration_minimum_length',
+    'gemini_call_limit', 'narration_deadline', 'generation_budget_expired',
     'number is outside the supported speech range',
     'story contains a number format that is not supported for speech',
 }
@@ -333,6 +335,26 @@ def _target_story_words(story_count):
     return max(STORY_WORDS_FLOOR,
                min(STORY_WORDS_CEILING - 15,
                    round((DAILY_TARGET_WORDS - DAILY_TARGET_OVERHEAD_WORDS) / count)))
+
+
+def _daily_publish_floor_words(target_words=None):
+    """Short narration is useful above 55% of target if hard checks pass."""
+    target = max(0, int(target_words if type(target_words) is int else
+                        DAILY_TARGET_WORDS - DAILY_TARGET_OVERHEAD_WORDS))
+    return (target * DAILY_MINIMUM_PUBLISH_RATIO_PERCENT + 99) // 100
+
+
+def _daily_publish_floor_passes(words, target_words=DAILY_TARGET_WORDS, *, hard_gate_failed=False):
+    return not hard_gate_failed and type(words) is int and words >= _daily_publish_floor_words(target_words)
+
+
+def _apply_daily_publish_floor(fatal_reason, words, target_words, *, hard_gate_failed=False):
+    """Keep a checked short script above the floor when no hard rule failed."""
+    if hard_gate_failed:
+        return fatal_reason or 'narration_style_or_evidence_check', False
+    if not _daily_publish_floor_passes(words, target_words):
+        return 'narration_minimum_length', False
+    return None, words < target_words
 
 
 def _story_word_range(target_words, evidence_words):
@@ -849,7 +871,10 @@ def _review_writer_draft(stories, verdicts, evidence_by_story, target_words, *, 
             if not verifier_supported or not deterministic_supported:
                 findings.append({'section_id': section_id, 'sentence_index': index,
                                  'code': 'unsupported_sentence',
-                                 'gate': 'hard',
+                                 # The unsupported draft sentence is removed before publication.
+                                 # Keep a warning for the diagnostic/revision pass, but judge the
+                                 # surviving script against hard publication rules.
+                                 'gate': 'soft',
                                  'general_context': sentence.get('general_context') is True,
                                  'verifier_supported': verifier_supported,
                                  'deterministic_supported': deterministic_supported})
@@ -971,7 +996,7 @@ def _scope_expansion_draft(stories, expansion_context):
                 row_ids = set(ids) if isinstance(ids, list) and all(isinstance(item, str) for item in ids) else set()
                 if row.get('general_context') is True or not row_ids or not row_ids.issubset(unused_ids):
                     findings.append({'section_id': section_id, 'sentence_index': index,
-                                     'code': 'unsupported_sentence', 'gate': 'hard',
+                                     'code': 'unsupported_sentence', 'gate': 'soft',
                                      'general_context': row.get('general_context') is True,
                                      'verifier_supported': False,
                                      'deterministic_supported': False})
@@ -1221,6 +1246,7 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
     if not isinstance(edition, dict) or not isinstance(profile, dict) or not callable(call_json):
         return {'status': 'unavailable', 'reason': 'invalid_input'}
     def bounded_call_json(system_prompt, user_text, response_schema, api_key, **kwargs):
+        nonlocal expansion_pass_started
         if input_token_counter is not None:
             try:
                 input_tokens = input_token_counter(system_prompt, user_text, kwargs.get('model'))
@@ -1232,6 +1258,8 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                 raise RuntimeError('narration_input_token_limit')
             if input_tokens > input_token_limit:
                 raise RuntimeError('narration_input_token_limit')
+        if current_stage == 'writer' and expansion_requested:
+            expansion_pass_started = True
         return call_json(system_prompt, user_text, response_schema, api_key, **kwargs)
     original = deepcopy(edition)
     outline_writer_on = not _force_legacy and feature_flag('daily_outline_writer')
@@ -1241,6 +1269,17 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
     verifier_results = []
     attempt_reports = []
     expansion_used = False
+    expansion_pass_started = False
+    expansion_pass_completed = False
+    expansion_requested = False
+    requested_daily_words = DAILY_TARGET_WORDS - DAILY_TARGET_OVERHEAD_WORDS
+    brief = edition.get('daily_briefing') if isinstance(edition.get('daily_briefing'), dict) else {}
+    configured_target = brief.get('target_spoken_words')
+    if type(configured_target) is int and 1 <= configured_target <= 10000:
+        requested_daily_words = configured_target
+    target_words = _target_story_words(1)
+    publish_floor_words = _daily_publish_floor_words(requested_daily_words)
+    publication_floor_used = False
     current_attempt = 0
     current_stage = 'preparation'
     story_count = 0
@@ -1279,6 +1318,10 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                                  if row['id'] in set(selected_ids[story['section_id']])]
             evidence_by_story[story['section_id']] = story['evidence']
         target_words = _target_story_words(len(story_payload))
+        brief = edition.get('daily_briefing') if isinstance(edition.get('daily_briefing'), dict) else {}
+        configured_target = brief.get('target_spoken_words')
+        if type(configured_target) is int and 1 <= configured_target <= 10000:
+            requested_daily_words = configured_target
         prompt = json.dumps({'edition_date': edition.get('local_date'), 'target_words_per_story': target_words,
                              'daily_target_words': DAILY_TARGET_WORDS, 'stories': story_payload},
                             ensure_ascii=False, separators=(',', ':'))
@@ -1301,6 +1344,8 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
         expansion_context = []
         for attempt in range(2):
             current_attempt = attempt + 1
+            expansion_pass_started = False
+            expansion_pass_completed = False
             verifier_results = []
             user_prompt = prompt
             if revision_feedback:
@@ -1356,6 +1401,9 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                                       SCRIPT_PROMPT.format(target_words=target_words), user_prompt,
                               OUTLINE_SCRIPT_SCHEMA if outline_writer_on else SCRIPT_SCHEMA, None, model=SCRIPT_MODEL,
                               max_output_tokens=MAX_OUTPUT_TOKENS, timeout=35, thinking_level='low')
+            if expansion_requested:
+                expansion_pass_completed = True
+                expansion_used = True
             if outline_writer_on:
                 current_stage = 'outline_pre_audio_check'
                 outline_issues = _daily_outline_pre_audio_issues(draft, answer_outline)
@@ -1421,6 +1469,27 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                         allow_soft_style=(attempt == 1))
                     findings.extend(expansion_scope_findings)
 
+            accepted_words = (sum(_words(' '.join(row.get('text', '') for row in rows))
+                                  for rows in accepted.values()) + DAILY_TARGET_OVERHEAD_WORDS
+                              if accepted else 0)
+            publish_floor_words = _daily_publish_floor_words(requested_daily_words)
+            is_final_attempt = not (findings and attempt == 0)
+            publication_floor_used = False
+            if is_final_attempt:
+                hard_gate_failed = any(
+                    isinstance(row, dict) and row.get('gate') == 'hard'
+                    for row in findings
+                ) or fatal_reason in {
+                    'narration_writer_shape', 'narration_verifier_shape', 'narration_assembly'}
+                fatal_reason, publication_floor_used = _apply_daily_publish_floor(
+                    fatal_reason, accepted_words, requested_daily_words,
+                    hard_gate_failed=hard_gate_failed)
+                if fatal_reason == 'narration_minimum_length' and not any(
+                        isinstance(row, dict) and row.get('code') == fatal_reason for row in findings):
+                    findings.append({'code': fatal_reason, 'gate': 'soft',
+                                     'accepted_words': accepted_words,
+                                     'minimum_words': publish_floor_words})
+
             finding_codes = [str(row.get('code')) for row in findings if isinstance(row, dict) and row.get('code')]
             headings_by_id = {row.get('cluster_id'): row.get('heading')
                               for row in edition.get('sections', []) if isinstance(row, dict)}
@@ -1457,9 +1526,6 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                               if isinstance(item, dict) for row in item.get('sentences', [])
                               if isinstance(row, dict)]
             words_out = sum(_words(text) for text in draft_rows)
-            accepted_words = (sum(_words(' '.join(row.get('text', '') for row in rows))
-                              for rows in accepted.values()) + DAILY_TARGET_OVERHEAD_WORDS
-                              if accepted else 0)
             lost_stage = ('sentence_review' if 'unsupported_sentence' in finding_codes else
                           'length_gate' if 'narration_underdeveloped_with_unused_evidence' in finding_codes else
                           'script_review' if finding_codes else None)
@@ -1468,8 +1534,10 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                 'stories_in': len(story_payload),
                 'words_out': words_out,
                 'accepted_words': accepted_words,
-                'target_words': DAILY_TARGET_WORDS,
+                'target_words': requested_daily_words,
                 'target_words_per_story': target_words,
+                'publish_floor_words': publish_floor_words,
+                'publication_floor_used': publication_floor_used,
                 'finding_codes': finding_codes,
                 'finding_details': finding_details[:20],
                 'gate': gate,
@@ -1478,7 +1546,8 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                     isinstance(row, dict) and
                     row.get('code') == 'narration_underdeveloped_with_unused_evidence'
                     for row in findings)),
-                'expansion_pass': bool(expansion_used and attempt > 0),
+                'expansion_pass_started': expansion_pass_started,
+                'expansion_pass': expansion_pass_completed,
                 'lost_at_stage': lost_stage,
             })
 
@@ -1494,7 +1563,6 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                     isinstance(row, dict) and row.get('code') == 'narration_underdeveloped_with_unused_evidence'
                     for row in findings
                 )
-                expansion_used = expansion_requested
                 revision_feedback = []
                 for row in findings:
                     if not isinstance(row, dict):
@@ -1517,8 +1585,11 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
                 'debug_files': debug_files,
                 'attempts': attempt_reports,
                 'lost_at_stage': None,
+                'expansion_requested': expansion_requested,
                 'expansion_used': expansion_used,
-                'target_words_per_story': target_words, 'target_daily_words': DAILY_TARGET_WORDS,
+                'publication_floor_used': publication_floor_used,
+                'publish_floor_words': publish_floor_words,
+                'target_words_per_story': target_words, 'target_daily_words': requested_daily_words,
                 'story_word_counts': {key: _words(' '.join(row['text'] for row in value))
                                       for key, value in accepted.items()},
                 'story_evidence_word_counts': {key: _words(' '.join(row['text'] for row in rows))
@@ -1532,11 +1603,13 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
         reason = _safe_failure_reason(error)
         if current_attempt and (not attempt_reports or attempt_reports[-1].get('attempt') != current_attempt):
             attempt_reports.append({'attempt': current_attempt, 'stories_in': story_count,
-                                   'words_out': 0, 'target_words': DAILY_TARGET_WORDS,
+                                   'words_out': 0, 'target_words': requested_daily_words,
                                    'accepted_words': 0,
                                    'finding_codes': [reason], 'gate': 'hard',
                                    'repair_pass': current_attempt > 1,
-                                   'expansion_pass': expansion_used,
+                                   'expansion_requested': expansion_requested,
+                                   'expansion_pass_started': expansion_pass_started,
+                                   'expansion_pass': expansion_pass_completed,
                                    'failed_at': current_stage})
         if outline_writer_on:
             legacy = write_spoken_script(edition, profile, runtime_evidence, sources,
@@ -1550,4 +1623,7 @@ def write_spoken_script(edition, profile, runtime_evidence, sources, *, call_jso
         return {'status': 'fallback', 'reason': reason, 'debug_files': debug_files,
                 'attempts': attempt_reports,
                 'lost_at_stage': reason,
-                'expansion_used': expansion_used}
+                'expansion_requested': expansion_requested,
+                'expansion_used': expansion_used,
+                'publication_floor_used': False,
+                'publish_floor_words': _daily_publish_floor_words(locals().get('requested_daily_words'))}

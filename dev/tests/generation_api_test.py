@@ -1157,6 +1157,7 @@ class GenerationApiTests(unittest.TestCase):
                           'target_words_per_story': 223, 'gate': 'soft',
                           'finding_codes': ['narration_underdeveloped_with_unused_evidence'],
                           'repair_pass': False, 'expansion_requested': True, 'expansion_pass': False,
+                          'expansion_pass_started': False, 'publication_floor_used': False,
                           'finding_details': [{'section_id': 'fictional-story-1',
                               'story_heading': 'Fictional public notice',
                               'sentence_index': 2, 'code': 'unsupported_sentence',
@@ -1168,14 +1169,20 @@ class GenerationApiTests(unittest.TestCase):
                          {'attempt': 2, 'stories_in': 3, 'words_out': 680,
                           'accepted_words': 660, 'target_words': 700,
                           'gate': 'pass', 'finding_codes': [],
-                          'repair_pass': True, 'expansion_pass': True}],
+                          'repair_pass': True, 'expansion_pass_started': True,
+                          'expansion_pass': True, 'publication_floor_used': True,
+                          'publish_floor_words': 372}],
         }})
         self.assertEqual(status['lost_at_stage'], 'length_gate')
         self.assertTrue(status['expansion_used'])
         self.assertEqual(len(status['attempts']), 2)
         self.assertEqual(status['attempts'][0]['words_out'], 240)
         self.assertTrue(status['attempts'][0]['expansion_requested'])
+        self.assertFalse(status['attempts'][0]['expansion_pass_started'])
         self.assertFalse(status['attempts'][0]['expansion_pass'])
+        self.assertTrue(status['attempts'][1]['expansion_pass_started'])
+        self.assertTrue(status['attempts'][1]['publication_floor_used'])
+        self.assertEqual(status['attempts'][1]['publish_floor_words'], 372)
         self.assertEqual(status['attempts'][0]['finding_details'], [{
             'section_id': 'fictional-story-1', 'code': 'unsupported_sentence',
             'sentence_index': 2, 'story_heading': 'Fictional public notice',

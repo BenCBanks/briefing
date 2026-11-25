@@ -20,6 +20,7 @@ from dev.ingest.daily_narration import (ENRICH_PROMPT, ENRICH_SCHEMA, NARRATION_
                                         SCRIPT_MODEL, SCRIPT_PROMPT, SCRIPT_SCHEMA, VERIFY_MODEL, VERIFY_PROMPT,
                                         VERIFY_SCHEMA,
                                         _apply_narration, _deterministically_supported,
+                                        _apply_daily_publish_floor, _daily_publish_floor_words,
                                         _contains_read_takeaway, _has_high_read_takeaway_overlap,
                                         _review_writer_draft,
                                         _daily_answer_outline, _daily_outline_pre_audio_issues,
@@ -166,6 +167,7 @@ class DailyNarrationTests(unittest.TestCase):
         edition = deepcopy(self.edition)
         section = edition['sections'][0]
         edition['sections'] = [section]
+        edition['daily_briefing']['target_spoken_words'] = 100
         edition['daily_briefing']['briefing_script'] = [
             row for row in edition['daily_briefing'].get('briefing_script', [])
             if row.get('section_id') == section['cluster_id'] or row.get('kind') != 'story_intro'
@@ -197,7 +199,11 @@ class DailyNarrationTests(unittest.TestCase):
             {'text': long_rows[0]['text'], 'evidence_ids': [evidence_ids[0]], 'general_context': False},
             {'text': 'Commercial property data tracks office occupancy for investment teams.',
              'evidence_ids': [evidence_ids[0]], 'general_context': False}]}]}
-        expanded = {'stories': [{'section_id': sid, 'sentences': long_rows}]}
+        expanded_rows = [*long_rows, {
+            'text': 'Commercial property data tracks office occupancy for investment teams.',
+            'evidence_ids': [evidence_ids[1]], 'general_context': False,
+        }]
+        expanded = {'stories': [{'section_id': sid, 'sentences': expanded_rows}]}
         writer_number = 0
 
         def call_json(_system, user, schema, _key, **kwargs):
@@ -239,6 +245,13 @@ class DailyNarrationTests(unittest.TestCase):
                          section['heading'])
         self.assertTrue(result['attempts'][1]['expansion_pass'])
         self.assertTrue(result['attempts'][1]['repair_pass'])
+        self.assertIn('unsupported_sentence', result['attempts'][1]['finding_codes'])
+        self.assertEqual(result['attempts'][1]['gate'], 'soft',
+                         'the unsupported draft sentence is removed before final hard checks')
+        final_script = ' '.join(row['text'] for row in edition['daily_briefing']['briefing_script'])
+        self.assertNotIn('Commercial property data', final_script)
+        self.assertGreaterEqual(result['attempts'][1]['accepted_words'], 55,
+                                'the supported remainder clears this fixture’s 100-word target floor')
         self.assertEqual(result['lost_at_stage'], None)
 
         borderline_edition = deepcopy(edition)
@@ -259,6 +272,58 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertFalse(borderline['expansion_used'])
         self.assertLessEqual(len(borderline['attempts']), 2)
 
+    def test_requested_expansion_records_call_budget_block_before_completion(self):
+        edition = deepcopy(self.edition)
+        section = edition['sections'][0]
+        edition['sections'] = [section]
+        edition['daily_briefing']['briefing_script'] = [
+            row for row in edition['daily_briefing'].get('briefing_script', [])
+            if row.get('section_id') == section['cluster_id'] or row.get('kind') != 'story_intro'
+        ]
+        sid = section['cluster_id']
+        source_id = section['source_ids'][0]
+        used_id, unused_id = f'{sid}-used', f'{sid}-unused'
+        used_text = 'The fictional office records its review step for local staff.'
+        unused_text = ('The same notice describes the next review stage and explains how staff '
+                       'record its result during the published process.')
+        section['claim_links'] = [{'text': used_text,
+            'source_sentence_ids': [used_id, unused_id], 'citation_numbers': [1], 'verified': True}]
+        evidence = deepcopy(self.evidence)
+        evidence[used_id] = {'text': used_text, 'source_id': source_id, 'source_number': 1}
+        evidence[unused_id] = {'text': unused_text, 'source_id': source_id, 'source_number': 1}
+        script_calls = 0
+
+        def call_json(_system, user, schema, _key, **_kwargs):
+            nonlocal script_calls
+            payload = json.loads(user)
+            if schema == ENRICH_SCHEMA:
+                return {'stories': [{'section_id': row['section_id'],
+                                     'evidence_ids': [item['id'] for item in row['evidence']]}
+                                    for row in payload['stories']]}
+            if schema == SCRIPT_SCHEMA:
+                script_calls += 1
+                if script_calls == 2:
+                    raise RuntimeError('gemini_call_limit')
+                return {'stories': [{'section_id': sid, 'sentences': [
+                    {'text': used_text, 'evidence_ids': [used_id], 'general_context': False}]}]}
+            return {'verdicts': [{'section_id': row['section_id'],
+                                  'sentence_index': row['sentence_index'], 'supported': True}
+                                 for row in payload['sentences']]}
+
+        result = self.narrate(edition, self.profile, evidence, self.sources, call_json=call_json)
+        self.assertEqual(result['status'], 'fallback')
+        self.assertEqual(result['reason'], 'gemini_call_limit')
+        self.assertFalse(result['expansion_used'])
+        self.assertEqual(len(result['attempts']), 2)
+        first, second = result['attempts']
+        self.assertTrue(first['expansion_requested'])
+        self.assertFalse(first['expansion_pass_started'])
+        self.assertFalse(first['expansion_pass'])
+        self.assertTrue(second['expansion_requested'])
+        self.assertTrue(second['expansion_pass_started'])
+        self.assertFalse(second['expansion_pass'])
+        self.assertEqual(second['failed_at'], 'writer')
+
     def test_adequate_draft_does_not_spend_expansion_pass(self):
         stories = {'a': [{'text': 'A concise supported development is clear to the listener.',
                           'evidence_ids': ['E1'], 'general_context': False}]}
@@ -270,6 +335,27 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertEqual(accepted['a'][0]['text'], stories['a'][0]['text'])
         self.assertFalse(any(row.get('code') == 'narration_underdeveloped_with_unused_evidence'
                              for row in findings))
+
+    def test_checked_short_daily_uses_55_percent_publish_floor(self):
+        self.assertEqual(_daily_publish_floor_words(675), 372)
+        reason, floor_used = _apply_daily_publish_floor(
+            'narration_underdeveloped_with_unused_evidence', 433, 675)
+        self.assertIsNone(reason)
+        self.assertTrue(floor_used)
+
+        reason, floor_used = _apply_daily_publish_floor(None, 371, 675)
+        self.assertEqual(reason, 'narration_minimum_length')
+        self.assertFalse(floor_used)
+
+        reason, floor_used = _apply_daily_publish_floor(
+            'narration_style_or_evidence_check', 433, 675)
+        self.assertIsNone(reason)
+        self.assertTrue(floor_used)  # soft style warnings do not block checked narration
+
+        reason, floor_used = _apply_daily_publish_floor(
+            None, 433, 675, hard_gate_failed=True)
+        self.assertEqual(reason, 'narration_style_or_evidence_check')
+        self.assertFalse(floor_used)
 
     def test_daily_host_prompt_forbids_factual_glue_sentences(self):
         prompt = SCRIPT_PROMPT.format(target_words=220)
@@ -378,6 +464,7 @@ class DailyNarrationTests(unittest.TestCase):
     def test_flagged_daily_outline_writes_short_story_paragraphs_and_gap_beat(self):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 150
         writer_response = deepcopy(fixture['writer_response'])
         calls = []
 
@@ -432,6 +519,7 @@ class DailyNarrationTests(unittest.TestCase):
     def test_daily_outline_failure_uses_current_writer_without_blocking_edition(self):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 150
         writer_response = deepcopy(fixture['writer_response'])
         calls = []
 
@@ -544,6 +632,7 @@ class DailyNarrationTests(unittest.TestCase):
         fixture = json.loads(CORRECTED_REVISION_FIXTURE.read_text(encoding='utf-8'))
         self.assertTrue(fixture['fixture_only'])
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 150
         profile = deepcopy(fixture['profile'])
         old_claim = fixture['superseded_revision']['claim']
         current_claim = fixture['current_claim']
@@ -595,6 +684,7 @@ class DailyNarrationTests(unittest.TestCase):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
         self.assertTrue(fixture['fixture_only'])
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 150
         sources = deepcopy(fixture['sources'])
         runtime_evidence = deepcopy(fixture['runtime_evidence'])
         writer_response = deepcopy(fixture['writer_response'])
@@ -893,6 +983,7 @@ class DailyNarrationTests(unittest.TestCase):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
         self.assertTrue(fixture['fixture_only'])
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 150
         original_sections = deepcopy(edition['sections'])
         writer_response = deepcopy(fixture['writer_response'])
         calls = []
@@ -999,6 +1090,7 @@ class DailyNarrationTests(unittest.TestCase):
     def test_numeric_range_keeps_both_endpoints_and_unit_in_daily_export(self):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 100
         sentence = ('Fictional County set a review window of 14-21 business days for standard home permits; '
                     'at least 14 business days are required.')
         evidence = fixture['runtime_evidence']['permits-1']
@@ -1039,6 +1131,7 @@ class DailyNarrationTests(unittest.TestCase):
     def test_complete_three_story_script_survives_global_verifier_indices(self):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
         edition = deepcopy(fixture['edition'])
+        edition['daily_briefing']['target_spoken_words'] = 150
         calls = []
 
         def call_json(_system, user, schema, _api_key, **kwargs):
@@ -1070,6 +1163,7 @@ class DailyNarrationTests(unittest.TestCase):
 
     def test_one_based_global_verifier_indices_are_normalized_only_when_complete(self):
         fixture = json.loads(CONCISE_THREE_STORY_FIXTURE.read_text(encoding='utf-8'))
+        fixture['edition']['daily_briefing']['target_spoken_words'] = 150
 
         def run_variant(verdict_rows):
             edition = deepcopy(fixture['edition'])
@@ -1119,6 +1213,7 @@ class DailyNarrationTests(unittest.TestCase):
         for consumed in (False, True):
             with self.subTest(consumed=consumed):
                 edition = deepcopy(fixture['edition'])
+                edition['daily_briefing']['target_spoken_words'] = 150
                 writer_response = deepcopy(fixture['writer_response'])
                 if consumed:
                     writer_response['stories'][0]['sentences'][0]['evidence_ids'].append('transit-bg-1')
@@ -1516,6 +1611,7 @@ class DailyNarrationTests(unittest.TestCase):
     def test_rejected_draft_is_retried_with_feedback_and_saved_privately(self):
         from dev.ingest.daily_narration import STATE_DIR
 
+        self.edition['daily_briefing']['target_spoken_words'] = 300
         writer_prompts = []
         def call_json(_system, user, schema, _key, **kwargs):
             if schema == ENRICH_SCHEMA:
@@ -1764,6 +1860,7 @@ class DailyNarrationTests(unittest.TestCase):
         self.assertFalse(replay['writer_response']['stories'][0]['sentences'][0]['general_context'],
                          'the replay also covers a supported development-led opening')
         edition = deepcopy(self.edition)
+        edition['daily_briefing']['target_spoken_words'] = 300
         runtime_evidence = {}
         sources = []
         topics = []
