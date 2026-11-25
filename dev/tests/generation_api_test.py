@@ -1169,7 +1169,14 @@ class GenerationApiTests(unittest.TestCase):
                     'published_at': '2026-11-24', 'reuse_terms': 'attribution'}]
         candidate = {'editions': [edition]}
         detail = {'sentence_evidence': {}, 'candidate_results': [], 'candidate_attempts': 1,
-                  'candidate_attempt_limit': 1}
+                  'candidate_attempt_limit': 1,
+                  'article_read_details': [{'topic_id': 'payments', 'candidate': 1,
+                      'source_reads': [{'source_id': 'fixture-source', 'chars': 321, 'words': 49,
+                                        'sentences': 5, 'body_sentences': 4,
+                                        'feed_body_counted': False}]}],
+                  'article_evidence_thresholds': {'single_source_chars': 300,
+                      'single_source_sentences': 3, 'corroborating_source_chars': 200,
+                      'corroborating_source_sentences': 2, 'required_corroborating_sources': 2}}
         clean_score = {'critical_failed': False, 'failed_critical': [], 'checks': []}
         fixture_key = self.root / 'fixture-narration-key'
         fixture_key.write_text('fixture-only', encoding='utf-8')
@@ -1229,6 +1236,10 @@ class GenerationApiTests(unittest.TestCase):
                 self.assertEqual(render_daily_audio(published)['audio_status'], 'pending')
                 self.assertEqual(job['daily_narration']['status'], 'fallback')
                 self.assertEqual(job['daily_narration']['reason'], expected_reason)
+                saved_report = json.loads((directory / job['scorecard_path']).read_text())
+                self.assertEqual(saved_report['article_read_details'], detail['article_read_details'])
+                self.assertEqual(saved_report['article_evidence_thresholds'],
+                                 detail['article_evidence_thresholds'])
 
     def test_final_content_gate_replaces_pre_narration_review_and_merges_failures(self):
         report = {'critical_failed': False, 'failed_critical': ['evidence_links'],

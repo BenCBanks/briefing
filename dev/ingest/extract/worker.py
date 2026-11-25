@@ -20,7 +20,7 @@ def main():
         raise OSError('offline extraction worker')
     socket.socket = socket.create_connection = socket.getaddrinfo = offline
     sys.path.insert(0, str(Path(__file__).resolve().parent))
-    from readable import extract_html, Failure, normalize, paywalled
+    from readable import extract_html, Failure, normalize, content_stub_reason
     kind, max_bytes, max_pages, max_chars, host = sys.argv[1:]
     body = sys.stdin.buffer.read(int(max_bytes) + 1)
     if len(body) > int(max_bytes):
@@ -39,8 +39,9 @@ def main():
                 raise Failure('binary_plain_text')
             result = {'text': normalize(body.decode('utf-8-sig', errors='replace')), 'method': 'plain'}
         text = result.get('text', '')
-        if paywalled(text):
-            raise Failure('paywall_check_failed')
+        stub_reason = content_stub_reason(text)
+        if stub_reason:
+            raise Failure(stub_reason)
         if not text:
             return {**result, 'reason': result.get('reason', 'empty_document')}
         truncated = len(text) > int(max_chars)
