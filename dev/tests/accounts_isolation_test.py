@@ -253,10 +253,11 @@ class AccountIsolationTests(unittest.TestCase):
         self.assertEqual((status_a, result_a), (404, {'error': 'not_found'}))
         self.assertEqual((status_b, result_b), (404, {'error': 'not_found'}))
         self.assertEqual(self._request('GET', '/api/profile', a)[1]['profile']['topics'][0]['id'], 'gen-a')
-        status_a, _ = self._request('POST', '/api/episode-action', a, {'episode_id': job_id})
-        status_b, _ = self._request('POST', '/api/episode-action', b, {'episode_id': job_id})
+        status_a, result_a = self._request('POST', '/api/episode-action', a, {'episode_id': job_id})
+        status_b, result_b = self._request('POST', '/api/episode-action', b, {'episode_id': job_id})
         self.assertEqual(status_a, 404)
         self.assertEqual(status_b, 404)
+        self.assertEqual(result_a, result_b)
 
     def test_revisions_are_reader_scoped_while_interpret_and_feed_are_stateless(self):
         _, token_a, csrf_a = accounts.login('reader-a', 'a fictional account password', 'routes-a')
