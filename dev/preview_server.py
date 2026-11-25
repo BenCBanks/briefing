@@ -1423,11 +1423,10 @@ class Handler(BaseHTTPRequestHandler):
         except (CorrectionError, OSError, ValueError):
             raise accounts.AccountError(503, 'account_data_unavailable') from None
         library = read_json(reader / 'library.json', [])
-        usage = read_json(reader / 'usage.json', {})
         return {'account': account and accounts._public(account), 'profile': export_profile,
                 'episodes': episodes, 'editions': editions,
                 'library': library if isinstance(library, (dict, list)) else [],
-                'corrections': corrections, 'usage': usage if isinstance(usage, dict) else {}}
+                'corrections': corrections, 'usage': self._account_usage_summary(account['id'])}
 
     def _get_episode_audio(self, episode_id):
         if not re.fullmatch(r'[a-f0-9]{32}', episode_id):

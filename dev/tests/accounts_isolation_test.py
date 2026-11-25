@@ -133,6 +133,8 @@ class AccountIsolationTests(unittest.TestCase):
         export_b = self._request('GET', '/api/account/export', b)[1]
         self.assertEqual([row['topic'] for row in export_a['episodes']], ['Reader A episode'])
         self.assertEqual(export_b['episodes'], [])
+        self.assertEqual(export_a['usage']['recorded_cost_usd'], '0.12345678')
+        self.assertEqual(export_b['usage']['recorded_cost_usd'], '0.00000000')
         list_a = self._request('GET', '/api/episodes', a)[1]['jobs']
         list_b = self._request('GET', '/api/episodes', b)[1]['jobs']
         self.assertTrue(any(row['job_id'] == job_id for row in list_a))
