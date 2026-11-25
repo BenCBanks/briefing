@@ -66,10 +66,40 @@ reader states, topics attempted, shared retrieval cost and per-reader writing
 cost. A crashed run can be retried from the next scheduled window; it must not
 reuse a partial reader edition as today's result.
 
-The shared cache is disposable and keyed by the run date plus normalized topic
-identity and source-pack version. It is never used by the accounts-off path.
+The shared cache is disposable and keyed by the run date, normalized topic
+identity, exact source-pack version, and exact freshness window (for example,
+`90d`). A cache entry for another source-pack version or freshness window is a
+miss even when the topic is identical. It is never used by the accounts-off
+path.
 Concurrent daily starts take the existing daily-run lock; only one union pass
 may run at a time.
+
+## Capacity
+
+The 10-episode real sample recorded **$0.89232** across nine produced episodes
+and one refused attempt, or about **$0.089 per attempted reader briefing**.
+That sample includes writing, audio where available, retrieval and the quality
+judge, so it is a conservative planning number for the writing-plus-audio
+fan-out. The daily supply sample recorded **$0.07926** for one daily retrieval
+and edition run. The ledger remains the source of truth after deployment; these
+figures are planning averages, not a promise of fixed cost.
+
+Using $0.09 as the per-reader planning cost:
+
+| Readers | Reserve needed at $0.09 each | Feasible under $3 daily cap? |
+|---:|---:|:---|
+| 1 | $0.09 | Yes |
+| 10 | $0.90 | Yes, if the reserve is raised from $0.40 |
+| 50 | $4.50 | No |
+| 200 | $18.00 | No |
+
+The operator setting is a per-reader reserve multiplied by the stable reader
+snapshot. It is bounded by the remaining global daily and monthly caps, and the
+existing $0.40 six o'clock reserve remains the minimum protected pool until the
+setting is deliberately raised. A run that cannot fund the next reader writes
+`not_today` for that reader and continues the stable rotation; it never creates
+a half-funded edition. Retrieval is shared, so overlapping topics reduce the
+actual cost below this conservative fan-out estimate.
 
 ## Test plan and rollout gate
 
