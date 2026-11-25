@@ -25,6 +25,7 @@ import { renderCorrections } from './corrections/corrections.js';
 import { renderTopicsScreen } from './screens/topics.js';
 import { renderOnDemandScreen, episodeTopicSuggestions } from './screens/on-demand.js';
 import { renderSettingsScreen } from './screens/settings.js';
+import { accountApi as createAccountApi } from './screens/account.js';
 import { renderTodayScreen } from './screens/today.js';
 import { renderEarlierScreen } from './screens/earlier.js';
 import { renderInterestDescribe as renderInterestDescribeScreen, renderInterestConfirm as renderInterestConfirmScreen, renderInterestBuild as renderInterestBuildScreen } from './screens/interests.js';
@@ -89,6 +90,9 @@ let editionHistoryLoaded = false;
 let editionHistoryPromise = null;
 let state = loadState();
 let interestProfile = getProfile();
+const accountApi = createAccountApi();
+let accountsEnabled = false;
+let accountReader = null;
 let interestDraft = null;
 let interestPageFlags = [];
 let interestPageNotice = '';
@@ -200,6 +204,43 @@ function rememberEditionMode(id, mode) {
     for (const key of Object.keys(modes).slice(0, -100)) delete modes[key];
     localStorage.setItem(EDITION_MODE_KEY, JSON.stringify(modes));
   } catch { /* The current view still works if local storage is unavailable. */ }
+}
+
+function onAccountChange(reader, data = {}) {
+  const priorID = accountReader ? accountReader.id || accountReader.name || 'authenticated' : null;
+  const priorProfileKey = interestProfile ? profileBuildKey(interestProfile) : null;
+  accountReader = reader || null;
+  if (reader && data.topics) interestProfile = saveProfile(data.topics, { server: false });
+  else if (!reader || !data.topics) { clearProfile(); interestProfile = null; }
+  const nextProfileKey = interestProfile ? profileBuildKey(interestProfile) : null;
+  const gateRoute = ['#today', '#ask', '#ask-episode'].includes(location.hash);
+  const nextID = accountReader ? accountReader.id || accountReader.name || 'authenticated' : null;
+  if (gateRoute && (priorID !== nextID || priorProfileKey !== nextProfileKey)) {
+    window.dispatchEvent(new Event('hashchange'));
+  }
+}
+
+async function initializeAccountFeature() {
+  try {
+    const response = await fetch('/api/flags', { cache: 'no-store' });
+    const result = await response.json();
+    if (result?.flags?.accounts?.value !== true) return;
+    accountsEnabled = true;
+    const session = await accountApi.sessionState();
+    accountReader = session.reader || null;
+    if (accountReader) {
+      const [topics] = await Promise.all([accountApi.loadTopics(), accountApi.loadHistory()]);
+      if (topics) interestProfile = saveProfile(topics, { server: false });
+      else { clearProfile(); interestProfile = null; }
+    } else {
+      clearProfile(); interestProfile = null;
+    }
+  } catch {
+    // If account mode is on but session lookup fails, fail closed to the sign-in view.
+    if (!accountsEnabled) return;
+    accountReader = null; clearProfile(); interestProfile = null;
+  }
+  window.dispatchEvent(new Event('hashchange'));
 }
 
 const storyInteractionController = createStoryInteractionController({
@@ -718,6 +759,7 @@ const routeLifecycleController = createRouteLifecycleController({
   invalidateMaterialCorrections, finishStoryVisit, trackRouteSignals, focusToken, navigate,
   startBuildGeneration, showToast, rootForHash,
   renderRouteContent: (routeName, descriptor) => renderRouteContent(routeName, {
+    accountsEnabled, accountReader, accountApi, onAccountChange,
     episodeRoute: descriptor.episodeRoute, content, node, link, history, interestProfile, pendingTopicsUpdate, buildInProgress,
     todayListSkeleton, renderTodayScreen, getState: () => state, setState: value => { state = value; },
     FIRST_EDITION_WELCOME_KEY, profileBuildKey, BUILD_GENERAL_FALLBACK_KEY, currentEdition,
@@ -763,6 +805,7 @@ const routeLifecycleController = createRouteLifecycleController({
   getRouteRestorationHelpers: () => ({ revealStoryMore, paragraphAt, currentRevision, trackReadingPlace }),
 });
 routeLifecycleController.install();
+void initializeAccountFeature();
 
 function cacheIdentity(...args) { return editionRefreshController.cacheIdentity(...args); }
 function keepReadingPosition(...args) { return editionRefreshController.keepReadingPosition(...args); }

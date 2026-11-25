@@ -3,52 +3,86 @@
 // exercised with fixtures before the server contract is enabled.
 
 export function accountApi(fetcher = fetch) {
+  const SESSION_MARKER = 'briefing:account-session';
+  let csrfToken = '';
   async function request(path, options) {
-    const response = await fetcher(path, { cache: 'no-store', ...options });
+    const response = await fetcher(path, { cache: 'no-store', credentials: 'same-origin', ...options });
     let body = {};
     try { body = await response.json(); } catch { /* An empty response is handled below. */ }
     return { response, body };
   }
+  async function csrf() {
+    const { response, body } = await request('/api/account/csrf');
+    if (!response.ok || typeof body.csrf_token !== 'string') throw Error('session unavailable');
+    csrfToken = body.csrf_token;
+  }
+  async function mutate(path, payload = {}) {
+    if (!csrfToken) await csrf();
+    return fetcher(path, { method: 'POST', credentials: 'same-origin', headers: { 'Content-Type': 'application/json', 'X-CSRF-Token': csrfToken }, body: JSON.stringify(payload) });
+  }
   return {
     async sessionState() {
-      const { response, body } = await request('/api/account/session');
-      if (!response.ok && response.status !== 401) throw Error('session unavailable');
-      return response.status === 401 ? { expired: body.expired === true } : body;
+      const { response, body } = await request('/api/account/me');
+      if (response.status === 401) return { expired: localStorage.getItem(SESSION_MARKER) === '1' };
+      if (!response.ok) throw Error('session unavailable');
+      localStorage.setItem(SESSION_MARKER, '1');
+      await csrf();
+      return { reader: body.account };
     },
     async signIn(details) {
-      const { response, body } = await request('/api/account/sign-in', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(details) });
-      return response.ok ? { ok: true, ...body } : { ok: false, reason: body.reason };
+      const { response, body } = await request('/api/account/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ account: details.account, password: details.password }) });
+      if (response.ok) { csrfToken = body.csrf_token; localStorage.setItem(SESSION_MARKER, '1'); }
+      return response.ok ? { ok: true, reader: body.account } : { ok: false, reason: body.error };
     },
     async createAccount(details) {
-      const { response, body } = await request('/api/account', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(details) });
-      return response.ok ? { ok: true, ...body } : { ok: false, reason: body.reason };
+      const { response, body } = await request('/api/account/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ invite_code: details.inviteCode, account: details.account, password: details.password }) });
+      if (response.ok) { csrfToken = body.csrf_token; localStorage.setItem(SESSION_MARKER, '1'); }
+      return response.ok ? { ok: true, reader: body.account } : { ok: false, reason: body.error };
     },
-    async signOut() { await fetcher('/api/account/sign-out', { method: 'POST' }); },
-    async loadTopics() { return (await request('/api/account/topics')).body; },
-    async loadHistory() { return (await request('/api/account/history')).body; },
-    async downloadData() { return (await request('/api/account/data')).body; },
-    async deleteAccount() { await fetcher('/api/account', { method: 'DELETE' }); },
+    async signOut() {
+      const response = await mutate('/api/account/logout');
+      if (!response.ok) throw Error('sign out failed');
+      csrfToken = ''; localStorage.removeItem(SESSION_MARKER);
+    },
+    async loadTopics() { const { response, body } = await request('/api/profile'); if (response.status === 404) return null; if (!response.ok) throw Error('topics unavailable'); return body.profile; },
+    async loadHistory() { const { response, body } = await request('/api/episodes'); if (response.status === 404) return []; if (!response.ok) throw Error('history unavailable'); return body.jobs || []; },
+    async downloadData() { const { response, body } = await request('/api/account/export'); if (!response.ok) throw Error('export unavailable'); return body; },
+    async deleteAccount() {
+      const response = await mutate('/api/account/delete', { confirm: 'DELETE' });
+      if (!response.ok) throw Error('delete failed');
+      csrfToken = ''; localStorage.removeItem(SESSION_MARKER);
+    },
   };
 }
-export async function mountAccountSettings({ content, node, api = accountApi(), fetcher = fetch }) {
-  try {
-    const response = await fetcher('/api/flags', { cache: 'no-store' });
-    const data = await response.json();
-    if (data?.flags?.accounts?.value !== true) return null;
-  } catch { return null; }
-  if (!document.querySelector('link[data-account-styles]')) {
-    const stylesheet = document.createElement('link');
-    stylesheet.rel = 'stylesheet'; stylesheet.href = '/src/accounts/accounts.css';
-    stylesheet.dataset.accountStyles = 'true'; document.head.append(stylesheet);
+export async function mountAccountSettings({ content, node, api = accountApi(), fetcher = fetch, onAccountChange, enabled }) {
+  if (enabled !== true) {
+    if (enabled === false) return null;
+    try {
+      const response = await fetcher('/api/flags', { cache: 'no-store' });
+      const data = await response.json();
+      if (data?.flags?.accounts?.value !== true) return null;
+    } catch { return null; }
   }
-  return renderAccountAccess({ content, node, api });
+  if (content.querySelector('h1')?.textContent !== 'Settings') return null;
+  return renderAccountAccess({ content, node, api, onAccountChange });
 }
 
-export function renderAccountAccess({ content, node, api }) {
-  const section = node('section', null, 'account-access');
+function loadAccountStyles() {
+  if (document.querySelector('link[data-account-styles]')) return;
+  const stylesheet = document.createElement('link');
+  stylesheet.rel = 'stylesheet'; stylesheet.href = '/src/accounts/accounts.css';
+  stylesheet.dataset.accountStyles = 'true'; document.head.append(stylesheet);
+}
+
+export function renderAccountAccess({ content, node, api, gateRoute = '', onAccountChange = () => {} }) {
+  loadAccountStyles();
+  const section = node('section', null, `account-access${gateRoute ? ' account-gate' : ''}`);
   section.setAttribute('aria-labelledby', 'account-heading');
-  const heading = node('h2', 'Account', 'account-heading'); heading.id = 'account-heading';
+  const title = gateRoute === 'ask-episode' || gateRoute === 'ask'
+    ? 'Sign in to make an episode' : gateRoute ? 'Sign in to see your briefing' : 'Account';
+  const heading = node(gateRoute ? 'h1' : 'h2', title, 'account-heading'); heading.id = 'account-heading';
   section.append(heading);
+  if (gateRoute) section.append(node('p', 'Your topics and listening history are saved with your account.'));
   const status = node('p', '', 'account-status');
   status.setAttribute('role', 'status');
   status.setAttribute('aria-live', 'polite');
@@ -91,6 +125,7 @@ export function renderAccountAccess({ content, node, api }) {
   }
 
   function focusError(message) {
+    busy(false);
     announce(message, { focus: true });
     const invalid = formHost.querySelector('input:invalid') || formHost.querySelector('input');
     invalid?.focus();
@@ -103,9 +138,9 @@ export function renderAccountAccess({ content, node, api }) {
     const title = mode === 'create' ? 'Create an account' : 'Sign in';
     const form = node('form', null, 'account-form');
     form.append(node('h3', title));
-    const email = field('Email address', 'email', 'email');
+    const account = field('Account name', 'text', 'username');
     const password = field('Password', 'password', mode === 'create' ? 'new-password' : 'current-password');
-    form.append(email.label, password.label);
+    form.append(account.label, password.label);
     let invite;
     if (mode === 'create') {
       invite = field('Invite code', 'text', 'off');
@@ -118,8 +153,8 @@ export function renderAccountAccess({ content, node, api }) {
     form.addEventListener('submit', async event => {
       event.preventDefault();
       if (requestInFlight) return;
-      if (!email.input.value.trim() || !password.input.value) {
-        focusError('Enter your email address and password.');
+      if (!account.input.value.trim() || !password.input.value) {
+        focusError('Enter your account name and password.');
         return;
       }
       if (mode === 'create' && !invite.input.value.trim()) {
@@ -130,24 +165,25 @@ export function renderAccountAccess({ content, node, api }) {
       announce('');
       try {
         const result = mode === 'create'
-          ? await api.createAccount({ email: email.input.value.trim(), password: password.input.value, inviteCode: invite.input.value.trim() })
-          : await api.signIn({ email: email.input.value.trim(), password: password.input.value });
+          ? await api.createAccount({ account: account.input.value.trim(), password: password.input.value, inviteCode: invite.input.value.trim() })
+          : await api.signIn({ account: account.input.value.trim(), password: password.input.value });
         if (!result?.ok) {
-          if (result?.reason === 'rate-limited') {
+          if (['rate-limited', 'login_temporarily_locked'].includes(result?.reason)) {
             focusError('Too many tries, wait a few minutes.');
-          } else if (result?.reason === 'wrong-password' || result?.reason === 'invalid-invite') {
-            focusError(mode === 'create' ? 'That invite code could not be used. Check it and try again.' : 'That email and password do not match. Try again.');
+          } else if (['invalid_credentials', 'wrong-password', 'invalid_invite_code', 'invalid-invite'].includes(result?.reason)) {
+            focusError(mode === 'create' ? 'That invite code could not be used. Check it and try again.' : 'That account name and password do not match. Try again.');
           } else {
             focusError('We could not sign you in just now. Try again.');
           }
           return;
         }
         signedIn = true;
-        signedInName = result.reader?.name || result.reader?.email || email.input.value.trim();
+        signedInName = result.reader?.name || account.input.value.trim();
         const loadedReaderData = await loadReaderData();
         // Retain the reader-specific sections while moving between account
         // details and the sign-in screen.
         readerData = loadedReaderData;
+        onAccountChange(result.reader, readerData);
         showSignedIn(readerData);
       } catch {
         focusError('We could not connect. Check your connection and try again.');
@@ -185,6 +221,8 @@ export function renderAccountAccess({ content, node, api }) {
       try {
         await api.signOut();
         signedIn = false;
+        readerData = {};
+        onAccountChange(null, {});
         showSignIn({ message: 'You are signed out.' });
       } catch {
         announce('We could not sign you out. Try again.', { focus: true });
@@ -194,21 +232,23 @@ export function renderAccountAccess({ content, node, api }) {
     formHost.append(heading, row);
     const topics = Array.isArray(data.topics?.topics) ? data.topics.topics : Array.isArray(data.topics) ? data.topics : [];
     const history = Array.isArray(data.history?.items) ? data.history.items : Array.isArray(data.history) ? data.history : [];
+    const topicSection = node('section', null, 'account-topics');
+    topicSection.append(node('h4', 'Your topics'));
     if (topics.length) {
-      const topicSection = node('section', null, 'account-topics');
-      topicSection.append(node('h4', 'Your topics'));
       const list = node('ul');
       topics.forEach(topic => list.append(node('li', typeof topic === 'string' ? topic : topic.label || '')));
-      topicSection.append(list); formHost.append(topicSection);
-    }
+      topicSection.append(list);
+    } else topicSection.append(node('p', 'No topics saved yet.'));
+    formHost.append(topicSection);
+    const historySection = node('section', null, 'account-history');
+    historySection.append(node('h4', 'Your listening history'));
     if (history.length) {
-      const historySection = node('section', null, 'account-history');
-      historySection.append(node('h4', 'Your listening history'));
       const list = node('ul');
-      history.slice(0, 5).forEach(item => list.append(node('li', typeof item === 'string' ? item : item.title || '')));
-      historySection.append(list); formHost.append(historySection);
-    }
-    announce('Your topics and listening history are ready.');
+      history.slice(0, 5).forEach(item => list.append(node('li', typeof item === 'string' ? item : item.title || item.prompt || item.question || '')));
+      historySection.append(list);
+    } else historySection.append(node('p', 'No on-demand episodes yet.'));
+    formHost.append(historySection);
+    announce('Your account is ready.');
   }
 
   function showData() {
@@ -223,8 +263,9 @@ export function renderAccountAccess({ content, node, api }) {
         const anchor = node('a', 'Download my data');
         anchor.href = url;
         anchor.download = 'my-briefing-data.json';
+        document.body.append(anchor);
         anchor.click();
-        URL.revokeObjectURL(url);
+        setTimeout(() => { anchor.remove(); URL.revokeObjectURL(url); }, 1000);
         announce('Your data download is ready.');
       } catch { announce('We could not prepare your download. Try again.'); }
     });
@@ -252,6 +293,8 @@ export function renderAccountAccess({ content, node, api }) {
           await api.deleteAccount();
           signedIn = false;
           pendingDelete = false;
+          readerData = {};
+          onAccountChange(null, {});
           showSignIn({ message: 'Your account has been deleted.' });
         } catch { announce('We could not delete your account. Try again.', { focus: true }); }
         finally { busy(false); }
@@ -265,8 +308,10 @@ export function renderAccountAccess({ content, node, api }) {
     if (result?.expired) showSignIn({ message: 'Your session ended. Sign in again to continue. Your place is saved.' });
     else if (result?.reader) {
       signedIn = true;
-      signedInName = result.reader.name || result.reader.email || 'reader';
-      loadReaderData().then(data => { readerData = data; showSignedIn(readerData); }).catch(() => showSignedIn(readerData));
+      signedInName = result.reader.name || 'reader';
+      loadReaderData().then(data => {
+        readerData = data; onAccountChange(result.reader, readerData); showSignedIn(readerData);
+      }).catch(() => showSignedIn(readerData));
     } else showSignIn();
   }).catch(() => showSignIn());
 

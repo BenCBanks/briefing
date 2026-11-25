@@ -1,4 +1,7 @@
 .account-access{margin:24px 0;padding:0;border-top:1px solid var(--line);color:var(--text)}
+.account-gate{box-sizing:border-box;width:min(100%,620px);margin:0 auto;padding:28px 20px 120px;border:0}
+.account-gate .account-heading{margin:10px 0;font:400 clamp(1.7rem,7vw,2.1rem)/1.2 var(--read,Georgia,serif);color:var(--text)}
+.account-gate>.account-form-host{margin-top:24px}
 .account-access h2{margin:18px 0 10px;font-size:20px;color:var(--text)}
 .account-access h3{margin:12px 0;font-size:17px;color:var(--text)}
 .account-access p{color:var(--text);line-height:1.5}

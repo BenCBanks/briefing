@@ -1,4 +1,6 @@
 // Dispatch the active hash route to its screen while the app owns shared state.
+import { renderAccountAccess } from './account.js';
+
 export function renderRouteContent(routeName, app) {
   const { episodeRoute, content, node, link, history, renderTodayScreen, interestProfile, pendingTopicsUpdate, buildInProgress,
     todayListSkeleton, getState, setState, FIRST_EDITION_WELCOME_KEY, profileBuildKey,
@@ -26,7 +28,13 @@ export function renderRouteContent(routeName, app) {
     getLibrarySearchQuery, setLibrarySearchQuery, loadEpisodeCards, canListen,
     listenEstimate: getListenEstimate, createPlayIcon, startListening, browserCanSpeak,
     loadEditionHistory,
+    accountsEnabled, accountReader, accountApi, onAccountChange,
   } = app;
+
+  if (accountsEnabled && !accountReader && ['today', 'ask', 'ask-episode'].includes(routeName)) {
+    renderAccountAccess({ content, node, api: accountApi, gateRoute: routeName, onAccountChange });
+    return;
+  }
 
   if (episodeRoute) void renderEpisodeRoute(routeName);
   else if (routeName === 'today' || !routeName) renderTodayScreen({
@@ -73,6 +81,9 @@ export function renderRouteContent(routeName, app) {
     interestProfile, navigate, resetBehaviorWeighting, player, NARRATOR_KEY, refreshLastUpdated,
     getState, setState, saveState: persistState, localStorage, sessionStorage: sessionStore,
     resetChoices: resetBrowserChoices,
+    accountApi,
+    onAccountChange,
+    accountsEnabled,
   });
   else if (routeName === 'interests') renderInterestsPage();
   else if (routeName === 'library' || routeName === 'earlier') renderEarlierScreen({
