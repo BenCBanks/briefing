@@ -199,6 +199,14 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
         reason = audio.get('reason')
         suffix = f' ({reason})' if _valid_audio_failure_reason(reason) else ''
         print('Audio: ' + str(audio.get('status', 'not_recorded')) + suffix)
+        from dev.ingest.episodes.voice_quality import episode_voice_quality
+        voice = episode_voice_quality(result)
+        outcome = 'PASS' if voice['passed'] else 'FAIL'
+        print(f"Voice rules: {outcome} ({sum(row['passed'] for row in voice['checks'])}/"
+              f"{len(voice['checks'])}; {voice['spoken_words']}/"
+              f"{voice['target_words'] or 'unknown'} words, minimum {voice['minimum_words'] or 'unknown'})")
+        print('Voice checks: ' + ', '.join(
+            f"{row['name']}={'pass' if row['passed'] else 'fail'}" for row in voice['checks']))
         text = result.get('transcript') or ''
     else:
         daily = result.get('daily_briefing') if isinstance(result.get('daily_briefing'), dict) else {}
