@@ -569,7 +569,11 @@ def fetch_article_text(url, source, opener=None, robots_cache_path=ROBOTS_CACHE_
     def outcome(reason, char_count=0, **details):
         if isinstance(diagnostics, list):
             safe_host = host if isinstance(host, str) and re.fullmatch(r'[a-z0-9.-]{1,253}', host) else None
+            candidate_id = source.get('_briefing_candidate_id')
+            if not isinstance(candidate_id, str) or not re.fullmatch(r'daily-[0-9]{1,4}', candidate_id):
+                candidate_id = None
             diagnostics.append({'source_id': source.get('id'), 'host': safe_host, 'reason': reason,
+                                **({'candidate_id': candidate_id} if candidate_id else {}),
                                 **({'evidence_chars': int(char_count)} if char_count else {}), **details})
 
     from .flags import flag_enabled
@@ -980,7 +984,7 @@ def host_wait_seconds(host, interval):
 
 
 def article_candidate_priority(cluster, deadline=None):
-    """Prefer usable evidence, without discarding a delayed host's candidates."""
+    """Prefer ready full text, then declared full-text access over transient reads."""
     priorities = []
     for row in cluster['rows']:
         source, item = row['source'], row['item']
@@ -989,14 +993,20 @@ def article_candidate_priority(cluster, deadline=None):
             priorities.append(-1)
         elif item.get('feed_body') and access in {'full-text', 'feed-full'}:
             priorities.append(0)
-        elif (access in {'full-text', 'transient-read'} or source.get('allow_article_fetch')) and source.get('paywalled') is not True:
+        elif access == 'full-text' and source.get('paywalled') is not True:
             host = (urlsplit(item.get('url', '')).hostname or '').lower()
             delay = host_wait_seconds(host, max(min(source.get('minimum_interval_seconds', 1),
                                                     SAME_RUN_ARTICLE_INTERVAL_SECONDS),
                                                 5 if host.endswith('gdeltproject.org') else 1))
-            priorities.append(1 if deadline is not None and time.monotonic() + delay + 1.5 >= deadline else 0)
+            priorities.append(3 if deadline is not None and time.monotonic() + delay + 1.5 >= deadline else 1)
+        elif (access == 'transient-read' or source.get('allow_article_fetch')) and source.get('paywalled') is not True:
+            host = (urlsplit(item.get('url', '')).hostname or '').lower()
+            delay = host_wait_seconds(host, max(min(source.get('minimum_interval_seconds', 1),
+                                                    SAME_RUN_ARTICLE_INTERVAL_SECONDS),
+                                                5 if host.endswith('gdeltproject.org') else 1))
+            priorities.append(3 if deadline is not None and time.monotonic() + delay + 1.5 >= deadline else 2)
         else:
-            priorities.append(2)
+            priorities.append(4)
     return min(priorities, default=2)
 
 

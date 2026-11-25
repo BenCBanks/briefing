@@ -222,6 +222,7 @@ def _print_funnel(scorecard: dict, selected: dict) -> None:
     retrieval = scorecard.get('retrieval_fill', {}) if isinstance(scorecard, dict) else {}
     article_reads = scorecard.get('article_read_funnel', {}) if isinstance(scorecard, dict) else {}
     article_read_details = scorecard.get('article_read_details', []) if isinstance(scorecard, dict) else []
+    candidate_read_trace = scorecard.get('candidate_read_trace', []) if isinstance(scorecard, dict) else []
     article_evidence_thresholds = scorecard.get('article_evidence_thresholds', {}) if isinstance(scorecard, dict) else {}
     low_tier_sources = scorecard.get('low_tier_sources', {}) if isinstance(scorecard, dict) else {}
     if not diagnostics:
@@ -243,6 +244,9 @@ def _print_funnel(scorecard: dict, selected: dict) -> None:
     for row in article_read_details if isinstance(article_read_details, list) else []:
         if isinstance(row, dict):
             print('Article evidence candidate: ' + json.dumps(row, sort_keys=True))
+    for row in candidate_read_trace if isinstance(candidate_read_trace, list) else []:
+        if isinstance(row, dict):
+            print('Article candidate: ' + json.dumps(row, sort_keys=True))
     if isinstance(low_tier_sources, dict) and low_tier_sources.get('digital'):
         print('Digital low-tier source counts: ' + json.dumps(low_tier_sources['digital'], sort_keys=True))
     source_funnels = scorecard.get('source_funnels', {}) if isinstance(scorecard, dict) else {}
