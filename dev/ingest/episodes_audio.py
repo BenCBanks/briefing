@@ -178,6 +178,9 @@ def _tts_chunks(text: str, max_chars: int = MAX_TTS_CHUNK_CHARS) -> list[str]:
         raise ValueError('Narration text must be non-empty.')
     if type(max_chars) is not int or max_chars < 1:
         raise ValueError('TTS chunk size must be a positive integer.')
+    text = text.strip()
+    if len(text) <= max_chars:
+        return [text]
     chunks = []
     current = ''
 
@@ -202,7 +205,7 @@ def _tts_chunks(text: str, max_chars: int = MAX_TTS_CHUNK_CHARS) -> list[str]:
             chunks.append(current)
             current = piece
 
-    for sentence in re.split(r'(?<=[.!?])\s+|\n+', text.strip()):
+    for sentence in re.split(r'(?<=[.!?])\s+|\n+', text):
         add_piece(sentence)
     if current:
         chunks.append(current)
