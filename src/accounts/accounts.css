@@ -1,0 +1,27 @@
+.account-access{margin:24px 0;padding:0;border-top:1px solid var(--line);color:var(--text)}
+.account-gate{box-sizing:border-box;width:min(100%,620px);margin:0 auto;padding:28px 20px 120px;border:0}
+.account-gate .account-heading{margin:10px 0;font:700 clamp(1.7rem,7vw,2.1rem)/1.2 var(--read,Georgia,serif);color:var(--text)}
+.account-gate>.account-form-host{margin-top:24px}
+.account-access h2{margin:18px 0 10px;font-size:20px;font-weight:700;color:var(--text)}
+.account-access h3{margin:12px 0;font-size:17px;font-weight:700;color:var(--text)}
+.account-access p{color:var(--text);line-height:1.5}
+.account-status{min-height:24px;margin:8px 0;color:var(--text)}
+.account-form{display:grid;gap:12px;margin:12px 0}
+.account-field{display:grid;gap:6px;min-height:44px;color:var(--text);font-weight:600}
+.account-field input{box-sizing:border-box;width:100%;min-height:44px;padding:9px 11px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--text);font:inherit}
+.account-password-control{display:flex;align-items:flex-end;gap:8px}
+.account-password-field{flex:1;min-width:0}
+.account-password-hint{margin:0;font-size:14px}
+.account-password-toggle{box-sizing:border-box;flex:0 0 auto;min-width:44px;min-height:44px;padding:8px 10px}
+.account-action,.account-primary,.account-danger{display:inline-flex;align-items:center;justify-content:center;min-height:44px;padding:9px 14px;border:1px solid var(--line);border-radius:7px;background:transparent;color:var(--accent);font:inherit;font-weight:600;cursor:pointer}
+.account-primary{border-color:var(--accent);background:var(--accent);color:var(--on-accent,#fff)}
+.account-danger{border-color:var(--danger,#a52828);color:var(--danger,#a52828)}
+.account-action:disabled,.account-primary:disabled,.account-danger:disabled{opacity:.6;cursor:wait}
+.account-switches,.account-signed-in-actions,.account-delete-actions{display:flex;flex-wrap:wrap;align-items:center;gap:10px}
+.account-switches p{margin:8px 0}
+.account-switches button{border:0;padding:10px 0;background:none;color:var(--accent);font:inherit;text-decoration:underline;cursor:pointer}
+.account-form-host [role=status]:focus{outline:2px solid var(--accent);outline-offset:3px}
+.account-topics,.account-history{margin:16px 0}
+.account-topics h4,.account-history h4{margin:0 0 6px;font-size:15px}
+.account-topics ul,.account-history ul{margin:0;padding-left:20px;line-height:1.6}
+@media (prefers-reduced-motion:reduce){.account-access *{scroll-behavior:auto!important}}
