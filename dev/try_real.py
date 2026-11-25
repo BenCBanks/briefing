@@ -177,6 +177,13 @@ def _print_result(kind: str, result: dict, before: dict, started: float) -> None
             details.append(f'{hosts_dropped} slow hosts dropped')
         if isinstance(timeouts, int):
             details.append(f'{timeouts} source timeouts')
+        read_funnel = research.get('read_funnel') if isinstance(research.get('read_funnel'), dict) else {}
+        if read_funnel:
+            details.append('reads attempted/read/skipped-deadline/skipped-host-gap/failed '
+                           f"{read_funnel.get('attempted', 0)}/{read_funnel.get('read', 0)}/"
+                           f"{read_funnel.get('skipped_deadline', 0)}/"
+                           f"{read_funnel.get('skipped_host_gap', 0)}/"
+                           f"{read_funnel.get('failed', 0)}")
         if isinstance(elapsed, (int, float)) and isinstance(budget, (int, float)):
             details.append(f'research {elapsed:.2f}s / {budget}s budget')
         print('Evidence: ' + evidence_count + ('; ' + '; '.join(details) if details else ''))

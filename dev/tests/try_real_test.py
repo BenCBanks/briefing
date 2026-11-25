@@ -21,11 +21,14 @@ class TryRealTests(unittest.TestCase):
                   'timing': {'research_and_reading_seconds': 42.5},
                   'retrieval': {'research_budget': {
                       'research_elapsed_seconds': 42.5, 'research_budget_seconds': 165,
-                      'slow_hosts_dropped': 2, 'read_timeouts': 3}}}
+                      'slow_hosts_dropped': 2, 'read_timeouts': 3,
+                      'read_funnel': {'attempted': 9, 'read': 7, 'skipped_deadline': 1,
+                                      'skipped_host_gap': 0, 'failed': 1}}}}
         with redirect_stdout(output):
             _print_result('episode', result, {'daily': {'estimated_cost_usd': 0}}, 0)
-        self.assertIn('Evidence: 7 sources read; 2 slow hosts dropped; 3 source timeouts; research 42.50s / 165s budget',
-                      output.getvalue())
+        self.assertIn('Evidence: 7 sources read; 2 slow hosts dropped; 3 source timeouts; '
+                      'reads attempted/read/skipped-deadline/skipped-host-gap/failed 9/7/1/0/1; '
+                      'research 42.50s / 165s budget', output.getvalue())
 
     def test_refuses_live_state_root_and_children(self):
         live = Path.home() / '.local' / 'state' / 'briefing'

@@ -1132,7 +1132,8 @@ def generate_episode(topic, length=10, style='explainer', *, state_dir,
             'max_concurrent_reads': research_result.get('max_concurrent_reads', 8),
             'research_elapsed_seconds': research_result.get('research_elapsed_seconds'),
             'read_timeouts': research_result.get('read_timeouts', 0),
-            'slow_hosts_dropped': research_result.get('slow_hosts_dropped', 0)}
+            'slow_hosts_dropped': research_result.get('slow_hosts_dropped', 0),
+            'read_funnel': research_result.get('read_funnel', {})}
         timing['research_and_reading_seconds'] = round(clock() - search_start, 3)
         timing['research_and_reading_budget_seconds'] = research_budget_report['research_budget_seconds']
         stage('evidence')
