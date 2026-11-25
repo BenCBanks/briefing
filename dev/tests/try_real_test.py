@@ -49,6 +49,22 @@ class TryRealTests(unittest.TestCase):
                       'reads attempted/read/skipped-deadline/skipped-host-gap/failed 9/7/1/0/1; '
                       'research 42.50s / 165s budget', output.getvalue())
 
+    def test_episode_report_prints_only_bounded_audio_failure_reasons(self):
+        output = StringIO()
+        result = {'word_count': 80, 'duration_minutes': 1, 'transcript': 'A fictional script.',
+                  'audio': {'status': 'failed', 'reason': 'tts_http_503'}}
+        with redirect_stdout(output):
+            _print_result('episode', result, {'daily': {'estimated_cost_usd': 0}}, 0)
+        self.assertIn('Audio: failed (tts_http_503)', output.getvalue())
+        self.assertNotIn('audio failure', output.getvalue())
+
+        result['audio']['reason'] = '/fictional/path/fictional-key'
+        output = StringIO()
+        with redirect_stdout(output):
+            _print_result('episode', result, {'daily': {'estimated_cost_usd': 0}}, 0)
+        self.assertIn('Audio: failed', output.getvalue())
+        self.assertNotIn('/fictional/path', output.getvalue())
+
     def test_episode_report_prints_requested_and_final_length_stage(self):
         output = StringIO()
         result = {'word_count': 400, 'duration_minutes': 2.67, 'transcript': 'Fictional words.',

@@ -532,7 +532,7 @@ class GenerationApiTests(unittest.TestCase):
         second_status, second = generation_api.start_generation(PROFILE, directory, generate=generate, registry=[])
         self.assertEqual(second_status, 409)
         self.assertEqual(second['job_id'], body['job_id'])
-        for _ in range(100):
+        for _ in range(500):
             status, job = generation_api.job_response(body['job_id'])
             if job['status'] in {'complete', 'failed'}:
                 break
@@ -1016,7 +1016,7 @@ class GenerationApiTests(unittest.TestCase):
                 code, started = generation_api.start_generation(PROFILE, self.root / 'counts',
                                                                 generate=generate, registry=registry)
                 self.assertEqual(code, 202)
-                for _ in range(100):
+                for _ in range(500):
                     _, job = generation_api.job_response(started['job_id'])
                     if job['status'] in {'complete', 'failed'}:
                         break

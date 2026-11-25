@@ -15,6 +15,7 @@ from zoneinfo import ZoneInfo
 import fcntl
 import hashlib
 import json
+import logging
 import math
 import os
 import re
@@ -1930,33 +1931,50 @@ class EpisodeJobStore:
                     counts['audio_seconds'] = seconds
                     progress('recording', dict(counts))
                 if self.tts_enabled:
-                    rendered = (self.audio_renderer or render_episode_audio)(
-                        episode, job['profile_id'], state_dir=self.state_dir,
-                        voice_file=self.state_dir / 'voice.json', cancelled=cancelled,
-                        progress=audio_progress, chapter_ready=(publish_chapter if self.streaming_enabled else None),
-                        max_segment_attempts=1)
-                    if cancelled():
-                        return
-                    if self.streaming_enabled and rendered.get('cached'):
-                        manifest = rendered.get('manifest') if isinstance(rendered.get('manifest'), dict) else {}
-                        asset_dir = rendered.get('directory')
-                        for row in manifest.get('chapters', []):
-                            if not isinstance(row, dict) or not isinstance(asset_dir, Path):
-                                continue
-                            filename = row.get('file')
-                            if not isinstance(filename, str) or not re.fullmatch(r'chapter-\d{2}\.wav', filename):
-                                continue
-                            try:
-                                publish_chapter(row, (asset_dir / filename).read_bytes())
-                            except OSError:
-                                continue
-                    episode = rendered['episode']
-                    episode['audio']['url'] = f'/api/episodes/{job_id}/audio'
-                    episode['audio']['status'] = 'recorded'
-                    episode['audio_status'] = 'recorded'
-                    episode['duration_minutes'] = round(rendered['manifest']['duration_seconds'] / 60, 2)
-                    episode['duration_basis'] = 'measured rendered audio'
-                    counts['audio_seconds'] = rendered['manifest']['duration_seconds']
+                    try:
+                        rendered = (self.audio_renderer or render_episode_audio)(
+                            episode, job['profile_id'], state_dir=self.state_dir,
+                            voice_file=self.state_dir / 'voice.json', cancelled=cancelled,
+                            progress=audio_progress, chapter_ready=(publish_chapter if self.streaming_enabled else None),
+                            max_segment_attempts=1)
+                    except EpisodeCancelled:
+                        raise
+                    except Exception as error:
+                        current_stream = (self._read(path) or {}).get('streaming')
+                        current_stream = current_stream if isinstance(current_stream, dict) else {}
+                        if self.streaming_enabled and current_stream.get('ready_chapters'):
+                            raise
+                        from .episodes_audio import audio_failure_reason
+                        reason = audio_failure_reason(error)
+                        logging.getLogger(__name__).warning(
+                            'Episode audio unavailable (%s); keeping the verified transcript.', reason)
+                        episode['audio'] = {'status': 'failed', 'reason': reason,
+                                            'script_hash': episode.get('script_hash'),
+                                            'revision_id': episode.get('revision_id')}
+                        episode['audio_status'] = 'failed'
+                    else:
+                        if cancelled():
+                            return
+                        if self.streaming_enabled and rendered.get('cached'):
+                            manifest = rendered.get('manifest') if isinstance(rendered.get('manifest'), dict) else {}
+                            asset_dir = rendered.get('directory')
+                            for row in manifest.get('chapters', []):
+                                if not isinstance(row, dict) or not isinstance(asset_dir, Path):
+                                    continue
+                                filename = row.get('file')
+                                if not isinstance(filename, str) or not re.fullmatch(r'chapter-\d{2}\.wav', filename):
+                                    continue
+                                try:
+                                    publish_chapter(row, (asset_dir / filename).read_bytes())
+                                except OSError:
+                                    continue
+                        episode = rendered['episode']
+                        episode['audio']['url'] = f'/api/episodes/{job_id}/audio'
+                        episode['audio']['status'] = 'recorded'
+                        episode['audio_status'] = 'recorded'
+                        episode['duration_minutes'] = round(rendered['manifest']['duration_seconds'] / 60, 2)
+                        episode['duration_basis'] = 'measured rendered audio'
+                        counts['audio_seconds'] = rendered['manifest']['duration_seconds']
                 else:
                     # Text is complete and verified; no audio was attempted.
                     episode['audio'] = {'status': 'pending', 'script_hash': episode.get('script_hash'),
