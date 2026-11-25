@@ -23,7 +23,7 @@
         {"id": "pinevale-permits-thin", "topic": "housing"},
         {"id": "cms-calendar-thin", "topic": "health-policy"}
       ],
-      "followups": [], "prior": [], "rungs_used": ["feed", "open_web", "background"]
+      "followups": [], "prior": [], "rungs_used": ["feed", "open_web"]
     },
     {
       "id": "repeat-heavy",
@@ -37,7 +37,7 @@
       "open_web": [{"id": "cms-calendar-after-repeats", "topic": "health-policy"}],
       "followups": [{"id": "cedar-bank-update", "topic": "payments"}],
       "prior": ["cedar-bank-old", "piedmont-network-old", "triad-payments-old"],
-      "rungs_used": ["feed", "open_web", "followups", "background"]
+      "rungs_used": ["feed", "open_web", "followups"]
     },
     {
       "id": "one-topic",
@@ -47,7 +47,7 @@
         {"id": "piedmont-network-single-topic", "topic": "payments"},
         {"id": "triad-payments-single-topic", "topic": "payments"}
       ],
-      "followups": [], "prior": [], "rungs_used": ["feed", "open_web", "background"]
+      "followups": [], "prior": [], "rungs_used": ["feed", "open_web"]
     },
     {
       "id": "many-topics",

@@ -772,6 +772,103 @@ def _hard_content_failures(failures):
     return [code for code in failures if code in {'content_citations', 'content_quality'}]
 
 
+_REPAIRABLE_CONTENT_CHECKS = {'citations', 'quality'}
+
+
+def _content_drop_reason(reason):
+    value = str(reason or '').casefold()
+    if 'sponsored content path' in value:
+        return 'sponsored_source_path'
+    if 'insufficient cited substance' in value:
+        return 'insufficient_cited_substance'
+    if 'takeaway duplicates' in value:
+        return 'duplicate_takeaway'
+    if 'listicle or promotion pattern' in value:
+        return 'listicle_or_promotion'
+    if 'inline source citation' in value:
+        return 'invalid_citation'
+    return 'citation_or_quality_check_failed'
+
+
+def _named_content_drops(edition, checks):
+    """Map only explicitly named quality/citation failures to edition items."""
+    import re
+
+    stories = [row for row in edition.get('sections', []) if isinstance(row, dict) and
+               (row.get('cluster_id') or row.get('kind', 'story') == 'story') and
+               row.get('kind') not in {'intro', 'outro', 'quiet', 'coverage'}]
+    daily = edition.get('daily_briefing') if isinstance(edition.get('daily_briefing'), dict) else {}
+    segments = [row for row in daily.get('background_segments', []) if isinstance(row, dict)]
+    grouped = {}
+    for check in checks if isinstance(checks, list) else []:
+        if not isinstance(check, dict) or check.get('passed') is True or \
+                str(check.get('name') or '').casefold() not in _REPAIRABLE_CONTENT_CHECKS:
+            continue
+        for reason in check.get('reasons', []) if isinstance(check.get('reasons'), list) else []:
+            match = re.match(r'^(story|segment)\s+(\d+)\s+\((.*?)\):', str(reason), re.I)
+            if not match:
+                return None
+            kind = match.group(1).casefold()
+            index = int(match.group(2))
+            rows = stories if kind == 'story' else segments
+            if not 1 <= index <= len(rows):
+                return None
+            row = rows[index - 1]
+            item_id = row.get('cluster_id') if kind == 'story' else row.get('segment_id')
+            if not isinstance(item_id, str) or not item_id:
+                return None
+            key = (kind, item_id)
+            if key not in grouped:
+                label = (row.get('heading') or match.group(3)) if kind == 'story' else \
+                        (row.get('label') or row.get('topic_id') or match.group(3))
+                grouped[key] = {'type': kind, 'item_id': item_id,
+                                'label': str(label)[:160],
+                                'reason': _content_drop_reason(reason)}
+    return list(grouped.values())
+
+
+def _repair_daily_content_items(edition, checks, profile, *, source_dates, source_tiers,
+                                recent_history, detail):
+    """Drop named failing items and reassemble once using cached backgrounds only."""
+    drops = _named_content_drops(edition, checks)
+    if not drops:
+        return None
+    removed_stories = {row['item_id'] for row in drops if row['type'] == 'story'}
+    removed_segments = {row['item_id'] for row in drops if row['type'] == 'segment'}
+    candidate = copy.deepcopy(edition)
+    candidate['sections'] = [row for row in candidate.get('sections', [])
+                             if not isinstance(row, dict) or row.get('cluster_id') not in removed_stories]
+    story_count = sum(isinstance(row, dict) and bool(row.get('cluster_id'))
+                      for row in candidate.get('sections', []))
+    # The existing publication floor remains one real story; dropping below it
+    # is a failed repair and must preserve the original edition for diagnostics.
+    if story_count < 1:
+        return None
+    daily = candidate.get('daily_briefing') if isinstance(candidate.get('daily_briefing'), dict) else {}
+    cached_segments = [row for row in daily.get('background_segments', [])
+                       if isinstance(row, dict) and row.get('segment_id') not in removed_segments]
+    segments_by_topic = {}
+    for segment in cached_segments:
+        topic_id = segment.get('topic_id')
+        if isinstance(topic_id, str):
+            segments_by_topic.setdefault(topic_id, []).append(segment)
+
+    def cached_background(topic_id, **_kwargs):
+        rows = segments_by_topic.get(topic_id, [])
+        return rows.pop(0) if rows else None
+
+    from . import daily_briefing
+    daily_briefing.assemble(
+        candidate, profile, background_fill=cached_background,
+        background_history=daily_briefing.background_history(recent_history),
+        open_web_report=detail.get('retrieval_fill'),
+        followup_count=detail.get('followup_count', 0), followups_checked=True,
+        source_dates=source_dates, source_tiers=source_tiers)
+    edition.clear()
+    edition.update(candidate)
+    return drops
+
+
 def _score_and_filter_stories(edition, sources, registry, evidence, score_edition_fn):
     story_rows = [row for row in edition.get('sections', []) if row.get('cluster_id')]
     passed = []
@@ -1406,8 +1503,38 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
                 hard_failures = _hard_content_failures(content_failures)
                 report['content_soft_warnings'] = [code for code in content_failures if code not in hard_failures]
                 if hard_failures:
-                    _persist_job_scorecard(directory, job_id, report)
-                    raise RuntimeError('scorecard_critical_failed:' + ','.join(hard_failures))
+                    dropped = _repair_daily_content_items(
+                        edition, content_checks, profile, source_dates=source_dates,
+                        source_tiers=source_tiers, recent_history=recent_history, detail=detail)
+                    if dropped:
+                        report['content_gate_dropped_items'] = dropped
+                        prior_failures = report.get('failed_critical')
+                        prior_failures = prior_failures if isinstance(prior_failures, list) else []
+                        remaining_failures = [code for code in prior_failures
+                                              if code not in {'content_citations', 'content_quality'}]
+                        report['failed_critical'] = remaining_failures
+                        report['critical_failed'] = bool(remaining_failures)
+                        content_checks = check_content(
+                            {'editions': editions, 'sources': sources}, recent_history, profile,
+                            now=core.utc_now())
+                        content_failures = _record_content_gate(report, content_checks)
+                        hard_failures = _hard_content_failures(content_failures)
+                        report['content_soft_warnings'] = [code for code in content_failures
+                                                           if code not in hard_failures]
+                        stories = sum(bool(row.get('cluster_id'))
+                                      for row in edition.get('sections', []))
+                        report['stories_passed_checks'] = stories if not hard_failures else 0
+                        if not hard_failures:
+                            logging.getLogger(__name__).info(
+                                'Daily edition: %s stories passed checks.', stories)
+                        else:
+                            _persist_job_scorecard(directory, job_id, report)
+                            raise RuntimeError('scorecard_critical_failed:' + ','.join(hard_failures))
+                    else:
+                        _persist_job_scorecard(directory, job_id, report)
+                        raise RuntimeError('scorecard_critical_failed:' + ','.join(hard_failures))
+                else:
+                    report['stories_passed_checks'] = stories
             narration_result = None
             if flag_enabled('daily_narration'):
                 try:

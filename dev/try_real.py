@@ -14,6 +14,7 @@ from decimal import Decimal
 import json
 import os
 from pathlib import Path
+import re
 import tempfile
 import time
 import sys
@@ -265,6 +266,28 @@ def _print_failed_daily_cost(before: dict, started: float) -> None:
     print(f'Wall time: {round(time.monotonic() - started, 2):.2f}s')
 
 
+def _print_failed_content_checks(scorecard: dict) -> None:
+    """Print named quality/citation failures without exposing article text."""
+    checks = scorecard.get('content_checks', []) if isinstance(scorecard, dict) else []
+    failures = []
+    for check in checks if isinstance(checks, list) else []:
+        if (not isinstance(check, dict) or check.get('passed') is True or
+                str(check.get('name') or '').casefold() not in {'quality', 'citations'}):
+            continue
+        for reason in check.get('reasons', []) if isinstance(check.get('reasons'), list) else []:
+            if not isinstance(reason, str):
+                continue
+            # check_content formats these rules as: story/segment N (public label): rule.
+            # Reject unexpected detail instead of accidentally printing source/article text.
+            if not re.match(r'^(?:story|segment) \d+ \([^\r\n]{1,180}\): [^\r\n]{1,240}$', reason):
+                continue
+            failures.append(reason)
+    if failures:
+        print('Failed content checks by label:')
+        for reason in dict.fromkeys(failures):
+            print('  ' + reason)
+
+
 def run_episode(question: str, minutes: int) -> int:
     with isolated_run() as state:
         from dev.ingest.episodes.generate import generate_episode
@@ -380,6 +403,7 @@ def run_daily(*, search_first=False) -> int:
         selected = job.get('topic_story_counts', {})
         if job.get('status') != 'complete':
             print('Daily generation failed: ' + str(job.get('error') or job.get('failure_reason')))
+            _print_failed_content_checks(scorecard)
             narration = job.get('daily_narration')
             if isinstance(narration, dict):
                 print('Daily narration diagnostics: ' + json.dumps({key: narration.get(key)
