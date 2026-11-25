@@ -75,6 +75,8 @@ class DailyResilienceEndToEndTests(unittest.TestCase):
         return payload['editions']['editions'][0]
 
     def _run_case(self, case):
+        for persisted in self.generated.glob('*.json'):
+            persisted.unlink()
         if case in {'feed_timeout', 'provider_rate_limit'}:
             prior, prior_sources = _edition(self.yesterday, audio={
                 'audio_status': 'ready', 'audio_url': '/api/daily/audio'})
@@ -164,13 +166,13 @@ class DailyResilienceEndToEndTests(unittest.TestCase):
                 self.assertEqual(status_value['daily_run']['daily_narration']['status'], 'fallback')
                 self.assertEqual(self._read_edition()['daily_briefing']['briefing_script'], [])
                 self.assertTrue(self._read_edition()['daily_briefing']['text_only'])
-                self.assertTrue(decision)
-                self.assertIn('spoken_under_3_minutes', reasons)
+                self.assertFalse(decision)
+                self.assertEqual(reasons, ['edition_exists_today'])
             if case == 'tts_fails':
                 self.assertEqual(result['daily_audio']['audio_status'], 'pending')
                 self.assertEqual(status_value['daily_run']['daily_audio']['audio_status'], 'pending')
-                self.assertTrue(decision)
-                self.assertIn('audio_missing_within_cap', reasons)
+                self.assertFalse(decision)
+                self.assertEqual(reasons, ['edition_exists_today'])
             if case == 'topic_empty':
                 topic_supply = status_value['daily_run']['topic_supply']
                 self.assertEqual(next(row['stories'] for row in topic_supply
@@ -202,6 +204,31 @@ class DailyResilienceEndToEndTests(unittest.TestCase):
         self.assertTrue(decision)
         self.assertIn('today_edition_missing', reasons)
         self.assertTrue(json.loads((self.state / 'status.json').read_text())['ok'])
+
+    def test_run_daily_skips_existing_today_edition_without_changing_success_status(self):
+        edition, sources = _edition(self.today, topics=('fictional-topic',) * 4,
+                                    narration={'status': 'fallback',
+                                               'reason': 'narration_underdeveloped_with_unused_evidence'},
+                                    audio={'audio_status': 'pending', 'audio_url': None})
+        self._persist_edition(edition, sources)
+        status = {'ok': True, 'last_run_at': '2026-11-25T10:00:00Z',
+                  'daily_run': {'status': 'complete', 'stories_written': 4}}
+        status_path = self.state / 'status.json'
+        status_path.write_text(json.dumps(status), encoding='utf-8')
+
+        def forbidden(*_args, **_kwargs):
+            self.fail('an existing same-day edition must suppress generation retry')
+
+        with patch.dict(os.environ, self.environment):
+            code, result = daily.run_daily(profile_loader=forbidden, start=forbidden,
+                                           report_writer=forbidden)
+
+        self.assertEqual(code, 0)
+        self.assertEqual(result['status'], 'complete')
+        self.assertEqual(result['reason'], 'edition_exists_today')
+        self.assertEqual(result['stories_written'], 4)
+        self.assertEqual(json.loads(status_path.read_text(encoding='utf-8')), status,
+                         'a skipped or failed retry must not replace the successful daily status')
 
 
 if __name__ == '__main__':

@@ -444,7 +444,8 @@ class DailyTests(unittest.TestCase):
                          paths.profile_identifier(profiles[0]))
 
     def test_daily_summary_is_one_line_and_content_free(self):
-        line = daily.summary_line({'status': 'complete', 'job_id': 'job-1', 'elapsed_seconds': 12.5,
+        line = daily.summary_line({'status': 'complete', 'reason': 'edition_exists_today',
+                                   'job_id': 'job-1', 'elapsed_seconds': 12.5,
                                    'stories_written': 3, 'gemini_calls': 7,
                                    'topic_story_counts': {'private-topic': 2, 'health': 1}, 'feed_counts': {'parsed_items': 9,
                                    'source_results': {'private-feed': 'ok'}},
@@ -452,6 +453,7 @@ class DailyTests(unittest.TestCase):
         self.assertEqual(line.count('\n'), 0)
         self.assertIn('"event":"daily_job_finished"', line)
         self.assertIn('"stories_written":3', line)
+        self.assertIn('"reason":"edition_exists_today"', line)
         self.assertIn('"gemini_calls":7', line)
         self.assertIn('"topic_count":2', line)
         self.assertNotIn('private-topic', line)

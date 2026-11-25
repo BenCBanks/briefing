@@ -35,7 +35,8 @@ def _safe_reason(value):
     if value in {'generation_timeout', 'generation_in_progress', 'gemini_call_limit',
                  'ingestion_disabled_by_kill_switch', 'daily_generation_timeout',
                  'generation_not_started', 'invalid_profile', 'writer_disabled',
-                 'profile_generation_incomplete', 'edition_copy_failed'}:
+                 'profile_generation_incomplete', 'edition_copy_failed',
+                 'edition_exists_today'}:
         return value
     if re.fullmatch(r'generation_failed:(initialization|feed_fetch|edition_writer|scorecard|edition_publish):[A-Za-z][A-Za-z0-9]{0,39}', value):
         return value
@@ -796,6 +797,18 @@ def run_daily(wait_seconds=MAX_GENERATION_SECONDS + 5, poll_seconds=0.25, profil
         if record:
             report_writer(result)
         return code, result
+    if os.environ.get('BRIEFING_ACCOUNTS', '').strip().lower() != 'on':
+        from dev.tools.daily_guard import edition_for_date, today_et_date
+        state_dir = checked_state_path(Path(os.environ.get('BRIEFING_STATE_DIR') or
+                                            generation_api.STATE_DIR))
+        existing = edition_for_date(state_dir, today_et_date())
+        if existing is not None:
+            sections = existing.get('sections')
+            result = {'status': 'complete', 'reason': 'edition_exists_today',
+                      'edition_id': existing.get('id'),
+                      'stories_written': sum(isinstance(row, dict) and bool(row.get('cluster_id'))
+                                             for row in sections) if isinstance(sections, list) else 0}
+            return finish(0, result, record=False)
     try:
         loaded = profile_loader()
     except (OSError, ValueError, TypeError):

@@ -70,27 +70,23 @@ class DailyGuardTests(unittest.TestCase):
             self.assertFalse(retry)
             self.assertEqual(reasons, [])
 
-    def test_retry_follows_today_edition_and_content_health_not_ok_flag(self):
+    def test_same_day_edition_always_suppresses_retry(self):
         ok_status = {'ok': True, 'daily_run': {'status': 'complete'}}
         good_checks = [{'name': 'quality', 'passed': True}]
         _bundle, full_edition = bundle()
         short = dict(full_edition)
         short['daily_briefing'] = {'spoken_words': 250}
-        cases = [
-            (ok_status, [{'passed': False}], full_edition, False, 'content_check_failed'),
-            (ok_status, good_checks, short, False, 'spoken_under_3_minutes'),
-        ]
-        for status, checks, edition, cap, reason in cases:
-            with self.subTest(reason=reason):
-                retry, reasons = daily_guard.decide(status=status, content_checks=checks,
-                                                    edition=edition, audio_budget_allows=cap)
-                self.assertTrue(retry)
-                self.assertIn(reason, reasons)
+        cases = ((full_edition, [{'passed': False}], True), (short, good_checks, False))
+        for edition, checks, cap in cases:
+            retry, reasons = daily_guard.decide(status=ok_status, content_checks=checks,
+                                                edition=edition, audio_budget_allows=cap)
+            self.assertFalse(retry)
+            self.assertEqual(reasons, ['edition_exists_today'])
 
         retry, reasons = daily_guard.decide(status={'ok': False}, content_checks=good_checks,
             edition=full_edition, audio_budget_allows=False, today=full_edition['local_date'])
         self.assertFalse(retry)
-        self.assertEqual(reasons, [])
+        self.assertEqual(reasons, ['edition_exists_today'])
 
         retry, reasons = daily_guard.decide(status=ok_status, content_checks=good_checks,
             edition=dict(full_edition, local_date='2000-01-01'), audio_budget_allows=False,
@@ -98,18 +94,18 @@ class DailyGuardTests(unittest.TestCase):
         self.assertTrue(retry)
         self.assertIn('today_edition_missing', reasons)
 
-    def test_missing_audio_retries_only_when_estimate_fits_daily_reserve(self):
+    def test_missing_audio_does_not_retry_over_an_existing_edition(self):
         status = {'ok': True, 'daily_run': {'status': 'complete'}}
         checks = [{'passed': True}]
         _bundle, edition = bundle(audio_status='pending')
         retry, reasons = daily_guard.decide(status=status, content_checks=checks,
                                             edition=edition, audio_budget_allows=True)
-        self.assertTrue(retry)
-        self.assertEqual(reasons, ['audio_missing_within_cap'])
+        self.assertFalse(retry)
+        self.assertEqual(reasons, ['edition_exists_today'])
         retry, reasons = daily_guard.decide(status=status, content_checks=checks,
                                             edition=edition, audio_budget_allows=False)
         self.assertFalse(retry)
-        self.assertEqual(reasons, [])
+        self.assertEqual(reasons, ['edition_exists_today'])
 
     def test_tts_disabled_does_not_schedule_audio_only_retry(self):
         status = {'ok': True, 'daily_run': {'status': 'complete'}}
@@ -119,7 +115,7 @@ class DailyGuardTests(unittest.TestCase):
             retry, reasons = daily_guard.decide(status=status, content_checks=checks,
                                                 edition=edition, audio_budget_allows=True)
         self.assertFalse(retry)
-        self.assertEqual(reasons, [])
+        self.assertEqual(reasons, ['edition_exists_today'])
 
     def test_fixture_state_calls_content_checker_and_prints_count_only_decision(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -134,10 +130,13 @@ class DailyGuardTests(unittest.TestCase):
             (state / 'status.json').write_text(json.dumps({'ok': True,
                 'daily_run': {'status': 'complete'}}), encoding='utf-8')
             output = io.StringIO()
-            with patch.dict('os.environ', {'BRIEFING_TTS': 'disabled'}), contextlib.redirect_stdout(output):
-                code = daily_guard.main(['--state-dir', temp], budget_checker=lambda _edition: True)
+            with patch.dict('os.environ', {'BRIEFING_TTS': 'disabled'}), \
+                    patch.object(daily_guard, 'check_content', side_effect=AssertionError('already published')), \
+                    contextlib.redirect_stdout(output):
+                code = daily_guard.main(['--state-dir', temp],
+                                        budget_checker=lambda _edition: self.fail('no TTS estimate needed'))
         self.assertEqual(code, 1)
-        self.assertEqual(output.getvalue().strip(), 'daily_guard decision=skip reasons=healthy')
+        self.assertEqual(output.getvalue().strip(), 'daily_guard decision=skip reasons=edition_exists_today')
         self.assertNotIn('Fictional', output.getvalue())
 
     def test_missing_state_retries_without_accessing_live_paths(self):
@@ -190,8 +189,8 @@ class DailyGuardTests(unittest.TestCase):
                     patch.dict('os.environ', {'BRIEFING_TTS': 'disabled'}):
                 retry, reasons = daily_guard.inspect_state(temp, budget_checker=lambda _edition: False)
         self.assertFalse(retry)
-        self.assertEqual(reasons, [])
-        self.assertEqual(checked_dates, [daily_guard.today_et_date()])
+        self.assertEqual(reasons, ['edition_exists_today'])
+        self.assertEqual(checked_dates, [], 'a stored edition skips before content scoring')
 
 
 if __name__ == '__main__':
