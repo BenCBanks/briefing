@@ -75,6 +75,25 @@ class TryRealTests(unittest.TestCase):
         self.assertIn('Length: requested 750 words, got 400, lost at stage writing', output.getvalue())
         self.assertIn('Length stages: ', output.getvalue())
 
+    def test_episode_report_prints_each_offline_voice_rule_result(self):
+        opening = 'Instant payment networks move instructions between banks.'
+        closing = 'Shared rules coordinate how banks settle a payment.'
+        middle = 'Banks compare each instruction with account records before settlement.'
+        transcript = ' '.join([opening] + [middle] * 40 + [closing])
+        result = {'word_count': len(transcript.split()), 'duration_minutes': 3,
+                  'requested_minutes': 3, 'target_words': 500, 'transcript': transcript,
+                  'title': 'How payment networks work', 'chapters': [{'title': 'Bank settlement',
+                    'sentences': [{'text': opening, 'kind': 'opening'},
+                                  {'text': middle, 'kind': 'claim'},
+                                  {'text': closing, 'kind': 'closing'}]}]}
+        output = StringIO()
+        with redirect_stdout(output):
+            _print_result('episode', result, {'daily': {'estimated_cost_usd': 0}}, 0)
+        self.assertIn('Voice rules: PASS (5/5;', output.getvalue())
+        for name in ('direct_opening', 'no_rhetorical_question_opener',
+                     'no_disclaimer_ending', 'no_repeated_headline', 'minimum_words'):
+            self.assertIn(name + '=pass', output.getvalue())
+
     def test_refuses_live_state_root_and_children(self):
         live = Path.home() / '.local' / 'state' / 'briefing'
         for path in (live, live / 'status.json'):
