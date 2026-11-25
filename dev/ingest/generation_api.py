@@ -35,7 +35,7 @@ MAX_PROFILE_BYTES = 64_000
 MAX_GENERATION_SECONDS = 180
 GENERATION_FINALIZE_RESERVE_SECONDS = 10
 FEED_FETCH_BUDGET_SECONDS = 60
-ARTICLE_EXTRACTION_BUDGET_SECONDS = 45
+ARTICLE_EXTRACTION_BUDGET_SECONDS = 80
 MAX_GEMINI_CALLS_PER_RUN = 40
 MAX_GEMINI_CALLS_WITH_FILL = 40
 MAX_ARTICLE_FETCHES_PER_RUN = 24
@@ -1117,6 +1117,14 @@ def mark_edition_seen(profile_id, edition_id, revision_id, *, now=None, profile_
             lock_stream.close()
 
 
+def _daily_generation_deadlines(started):
+    """Reserve the final thirty seconds for writing before the job wall-clock cap."""
+    writer_deadline = started + MAX_GENERATION_SECONDS - GENERATION_FINALIZE_RESERVE_SECONDS
+    article_deadline = min(writer_deadline,
+                           started + FEED_FETCH_BUDGET_SECONDS + ARTICLE_EXTRACTION_BUDGET_SECONDS)
+    return writer_deadline, article_deadline
+
+
 def _run_job(job_id, profile, directory, generate=None, registry=None, is_default=False,
              publish_default=False, shared_context=None):
     # This coordinator only creates daily editions. Reader-triggered rebuilds
@@ -1134,9 +1142,7 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
     budget = {'calls': 0, 'limit': 0}
     stage = 'initialization'
     early_articles = None
-    writer_deadline = started + MAX_GENERATION_SECONDS - GENERATION_FINALIZE_RESERVE_SECONDS
-    article_deadline = min(writer_deadline,
-                           started + FEED_FETCH_BUDGET_SECONDS + ARTICLE_EXTRACTION_BUDGET_SECONDS)
+    writer_deadline, article_deadline = _daily_generation_deadlines(started)
     try:
         from .flags import setting
         budget['limit'] = setting('gemini_calls_per_run')
