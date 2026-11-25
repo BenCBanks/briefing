@@ -22,9 +22,9 @@ are unavailable and no account state is created.
   log, response, job payload or ledger record.
 - A successful login creates a random server-side session. The browser receives
   only an opaque session ID in an `HttpOnly; SameSite=Lax` cookie, with `Secure`
-  set on HTTPS requests. The
-  session store contains account ID, creation, expiry, last-seen and a CSRF
-  secret. Login rotates the session ID, so a pre-login session cannot be fixed.
+  set on HTTPS requests. The session store contains account ID, creation,
+  expiry, last-seen and a CSRF secret. Login rotates the session ID, so a
+  pre-login session cannot be fixed.
 - Mutating account routes require the session's CSRF token in a header or body
   field. Cross-site requests without that token fail before state changes.
 - Login attempts are limited independently by client IP and normalized account
@@ -88,9 +88,9 @@ The reader directory holds that reader's profile, episodes, audio, library,
 corrections and exportable usage attribution. Account export is a bounded JSON
 snapshot of that reader's own profile, episode jobs, current editions, library
 entries, corrections and usage attribution. It contains no audio binaries,
-password hash, session secret, invite code or provider data. Delete removes the account record, sessions, reader
-directory and account usage attribution; the global ledger keeps its aggregate
-cost history needed for the service cap.
+password hash, session secret, invite code or provider data. Delete removes the
+account record, sessions, reader directory and account usage attribution; the
+global ledger keeps its aggregate cost history needed for the service cap.
 
 ## Rollout and tests
 
