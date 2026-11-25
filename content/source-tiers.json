@@ -203,6 +203,17 @@
       "evidence_url": "https://archpaper.com/",
       "rights_status": "unverified"
     },
+    "arm.com": {
+      "tier": "vendor",
+      "origin": "arm.com",
+      "reason": "Arm publishes first-party product and research material; useful for its own claims, but never a sole source for a story.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://arm.com/",
+      "rights_status": "unverified"
+    },
     "arsenal.com": {
       "tier": "primary",
       "origin": "arsenal.com",
@@ -627,6 +638,17 @@
       "evidence_url": "https://calculatedrisk.substack.com/",
       "rights_status": "unverified"
     },
+    "carbonbrief.org": {
+      "tier": "trade",
+      "origin": "carbonbrief.org",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://carbonbrief.org/",
+      "rights_status": "unverified"
+    },
     "cbsnews.com": {
       "tier": "major",
       "origin": "cbsnews.com",
@@ -726,6 +748,17 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://cisa.gov/",
+      "rights_status": "unverified"
+    },
+    "cleanenergywire.org": {
+      "tier": "trade",
+      "origin": "cleanenergywire.org",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://cleanenergywire.org/",
       "rights_status": "unverified"
     },
     "clevelandfed.org": {
@@ -861,6 +894,17 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://cotality.com/",
+      "rights_status": "unverified"
+    },
+    "cset.georgetown.edu": {
+      "tier": "primary",
+      "origin": "cset.georgetown.edu",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://cset.georgetown.edu/",
       "rights_status": "unverified"
     },
     "cutimes.com": {
@@ -1062,6 +1106,17 @@
       "evidence_url": "https://edpb.europa.eu/",
       "rights_status": "unverified"
     },
+    "eetimes.com": {
+      "tier": "trade",
+      "origin": "eetimes.com",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://eetimes.com/",
+      "rights_status": "unverified"
+    },
     "emvco.com": {
       "tier": "primary",
       "origin": "emvco.com",
@@ -1104,6 +1159,17 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://enr.com/",
+      "rights_status": "unverified"
+    },
+    "esa.int": {
+      "tier": "primary",
+      "origin": "esa.int",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://esa.int/",
       "rights_status": "unverified"
     },
     "espn.com": {
@@ -1322,6 +1388,17 @@
       "evidence_url": "https://finextra.com/",
       "rights_status": "unverified"
     },
+    "finra.org": {
+      "tier": "primary",
+      "origin": "finra.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://finra.org/",
+      "rights_status": "unverified"
+    },
     "fintechbrainfood.com": {
       "tier": "blog",
       "origin": "fintechbrainfood.com",
@@ -1459,9 +1536,9 @@
       "origin": "fsb.org",
       "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
       "basis": [
-        "great-sources-2026-11-17"
+        "feed-coverage-2026-11-25"
       ],
-      "reviewed_at": "2026-11-18",
+      "reviewed_at": "2026-11-25",
       "evidence_url": "https://fsb.org/",
       "rights_status": "unverified"
     },
@@ -1510,6 +1587,17 @@
       "evidence_url": "https://globalpayments.com/",
       "rights_status": "unverified"
     },
+    "google.com": {
+      "tier": "vendor",
+      "origin": "google.com",
+      "reason": "Google publishes first-party product and research material; useful for its own claims, but never a sole source for a story.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://google.com/",
+      "rights_status": "unverified"
+    },
     "governing.com": {
       "tier": "trade",
       "origin": "governing.com",
@@ -1530,6 +1618,17 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://greenbuildingadvisor.com/",
+      "rights_status": "unverified"
+    },
+    "grist.org": {
+      "tier": "trade",
+      "origin": "grist.org",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://grist.org/",
       "rights_status": "unverified"
     },
     "hai.stanford.edu": {
@@ -1687,6 +1786,17 @@
       "evidence_url": "https://ico.org.uk/",
       "rights_status": "unverified"
     },
+    "ieee.org": {
+      "tier": "primary",
+      "origin": "ieee.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://ieee.org/",
+      "rights_status": "unverified"
+    },
     "imf.org": {
       "tier": "primary",
       "origin": "imf.org",
@@ -1729,6 +1839,17 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://independentmail.com/",
+      "rights_status": "unverified"
+    },
+    "insideclimatenews.org": {
+      "tier": "trade",
+      "origin": "insideclimatenews.org",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://insideclimatenews.org/",
       "rights_status": "unverified"
     },
     "insurancejournal.com": {
@@ -1806,6 +1927,17 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://jlconline.com/",
+      "rights_status": "unverified"
+    },
+    "jpl.nasa.gov": {
+      "tier": "primary",
+      "origin": "jpl.nasa.gov",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://jpl.nasa.gov/",
       "rights_status": "unverified"
     },
     "jpmorgan.com": {
@@ -2066,10 +2198,21 @@
       "origin": "medpac.gov",
       "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
       "basis": [
-        "great-sources-2026-11-17"
+        "feed-coverage-2026-11-25"
       ],
-      "reviewed_at": "2026-11-18",
+      "reviewed_at": "2026-11-25",
       "evidence_url": "https://medpac.gov/",
+      "rights_status": "unverified"
+    },
+    "micron.com": {
+      "tier": "vendor",
+      "origin": "micron.com",
+      "reason": "Micron publishes first-party product and research material; useful for its own claims, but never a sole source for a story.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://micron.com/",
       "rights_status": "unverified"
     },
     "minneapolisfed.org": {
@@ -2407,6 +2550,17 @@
       "evidence_url": "https://nufc.co.uk/",
       "rights_status": "unverified"
     },
+    "nvidia.com": {
+      "tier": "vendor",
+      "origin": "nvidia.com",
+      "reason": "NVIDIA publishes first-party product and research material; useful for its own claims, but never a sole source for a story.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://nvidia.com/",
+      "rights_status": "unverified"
+    },
     "nytimes.com": {
       "tier": "major",
       "origin": "nytimes.com",
@@ -2442,14 +2596,13 @@
       "rights_status": "unverified"
     },
     "openai.com": {
-      "tier": "primary",
+      "tier": "vendor",
       "origin": "openai.com",
-      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "reason": "OpenAI publishes first-party product and research material; useful for its own claims, but never a sole source for a story.",
       "basis": [
-        "great-sources-2026-11-17",
-        "universal-sourcing-2026-11-17"
+        "feed-coverage-2026-11-25"
       ],
-      "reviewed_at": "2026-11-18",
+      "reviewed_at": "2026-11-25",
       "evidence_url": "https://openai.com/",
       "rights_status": "unverified"
     },
@@ -2464,6 +2617,17 @@
       "evidence_url": "https://osha.gov/",
       "rights_status": "unverified"
     },
+    "ourworldindata.org": {
+      "tier": "primary",
+      "origin": "ourworldindata.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://ourworldindata.org/",
+      "rights_status": "unverified"
+    },
     "outsideonline.com": {
       "tier": "trade",
       "origin": "outsideonline.com",
@@ -2473,6 +2637,17 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://outsideonline.com/",
+      "rights_status": "unverified"
+    },
+    "payloadspace.com": {
+      "tier": "trade",
+      "origin": "payloadspace.com",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://payloadspace.com/",
       "rights_status": "unverified"
     },
     "paymentsdive.com": {
@@ -2818,6 +2993,17 @@
       "evidence_url": "https://runnersworld.com/",
       "rights_status": "unverified"
     },
+    "satellitetoday.com": {
+      "tier": "trade",
+      "origin": "satellitetoday.com",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://satellitetoday.com/",
+      "rights_status": "unverified"
+    },
     "schneier.com": {
       "tier": "blog",
       "origin": "schneier.com",
@@ -2897,6 +3083,39 @@
       "evidence_url": "https://sec.okta.com/",
       "rights_status": "unverified"
     },
+    "semiengineering.com": {
+      "tier": "trade",
+      "origin": "semiengineering.com",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://semiengineering.com/",
+      "rights_status": "unverified"
+    },
+    "semiwiki.com": {
+      "tier": "trade",
+      "origin": "semiwiki.com",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://semiwiki.com/",
+      "rights_status": "unverified"
+    },
+    "servethehome.com": {
+      "tier": "trade",
+      "origin": "servethehome.com",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://servethehome.com/",
+      "rights_status": "unverified"
+    },
     "shelterforce.org": {
       "tier": "trade",
       "origin": "shelterforce.org",
@@ -2972,6 +3191,50 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://sofi.com/",
+      "rights_status": "unverified"
+    },
+    "spaceflightnow.com": {
+      "tier": "trade",
+      "origin": "spaceflightnow.com",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://spaceflightnow.com/",
+      "rights_status": "unverified"
+    },
+    "spacenews.com": {
+      "tier": "trade",
+      "origin": "spacenews.com",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://spacenews.com/",
+      "rights_status": "unverified"
+    },
+    "spacepolicyonline.com": {
+      "tier": "trade",
+      "origin": "spacepolicyonline.com",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://spacepolicyonline.com/",
+      "rights_status": "unverified"
+    },
+    "spectrum.ieee.org": {
+      "tier": "primary",
+      "origin": "spectrum.ieee.org",
+      "reason": "Institution or original-data publisher; primary only for its own releases, data or research.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://spectrum.ieee.org/",
       "rights_status": "unverified"
     },
     "sportico.com": {
@@ -3297,6 +3560,17 @@
       "evidence_url": "https://toasttab.com/",
       "rights_status": "unverified"
     },
+    "tomshardware.com": {
+      "tier": "trade",
+      "origin": "tomshardware.com",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://tomshardware.com/",
+      "rights_status": "unverified"
+    },
     "tottenhamhotspur.com": {
       "tier": "primary",
       "origin": "tottenhamhotspur.com",
@@ -3450,6 +3724,17 @@
       ],
       "reviewed_at": "2026-11-18",
       "evidence_url": "https://wsj.com/",
+      "rights_status": "unverified"
+    },
+    "yaleclimateconnections.org": {
+      "tier": "trade",
+      "origin": "yaleclimateconnections.org",
+      "reason": "Specialist reporting publisher; subject expertise and article provenance still require checking.",
+      "basis": [
+        "feed-coverage-2026-11-25"
+      ],
+      "reviewed_at": "2026-11-25",
+      "evidence_url": "https://yaleclimateconnections.org/",
       "rights_status": "unverified"
     },
     "zelle.com": {

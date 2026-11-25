@@ -361,15 +361,26 @@ class WriterTests(unittest.TestCase):
 
     def test_short_real_article_or_two_readable_sources_can_qualify(self):
         from ingest.write_edition import _story_evidence_is_sufficient
-        def citation(chars, sentences):
+        def citation(chars, sentences, tier='trade'):
             return {'source_class': 'news', 'evidence_depth': 'full-text',
-                    'evidence_chars': chars, 'source_sentence_count': sentences}
+                    'evidence_chars': chars, 'source_sentence_count': sentences,
+                    'credibility': {'tier': tier}}
         accepted, _ = _story_evidence_is_sufficient([citation(402, 3)])
         self.assertTrue(accepted)
         accepted, _ = _story_evidence_is_sufficient([citation(240, 2), citation(250, 3)])
         self.assertTrue(accepted)
         rejected, _ = _story_evidence_is_sufficient([citation(399, 3)])
         self.assertFalse(rejected)
+
+    def test_vendor_sources_cannot_be_the_only_evidence_for_a_story(self):
+        from ingest.write_edition import _story_evidence_is_sufficient, _source_status
+        vendor = {'source_class': 'news', 'evidence_depth': 'full-text', 'evidence_chars': 800,
+                  'source_sentence_count': 8, 'credibility': {'tier': 'vendor'}, 'owner': 'vendor'}
+        primary = {'source_class': 'news', 'evidence_depth': 'full-text', 'evidence_chars': 402,
+                   'source_sentence_count': 3, 'credibility': {'tier': 'primary'}, 'owner': 'publisher'}
+        self.assertFalse(_story_evidence_is_sufficient([vendor])[0])
+        self.assertTrue(_story_evidence_is_sufficient([vendor, primary])[0])
+        self.assertEqual(_source_status([vendor, {**vendor, 'owner': 'other-vendor'}])[0], 'single-source')
 
     def test_quick_hits_keep_only_clean_feed_sentences_and_links(self):
         from ingest.write_edition import _quick_hit_items

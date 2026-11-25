@@ -13,7 +13,7 @@ from urllib.parse import urlsplit
 from . import local_sources
 
 TIERS_PATH = Path(__file__).resolve().parents[2] / 'content/source-tiers.json'
-AUTHORITY = {'primary': 40, 'major': 32, 'trade': 23, 'blog': 10, 'unknown': 0}
+AUTHORITY = {'primary': 40, 'major': 32, 'trade': 23, 'blog': 10, 'vendor': 6, 'unknown': 0}
 WIRE_NAMES = {'reuters': 'reuters.com', 'associated press': 'apnews.com',
               'ap': 'apnews.com', 'afp': 'afp.com', 'agence france-presse': 'afp.com',
               'bloomberg': 'bloomberg.com'}
@@ -91,7 +91,7 @@ def news_quality_reason(item, source=None, *, now=None, topic=None, require_revi
         return 'affiliate_promo'
     if assessment['authority']['risks']:
         return 'source_risk'
-    if require_reviewed_tier and assessment['tier'] not in {'primary', 'major', 'trade'}:
+    if require_reviewed_tier and assessment['tier'] not in {'primary', 'major', 'trade', 'vendor'}:
         return 'low_tier'
     if re.search(r'\b(?:payments?|banking|banks?)\b', topic_text, re.I) and CONSUMER_CARD.search(text):
         # A reviewed regulator or an explicit industry event may cover cards;

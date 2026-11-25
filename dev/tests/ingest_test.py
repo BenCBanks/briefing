@@ -187,12 +187,14 @@ class IngestTests(unittest.TestCase):
         self.assertTrue(next(source for source in sources if source['id'] == 'fedreg-rss-cms')['enabled'])
         self.assertEqual(next(source for source in sources if source['id'] == 'fedreg-rss-cms')['source_class'], 'official')
         self.assertEqual(next(source for source in sources if source['id'] == 'fedreg-rss-cms')['article_access'], 'full-text')
+        self.assertTrue(next(source for source in sources if source['id'] == 'cms-newsroom')['enabled'])
+        self.assertEqual(next(source for source in sources if source['id'] == 'cms-newsroom')['source_tier'], 'primary')
         registry_doc = json.loads((Path(__file__).resolve().parents[2] / 'content/sources-registry.json').read_text())
         watched = {row['id'] for row in registry_doc.get('watched_pages', [])}
         self.assertEqual(len(watched), 6)
         self.assertIn('fdic-national-rates', watched)
         self.assertEqual(len(watched), 6)
-        for skipped in ('cms-newsroom', 'thepointsguy-deals', 'frankfurter', 'wikipedia-feed', 'newscientist'):
+        for skipped in ('thepointsguy-deals', 'frankfurter', 'wikipedia-feed', 'newscientist'):
             self.assertFalse(next(source for source in sources if source['id'] == skipped)['enabled'])
         probation = [source for source in sources if source.get('tier') == 'probation']
         self.assertEqual({source['id'] for source in probation}, {'bpc-health'})
@@ -380,6 +382,40 @@ class IngestTests(unittest.TestCase):
         parsed = core.parse_source(atom, atom_source, NOW)
         self.assertEqual(parsed[0]['url'], 'https://news.example.test/rail')
         self.assertEqual(parsed[0]['snippet'], 'Station service changes')
+
+    def test_publisher_feed_html_titles_and_malformed_anchor_links_are_sanitized(self):
+        cms = {**SOURCE, 'id': 'cms-newsroom', 'name': 'CMS',
+               'url': 'https://www.cms.gov/newsroom/rss-feeds'}
+        payload = b'''<rss><channel><item>
+          <title>&lt;strong&gt;Coverage rule update&lt;/strong&gt; for fictional readers</title>
+          <link>&amp;lt;a href=&amp;quot;/newsroom/updates/coverage&amp;quot;&amp;gt;Read more&amp;lt;/a&amp;gt;</link>
+          <description>Fictional notice.</description>
+          <pubDate>Mon, 16 Nov 2026 10:00:00 GMT</pubDate></item></channel></rss>'''
+        item = core.parse_source(payload, cms, NOW)[0]
+        self.assertEqual(item['title'], 'Coverage rule update for fictional readers')
+        self.assertEqual(item['url'], 'https://www.cms.gov/newsroom/updates/coverage')
+        fierce = {**cms, 'id': 'fierce-healthcare', 'url': 'https://www.fiercehealthcare.com/rss/xml'}
+        fierce_item = core.parse_source(rss('&lt;b&gt;Payer policy&lt;/b&gt; update',
+            link='&amp;lt;a href=&amp;quot;/news/fictional-rule&amp;quot;&amp;gt;Read more&amp;lt;/a&amp;gt;'),
+            fierce, NOW)[0]
+        self.assertEqual(fierce_item['title'], 'Payer policy update')
+        self.assertEqual(fierce_item['url'], 'https://www.fiercehealthcare.com/news/fictional-rule')
+
+    def test_stat_plus_markers_and_broad_feed_keyword_filters_run_before_storage(self):
+        stat = {**SOURCE, 'id': 'statnews', 'item_exclude_markers': ['STAT+']}
+        payload = b'''<rss><channel>
+          <item><title>STAT+ exclusive policy report</title><link>https://news.example.test/plus</link></item>
+          <item><title>Public health policy report</title><link>https://news.example.test/open</link></item>
+        </channel></rss>'''
+        self.assertEqual([row['title'] for row in core.parse_source(payload, stat, NOW)],
+                         ['Public health policy report'])
+        firehose = {**SOURCE, 'item_keyword_filter': ['semiconductor', 'chip design']}
+        broad = b'''<rss><channel>
+          <item><title>New accelerator chip design</title><link>https://news.example.test/chip</link></item>
+          <item><title>General model research</title><link>https://news.example.test/model</link></item>
+        </channel></rss>'''
+        self.assertEqual([row['title'] for row in core.parse_source(broad, firehose, NOW)],
+                         ['New accelerator chip design'])
 
     def test_feed_full_content_is_transient_and_snippets_are_sanitized(self):
         paragraphs = ' '.join(f'<p>Verified feed detail number {index} with housing facts &amp; policy context.</p>'

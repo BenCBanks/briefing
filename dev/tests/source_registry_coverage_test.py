@@ -45,11 +45,13 @@ class SourceRegistryCoverageTests(unittest.TestCase):
                             for row in added))
         self.assertTrue(all(row.get('format') in {'rss', 'atom'} for row in added),
                         'the batch contains feeds, not API or retrieval endpoints')
-        self.assertTrue(all(not row.get('allow_article_fetch') for row in added),
-                        'this batch uses headline/snippet inputs only until live rights checks')
-        self.assertTrue(all('headline, short snippet and link only' in row['license_note']
+        self.assertTrue(all(row.get('allow_article_fetch') == (row.get('article_access') in {'full-text', 'transient-read'})
+                            for row in added),
+                        'article fetch settings match the access mode')
+        self.assertTrue(all(('headline, short snippet and link only' in row['license_note'] or
+                             'terms need review' in row['license_note'])
                             for row in added if row['enabled']),
-                        'an added source is enabled only where the research explicitly permits short snippets')
+                        'enabled feeds retain a bounded-use note and record unresolved terms')
         self.assertTrue(all(row.get('disable_reason') for row in added if not row['enabled']))
 
     def test_coverage_spans_requested_any_domain_areas(self):
@@ -78,6 +80,33 @@ class SourceRegistryCoverageTests(unittest.TestCase):
         self.assertTrue(sports_business)
         self.assertTrue(all(row['enabled'] is False for row in sports_business),
                         'sports-business candidates need endpoint/license confirmation')
+
+    def test_feed_survey_sources_have_explicit_tiers_and_guardrails(self):
+        source_ids = {
+            'fsb-feed', 'medpac-feed', 'ecb-working-papers', 'finra-news', 'arxiv-qfin-cp',
+            'arxiv-qfin-rm', 'arxiv-qfin-tr', 'google-ai-news', 'nvidia-blog',
+            'nvidia-technical-blog', 'arm-newsroom', 'micron-press', 'ieee-spectrum-semiconductors',
+            'ieee-spectrum-computing', 'semiconductor-engineering', 'ee-times', 'semiwiki',
+            'servethehome', 'cset-chips', 'fedreg-bis', 'toms-hardware', 'fedreg-epa',
+            'carbon-brief', 'inside-climate-news', 'grist-climate', 'clean-energy-wire',
+            'our-world-data', 'yale-climate', 'nasa-science', 'nasa-space-station', 'jpl-news',
+            'esa-top-news', 'nasa-oig', 'space-news', 'payload-space', 'space-policy-online',
+            'spaceflight-now', 'via-satellite', 'statnews', 'cms-newsroom',
+        }
+        for source_id in source_ids:
+            with self.subTest(source=source_id):
+                self.assertTrue(self.by_id[source_id].get('source_tier'))
+                self.assertTrue(self.by_id[source_id].get('reuse_terms'))
+        vendor_ids = {'google-ai-news', 'openai-news', 'nvidia-blog', 'nvidia-technical-blog',
+                      'arm-newsroom', 'micron-press'}
+        self.assertTrue(all(self.by_id[source_id]['source_tier'] == 'vendor' for source_id in vendor_ids))
+        for source_id in ('arxiv-csai', 'openai-news', 'toms-hardware'):
+            self.assertTrue(self.by_id[source_id].get('item_keyword_filter'),
+                            f'{source_id} is filtered before broad feed items enter retrieval')
+        self.assertIn('STAT+', self.by_id['statnews']['item_exclude_markers'])
+        self.assertTrue(self.by_id['cms-newsroom']['enabled'], 'CMS links are normalized on ingest')
+        self.assertFalse(self.by_id['health-affairs']['enabled'])
+        self.assertFalse(self.by_id['eia-today-in-energy']['enabled'])
 
     def test_linter_passes_and_validates_new_metadata_fields(self):
         rights = (ROOT / 'docs/source-rights.md').read_text(encoding='utf-8')

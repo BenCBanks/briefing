@@ -645,12 +645,18 @@ def _validated_quote(raw, evidence):
 
 
 def _source_status(citations):
+    citations = [citation for citation in citations if not _vendor_citation(citation)]
     owners = {citation['owner'] for citation in citations}
     if len(owners) >= 2:
         return 'corroborated', f'{len(owners)} independent publishers'
     if citations and all(citation['official'] for citation in citations):
         return 'official', 'primary authority'
     return 'single-source', 'one publisher'
+
+
+def _vendor_citation(citation):
+    credibility = citation.get('credibility') if isinstance(citation.get('credibility'), dict) else {}
+    return credibility.get('tier') == 'vendor' or citation.get('source_tier') == 'vendor'
 
 
 def _source_label(status, detail):
@@ -1013,17 +1019,20 @@ def _news_evidence_depth(citations):
 
 
 def _story_evidence_is_sufficient(citations):
-    depth = _news_evidence_depth(citations)
+    # Vendor statements can add useful context, but cannot be the only evidence
+    # behind a story. Require the normal evidence standard from non-vendor sources.
+    supporting = [row for row in citations if not _vendor_citation(row)]
+    depth = _news_evidence_depth(supporting)
     substantial_source = any(
         row.get('source_class') != 'explainer' and row.get('evidence_depth') in {'full-text', 'feed-full'} and
         int(row.get('source_sentence_count', 0)) >= MIN_SINGLE_SOURCE_EVIDENCE_SENTENCES and
         int(row.get('evidence_chars', 0)) >= MIN_SINGLE_SOURCE_EVIDENCE_CHARS
-        for row in citations)
+        for row in supporting)
     corroborating_sources = sum(
         row.get('source_class') != 'explainer' and row.get('evidence_depth') in {'full-text', 'feed-full'} and
         int(row.get('source_sentence_count', 0)) >= MIN_CORROBORATING_SOURCE_SENTENCES and
         int(row.get('evidence_chars', 0)) >= MIN_CORROBORATING_SOURCE_CHARS
-        for row in citations)
+        for row in supporting)
     depth['qualifies_as_single_source'] = bool(substantial_source)
     depth['qualifies_as_corroborated'] = corroborating_sources >= 2
     return bool(substantial_source or corroborating_sources >= 2), depth
