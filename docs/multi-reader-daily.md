@@ -66,11 +66,11 @@ reader states, topics attempted, shared retrieval cost and per-reader writing
 cost. A crashed run can be retried from the next scheduled window; it must not
 reuse a partial reader edition as today's result.
 
-The shared cache is disposable and keyed by the run date, normalized topic
-identity, exact source-pack version, and exact freshness window (for example,
-`90d`). A cache entry for another source-pack version or freshness window is a
-miss even when the topic is identical. It is never used by the accounts-off
-path.
+The shared cache is disposable and lives only for one daily process. It is keyed
+by the run date, normalized topic identity, exact source-pack version, and exact
+freshness window (for example, `90d`). A cache entry for another source-pack
+version or freshness window is a miss even when the topic is identical. It is
+never used by the accounts-off path.
 Concurrent daily starts take the existing daily-run lock; only one union pass
 may run at a time.
 
@@ -93,10 +93,13 @@ Using $0.09 as the per-reader planning cost:
 | 50 | $4.50 | No |
 | 200 | $18.00 | No |
 
-The operator setting is a per-reader reserve multiplied by the stable reader
-snapshot. It is bounded by the remaining global daily and monthly caps, and the
-existing $0.40 six o'clock reserve remains the minimum protected pool until the
-setting is deliberately raised. A run that cannot fund the next reader writes
+The operator setting `BRIEFING_ACCOUNT_DAILY_RESERVE_USD` is a per-reader
+reserve (default `$0.40`) multiplied by the stable reader snapshot. It is
+bounded by the remaining global daily and monthly caps, and the existing `$0.40`
+six o'clock reserve remains the minimum protected pool until the setting is
+deliberately raised. Each reader gets at most one per-reader share in stable
+rotation; unused balance remains available to readers later in that rotation.
+A run that cannot fund the next reader writes
 `not_today` for that reader and continues the stable rotation; it never creates
 a half-funded edition. Retrieval is shared, so overlapping topics reduce the
 actual cost below this conservative fan-out estimate.

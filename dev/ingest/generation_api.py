@@ -291,6 +291,31 @@ def _public_daily_run(value):
     if narration_status == 'fallback' and narration_reason is None:
         narration_reason = 'narration_failed'
 
+    multi_reader = None
+    raw_multi = value.get('multi_reader')
+    if isinstance(raw_multi, dict):
+        multi_date = raw_multi.get('local_date')
+        raw_rows = raw_multi.get('readers')
+        if isinstance(multi_date, str) and re.fullmatch(r'\d{4}-\d{2}-\d{2}', multi_date):
+            safe_rows = []
+            for row in raw_rows[:200] if isinstance(raw_rows, list) else []:
+                if not isinstance(row, dict):
+                    continue
+                reader_id = row.get('reader_id')
+                status = row.get('status')
+                cost = row.get('cost_usd')
+                if (not isinstance(reader_id, str) or not re.fullmatch(r'[a-f0-9]{8,12}', reader_id) or
+                        status not in {'ready', 'not_today', 'failed'}):
+                    continue
+                if isinstance(cost, bool) or not isinstance(cost, (int, float)) or not 0 <= cost < float('inf'):
+                    cost = 0.0
+                reason = row.get('reason')
+                if not isinstance(reason, str) or not re.fullmatch(r'[a-z][a-z0-9_]{0,60}', reason):
+                    reason = None
+                safe_rows.append({'reader_id': reader_id, 'status': status,
+                                  'cost_usd': round(cost, 8), 'reason': reason})
+            multi_reader = {'local_date': multi_date, 'readers': safe_rows}
+
     profile_rows = []
     raw_profile_rows = value.get('profile_runs')
     if isinstance(raw_profile_rows, list):
@@ -314,6 +339,11 @@ def _public_daily_run(value):
                 'topic_count': count_brief(row.get('topic_count'), 12),
                 'reused_from_profile_id': reused,
             })
+    profiles_attempted = count_brief(value.get('profiles_attempted'), MAX_KNOWN_CLIENT_PROFILES)
+    profiles_completed = count_brief(value.get('profiles_completed'), MAX_KNOWN_CLIENT_PROFILES)
+    if multi_reader is not None:
+        profiles_attempted = len(multi_reader['readers'])
+        profiles_completed = sum(row['status'] == 'ready' for row in multi_reader['readers'])
     topic_supply = []
     raw_topic_supply = value.get('topic_supply')
     if isinstance(raw_topic_supply, list):
@@ -331,7 +361,7 @@ def _public_daily_run(value):
                 'state': row.get('state') if row.get('state') in {'covered', 'limited', 'quiet'} else None,
                 'gap': gap[:240] if isinstance(gap, str) else None,
             })
-    return {
+    public = {
         'local_date': local_date,
         'status': value.get('status') if isinstance(value.get('status'), str) and value.get('status') in {'complete', 'failed', 'timeout'} else None,
         'stories': count('stories', 1000),
@@ -345,10 +375,13 @@ def _public_daily_run(value):
         },
         'daily_narration': {'status': narration_status, 'reason': narration_reason},
         'daily_audio': {'audio_status': audio_status, 'ready_at': ready_at},
-        'profiles_attempted': count_brief(value.get('profiles_attempted'), MAX_KNOWN_CLIENT_PROFILES),
-        'profiles_completed': count_brief(value.get('profiles_completed'), MAX_KNOWN_CLIENT_PROFILES),
+        'profiles_attempted': profiles_attempted,
+        'profiles_completed': profiles_completed,
         'profile_runs': profile_rows,
     }
+    if multi_reader is not None:
+        public['multi_reader'] = multi_reader
+    return public
 
 
 def count_brief(raw, maximum):
@@ -372,6 +405,30 @@ def _daily_monitor_active():
     with _jobs_lock:
         return ({'started_at': _active_daily_run.get('started_at')}
                 if isinstance(_active_daily_run, dict) else None)
+
+
+def _shared_items_for_profile(shared_context, profile):
+    """Select only this profile's topic slices from an optional shared pool."""
+    pool = shared_context.get('topic_items') if isinstance(shared_context, dict) else None
+    if not isinstance(pool, dict):
+        return None
+    topic_ids = {row.get('id') for row in profile.get('topics', [])
+                 if isinstance(row, dict) and isinstance(row.get('id'), str)}
+    selected = []
+    seen = set()
+    for topic_id in sorted(topic_ids):
+        rows = pool.get(topic_id)
+        if not isinstance(rows, list):
+            continue
+        for item in rows:
+            if not isinstance(item, dict):
+                continue
+            identity = (item.get('source_id'), item.get('url'))
+            if identity in seen:
+                continue
+            seen.add(identity)
+            selected.append(item)
+    return selected
 
 
 def status_response(path=None, *, now=None):
@@ -1190,7 +1247,8 @@ def _run_job(job_id, profile, directory, generate=None, registry=None, is_defaul
             from .flags import flag_enabled
             if not flag_enabled('writer'):
                 raise RuntimeError('writer_disabled')
-            transient_items = core.load_store()
+            shared_items = _shared_items_for_profile(shared_context, profile)
+            transient_items = shared_items if shared_items is not None else core.load_store()
             for item in transient_items:
                 if early_articles is not None and early_articles.has_prefetch(item.get('url', '')):
                     item['prefetched_article'] = True

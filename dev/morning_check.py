@@ -137,6 +137,29 @@ def daily_audio_line(edition, expected_date, health=None, status=None):
     return f'Audio: {state_label} ({plain_reason or "reason unavailable"})'
 
 
+def multi_reader_lines(status, expected_date):
+    daily_run = status.get('daily_run') if isinstance(status, dict) else None
+    multi = daily_run.get('multi_reader') if isinstance(daily_run, dict) else None
+    if not isinstance(multi, dict) or multi.get('local_date') != expected_date.isoformat():
+        return []
+    readers = multi.get('readers') if isinstance(multi.get('readers'), list) else []
+    if not readers:
+        return ['Daily readers: none scheduled']
+    lines = ['Daily readers:']
+    for row in readers:
+        if not isinstance(row, dict):
+            continue
+        reader_id = row.get('reader_id')
+        if not isinstance(reader_id, str) or not re.fullmatch(r'[a-f0-9]{8,12}', reader_id):
+            reader_id = 'unknown'
+        state = row.get('status') if row.get('status') in {'ready', 'not_today', 'failed'} else 'unknown'
+        cost = row.get('cost_usd')
+        if isinstance(cost, bool) or not isinstance(cost, (int, float)) or cost < 0:
+            cost = 0.0
+        lines.append(f'  {reader_id}: {state}, ${cost:.4f}')
+    return lines
+
+
 def get_json(url):
     request = Request(url, headers={'Accept': 'application/json', 'User-Agent': 'BriefingMorningCheck/1.0'})
     try:
@@ -271,6 +294,7 @@ def summarize(base_url, smoke_runner=run_checks, json_fetch=get_json, today=None
     except (OSError, ValueError, TypeError):
         flags_line = 'Non-default flags: unavailable'
     return [story_line, depth_line, status_line, date_line, backup_age_reader(), flags_line, disabled_line, supply_line,
+            *multi_reader_lines(status, expected),
             *health_lines, *local_feed_lines, *content_lines], (0 if passed else 1)
 
 

@@ -39,6 +39,19 @@ def sample_payload():
 
 
 class MorningCheckTests(unittest.TestCase):
+    def test_multi_reader_status_lists_short_ids_and_cost_without_account_details(self):
+        from dev.morning_check import multi_reader_lines
+        today = date(2026, 11, 25)
+        lines = multi_reader_lines({'daily_run': {'multi_reader': {
+            'local_date': today.isoformat(), 'readers': [
+                {'reader_id': 'a1b2c3d4', 'status': 'ready', 'cost_usd': 0.1,
+                 'name': 'private reader', 'email': 'private@example.test'},
+                {'reader_id': 'b1b2c3d4', 'status': 'not_today', 'cost_usd': 0.0},
+            ]}}}, today)
+        self.assertEqual(lines, ['Daily readers:', '  a1b2c3d4: ready, $0.1000',
+                                 '  b1b2c3d4: not_today, $0.0000'])
+        self.assertNotIn('private', '\n'.join(lines))
+
     def setUp(self):
         self.state_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.state_dir.cleanup)

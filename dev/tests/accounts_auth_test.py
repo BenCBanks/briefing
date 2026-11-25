@@ -106,6 +106,18 @@ class AccountAuthTests(unittest.TestCase):
                                           'password': 'strong fictional passphrase'}, headers=headers)
         self.assertIn('Secure', cookie)
 
+    def test_daily_reader_loader_uses_saved_account_profiles(self):
+        from dev import accounts
+        from dev.ingest.generation_api import save_profile
+        account_id = 'a' * 32
+        profile = {'version': 1, 'words': 'Fictional topic interests', 'minutes': 12,
+                   'topics': [{'id': 'fictional-topic', 'label': 'Fictional topic',
+                               'scope': 'Fictional subject'}]}
+        accounts._write('accounts.json', {'reader': {'id': account_id, 'name': 'reader'}})
+        reader_dir = accounts.reader_state_dir(account_id)
+        self.assertEqual(save_profile(profile, path=reader_dir / 'profile.json')[0], 200)
+        self.assertEqual(accounts.daily_readers(), [{'account_id': account_id, 'profile': profile}])
+
     def test_wrong_password_is_generic_and_locks_out(self):
         self.request('POST', '/api/account/signup', {'invite_code': 'fictional-invite', 'account': 'reader-b',
                                                      'password': 'correct horse battery staple'})
