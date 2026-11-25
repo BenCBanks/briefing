@@ -86,6 +86,9 @@ def reader_profile_path(account_id):
 
 def daily_readers():
     """Load bounded account profiles for the opt-in scheduled daily job."""
+    accounts_root = _root(create=False)
+    if accounts_root.is_symlink() or (accounts_root / 'readers').is_symlink():
+        return []
     rows = _read('accounts.json', {})
     if not isinstance(rows, dict):
         return []
