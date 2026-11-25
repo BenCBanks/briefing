@@ -49,6 +49,15 @@ class InterpreterProxyTests(unittest.TestCase):
         self.assertNotIn('secret', str(caught.exception))
         self.assertNotIn('private.invalid', str(caught.exception))
 
+    def test_proxy_error_reason_keeps_only_bounded_status_code_and_diagnostic(self):
+        error = proxy.ProxyError(502, 'invalid_model_response', 'invalid_json', {
+            'request_url': 'https://private.invalid/?key=secret'})
+        self.assertEqual(proxy.safe_proxy_error_reason(error),
+                         'ProxyError:502:invalid_model_response:invalid_json')
+        unsafe = proxy.ProxyError(502, 'upstream_unavailable', 'private key value')
+        self.assertEqual(proxy.safe_proxy_error_reason(unsafe),
+                         'ProxyError:502:upstream_unavailable:unspecified')
+
     def test_default_gemini_transport_pins_host_disables_redirects_and_bounds_body(self):
         class Response:
             status = 200

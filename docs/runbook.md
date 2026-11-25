@@ -34,6 +34,77 @@ Budget about $0.10–$0.15 for a five-minute episode and $0.03–$0.05 for a dai
 the command prints the actual ledger cost, duration, word count, script and
 stage diagnostics. Stop when the configured daily cap is reached.
 
+## Read a daily scorecard
+
+Start with the per-topic supply funnel, then inspect its per-source rows and
+the article-read funnel. These are counts at different stages; a large early
+count does not guarantee a story was selected.
+
+### Per-topic and per-source supply
+
+The per-topic row reports feed items for that topic:
+
+| Field | Meaning |
+|---|---|
+| `fetched` | Items obtained from enabled feeds tagged for the topic. This is item count, not the number of feeds or successful HTTP requests. |
+| `topic_matched` | Items that match the reader's topic terms and scope. |
+| `relevance_passed` | Matched items that pass source-quality, date, and other eligibility checks. |
+| `clustered` | Distinct story clusters after duplicate items are grouped. |
+| `unseen` | Clusters left after recent-repeat suppression. |
+| `candidate_clusters` | The bounded discovery pool offered to article reading and writing. |
+| `selected` | Stories that made it into the edition. |
+
+Drop reasons explain where items left the funnel (for example, low source
+tier, stale date, topic mismatch, or insufficient full-text evidence). Some
+reason counts describe a later check and should not be added to the earlier
+funnel stages as if they were one disjoint total.
+
+Each `source_funnels[topic][source_id]` row explains the same feed-stage flow
+for one source:
+
+- `fetched`: items from that source considered for the topic;
+- `matched`: items that matched the topic;
+- `accepted`: items that passed relevance and eligibility checks;
+- `rejected`: fetched items not accepted (`fetched - accepted`);
+- `rejection_reasons`: counts by recorded reason, including topic mismatch.
+
+Use source rows to distinguish a feed that returned nothing from one that
+returned items the topic or quality checks rejected. These fields do not mean
+that a story was fact-checked or selected.
+
+### Article reads
+
+`article_read_funnel` begins after the bounded candidate plan:
+
+| Field | Meaning |
+|---|---|
+| `candidates_planned` | Candidate stories placed in the article-read plan. |
+| `article_requests_attempted` | Article requests actually started. |
+| `outcome_reasons.ok` | Successful readable article responses; use this as the `article ok` count. |
+| `skipped_for_deadline` | Candidates not started because the article-read deadline had passed. |
+| `skipped_for_host_interval` | Candidates skipped because the same-host politeness interval could not fit the remaining budget. |
+| `extraction_failures` | Started reads that failed for another retrieval/extraction reason. Check `outcome_reasons` for details such as an HTTP error or empty article. |
+| `evidence_too_short` | Candidate stories whose available text did not meet the minimum evidence requirement. This is a story-candidate count, not necessarily one per HTTP request. |
+
+`outcome_reasons` contains request-stage outcomes. A successful read can still
+produce too little evidence, and enough evidence can still be rejected by the
+writer or later content checks. Follow the funnel through `selected` to judge
+the edition result.
+
+### Quick health check
+
+For a normal full-registry daily, a useful first-pass target is:
+
+- more than **150 feed items fetched** across the run;
+- at least **10 successful article reads** (`outcome_reasons.ok`);
+- at least **3 selected stories across the reader's topics**.
+
+These are triage thresholds, not guarantees or hard publication rules. Check
+the per-topic rows for coverage, the source-level reasons for concentrated
+gaps, and `status.json`/the edition date to confirm that the run completed and
+published today's edition. A high fetched count with low `matched`, `ok`, or
+`selected` points to a different stage than a feed-fetch problem.
+
 ## Daily job: rehearsal and authorized execution
 
 For a focused daily/generation run, use an isolated state root and the existing mocks:
