@@ -69,7 +69,7 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
       : section(source, 'function appendEpisodeDoneCard(', 'async function cancelEpisodeJob('))
     + (fs.existsSync(routePath) ? routeSource : section(source, 'async function renderEpisodeRoute(', 'function renderEpisodeRouteFailure('));
   const readyHelpers = fs.existsSync(makingPath)
-    ? section(makingSource, 'export function episodeHasReadyAudio(', 'function failureCopy(')
+    ? section(makingSource, 'export function episodeHasReadyAudio(', 'export function episodeFailureCopy(')
     : source.includes('function episodeHasReadyAudio(') ? section(source, 'function episodeHasReadyAudio(', 'async function pollEpisodeJob(') : '';
   const current = { ...episode, revision_id: 'fictional-r2', script_hash: 'fictional-script-r2',
     audio_recorded: true, audio_status: 'recorded', requested_minutes: 10,
@@ -122,7 +122,7 @@ async function checkJobCardRecordingIdentity(episode, hasCurrentEpisodeRecording
     vm.runInContext('appendEpisodeDoneCard(done, job)', context);
     const rows = findNodes(cards, node => node.className === 'ask-episode-card');
     assert.equal(rows.length, 1, `${control.name}: production history renderer completed`);
-    const action = findNodes(done, node => node.className === 'episode-read-button')[0];
+    const action = findNodes(done, node => String(node.className).split(/\s+/).includes('episode-read-button'))[0];
     assert.ok(action, `${control.name}: the completed transcript has an opening action`);
     action.listeners.click[0]();
     assert.deepEqual(navigations, [`#episode/${id}`], 'the reading action still opens the current episode route');
@@ -191,7 +191,7 @@ async function checkRequestCardStates(hasCurrentEpisodeRecording) {
   const makingSource = fs.existsSync(makingPath) ? fs.readFileSync(makingPath, 'utf8') : source;
   const audioSource = makingSource;
   const audioHelpers = fs.existsSync(makingPath)
-    ? section(audioSource, 'export function episodeHasReadyAudio(', 'function failureCopy(')
+    ? section(audioSource, 'export function episodeHasReadyAudio(', 'export function episodeFailureCopy(')
     : section(audioSource, 'function episodeHasReadyAudio(', 'async function pollEpisodeJob(');
   const requested = [
     '  What changed in the fictional water notice?  \n',

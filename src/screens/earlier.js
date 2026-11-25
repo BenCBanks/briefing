@@ -7,6 +7,8 @@ export function renderEarlierScreen({
 }) {
   let libraryFilter = getLibraryFilter();
   let librarySearchQuery = getLibrarySearchQuery();
+  const heading = node('h1', 'Library');
+  content.append(heading);
   const editions = currentItems(pack.editions).filter(item => !(interestProfile && item.kind === 'weekly' && item.generated !== true));
   const storySectionsFor = item => visibleSections(item).filter(part => part.kind !== 'link');
   const storyCountFor = item => storySectionsFor(item).length;
@@ -60,7 +62,7 @@ export function renderEarlierScreen({
   const savedTab = node('button', 'Saved'); savedTab.type = 'button'; savedTab.setAttribute('aria-pressed', String(libraryFilter === 'saved'));
   const episodesTab = node('button', 'Episodes'); episodesTab.type = 'button';
   filters.setAttribute('role', 'group'); filters.setAttribute('aria-label', 'Library');
-  filters.append(editionsTab, episodesTab, savedTab); content.prepend(filters);
+  filters.append(editionsTab, episodesTab, savedTab); heading.after(filters);
   const search = node('input', null, 'library-search'); search.type = 'search'; search.value = librarySearchQuery;
   search.setAttribute('aria-label', 'Search the Library');
   search.placeholder = 'Search your Library';

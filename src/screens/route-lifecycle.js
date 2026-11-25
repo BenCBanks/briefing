@@ -73,8 +73,8 @@ export function createRouteLifecycleController(app) {
     app.document.body.classList.toggle('is-reader', isReader);
     const pageHeading = app.document.querySelector('[data-page-title]');
     pageHeading.textContent = pageTitle;
-    if (routeName === 'library') { pageHeading.setAttribute('role', 'heading'); pageHeading.setAttribute('aria-level', '1'); }
-    else { pageHeading.removeAttribute('role'); pageHeading.removeAttribute('aria-level'); }
+    pageHeading.removeAttribute('role'); pageHeading.removeAttribute('aria-level');
+    app.document.body.classList.toggle('is-library', routeName === 'library');
     app.document.body.classList.toggle('is-today', routeName === 'today');
     app.document.body.classList.toggle('is-topics', routeName === 'topics');
     app.document.body.classList.toggle('is-episodes-list', routeName === 'episodes');

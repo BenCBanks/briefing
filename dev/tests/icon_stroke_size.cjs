@@ -62,7 +62,7 @@ async function run() {
         const navKey = key === 'on-demand' ? 'on-demand' : key === 'earlier' ? 'library' : key;
         await page.locator(`[data-nav="${navKey}"]`).click();
         await page.locator(selector).waitFor();
-        if (key === 'earlier') assert.equal(await page.locator('h1').first().innerText(), 'Library');
+        if (key === 'earlier') assert.equal(await page.locator('main > h1').innerText(), 'Library');
       }
       const rows = await auditIcons(page, key);
       await screenshot(page, `${key}-icons-light-390`);

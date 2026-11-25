@@ -294,6 +294,7 @@ async function checkContrast(page) {
   await capture(page,'ask-light'); await page.emulateMedia({colorScheme:'dark'}); await capture(page,'ask-dark'); await page.emulateMedia({colorScheme:'light'});
   await page.getByRole('button',{name:'5 min',exact:true}).click(); assert.equal(await page.locator('.episode-request-chip[aria-pressed="true"]').innerText(),'5 min');
   await page.getByRole('navigation',{name:'Main'}).getByRole('link',{name:'Today'}).click(); await page.getByRole('navigation',{name:'Main'}).getByRole('link',{name:'Library'}).click();
+  await page.waitForFunction(() => document.querySelector('[data-page-title]')?.textContent === 'Library');
   assert.equal(await page.locator('[data-page-title]').innerText(),'Library'); assert.deepEqual(await page.locator('.library-filters button').allTextContents(),['Briefings','Episodes','Saved']);
   await checkBottomTabs(page, 'Library');
   assert.deepEqual(await page.locator('.main-nav').boundingBox(), initialNav, 'Navigation preserves bar geometry');

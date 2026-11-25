@@ -319,6 +319,8 @@ main:has(> .preferences-interests) :is(.settings-voice-row,.settings-about-row s
   body.is-reader .site-header{display:none!important}
   .site-header-inner{height:52px;min-height:52px;padding-inline:20px}
   .brand{font:600 17px/24px var(--ui);letter-spacing:-.015em}
+  body.is-library .brand{font-size:0}
+  body.is-library .brand::before{content:"Briefing";font:600 17px/24px var(--ui)}
   .desktop-topbar .main-nav,body.is-reader .main-nav{height:auto;min-height:calc(56px + env(safe-area-inset-bottom));padding:3px 8px max(4px,env(safe-area-inset-bottom));background:var(--paper);border-top:1px solid var(--line)}
   .desktop-topbar .main-nav a,.desktop-topbar .main-nav a[aria-current=page]{min-height:48px;gap:1px;padding:0 4px;font-size:12px;line-height:16px}
   .desktop-topbar .main-nav a[aria-current=page]{color:var(--accent)}
