@@ -68,7 +68,8 @@ def _rotation(profiles: list[dict], run_date: date) -> list[dict]:
 
 def run_daily(*, profiles: list[dict], run_date: date, retrieve_topic, write_reader,
               render_audio, budget: DailyBudget, single_reader=None,
-              deadline_seconds: float = 300.0, now=None) -> dict:
+              deadline_seconds: float = 300.0, now=None, source_pack_version: str = 'default',
+              freshness_window: str = '90d', pool_cache: dict | None = None) -> dict:
     """Build one shared evidence pool and fan it out to reader callbacks.
 
     With accounts disabled, ``single_reader`` is called directly and its return
@@ -86,13 +87,20 @@ def run_daily(*, profiles: list[dict], run_date: date, retrieve_topic, write_rea
         raise ValueError('deadline_seconds must be positive')
     unique_topics = sorted({topic for profile in profiles for topic in _topic_ids(profile)})
     pool = {}
+    pool_cache = {} if pool_cache is None else pool_cache
+    cache_prefix = (str(source_pack_version), str(freshness_window))
     retrieval_failures = {}
     for topic in unique_topics:
         if time.monotonic() - started >= deadline_seconds:
             retrieval_failures[topic] = 'daily time limit reached'
             continue
+        cache_key = (*cache_prefix, topic)
+        if cache_key in pool_cache:
+            pool[topic] = pool_cache[cache_key]
+            continue
         try:
             pool[topic] = retrieve_topic(topic, budget)
+            pool_cache[cache_key] = pool[topic]
         except DailyBudgetError:
             retrieval_failures[topic] = 'shared budget reached'
             break

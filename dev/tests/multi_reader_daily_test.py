@@ -90,6 +90,28 @@ class MultiReaderDailyTests(unittest.TestCase):
                                budget=DailyBudget(1.0), single_reader=lambda profile: {'legacy': profile})
         self.assertEqual(result, {'mode': 'single', 'readers': [{'legacy': readers()[0]}]})
 
+    def test_pool_cache_requires_source_pack_and_freshness_keys(self):
+        calls = []
+        cache = {}
+
+        def retrieve(topic, budget):
+            calls.append(topic)
+            return [topic]
+
+        def run(version, freshness):
+            with patch.dict(os.environ, {'BRIEFING_ACCOUNTS': 'on'}):
+                return run_daily(profiles=readers()[:1], run_date=date(2026, 11, 25),
+                                 retrieve_topic=retrieve, write_reader=lambda *_: {},
+                                 render_audio=lambda *_: {}, budget=DailyBudget(1.0),
+                                 source_pack_version=version, freshness_window=freshness,
+                                 pool_cache=cache)
+
+        run('pack-1', '90d')
+        run('pack-1', '90d')
+        run('pack-2', '90d')
+        run('pack-2', '30d')
+        self.assertEqual(calls, ['chips', 'climate', 'chips', 'climate', 'chips', 'climate'])
+
 
 if __name__ == '__main__':
     unittest.main()
