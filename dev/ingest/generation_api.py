@@ -286,6 +286,7 @@ def _public_daily_run(value):
     narration_reason = narration.get('reason')
     if not isinstance(narration_reason, str) or not re.fullmatch(
             r'(?:narration_[a-z0-9_]{1,80}|budget_estimate|flag_disabled|'
+            r'ProxyError:[0-5][0-9]{2}:[a-z0-9_]{1,80}:[a-z0-9_]{1,80}|'
             r'[A-Z][A-Za-z0-9]{0,39})', narration_reason):
         narration_reason = None
     if narration_status == 'fallback' and narration_reason is None:
@@ -678,6 +679,7 @@ def _daily_narration_job_status(report):
     reason = narration.get('reason')
     if not isinstance(reason, str) or not re.fullmatch(
             r'(?:narration_[a-z0-9_]{1,80}|budget_estimate|flag_disabled|'
+            r'ProxyError:[0-5][0-9]{2}:[a-z0-9_]{1,80}:[a-z0-9_]{1,80}|'
             r'[A-Z][A-Za-z0-9]{0,39})', reason):
         reason = ('narration_failed' if status == 'fallback' else
                   'flag_disabled' if status == 'off' else None)
@@ -685,6 +687,11 @@ def _daily_narration_job_status(report):
 
 
 def _safe_narration_exception_reason(error):
+    from dev.interpreter_proxy import safe_proxy_error_reason
+
+    proxy_reason = safe_proxy_error_reason(error)
+    if proxy_reason:
+        return proxy_reason
     message = str(error)
     if isinstance(error, NameError) and re.fullmatch(r"name '[A-Za-z_][A-Za-z0-9_]*' is not defined", message):
         return 'NameError:' + message.split("'")[1]

@@ -14,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from dev.morning_report import summarize
+from dev.tools.morning_report import _narration_line
 
 
 TODAY = '2026-11-18'
@@ -44,6 +45,14 @@ def write_fixture(state, *, stories=3, thin=False, edition_date=TODAY, status_ok
 
 
 class MorningReportTests(unittest.TestCase):
+    def test_narration_proxy_reason_is_shown_without_private_details(self):
+        reason = 'ProxyError:502:invalid_model_response:invalid_json'
+        self.assertEqual(_narration_line({'daily_narration': {'status': 'fallback', 'reason': reason}}),
+                         f'fallback ({reason})')
+        self.assertEqual(_narration_line({'daily_narration': {
+            'status': 'fallback', 'reason': 'ProxyError:502:secret value'}}),
+            'fallback (narration_failed)')
+
     def test_full_today_report_is_six_lines_and_successful(self):
         with tempfile.TemporaryDirectory() as temp:
             write_fixture(temp)
