@@ -166,7 +166,7 @@ async function captureThemes(page, name, anchor) {
       {
         reason: 'insufficient_evidence',
         diagnostic: 'Private source diagnostic: fictional full-text coverage is insufficient.',
-        publicCopy: 'We could not find enough reliable information to finish this episode. Try a more specific question.',
+        publicCopy: "We couldn't find enough good sources to make this episode. Try broadening your question.",
         kickerCopy: 'Ready to try again',
         retryCount: 1,
       },

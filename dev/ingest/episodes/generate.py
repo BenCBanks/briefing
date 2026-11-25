@@ -33,6 +33,7 @@ from .policy import WORDS_PER_MINUTE, length_policy
 from .script_checks import score_episode_script, _valid_transition
 
 MAX_SECONDS = 335
+MIN_SUPPORTED_WORD_FRACTION = 0.60
 MINUTE_WORDS = {3: 'three', 5: 'five', 10: 'ten', 15: 'fifteen'}
 NAVIGATION = ("Turning to {topic}.", "Let's turn to {topic}.",
               "Now, let's look at {topic}.", "From there, we can consider {topic}.",
@@ -284,6 +285,37 @@ def words(text):
     return re.findall(r"\b[\w’'-]+\b", text)
 
 
+def supported_word_count(chapters, evidence):
+    """Count spoken factual words that carry at least one known evidence ID."""
+    count = 0
+    for chapter in chapters if isinstance(chapters, list) else []:
+        if not isinstance(chapter, dict):
+            continue
+        for sentence in chapter.get('sentences', []):
+            if (not isinstance(sentence, dict) or
+                    sentence.get('kind') not in {'claim', 'closing'} or
+                    not isinstance(sentence.get('text'), str)):
+                continue
+            identifiers = sentence.get('evidence_ids')
+            if isinstance(identifiers, list) and identifiers and all(
+                    isinstance(identifier, str) and identifier in evidence
+                    for identifier in identifiers):
+                count += len(words(sentence['text']))
+    return count
+
+
+def require_minimum_evidence(chapters, evidence, requested_minutes):
+    """Refuse a fallback episode when its source support is too thin."""
+    source_ids = {row.get('source_id') for row in evidence.values()
+                  if isinstance(row, dict) and isinstance(row.get('source_id'), str)}
+    supported = supported_word_count(chapters, evidence)
+    minimum = int(requested_minutes * WORDS_PER_MINUTE * MIN_SUPPORTED_WORD_FRACTION)
+    if not source_ids or supported < minimum:
+        raise InsufficientEvidence('insufficient_evidence', {
+            'sources_read': len(source_ids), 'supported_words': supported,
+            'minimum_supported_words': minimum})
+
+
 def balance_chapter_targets(research_plan, target_words):
     """Merge unavailable question budgets into the nearest answerable chapter."""
     answerable = [index for index, row in enumerate(research_plan)
@@ -391,6 +423,7 @@ def _fallback_episode(topic, length, style, request_context, now, evidence, sour
                               'title_evidence_ids': ([next(iter(evidence))] if evidence else []),
                               'sentences': rows,
                               'spoken_text': ' '.join(row['text'] for row in rows)}]
+    require_minimum_evidence(evidence_chapters, evidence, length)
     if hybrid and evidence_chapters:
         first_rows = evidence_chapters[0]['sentences']
         boundary = 'The broad explanation comes from general knowledge. Any specific details I could check are tied to the sources listed.'

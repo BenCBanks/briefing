@@ -26,7 +26,8 @@ from dev.ingest.episodes.generate import (EpisodeCancelled, EpisodeError, Gemini
                                          balance_chapter_targets, evidence_pack, generate_episode, transcript, _score_text,
                                          _chapter_schema_error, _fallback_episode,
                                          _hybrid_background_draft_valid, _is_explainer_request,
-                                         _answer_outline, _outline_pre_audio_issues)
+                                         _answer_outline, _outline_pre_audio_issues,
+                                         require_minimum_evidence, supported_word_count)
 from dev.ingest.episodes.policy import WORDS_PER_MINUTE
 from dev.ingest.episodes.comparison import comparison_questions
 from dev.ingest.jobs import EpisodeJobStore
@@ -747,43 +748,37 @@ class EpisodeGenerationTests(unittest.TestCase):
         self.assertEqual(episode['quality_rubric']['issues'], ['rubric_unavailable'])
 
 
-    def test_empty_reads_publish_general_background_without_extra_model_call(self):
+    def test_empty_reads_are_refused_without_an_extra_model_call(self):
         self.kwargs['fetcher'] = lambda *a, **k: None
         with patch.dict('os.environ', {'BRIEFING_EPISODE_FALLBACK_MODEL': 'off'}):
-            episode = generate_episode(TOPIC, **self.kwargs)
-        self.assertEqual(episode['verification']['fallback'], 'general_background')
-        self.assertIn('general background', episode['transcript'])
+            with self.assertRaises(InsufficientEvidence) as refused:
+                generate_episode(TOPIC, **self.kwargs)
+        self.assertEqual(refused.exception.args[0], 'insufficient_evidence')
+        self.assertEqual(refused.exception.diagnostics['sources_read'], 0)
         self.assertEqual(self.client.calls, 1)
 
-    def test_fallback_uses_plain_broad_and_sensitive_reader_wording(self):
+    def test_broad_and_sensitive_empty_reads_are_not_published(self):
         self.kwargs['fetcher'] = lambda *a, **k: None
-        broad = generate_episode('AI', **self.kwargs)
-        self.assertIn('broad introduction', broad['transcript'])
-        sensitive = generate_episode('What should I ask my doctor about headaches?', **self.kwargs)
-        self.assertIn('qualified professional', sensitive['transcript'])
-        self.assertNotIn('script_checks_failed', sensitive['transcript'])
+        for topic in ('AI', 'What should I ask my doctor about headaches?'):
+            with self.subTest(topic=topic), self.assertRaises(InsufficientEvidence):
+                generate_episode(topic, **self.kwargs)
 
-    def test_flagged_general_background_uses_host_pass_and_keeps_stub_as_fallback(self):
+    def test_flagged_general_background_cannot_publish_without_sources(self):
         self.kwargs['fetcher'] = lambda *a, **k: None
         with patch.dict('os.environ', {'BRIEFING_EPISODE_FALLBACK_MODEL': 'on'}):
-            episode = generate_episode('What is a fictional parcel locker?', **self.kwargs)
-        self.assertEqual(episode['verification']['fallback'], 'general_background')
-        self.assertIn('general background, not current reporting', episode['transcript'])
+            with self.assertRaises(InsufficientEvidence) as refused:
+                generate_episode('What is a fictional parcel locker?', **self.kwargs)
+        self.assertEqual(refused.exception.diagnostics['sources_read'], 0)
         self.assertGreaterEqual(self.client.calls, 2)
 
-    def test_hybrid_flag_uses_general_background_only_for_explainers(self):
+    def test_hybrid_background_with_no_sources_is_refused_for_all_request_types(self):
         self.kwargs['fetcher'] = lambda *a, **k: None
         with patch.dict('os.environ', {'BRIEFING_EPISODE_HYBRID': 'on',
                                        'BRIEFING_EPISODE_FALLBACK_MODEL': 'off'}):
-            explainer = generate_episode('How do fictional parcel lockers work?', **self.kwargs)
-            current = generate_episode('What is NASA testing for its next moon mission?', **self.kwargs)
-        self.assertEqual(explainer['verification']['fallback'], 'general_background')
-        self.assertIn('general background, not current reporting', explainer['transcript'])
-        self.assertTrue(explainer['verification']['hybrid_background'])
-        self.assertIn('The broad explanation comes from general knowledge.', explainer['transcript'])
-        self.assertEqual(current['verification']['fallback'], 'general_background')
-        self.assertIn('couldn', current['transcript'])
-        self.assertFalse(current['verification']['hybrid_background'])
+            for topic in ('How do fictional parcel lockers work?',
+                          'What is NASA testing for its next moon mission?'):
+                with self.subTest(topic=topic), self.assertRaises(InsufficientEvidence):
+                    generate_episode(topic, **self.kwargs)
         self.assertFalse(_is_explainer_request('What is NASA testing for its next moon mission?'))
         self.assertFalse(_is_explainer_request('What changed in payment policy this year?'))
         self.assertTrue(_is_explainer_request('How do instant payment systems work?'))
@@ -814,18 +809,16 @@ class EpisodeGenerationTests(unittest.TestCase):
             text='The locker uses 12 collection codes each day.', evidence_ids=[])
         self.assertFalse(_hybrid_background_draft_valid(uncited_specific, evidence))
 
-    def test_hybrid_sensitive_explainer_keeps_safety_note_and_flag_off_has_no_boundary(self):
+    def test_hybrid_sensitive_and_default_empty_reads_are_refused(self):
         self.kwargs['fetcher'] = lambda *a, **k: None
         with patch.dict('os.environ', {'BRIEFING_EPISODE_HYBRID': 'on',
                                        'BRIEFING_EPISODE_FALLBACK_MODEL': 'off'}):
-            sensitive = generate_episode('How does medical debt work?', **self.kwargs)
-        self.assertIn('qualified professional', sensitive['transcript'])
-        self.assertIn('general knowledge', sensitive['transcript'])
+            with self.assertRaises(InsufficientEvidence):
+                generate_episode('How does medical debt work?', **self.kwargs)
         with patch.dict('os.environ', {'BRIEFING_EPISODE_HYBRID': 'off',
                                        'BRIEFING_EPISODE_FALLBACK_MODEL': 'off'}):
-            ordinary = generate_episode('How do fictional parcel lockers work?', **self.kwargs)
-        self.assertFalse(ordinary['verification']['hybrid_background'])
-        self.assertNotIn('The broad explanation comes from general knowledge.', ordinary['transcript'])
+            with self.assertRaises(InsufficientEvidence):
+                generate_episode('How do fictional parcel lockers work?', **self.kwargs)
 
     def test_answer_outline_preserves_order_and_separates_questions_without_evidence(self):
         evidence = {'E-1': {'source_id': 'S-1'}, 'E-2': {'source_id': 'S-2'}}
@@ -918,13 +911,42 @@ class EpisodeGenerationTests(unittest.TestCase):
     def test_thin_evidence_fallback_repeats_only_extracted_sentence(self):
         evidence = {'E-1': {'id': 'E-1', 'text': 'A fictional source describes a parcel locker trial.',
                             'source_id': 'source-1', 'source_number': 1}}
+        with self.assertRaises(InsufficientEvidence) as refused:
+            _fallback_episode(TOPIC, 5, 'explainer', {'question': TOPIC},
+                              '2026-11-24T00:00:00Z', evidence,
+                              [{'id': 'source-1'}], {}, {}, 1, 1, 1, [], self.client,
+                              'thin_evidence')
+        self.assertEqual(refused.exception.args[0], 'insufficient_evidence')
+        self.assertEqual(refused.exception.diagnostics['supported_words'], 8)
+        self.assertEqual(refused.exception.diagnostics['minimum_supported_words'], 420)
+
+    def test_fallback_with_enough_source_supported_words_is_publishable(self):
+        source_text = ' '.join(['The fictional source explains how a parcel locker stores and routes a package safely.'] * 60)
+        evidence = {'E-1': {'id': 'E-1', 'text': source_text,
+                            'source_id': 'source-1', 'source_number': 1}}
         episode = _fallback_episode(TOPIC, 5, 'explainer', {'question': TOPIC},
                                     '2026-11-24T00:00:00Z', evidence,
                                     [{'id': 'source-1'}], {}, {}, 1, 1, 1, [], self.client,
                                     'thin_evidence')
         self.assertEqual(episode['verification']['fallback'], 'thin_evidence')
-        self.assertIn(evidence['E-1']['text'], episode['transcript'])
-        self.assertIn('small amount of usable evidence', episode['transcript'])
+        self.assertGreaterEqual(supported_word_count(episode['chapters'], evidence), 420)
+        self.assertEqual(episode['verification']['passed'], True)
+
+    def test_general_background_with_zero_sources_is_not_a_normal_episode(self):
+        with self.assertRaises(InsufficientEvidence) as refused:
+            _fallback_episode(TOPIC, 5, 'explainer', {'question': TOPIC},
+                              '2026-11-24T00:00:00Z', {}, [], {}, {}, 0, 0, 0, [], self.client,
+                              'general_background', hybrid=True)
+        self.assertEqual(refused.exception.args[0], 'insufficient_evidence')
+        self.assertEqual(refused.exception.diagnostics['sources_read'], 0)
+
+    def test_minimum_gate_counts_only_claim_words_with_valid_evidence_ids(self):
+        evidence = {'E-1': {'id': 'E-1', 'text': 'source', 'source_id': 'source-1'}}
+        chapters = [{'sentences': [
+            {'text': 'supported factual words ' * 140, 'kind': 'claim', 'evidence_ids': ['E-1']},
+            {'text': 'unsupported words ' * 500, 'kind': 'claim', 'evidence_ids': []}]}]
+        self.assertEqual(supported_word_count(chapters, evidence), 420)
+        require_minimum_evidence(chapters, evidence, 5)
 
     def test_questions_search_separately_and_duplicate_pages_are_read_once(self):
         queries, fetches = [], []

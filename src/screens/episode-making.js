@@ -43,7 +43,7 @@ export function episodeLengthCopy(job) {
 function failureCopy(job) {
   if (job.status === 'cancelled') return 'This episode was canceled. You can start a new one from On demand.';
   if (job.failureReason === 'cost_cap_reached') return 'We cannot make this episode right now. Your request is saved here; try again later.';
-  if (job.failureReason === 'insufficient_evidence') return 'We could not find enough reliable information to finish this episode. Try a more specific question.';
+  if (job.failureReason === 'insufficient_evidence') return "We couldn't find enough good sources to make this episode. Try broadening your question.";
   return 'We could not finish this episode this time. You can try again.';
 }
 
