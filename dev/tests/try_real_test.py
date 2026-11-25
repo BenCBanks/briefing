@@ -53,11 +53,14 @@ class TryRealTests(unittest.TestCase):
         output = StringIO()
         result = {'word_count': 400, 'duration_minutes': 2.67, 'transcript': 'Fictional words.',
                   'timing': {}, 'length_report': {
-                      'report_line': 'requested 750 words, got 400, lost at stage writing'}}
+                      'report_line': 'requested 750 words, got 400, lost at stage writing',
+                      'verified_evidence_expansion': {'attempted': True, 'applied': True,
+                                                      'words_added': 120}}}
         with redirect_stdout(output):
             _print_result('episode', result, {'daily': {'estimated_cost_usd': 0}}, 0)
         self.assertIn('Length: requested 750 words, got 400, lost at stage writing', output.getvalue())
         self.assertIn('Length stages: ', output.getvalue())
+        self.assertIn('verified_evidence_expansion', output.getvalue())
 
     def test_refuses_live_state_root_and_children(self):
         live = Path.home() / '.local' / 'state' / 'briefing'
