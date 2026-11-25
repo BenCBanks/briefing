@@ -1,10 +1,10 @@
 # Source rights and ingestion rules
 
-Private proof of concept. Ben has authorized broad real content on his Tailscale network; this registry is seeded from Faro’s curated 99-feed report, not legal advice or public-launch clearance.
+This is source-use documentation, not legal advice or a rights clearance. Before public launch, check each source’s robots.txt (including per-bot rules) and site terms. Record those checks here; they are not a test or release gate.
 
-The `enabled` field is true only when Faro reported `robots_ok: true` and no `ai_bots_disallowed` list was present. The runtime independently rechecks robots weekly. Entries with unknown robots or an AI crawler-disallow list stay disabled. Do not enable an entry whose feed is blocked, robots-disallowed, paywalled, or outside allowed terms. Do not bypass restrictions.
+The `enabled` field records whether a feed is available for guarded retrieval. The runtime checks robots before every fetch, including per-bot rules. Entries with a known feed restriction or an AI crawler-disallow list stay disabled. Do not enable an entry whose feed is blocked, robots-disallowed, paywalled, or outside allowed terms. Do not bypass restrictions.
 
-The registry preserves Faro’s `ai_bots_disallowed` and `reuse_terms` fields per source. Each non-explainer also has a `content_depth`: only explicitly reused public-domain/open-license sources are `full-text-safe`; sports is `headline`; the rest is `snippet`. Article fetching is enabled only for the full-text-safe class. Extracted article text remains transient and is never stored or redisplayed. Each stated reuse note below is transcribed from the curated report; where Faro found no stated terms, that uncertainty is explicit. Review the linked primary terms before relying on any permission.
+The registry preserves source restrictions and reuse notes per feed. Article access settings control ingestion only and do not grant permission to retain or republish article text. Extracted article text remains transient. Where reuse terms have not been checked, that uncertainty is explicit. Review the linked primary terms before relying on any permission.
 
 ## Per-source reuse notes
 
@@ -153,12 +153,12 @@ cited by that edition.
 
 These are curated references already used by `content/deep-dives.json`; they are not fetched during news ingestion. Generated context sentences are paraphrased from the reviewed evergreen guide summaries, receive their own numbered citation, and are visibly labelled `Background:`.
 
-## Global constraints from Ben and Faro
+## Global constraints from source review
 
 - ESPN RSS: display only feed-provided content, link to the ESPN URL supplied by the feed, credit ESPN, and place no advertising alongside. The writer must not rewrite or augment an ESPN-only item.
 - Federal Reserve Board, SEC, and ECB: attribute the publisher; for ECB content also identify modifications as its terms require.
-- Wikipedia: only use for evergreen explainers after this private approval. Store the page title, revision ID and URL; show “Source: Wikipedia, CC BY-SA 4.0” with a link, say when text was adapted, and share adapted text under CC BY-SA 4.0. The explainer is marked share-alike.
-- Wikidata: Ben approved structured data under CC0; retain an entity link for provenance.
+- Wikipedia: only use for evergreen explainers after source review. Store the page title, revision ID and URL; show “Source: Wikipedia, CC BY-SA 4.0” with a link, say when text was adapted, and share adapted text under CC BY-SA 4.0. The explainer is marked share-alike.
+- Wikidata: Structured data is under CC0; retain an entity link for provenance.
 - Sports sources: headline and link only; do not generate a summary.
 - GDELT: headlines and URLs only, cite and link GDELT, and permit no more than one request per five seconds.
 - Skip NWS because its User-Agent requires personal contact details. User-Agent is the non-personal `BriefingBot/1.0`.
@@ -175,11 +175,11 @@ These explainer endpoints are separate from enabled news feeds and stay disabled
 | `wikipedia-explainer` | Explainer · share-alike | CC BY-SA 4.0. Store title, revision ID and URL; label “Source: Wikipedia, CC BY-SA 4.0”; include adaptation date; adapted text must retain share-alike status. |
 | `wikidata-explainer` | Explainer · CC0 | Structured data is CC0. Keep the entity URL for provenance. |
 
-Source evidence: the 16 Nov 2026 feed proof-of-concept review (private).
+Source evidence: feed review, 16 November 2026.
 
-## New tier-A sources from Faro’s 17 November ranked list
+## New tier-A sources from the 17 November source review
 
-These entries were imported only when the report marked them as valid RSS/Atom feeds and `robots_ok: true`. Existing AI-crawler restrictions remain disabled. `full-text-safe` means Faro reported explicit public-domain, CC0 or reuse permission; other news sources contribute feed headline/snippet only. Sports remains headline and link only. Rights-reserved article bodies are never stored or redisplayed.
+These entries were imported only when the report marked them as valid RSS/Atom feeds and `robots_ok: true`. Existing AI-crawler restrictions remain disabled. `full-text-safe` means the source review reported explicit public-domain, CC0 or reuse permission; other news sources contribute feed headline/snippet only. Sports remains headline and link only. Rights-reserved article bodies are never stored or redisplayed.
 
 
 | ID | Publisher/feed | Enabled | Content depth | Reported reuse terms |
@@ -268,11 +268,11 @@ Gemini may propose publisher names and official homepages for a profile topic wi
 
 The weekly federal rates watch stores bounded table-cell values alongside the page title, short snippet, URL and content digest. It does not save the HTML page body. Optional reader-selected watches and probation feeds are defined only in the configured external file.
 
-## Housing feeds from Faro’s 17 November report
+## Housing feeds from source review’s 17 November report
 
 Eligible tier A/B feeds are enabled only where the report verified HTTPS RSS/Atom/JSON and robots access. All are snippet-only except local TV feeds, which are headline-only and filtered by housing-related title/snippet keywords before storage. Article fetch is off. Rights uncertainty remains explicit; the scorecard must treat unknown rights as unknown.
 
-| ID | Publisher/feed | Report depth | Reuse terms reported by Faro |
+| ID | Publisher/feed | Report depth | Reuse terms reported by source review |
 |---|---|---|---|
 | `freddiemac-research` | Freddie Mac research | snippet | OBSERVED (PMMS page): may be used with proper attribution; alteration prohibited; other pages' terms not read |
 | `hud-press` | HUD press releases | snippet | INFERRED: US federal work, generally public domain (17 USC 105); no statement fetched on this host |
