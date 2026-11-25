@@ -232,6 +232,9 @@ def _print_funnel(scorecard: dict, selected: dict) -> None:
         print('Article read funnel: ' + json.dumps(article_reads, sort_keys=True))
     if isinstance(low_tier_sources, dict) and low_tier_sources.get('digital'):
         print('Digital low-tier source counts: ' + json.dumps(low_tier_sources['digital'], sort_keys=True))
+    source_funnels = scorecard.get('source_funnels', {}) if isinstance(scorecard, dict) else {}
+    for topic_id, rows in source_funnels.items():
+        print(f'Source funnel ({topic_id}): ' + json.dumps(rows, sort_keys=True))
     if isinstance(retrieval, dict) and retrieval.get('triggered'):
         from dev.ingest.retrieval_fill import safe_report
         retrieval = safe_report(retrieval)

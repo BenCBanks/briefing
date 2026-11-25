@@ -552,6 +552,22 @@ class WriterTests(unittest.TestCase):
             with self.subTest(label=topic['label']):
                 self.assertEqual(set(_feed_topic_ids(topic, available)), expected)
 
+    def test_profile_topics_map_to_ordered_registry_tags_from_content_rules(self):
+        from ingest.write_edition import _feed_topic_ids
+        available = {'semiconductors', 'ai', 'digital', 'climate-policy', 'energy', 'science',
+                     'space', 'payments', 'banking', 'finance'}
+        cases = [
+            ('AI chips', ['semiconductors', 'ai', 'digital']),
+            ('Climate policy', ['climate-policy', 'energy', 'science']),
+            ('Space launches', ['space', 'science', 'digital']),
+            ('Payments', ['payments', 'banking', 'finance']),
+            ('An unfamiliar research question', ['digital']),
+        ]
+        for label, expected in cases:
+            with self.subTest(label=label):
+                topic = {'id': label.lower().replace(' ', '-'), 'label': label, 'scope': '', 'include': []}
+                self.assertEqual(_feed_topic_ids(topic, available), expected)
+
     def evidence_id(self, prompt):
         data = json.loads(prompt)
         if 'source_sentences_only' in data:
@@ -670,6 +686,12 @@ class WriterTests(unittest.TestCase):
         self.assertGreaterEqual(funnel['unseen'], funnel['candidate_clusters'])
         self.assertEqual(funnel['selected'], 0)
         self.assertIn('funnel_drop_reasons', result)
+        sources_funnel = result['source_funnels']['payments']
+        self.assertEqual(sum(row['fetched'] for row in sources_funnel.values()), len(items))
+        self.assertEqual(sum(row['matched'] for row in sources_funnel.values()), funnel['topic_matched'])
+        self.assertEqual(sum(row['accepted'] for row in sources_funnel.values()), funnel['relevance_passed'])
+        self.assertEqual(sum(row['rejected'] for row in sources_funnel.values()),
+                         len(items) - funnel['relevance_passed'])
 
     def test_candidate_writer_queue_fairly_retries_the_least_served_topic(self):
         counts = {'ai': 0, 'climate': 0, 'space': 0}
