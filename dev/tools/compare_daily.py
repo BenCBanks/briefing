@@ -45,6 +45,18 @@ def _shape_key(shape):
     return json.dumps(shape, sort_keys=True, separators=(',', ':'))
 
 
+def _json_compatible(value):
+    """Make diagnostic maps safe to freeze even when keys are tuple identities."""
+    if isinstance(value, dict):
+        return {key if isinstance(key, str) else str(key): _json_compatible(child)
+                for key, child in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_compatible(child) for child in value]
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
 def _shape_paths(shape, prefix='$'):
     paths = {prefix: 'object' if isinstance(shape, dict) else
              'array' if isinstance(shape, list) else shape}
@@ -91,6 +103,9 @@ def snapshot_result(status, edition, usage, warnings, exit_code=0, topic_ids=())
     audio = edition.get('audio') if isinstance(edition, dict) else {}
     audio = audio if isinstance(audio, dict) else {}
     status_audio = daily.get('daily_audio') if isinstance(daily.get('daily_audio'), dict) else {}
+    edition_audio_state = audio.get('audio_status') or audio.get('state') or audio.get('status')
+    status_audio_state = (status_audio.get('audio_status') or status_audio.get('state') or
+                          status_audio.get('status'))
     return {
         'exit_code': exit_code,
         'run_status': daily.get('status', 'unavailable'),
@@ -100,8 +115,8 @@ def snapshot_result(status, edition, usage, warnings, exit_code=0, topic_ids=())
         'edition_shape': _json_shape(edition),
         'edition_key_paths': sorted(_shape_paths(_json_shape(edition))),
         'audio_state': {
-            'edition': audio.get('audio_status', 'unavailable'),
-            'status': status_audio.get('audio_status', 'unavailable'),
+            'edition': edition_audio_state or 'unavailable',
+            'status': status_audio_state or 'unavailable',
         },
         'ledger_cost_by_call_type': usage,
         'warnings': sorted(set(warnings)),
@@ -376,7 +391,8 @@ def _worker(args):
             'feed_health': _read_json(generation_api.FEED_HEALTH_PATH, {}),
             'robots': _read_json(core.ROBOTS_CACHE_PATH, {}),
         }
-        encoded = json.dumps(package, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+        encoded = json.dumps(_json_compatible(package), ensure_ascii=False,
+                             separators=(',', ':')).encode('utf-8')
         if len(encoded) > MAX_SNAPSHOT_BYTES:
             raise RuntimeError('frozen feed snapshot exceeds the 40 MB limit')
         Path(args.export_input).write_bytes(encoded)
