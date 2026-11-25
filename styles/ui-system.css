@@ -116,3 +116,12 @@ textarea,
   font-size: var(--type-caption);
   line-height: 1.45;
 }
+
+.today-contents > ol > .today-story-row { padding-block: var(--space-3); }
+.today-story-summary {
+  max-width: 66ch;
+  margin: 0 0 var(--space-2);
+  color: var(--ink);
+  font: 400 var(--type-body)/25px var(--font-sans);
+  text-wrap: pretty;
+}

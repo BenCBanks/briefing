@@ -45,11 +45,12 @@ const shotDir = process.env.BRIEFING_SHOT_DIR;
     assert.match(await page.locator('.today-transcript').first().innerText(), /Fictional Publisher 1/u, 'sources are available with the transcript');
     await saveState(page, 'transcript');
 
-    await page.evaluate(() => window.__renderToday(false));
+    await page.evaluate(() => { window.__edition.revision_id = 'fictional-r2'; window.__renderToday(false); });
     assert.equal(await page.locator('.today-listen-pill').count(), 0, 'no nonworking Play control appears without audio');
     assert.match(await page.locator('.today-audio-unavailable').innerText(), /Audio isn’t ready yet/u);
-    assert.equal(await page.locator('.today-transcript[open]').count(), 2, 'text is shown directly while audio is unavailable');
-    assert.match(await page.locator('.today-transcript').first().innerText(), /Riders can check the revised times/u);
+    assert.equal(await page.locator('.today-transcript[open]').count(), 0, 'long stories stay folded when audio is unavailable too');
+    assert.match(await page.locator('.today-story-summary').first().innerText(), /Riders can check the revised times/u,
+      'the readable summary remains visible without audio');
     await page.evaluate(() => scrollTo({ top: 0, behavior: 'instant' }));
     await saveState(page, 'no-audio');
     console.log('Today player-first: Play, chapter jump, transcript on demand, and no-audio text passed.');
