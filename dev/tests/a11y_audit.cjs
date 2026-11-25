@@ -138,7 +138,11 @@ async function assertStructure(page, route) {
   assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), true, `${route}: no horizontal overflow`);
   const activeTabs = await page.locator('[data-nav][aria-current="page"]').count();
   if (['today', 'topics', 'library'].includes(route)) assert.equal(activeTabs, 1, `${route}: exactly one current tab`);
-  if (route === 'preferences') assert.equal(activeTabs, 0, `${route}: no unrelated tab is marked current`);
+  if (route === 'preferences') {
+    assert.equal(activeTabs, 1, `${route}: Settings has one current destination`);
+    assert.equal(await page.locator('[aria-current="page"][data-nav="topics"]').count(), 1,
+      `${route}: Settings is grouped under Topics`);
+  }
   if (route === 'corrections') assert.equal(activeTabs, 1, `${route}: its Today root stays marked current`);
   if (route === 'topics' && await page.locator('.topics-settings').count()) assert.ok(await page.locator('.topics-settings').getAttribute('aria-label'));
   await page.keyboard.press('Tab');

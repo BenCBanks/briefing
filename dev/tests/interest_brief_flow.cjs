@@ -104,10 +104,13 @@ async function run() {
    assert.ok(await page.locator('.edition-skeleton').count());
    assert.equal(await page.locator('.topic-coverage-note,.topic-coverage-detail').count(), 0, 'Old coverage is suppressed while updating');
    if (scenario === 'success') await capture(page, 'topics-updating');
-   // Even during interpretation, Today must never show an old edition or its player.
+   // Keep an available dated edition visible while updated topics are being prepared.
    await page.locator('[data-nav=today]').click();
-   assert.equal(await page.locator('.today-page,.mini-player').count(), 0);
-   await page.getByRole('heading', { name: 'Updating… about a minute' }).waitFor();
+   await page.locator('.today-page').waitFor();
+   assert.equal(await page.locator('.today-date').innerText(), 'Tuesday 17 November');
+   assert.equal(await page.locator('.today-previous-edition-note').count(), 1);
+   assert.equal(await page.locator('.today-build-progress').count(), 0,
+     'An available briefing stays above the update status without a preparation panel');
    await page.locator('[data-nav=topics]').click();
    allowInterpret = true;
    if (!['interpret-failure','save-failure'].includes(scenario)) { for (let wait = 0; jobs === 0 && wait < 100; wait++) await page.waitForTimeout(20); assert.ok(jobs); }
@@ -123,6 +126,7 @@ async function run() {
    }
    allowJob = true;
    if (['success','pause'].includes(scenario)) {
+     await page.waitForURL('**/#today');
      await page.locator('.today-page').waitFor();
      assert.equal(new URL(page.url()).hash, '#today');
      assert.match(await page.locator('.today-page').innerText(), /A new fictional housing briefing/);
@@ -148,7 +152,10 @@ async function run() {
      assert.equal(await page.locator('.topics-words').inputValue(), words);
      if (scenario === 'failure') await capture(page, 'topics-failed');
      await page.locator('[data-nav=today]').click();
-     assert.equal(await page.locator('.today-page').count(), 0, 'Failure does not substitute general/old content');
+     await page.locator('.today-page').waitFor();
+     assert.equal(await page.locator('.today-date').innerText(), 'Tuesday 17 November',
+       'A failed update leaves the last available edition visible with its actual date');
+     assert.equal(await page.locator('.today-previous-edition-note').count(), 1);
      if (scenario === 'failure') {
        await page.locator('[data-nav=topics]').click();
        recovering = true;
@@ -157,7 +164,9 @@ async function run() {
        assert.equal(await page.evaluate(() => localStorage.getItem('briefing:v1:topics-pending')), null, 'A successful Retry clears the durable gate');
      } else {
        await page.reload({ waitUntil: 'networkidle' });
-       assert.equal(await page.locator('.today-page').count(), 0, 'The gate survives reload');
+       assert.equal(await page.locator('.today-page').count(), 1, 'The last available briefing survives a pending update reload');
+       assert.equal(await page.locator('.today-previous-edition-note').count(), 1, 'The pending update stays clear after reload');
+       assert.equal(await page.locator('.today-build-progress').count(), 0, 'Reload does not replace available content with a preparation panel');
        await page.locator('[data-nav=topics]').click();
        await page.locator('.topics-words').waitFor();
        assert.equal(await page.locator('.topics-words').inputValue(), words);
